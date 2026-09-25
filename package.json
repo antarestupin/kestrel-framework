@@ -20,7 +20,7 @@
     "infra:up": "docker compose -f infrastructure/compose.yml up -d --wait",
     "infra:down": "docker compose -f infrastructure/compose.yml stop",
     "infra:prepare": "node infrastructure/prepare.mjs",
-    "pack:local": "npm run build:ai && npm pack --workspace=@kestrel/framework --pack-destination=artifacts",
+    "pack:local": "npm run build:ai && mkdir -p artifacts && npm pack --workspace=@kestrel/framework --pack-destination=artifacts",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:template": "node scripts/check-template.mjs",
     "verify:archive": "node scripts/verify-archive.mjs"
