@@ -1,0 +1,20 @@
+services:
+  dev:
+    image: node:24-bookworm
+    working_dir: /workspace/kestrel
+    volumes:
+      - ..:/workspace/kestrel
+      - node-modules:/workspace/kestrel/node_modules
+    command: sleep infinity
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      KESTREL_TEST_DATABASE: kestrel_test
+      KESTREL_TEST_REDIS_URL: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+volumes:
+  node-modules:

@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/studio/client/**",
+    "src/studio/extensions/**/client/**",
+    "src/testing/postgres.ts",
+    "src/testing/redis.ts"
+  ]
+}

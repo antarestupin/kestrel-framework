@@ -1,0 +1,26 @@
+name: Validate
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run infra:up
+      - run: npm run infra:prepare
+      - run: npm run check:boundaries
+      - run: npm run check:template
+      - run: npm run build:ai
+      - run: npm run typecheck
+      - run: npm run test:ai
+      - run: npm run pack:local
+      - run: npm run verify:archive
+      # No publishing job: local archives are the only release artifacts.
+      - if: always()
+        run: npm run infra:down

@@ -1,0 +1,678 @@
+{
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "name": "@kestrel/framework",
+  "description": "Composable application framework (provisional package name)",
+  "files": [
+    "dist",
+    "assets"
+  ],
+  "exports": {
+    "./actions": {
+      "types": "./dist/actions/index.d.ts",
+      "import": "./dist/actions/index.js",
+      "default": "./dist/actions/index.js"
+    },
+    "./app": {
+      "types": "./dist/app/index.d.ts",
+      "import": "./dist/app/index.js",
+      "default": "./dist/app/index.js"
+    },
+    "./authentication/adapters": {
+      "types": "./dist/authentication/adapters/index.d.ts",
+      "import": "./dist/authentication/adapters/index.js",
+      "default": "./dist/authentication/adapters/index.js"
+    },
+    "./authentication/adapters/memory": {
+      "types": "./dist/authentication/adapters/memory/index.d.ts",
+      "import": "./dist/authentication/adapters/memory/index.js",
+      "default": "./dist/authentication/adapters/memory/index.js"
+    },
+    "./authentication/adapters/postgres": {
+      "types": "./dist/authentication/adapters/postgres/index.d.ts",
+      "import": "./dist/authentication/adapters/postgres/index.js",
+      "default": "./dist/authentication/adapters/postgres/index.js"
+    },
+    "./authentication/guards": {
+      "types": "./dist/authentication/guards/index.d.ts",
+      "import": "./dist/authentication/guards/index.js",
+      "default": "./dist/authentication/guards/index.js"
+    },
+    "./authentication/http": {
+      "types": "./dist/authentication/http/index.d.ts",
+      "import": "./dist/authentication/http/index.js",
+      "default": "./dist/authentication/http/index.js"
+    },
+    "./authentication": {
+      "types": "./dist/authentication/index.d.ts",
+      "import": "./dist/authentication/index.js",
+      "default": "./dist/authentication/index.js"
+    },
+    "./authentication/mechanisms": {
+      "types": "./dist/authentication/mechanisms/index.d.ts",
+      "import": "./dist/authentication/mechanisms/index.js",
+      "default": "./dist/authentication/mechanisms/index.js"
+    },
+    "./authentication/mechanisms/password/hashers/argon2id": {
+      "types": "./dist/authentication/mechanisms/password/hashers/argon2id/index.d.ts",
+      "import": "./dist/authentication/mechanisms/password/hashers/argon2id/index.js",
+      "default": "./dist/authentication/mechanisms/password/hashers/argon2id/index.js"
+    },
+    "./authentication/mechanisms/password": {
+      "types": "./dist/authentication/mechanisms/password/index.d.ts",
+      "import": "./dist/authentication/mechanisms/password/index.js",
+      "default": "./dist/authentication/mechanisms/password/index.js"
+    },
+    "./authorization/adapters": {
+      "types": "./dist/authorization/adapters/index.d.ts",
+      "import": "./dist/authorization/adapters/index.js",
+      "default": "./dist/authorization/adapters/index.js"
+    },
+    "./authorization/adapters/memory": {
+      "types": "./dist/authorization/adapters/memory/index.d.ts",
+      "import": "./dist/authorization/adapters/memory/index.js",
+      "default": "./dist/authorization/adapters/memory/index.js"
+    },
+    "./authorization/adapters/postgres": {
+      "types": "./dist/authorization/adapters/postgres/index.d.ts",
+      "import": "./dist/authorization/adapters/postgres/index.js",
+      "default": "./dist/authorization/adapters/postgres/index.js"
+    },
+    "./authorization": {
+      "types": "./dist/authorization/index.d.ts",
+      "import": "./dist/authorization/index.js",
+      "default": "./dist/authorization/index.js"
+    },
+    "./background": {
+      "types": "./dist/background/index.d.ts",
+      "import": "./dist/background/index.js",
+      "default": "./dist/background/index.js"
+    },
+    "./cache/adapters": {
+      "types": "./dist/cache/adapters/index.d.ts",
+      "import": "./dist/cache/adapters/index.js",
+      "default": "./dist/cache/adapters/index.js"
+    },
+    "./cache/adapters/memory": {
+      "types": "./dist/cache/adapters/memory/index.d.ts",
+      "import": "./dist/cache/adapters/memory/index.js",
+      "default": "./dist/cache/adapters/memory/index.js"
+    },
+    "./cache/adapters/postgres": {
+      "types": "./dist/cache/adapters/postgres/index.d.ts",
+      "import": "./dist/cache/adapters/postgres/index.js",
+      "default": "./dist/cache/adapters/postgres/index.js"
+    },
+    "./cache/adapters/redis": {
+      "types": "./dist/cache/adapters/redis/index.d.ts",
+      "import": "./dist/cache/adapters/redis/index.js",
+      "default": "./dist/cache/adapters/redis/index.js"
+    },
+    "./cache": {
+      "types": "./dist/cache/index.d.ts",
+      "import": "./dist/cache/index.js",
+      "default": "./dist/cache/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js",
+      "default": "./dist/cli/index.js"
+    },
+    "./client/adapters": {
+      "types": "./dist/client/adapters/index.d.ts",
+      "import": "./dist/client/adapters/index.js",
+      "default": "./dist/client/adapters/index.js"
+    },
+    "./client/adapters/vite": {
+      "types": "./dist/client/adapters/vite/index.d.ts",
+      "import": "./dist/client/adapters/vite/index.js",
+      "default": "./dist/client/adapters/vite/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js",
+      "default": "./dist/client/index.js"
+    },
+    "./concurrency": {
+      "types": "./dist/concurrency/index.d.ts",
+      "import": "./dist/concurrency/index.js",
+      "default": "./dist/concurrency/index.js"
+    },
+    "./configuration": {
+      "types": "./dist/configuration/index.d.ts",
+      "import": "./dist/configuration/index.js",
+      "default": "./dist/configuration/index.js"
+    },
+    "./controllers": {
+      "types": "./dist/controllers/index.d.ts",
+      "import": "./dist/controllers/index.js",
+      "default": "./dist/controllers/index.js"
+    },
+    "./database/migrator": {
+      "types": "./dist/database/migrator/index.d.ts",
+      "import": "./dist/database/migrator/index.js",
+      "default": "./dist/database/migrator/index.js"
+    },
+    "./database/seeder": {
+      "types": "./dist/database/seeder/index.d.ts",
+      "import": "./dist/database/seeder/index.js",
+      "default": "./dist/database/seeder/index.js"
+    },
+    "./db/history": {
+      "types": "./dist/db/history/index.d.ts",
+      "import": "./dist/db/history/index.js",
+      "default": "./dist/db/history/index.js"
+    },
+    "./db": {
+      "types": "./dist/db/index.d.ts",
+      "import": "./dist/db/index.js",
+      "default": "./dist/db/index.js"
+    },
+    "./db/schema_contributions": {
+      "types": "./dist/db/schema_contributions/index.d.ts",
+      "import": "./dist/db/schema_contributions/index.js",
+      "default": "./dist/db/schema_contributions/index.js"
+    },
+    "./definitions": {
+      "types": "./dist/definitions/index.d.ts",
+      "import": "./dist/definitions/index.js",
+      "default": "./dist/definitions/index.js"
+    },
+    "./di": {
+      "types": "./dist/di/index.d.ts",
+      "import": "./dist/di/index.js",
+      "default": "./dist/di/index.js"
+    },
+    "./email/adapters/capture": {
+      "types": "./dist/email/adapters/capture/index.d.ts",
+      "import": "./dist/email/adapters/capture/index.js",
+      "default": "./dist/email/adapters/capture/index.js"
+    },
+    "./email/adapters/email_sdk": {
+      "types": "./dist/email/adapters/email_sdk/index.d.ts",
+      "import": "./dist/email/adapters/email_sdk/index.js",
+      "default": "./dist/email/adapters/email_sdk/index.js"
+    },
+    "./email/adapters": {
+      "types": "./dist/email/adapters/index.d.ts",
+      "import": "./dist/email/adapters/index.js",
+      "default": "./dist/email/adapters/index.js"
+    },
+    "./email/adapters/memory": {
+      "types": "./dist/email/adapters/memory/index.d.ts",
+      "import": "./dist/email/adapters/memory/index.js",
+      "default": "./dist/email/adapters/memory/index.js"
+    },
+    "./email/adapters/postgres": {
+      "types": "./dist/email/adapters/postgres/index.d.ts",
+      "import": "./dist/email/adapters/postgres/index.js",
+      "default": "./dist/email/adapters/postgres/index.js"
+    },
+    "./email": {
+      "types": "./dist/email/index.d.ts",
+      "import": "./dist/email/index.js",
+      "default": "./dist/email/index.js"
+    },
+    "./errors": {
+      "types": "./dist/errors/index.d.ts",
+      "import": "./dist/errors/index.js",
+      "default": "./dist/errors/index.js"
+    },
+    "./events": {
+      "types": "./dist/events/index.d.ts",
+      "import": "./dist/events/index.js",
+      "default": "./dist/events/index.js"
+    },
+    "./http/audiences": {
+      "types": "./dist/http/audiences/index.d.ts",
+      "import": "./dist/http/audiences/index.js",
+      "default": "./dist/http/audiences/index.js"
+    },
+    "./http/client_generation": {
+      "types": "./dist/http/client_generation/index.d.ts",
+      "import": "./dist/http/client_generation/index.js",
+      "default": "./dist/http/client_generation/index.js"
+    },
+    "./http/hardening": {
+      "types": "./dist/http/hardening/index.d.ts",
+      "import": "./dist/http/hardening/index.js",
+      "default": "./dist/http/hardening/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js",
+      "default": "./dist/http/index.js"
+    },
+    "./lock/adapters": {
+      "types": "./dist/lock/adapters/index.d.ts",
+      "import": "./dist/lock/adapters/index.js",
+      "default": "./dist/lock/adapters/index.js"
+    },
+    "./lock/adapters/memory": {
+      "types": "./dist/lock/adapters/memory/index.d.ts",
+      "import": "./dist/lock/adapters/memory/index.js",
+      "default": "./dist/lock/adapters/memory/index.js"
+    },
+    "./lock/adapters/postgres": {
+      "types": "./dist/lock/adapters/postgres/index.d.ts",
+      "import": "./dist/lock/adapters/postgres/index.js",
+      "default": "./dist/lock/adapters/postgres/index.js"
+    },
+    "./lock": {
+      "types": "./dist/lock/index.d.ts",
+      "import": "./dist/lock/index.js",
+      "default": "./dist/lock/index.js"
+    },
+    "./log": {
+      "types": "./dist/log/index.d.ts",
+      "import": "./dist/log/index.js",
+      "default": "./dist/log/index.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware/index.d.ts",
+      "import": "./dist/middleware/index.js",
+      "default": "./dist/middleware/index.js"
+    },
+    "./observability": {
+      "types": "./dist/observability/index.d.ts",
+      "import": "./dist/observability/index.js",
+      "default": "./dist/observability/index.js"
+    },
+    "./outbound_http": {
+      "types": "./dist/outbound_http/index.d.ts",
+      "import": "./dist/outbound_http/index.js",
+      "default": "./dist/outbound_http/index.js"
+    },
+    "./outbound_http/middleware/cache": {
+      "types": "./dist/outbound_http/middleware/cache/index.d.ts",
+      "import": "./dist/outbound_http/middleware/cache/index.js",
+      "default": "./dist/outbound_http/middleware/cache/index.js"
+    },
+    "./outbound_http/middleware": {
+      "types": "./dist/outbound_http/middleware/index.d.ts",
+      "import": "./dist/outbound_http/middleware/index.js",
+      "default": "./dist/outbound_http/middleware/index.js"
+    },
+    "./outbound_http/middleware/retry": {
+      "types": "./dist/outbound_http/middleware/retry/index.d.ts",
+      "import": "./dist/outbound_http/middleware/retry/index.js",
+      "default": "./dist/outbound_http/middleware/retry/index.js"
+    },
+    "./outbound_http/middleware/throttling": {
+      "types": "./dist/outbound_http/middleware/throttling/index.d.ts",
+      "import": "./dist/outbound_http/middleware/throttling/index.js",
+      "default": "./dist/outbound_http/middleware/throttling/index.js"
+    },
+    "./scheduled_tasks/adapters": {
+      "types": "./dist/scheduled_tasks/adapters/index.d.ts",
+      "import": "./dist/scheduled_tasks/adapters/index.js",
+      "default": "./dist/scheduled_tasks/adapters/index.js"
+    },
+    "./scheduled_tasks/adapters/memory": {
+      "types": "./dist/scheduled_tasks/adapters/memory/index.d.ts",
+      "import": "./dist/scheduled_tasks/adapters/memory/index.js",
+      "default": "./dist/scheduled_tasks/adapters/memory/index.js"
+    },
+    "./scheduled_tasks/adapters/postgres": {
+      "types": "./dist/scheduled_tasks/adapters/postgres/index.d.ts",
+      "import": "./dist/scheduled_tasks/adapters/postgres/index.js",
+      "default": "./dist/scheduled_tasks/adapters/postgres/index.js"
+    },
+    "./scheduled_tasks": {
+      "types": "./dist/scheduled_tasks/index.d.ts",
+      "import": "./dist/scheduled_tasks/index.js",
+      "default": "./dist/scheduled_tasks/index.js"
+    },
+    "./scheduling": {
+      "types": "./dist/scheduling/index.d.ts",
+      "import": "./dist/scheduling/index.js",
+      "default": "./dist/scheduling/index.js"
+    },
+    "./studio/adapters": {
+      "types": "./dist/studio/adapters/index.d.ts",
+      "import": "./dist/studio/adapters/index.js",
+      "default": "./dist/studio/adapters/index.js"
+    },
+    "./studio/extensions/actions": {
+      "types": "./dist/studio/extensions/actions/index.d.ts",
+      "import": "./dist/studio/extensions/actions/index.js",
+      "default": "./dist/studio/extensions/actions/index.js"
+    },
+    "./studio/extensions/controllers": {
+      "types": "./dist/studio/extensions/controllers/index.d.ts",
+      "import": "./dist/studio/extensions/controllers/index.js",
+      "default": "./dist/studio/extensions/controllers/index.js"
+    },
+    "./studio/extensions/database": {
+      "types": "./dist/studio/extensions/database/index.d.ts",
+      "import": "./dist/studio/extensions/database/index.js",
+      "default": "./dist/studio/extensions/database/index.js"
+    },
+    "./studio/extensions/email": {
+      "types": "./dist/studio/extensions/email/index.d.ts",
+      "import": "./dist/studio/extensions/email/index.js",
+      "default": "./dist/studio/extensions/email/index.js"
+    },
+    "./studio/extensions/logs": {
+      "types": "./dist/studio/extensions/logs/index.d.ts",
+      "import": "./dist/studio/extensions/logs/index.js",
+      "default": "./dist/studio/extensions/logs/index.js"
+    },
+    "./studio/extensions/observability": {
+      "types": "./dist/studio/extensions/observability/index.d.ts",
+      "import": "./dist/studio/extensions/observability/index.js",
+      "default": "./dist/studio/extensions/observability/index.js"
+    },
+    "./studio/extensions/scheduled_tasks": {
+      "types": "./dist/studio/extensions/scheduled_tasks/index.d.ts",
+      "import": "./dist/studio/extensions/scheduled_tasks/index.js",
+      "default": "./dist/studio/extensions/scheduled_tasks/index.js"
+    },
+    "./studio/extensions/workers": {
+      "types": "./dist/studio/extensions/workers/index.d.ts",
+      "import": "./dist/studio/extensions/workers/index.js",
+      "default": "./dist/studio/extensions/workers/index.js"
+    },
+    "./studio/extensions/workflows": {
+      "types": "./dist/studio/extensions/workflows/index.d.ts",
+      "import": "./dist/studio/extensions/workflows/index.js",
+      "default": "./dist/studio/extensions/workflows/index.js"
+    },
+    "./studio": {
+      "types": "./dist/studio/index.d.ts",
+      "import": "./dist/studio/index.js",
+      "default": "./dist/studio/index.js"
+    },
+    "./throttling/adapters/backend_failure": {
+      "types": "./dist/throttling/adapters/backend_failure/index.d.ts",
+      "import": "./dist/throttling/adapters/backend_failure/index.js",
+      "default": "./dist/throttling/adapters/backend_failure/index.js"
+    },
+    "./throttling/adapters/denial_caching": {
+      "types": "./dist/throttling/adapters/denial_caching/index.d.ts",
+      "import": "./dist/throttling/adapters/denial_caching/index.js",
+      "default": "./dist/throttling/adapters/denial_caching/index.js"
+    },
+    "./throttling/adapters": {
+      "types": "./dist/throttling/adapters/index.d.ts",
+      "import": "./dist/throttling/adapters/index.js",
+      "default": "./dist/throttling/adapters/index.js"
+    },
+    "./throttling/adapters/leased": {
+      "types": "./dist/throttling/adapters/leased/index.d.ts",
+      "import": "./dist/throttling/adapters/leased/index.js",
+      "default": "./dist/throttling/adapters/leased/index.js"
+    },
+    "./throttling/adapters/memory": {
+      "types": "./dist/throttling/adapters/memory/index.d.ts",
+      "import": "./dist/throttling/adapters/memory/index.js",
+      "default": "./dist/throttling/adapters/memory/index.js"
+    },
+    "./throttling/adapters/postgres": {
+      "types": "./dist/throttling/adapters/postgres/index.d.ts",
+      "import": "./dist/throttling/adapters/postgres/index.js",
+      "default": "./dist/throttling/adapters/postgres/index.js"
+    },
+    "./throttling": {
+      "types": "./dist/throttling/index.d.ts",
+      "import": "./dist/throttling/index.js",
+      "default": "./dist/throttling/index.js"
+    },
+    "./throttling/resource_pressure": {
+      "types": "./dist/throttling/resource_pressure/index.d.ts",
+      "import": "./dist/throttling/resource_pressure/index.js",
+      "default": "./dist/throttling/resource_pressure/index.js"
+    },
+    "./tokens/adapters": {
+      "types": "./dist/tokens/adapters/index.d.ts",
+      "import": "./dist/tokens/adapters/index.js",
+      "default": "./dist/tokens/adapters/index.js"
+    },
+    "./tokens/adapters/memory": {
+      "types": "./dist/tokens/adapters/memory/index.d.ts",
+      "import": "./dist/tokens/adapters/memory/index.js",
+      "default": "./dist/tokens/adapters/memory/index.js"
+    },
+    "./tokens/adapters/postgres": {
+      "types": "./dist/tokens/adapters/postgres/index.d.ts",
+      "import": "./dist/tokens/adapters/postgres/index.js",
+      "default": "./dist/tokens/adapters/postgres/index.js"
+    },
+    "./tokens": {
+      "types": "./dist/tokens/index.d.ts",
+      "import": "./dist/tokens/index.js",
+      "default": "./dist/tokens/index.js"
+    },
+    "./tokens/strategies/hybrid": {
+      "types": "./dist/tokens/strategies/hybrid/index.d.ts",
+      "import": "./dist/tokens/strategies/hybrid/index.js",
+      "default": "./dist/tokens/strategies/hybrid/index.js"
+    },
+    "./tokens/strategies": {
+      "types": "./dist/tokens/strategies/index.d.ts",
+      "import": "./dist/tokens/strategies/index.js",
+      "default": "./dist/tokens/strategies/index.js"
+    },
+    "./tokens/strategies/jwt": {
+      "types": "./dist/tokens/strategies/jwt/index.d.ts",
+      "import": "./dist/tokens/strategies/jwt/index.js",
+      "default": "./dist/tokens/strategies/jwt/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js",
+      "default": "./dist/utils/index.js"
+    },
+    "./workers/adapters": {
+      "types": "./dist/workers/adapters/index.d.ts",
+      "import": "./dist/workers/adapters/index.js",
+      "default": "./dist/workers/adapters/index.js"
+    },
+    "./workers/adapters/memory": {
+      "types": "./dist/workers/adapters/memory/index.d.ts",
+      "import": "./dist/workers/adapters/memory/index.js",
+      "default": "./dist/workers/adapters/memory/index.js"
+    },
+    "./workers/adapters/postgres": {
+      "types": "./dist/workers/adapters/postgres/index.d.ts",
+      "import": "./dist/workers/adapters/postgres/index.js",
+      "default": "./dist/workers/adapters/postgres/index.js"
+    },
+    "./workers": {
+      "types": "./dist/workers/index.d.ts",
+      "import": "./dist/workers/index.js",
+      "default": "./dist/workers/index.js"
+    },
+    "./workflows/adapters": {
+      "types": "./dist/workflows/adapters/index.d.ts",
+      "import": "./dist/workflows/adapters/index.js",
+      "default": "./dist/workflows/adapters/index.js"
+    },
+    "./workflows/adapters/memory": {
+      "types": "./dist/workflows/adapters/memory/index.d.ts",
+      "import": "./dist/workflows/adapters/memory/index.js",
+      "default": "./dist/workflows/adapters/memory/index.js"
+    },
+    "./workflows/adapters/postgres": {
+      "types": "./dist/workflows/adapters/postgres/index.d.ts",
+      "import": "./dist/workflows/adapters/postgres/index.js",
+      "default": "./dist/workflows/adapters/postgres/index.js"
+    },
+    "./workflows": {
+      "types": "./dist/workflows/index.d.ts",
+      "import": "./dist/workflows/index.js",
+      "default": "./dist/workflows/index.js"
+    },
+    "./workflows/replay": {
+      "types": "./dist/workflows/replay/index.d.ts",
+      "import": "./dist/workflows/replay/index.js",
+      "default": "./dist/workflows/replay/index.js"
+    },
+    "./authentication/adapters/postgres/schema": {
+      "types": "./dist/authentication/adapters/postgres/schema.d.ts",
+      "import": "./dist/authentication/adapters/postgres/schema.js",
+      "default": "./dist/authentication/adapters/postgres/schema.js"
+    },
+    "./authorization/adapters/postgres/schema": {
+      "types": "./dist/authorization/adapters/postgres/schema.d.ts",
+      "import": "./dist/authorization/adapters/postgres/schema.js",
+      "default": "./dist/authorization/adapters/postgres/schema.js"
+    },
+    "./authorization/definition": {
+      "types": "./dist/authorization/definition.d.ts",
+      "import": "./dist/authorization/definition.js",
+      "default": "./dist/authorization/definition.js"
+    },
+    "./authorization/middleware": {
+      "types": "./dist/authorization/middleware.d.ts",
+      "import": "./dist/authorization/middleware.js",
+      "default": "./dist/authorization/middleware.js"
+    },
+    "./authorization/provider": {
+      "types": "./dist/authorization/provider.d.ts",
+      "import": "./dist/authorization/provider.js",
+      "default": "./dist/authorization/provider.js"
+    },
+    "./authorization/requirements": {
+      "types": "./dist/authorization/requirements.d.ts",
+      "import": "./dist/authorization/requirements.js",
+      "default": "./dist/authorization/requirements.js"
+    },
+    "./cache/postgres_schema": {
+      "types": "./dist/cache/postgres_schema.d.ts",
+      "import": "./dist/cache/postgres_schema.js",
+      "default": "./dist/cache/postgres_schema.js"
+    },
+    "./db/configuration": {
+      "types": "./dist/db/configuration.d.ts",
+      "import": "./dist/db/configuration.js",
+      "default": "./dist/db/configuration.js"
+    },
+    "./db/dev_schema": {
+      "types": "./dist/db/dev_schema.d.ts",
+      "import": "./dist/db/dev_schema.js",
+      "default": "./dist/db/dev_schema.js"
+    },
+    "./db/utils_schema": {
+      "types": "./dist/db/utils_schema.d.ts",
+      "import": "./dist/db/utils_schema.js",
+      "default": "./dist/db/utils_schema.js"
+    },
+    "./email/adapters/postgres/schema": {
+      "types": "./dist/email/adapters/postgres/schema.d.ts",
+      "import": "./dist/email/adapters/postgres/schema.js",
+      "default": "./dist/email/adapters/postgres/schema.js"
+    },
+    "./email/postgres_schema": {
+      "types": "./dist/email/postgres_schema.d.ts",
+      "import": "./dist/email/postgres_schema.js",
+      "default": "./dist/email/postgres_schema.js"
+    },
+    "./http/client": {
+      "types": "./dist/http/client.d.ts",
+      "import": "./dist/http/client.js",
+      "default": "./dist/http/client.js"
+    },
+    "./lock/postgres_schema": {
+      "types": "./dist/lock/postgres_schema.d.ts",
+      "import": "./dist/lock/postgres_schema.js",
+      "default": "./dist/lock/postgres_schema.js"
+    },
+    "./log/db/schema": {
+      "types": "./dist/log/db/schema.d.ts",
+      "import": "./dist/log/db/schema.js",
+      "default": "./dist/log/db/schema.js"
+    },
+    "./log/dependencies": {
+      "types": "./dist/log/dependencies.d.ts",
+      "import": "./dist/log/dependencies.js",
+      "default": "./dist/log/dependencies.js"
+    },
+    "./observability/db/schema": {
+      "types": "./dist/observability/db/schema.d.ts",
+      "import": "./dist/observability/db/schema.js",
+      "default": "./dist/observability/db/schema.js"
+    },
+    "./scheduled_tasks/adapters/postgres/schema": {
+      "types": "./dist/scheduled_tasks/adapters/postgres/schema.d.ts",
+      "import": "./dist/scheduled_tasks/adapters/postgres/schema.js",
+      "default": "./dist/scheduled_tasks/adapters/postgres/schema.js"
+    },
+    "./testing/http_access": {
+      "types": "./dist/testing/http_access.d.ts",
+      "import": "./dist/testing/http_access.js",
+      "default": "./dist/testing/http_access.js"
+    },
+    "./throttling/postgres_schema": {
+      "types": "./dist/throttling/postgres_schema.d.ts",
+      "import": "./dist/throttling/postgres_schema.js",
+      "default": "./dist/throttling/postgres_schema.js"
+    },
+    "./tokens/adapters/postgres/schema": {
+      "types": "./dist/tokens/adapters/postgres/schema.d.ts",
+      "import": "./dist/tokens/adapters/postgres/schema.js",
+      "default": "./dist/tokens/adapters/postgres/schema.js"
+    },
+    "./utils/uuid": {
+      "types": "./dist/utils/uuid.d.ts",
+      "import": "./dist/utils/uuid.js",
+      "default": "./dist/utils/uuid.js"
+    },
+    "./workers/adapters/postgres/schema": {
+      "types": "./dist/workers/adapters/postgres/schema.d.ts",
+      "import": "./dist/workers/adapters/postgres/schema.js",
+      "default": "./dist/workers/adapters/postgres/schema.js"
+    },
+    "./workflows/adapters/postgres/schema": {
+      "types": "./dist/workflows/adapters/postgres/schema.d.ts",
+      "import": "./dist/workflows/adapters/postgres/schema.js",
+      "default": "./dist/workflows/adapters/postgres/schema.js"
+    },
+    "./package.json": "./package.json",
+    "./studio/client_config": {
+      "types": "./dist/studio/client_config.d.ts",
+      "import": "./dist/studio/client_config.js",
+      "default": "./dist/studio/client_config.js"
+    }
+  },
+  "bin": {
+    "kestrel": "./dist/cli/main.js"
+  },
+  "scripts": {
+    "build:ai": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "node -e \"throw new Error('Publication requires explicit owner approval')\""
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.7.0",
+    "@fastify/helmet": "^13.1.0",
+    "@fastify/middie": "^9.3.3",
+    "@fastify/vite": "^10.0.0",
+    "@fortawesome/fontawesome-svg-core": "^7.3.1",
+    "@fortawesome/free-solid-svg-icons": "^7.3.1",
+    "@opencoredev/email-sdk": "^1.1.0",
+    "@tanstack/react-router": "^1.170.18",
+    "awilix": "^13.0.5",
+    "commander": "^15.0.0",
+    "cron-parser": "^5.8.1",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.10.0",
+    "jose": "^6.2.10",
+    "pg": "^8.22.0",
+    "pino": "^10.3.1",
+    "pino-abstract-transport": "^3.0.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "sql-formatter": "^15.8.2",
+    "zod": "^4.5.4",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-seed": "^0.3.1",
+    "vite": "^8.2.0",
+    "@types/pg": "^8.20.0"
+  }
+}

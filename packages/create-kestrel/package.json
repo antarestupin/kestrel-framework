@@ -1,0 +1,21 @@
+{
+  "name": "@kestrel/create-app",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "bin": {
+    "create-kestrel": "./bin/create.mjs"
+  },
+  "files": [
+    "bin",
+    "template"
+  ],
+  "scripts": {
+    "build:ai": "node ../../scripts/sync-template.mjs",
+    "prepublishOnly": "node -e \"throw new Error('Publication requires explicit owner approval')\""
+  }
+}

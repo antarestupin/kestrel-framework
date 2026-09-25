@@ -1,0 +1,282 @@
+.database-schema-page {
+  width: min(1480px, 100%);
+}
+
+.database-layout {
+  padding-top: 28px;
+}
+
+.database-layout-summary {
+  margin: 0;
+  color: var(--studio-text-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.database-layout-toolbar {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.database-comments-toggle {
+  padding: 4px 8px;
+  border: 1px solid var(--studio-border);
+  border-radius: 6px;
+  color: var(--studio-text-muted);
+  background: var(--studio-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+}
+
+.database-comments-toggle:hover,
+.database-comments-toggle[aria-pressed="true"] {
+  border-color: var(--studio-accent);
+  color: var(--studio-accent-strong);
+  background: var(--studio-surface-accent);
+}
+
+.database-comments-toggle:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 2px;
+}
+
+.database-schema {
+  margin-top: 44px;
+}
+
+.database-schema:first-of-type {
+  margin-top: 32px;
+}
+
+.database-schema-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--studio-border-subtle);
+}
+
+.database-schema-heading h2 {
+  margin: 0;
+  color: var(--studio-heading);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.database-schema-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.database-schema-heading span {
+  color: var(--studio-text-faint);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.database-schema-description {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: var(--studio-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.database-table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+.database-table-card {
+  overflow: hidden;
+  border: 1px solid var(--studio-border);
+  border-radius: 10px;
+  background: var(--studio-surface);
+}
+
+.database-table-card > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 46px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--studio-border-subtle);
+  background: var(--studio-surface-subtle);
+}
+
+.database-table-card h3 {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: var(--studio-text-strong);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.database-table-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+}
+
+.database-comment-button {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--studio-text-faint);
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.database-comment-button:hover,
+.database-comment-button[aria-expanded="true"] {
+  color: var(--studio-accent-strong);
+  background: var(--studio-surface-accent);
+}
+
+.database-comment-button:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 1px;
+}
+
+.database-comment-chevron {
+  display: block;
+  margin: auto;
+}
+
+.database-table-kind {
+  color: var(--studio-accent);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.database-table-description {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--studio-border-subtle);
+  background: var(--studio-surface-subtle);
+  color: var(--studio-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.database-column-list {
+  padding: 5px 0;
+}
+
+.database-column {
+  min-height: 30px;
+  padding: 6px 14px;
+}
+
+.database-column-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(90px, auto) 20px;
+  gap: 12px;
+  align-items: center;
+}
+
+.database-column + .database-column {
+  border-top: 1px solid var(--studio-divider);
+}
+
+.database-column-name {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+}
+
+.database-column-name abbr,
+.database-column-marker {
+  flex: 0 0 22px;
+  color: var(--studio-accent-strong);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.database-column-name code {
+  overflow: hidden;
+  color: var(--studio-text);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.database-nullable {
+  margin-left: 4px;
+  color: var(--studio-text-faint);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+}
+
+.database-column-type {
+  overflow: hidden;
+  color: var(--studio-text-subtle);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.database-column-comment {
+  display: grid;
+  width: 20px;
+  place-items: center;
+}
+
+.database-column-description {
+  margin: 4px 0 1px 22px;
+  color: var(--studio-text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.database-table-empty {
+  margin: 0;
+  padding: 18px 14px;
+  color: var(--studio-text-faint);
+  font-size: 11px;
+}
+
+@media (max-width: 520px) {
+  .database-table-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .database-column-summary {
+    grid-template-columns: minmax(0, 1fr) minmax(72px, auto) 20px;
+    gap: 8px;
+  }
+}

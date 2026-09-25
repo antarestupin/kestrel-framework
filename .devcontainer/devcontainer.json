@@ -1,0 +1,9 @@
+{
+  "name": "Kestrel",
+  "dockerComposeFile": ["../infrastructure/compose.yml", "compose.yml"],
+  "service": "dev",
+  "workspaceFolder": "/workspace/kestrel",
+  "shutdownAction": "stopCompose",
+  "postCreateCommand": "npm ci && npm run build:ai",
+  "postStartCommand": "npm run infra:prepare"
+}

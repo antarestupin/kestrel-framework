@@ -1,0 +1,339 @@
+.controllers-page {
+  width: min(1320px, 100%);
+}
+
+.controller-explorer {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-height: 620px;
+  margin-top: 28px;
+  overflow: hidden;
+  border: 1px solid var(--studio-border);
+  border-radius: 12px;
+  background: var(--studio-surface);
+}
+
+.controller-tree {
+  border-right: 1px solid var(--studio-divider);
+  background: var(--studio-surface-subtle);
+}
+
+.controller-tree > header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--studio-divider);
+  color: var(--studio-text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.controller-tree nav {
+  padding: 12px 10px 20px;
+}
+
+.controller-tree-group summary {
+  padding: 7px 8px;
+  color: var(--studio-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.controller-tree-group > div {
+  margin-left: 10px;
+  padding-left: 6px;
+  border-left: 1px solid var(--studio-divider);
+}
+
+.controller-tree button {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--studio-nav-text);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.controller-tree button:hover,
+.controller-tree button.selected {
+  color: var(--studio-heading);
+  background: var(--studio-surface-accent-strong);
+}
+
+.controller-method {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.method-get {
+  color: var(--studio-log-info);
+}
+
+.method-post {
+  color: var(--studio-success-text);
+}
+
+.method-delete {
+  color: var(--studio-danger-text);
+}
+
+.controller-request-editor {
+  min-width: 0;
+  padding: 26px 30px 40px;
+}
+
+.controller-route-heading {
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--studio-divider);
+}
+
+.controller-route-heading > div {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.controller-route-heading code {
+  color: var(--studio-text-strong);
+  font-size: 16px;
+}
+
+.controller-route-heading > small {
+  display: block;
+  margin-top: 9px;
+  color: var(--studio-text-faint);
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.controller-route-heading p {
+  margin: 14px 0 0;
+  color: var(--studio-text-muted);
+  font-size: 13px;
+}
+
+.controller-example-picker,
+.controller-fields label {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.controller-example-picker {
+  justify-content: space-between;
+  margin-top: 22px;
+}
+
+.controller-example-picker > span,
+.controller-input-section h2,
+.controller-response h2 {
+  color: var(--studio-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.controller-example-picker select,
+.controller-fields input,
+.controller-input-section textarea {
+  border: 1px solid var(--studio-control-border);
+  border-radius: 7px;
+  color: var(--studio-text);
+  background: var(--studio-background);
+  font: inherit;
+}
+
+.controller-example-picker select {
+  min-width: 190px;
+  padding: 8px 10px;
+}
+
+.controller-input-section {
+  margin-top: 26px;
+}
+
+.controller-input-section h2 {
+  margin: 0 0 12px;
+}
+
+.controller-fields {
+  overflow: hidden;
+  border: 1px solid var(--studio-divider);
+  border-radius: 8px;
+}
+
+.controller-fields label {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.45fr) minmax(180px, 1fr);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--studio-divider);
+}
+
+.controller-fields label:last-child {
+  border-bottom: 0;
+}
+
+.controller-fields label > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--studio-text-strong);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.controller-fields label small {
+  color: var(--studio-text-faint);
+  font-family: Inter, "Segoe UI", sans-serif;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.controller-fields input {
+  width: 100%;
+  padding: 8px 10px;
+}
+
+.controller-input-section textarea {
+  width: 100%;
+  min-height: 190px;
+  padding: 14px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.controller-example-picker select:focus,
+.controller-fields input:focus,
+.controller-input-section textarea:focus {
+  border-color: var(--studio-control-hover-border);
+  outline: none;
+}
+
+.controller-send-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 22px;
+}
+
+.controller-send-row button {
+  padding: 10px 15px;
+  border: 1px solid var(--studio-border-accent-strong);
+  border-radius: 7px;
+  color: var(--studio-control-hover-text);
+  background: var(--studio-surface-accent);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.controller-send-row button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.controller-send-row p {
+  margin: 0;
+  color: var(--studio-danger-text);
+  font-size: 12px;
+}
+
+.controller-response {
+  margin-top: 28px;
+  overflow: hidden;
+  border: 1px solid var(--studio-divider);
+  border-radius: 8px;
+}
+
+.controller-response > header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 14px;
+  background: var(--studio-surface-subtle);
+}
+
+.controller-response h2 {
+  margin: 0 auto 0 0;
+}
+
+.controller-response header span {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.controller-response header span.success {
+  color: var(--studio-success-text);
+}
+
+.controller-response header span.failure {
+  color: var(--studio-danger-text);
+}
+
+.controller-response header small,
+.controller-response summary {
+  color: var(--studio-text-faint);
+}
+
+.controller-response > details {
+  padding: 10px 14px;
+  border-top: 1px solid var(--studio-divider);
+  border-bottom: 1px solid var(--studio-divider);
+  font-size: 11px;
+}
+
+.controller-response > pre {
+  max-height: 420px;
+  margin: 0;
+  overflow: auto;
+  padding: 16px;
+  color: var(--studio-log-detail);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.controller-response > details > pre {
+  padding: 10px 0 2px;
+}
+
+.controller-observations {
+  margin-top: 28px;
+  overflow: hidden;
+  border: 1px solid var(--studio-divider);
+  border-radius: 8px;
+  background: var(--studio-surface);
+}
+
+.controller-observations .execution-details {
+  max-height: none;
+}
+
+@media (max-width: 900px) {
+  .controller-explorer {
+    grid-template-columns: 1fr;
+  }
+
+  .controller-tree {
+    max-height: 320px;
+    overflow: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--studio-divider);
+  }
+
+  .controller-request-editor {
+    padding: 24px 20px 34px;
+  }
+}
