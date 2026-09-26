@@ -104,10 +104,12 @@ describe("StudioProvider", () => {
     expect(manifestResponse.headers["x-studio-scope"]).toBe("active");
     expect(manifestResponse.json()).toMatchObject({ basePath: "/tools" });
     expect(actionsResponse.json()).toEqual({
+      executionPath: "/tools/api/extensions/actions-documentation/actions/execute",
       actions: [{
         name: "example.run",
         description: "Run the example.",
         middleware: [],
+        execution: { enabled: false, reason: expect.any(String) },
       }],
     });
     expect(client.setup).toHaveBeenCalledOnce();

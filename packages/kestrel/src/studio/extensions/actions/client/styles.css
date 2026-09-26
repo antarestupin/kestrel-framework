@@ -168,3 +168,130 @@
     padding: 24px 20px 34px;
   }
 }
+
+/* The execution panel follows the HTTP explorer's spacing and control treatments. */
+.action-runner,
+.action-runner-note {
+  margin-top: 26px;
+}
+
+.action-runner-note,
+.action-input-schema,
+.action-result {
+  color: var(--studio-text-muted);
+  font-size: 12px;
+}
+
+.action-example-picker {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.action-example-picker > span,
+.action-input-label {
+  display: block;
+  color: var(--studio-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.action-runner select,
+.action-runner textarea {
+  max-width: 100%;
+  border: 1px solid var(--studio-control-border);
+  border-radius: 7px;
+  color: var(--studio-text);
+  background: var(--studio-background);
+  font: inherit;
+}
+
+.action-runner select {
+  padding: 8px 10px;
+}
+
+.action-runner textarea {
+  width: 100%;
+  min-height: 190px;
+  margin-top: 12px;
+  padding: 14px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.action-input-schema summary {
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+.action-run-button {
+  margin-top: 22px;
+  padding: 10px 15px;
+  border: 1px solid var(--studio-border-accent-strong);
+  border-radius: 7px;
+  color: var(--studio-control-hover-text);
+  background: var(--studio-surface-accent);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.action-tree button:disabled,
+.action-run-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.action-run-error,
+.action-result .failure {
+  color: var(--studio-danger-text);
+}
+
+.action-result .success {
+  color: var(--studio-success-text);
+}
+
+.action-result,
+.action-observations {
+  margin-top: 28px;
+  overflow: hidden;
+  border: 1px solid var(--studio-divider);
+  border-radius: 8px;
+}
+
+.action-result > header {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--studio-surface-subtle);
+}
+
+.action-result > p,
+.action-result > footer {
+  padding: 12px 14px;
+}
+
+.action-result > footer {
+  border-top: 1px solid var(--studio-divider);
+  color: var(--studio-text-faint);
+  font-size: 10px;
+}
+
+.action-result pre,
+.action-input-schema pre {
+  max-height: 420px;
+  overflow: auto;
+  margin: 0;
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.action-observations .execution-details {
+  max-height: none;
+}

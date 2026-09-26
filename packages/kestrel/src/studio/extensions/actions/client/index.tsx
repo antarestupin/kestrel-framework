@@ -1,8 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { StudioPageHeader } from "../../../client/src/page.js";
 import type { StudioPageRenderer } from "../../../client/src/page_renderer.js";
@@ -11,8 +7,10 @@ import type { StudioPageManifest } from "../../../extension.js";
 import {
   ACTIONS_DOCUMENTATION_PAGE_KIND,
   type DocumentedAction,
+  type StudioActionCatalog,
 } from "../contract.js";
 import { buildActionTree, type ActionTreeNode } from "./action_tree.js";
+import { ActionRunner } from "./action_runner.js";
 import "./styles.css";
 
 /**
@@ -28,7 +26,7 @@ addStudioPageRenderer(actionsDocumentationPageRenderer);
 function ActionsListPage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page actions-page">
-      <StudioPageHeader page={page} eyebrow="Documentation" />
+      <StudioPageHeader page={page} eyebrow="Actions" />
       <ActionsListData page={page} />
     </div>
   );
@@ -36,7 +34,9 @@ function ActionsListPage({ page }: { page: StudioPageManifest }) {
 
 function ActionsListData({ page }: { page: StudioPageManifest }) {
   if (page.dataPath === undefined) {
-    return <p className="error-panel">The actions page has no data endpoint.</p>;
+    return (
+      <p className="error-panel">The actions page has no data endpoint.</p>
+    );
   }
 
   return <ActionsExplorer dataPath={page.dataPath} />;
@@ -53,15 +53,17 @@ function ActionsExplorer({ dataPath }: { dataPath: string }) {
     return <p className="error-panel">{actionsResource.message}</p>;
   }
 
-  return <ActionCatalog actions={actionsResource.actions} />;
+  return <ActionCatalog catalog={actionsResource.catalog} />;
 }
 
-/** Keep selection separate from the detail panel so it can host an action runner later. */
-function ActionCatalog({ actions }: { actions: readonly DocumentedAction[] }) {
+/** Keep the running action selected until its response has arrived. */
+function ActionCatalog({ catalog }: { catalog: StudioActionCatalog }) {
+  const { actions } = catalog;
+  const [pending, setPending] = useState(false);
   const [selectedName, setSelectedName] = useState<string>();
   const nodes = useMemo(() => buildActionTree(actions), [actions]);
-  const selectedAction = actions.find((action) => action.name === selectedName)
-    ?? actions[0];
+  const selectedAction =
+    actions.find((action) => action.name === selectedName) ?? actions[0];
 
   if (selectedAction === undefined) {
     return <p className="empty-state">No action is registered.</p>;
@@ -78,16 +80,28 @@ function ActionCatalog({ actions }: { actions: readonly DocumentedAction[] }) {
               node={node}
               selectedName={selectedAction.name}
               onSelect={setSelectedName}
+              disabled={pending}
             />
           ))}
         </nav>
       </aside>
-      <ActionDetails action={selectedAction} key={selectedAction.name} />
+      <ActionDetails
+        action={selectedAction}
+        catalog={catalog}
+        onPendingChange={setPending}
+        key={selectedAction.name}
+      />
     </section>
   );
 }
 
-function ActionTreeEntry({ node, selectedName, onSelect }: {
+function ActionTreeEntry({
+  node,
+  selectedName,
+  onSelect,
+  disabled,
+}: {
+  disabled: boolean;
   node: ActionTreeNode;
   selectedName: string;
   onSelect: (name: string) => void;
@@ -103,6 +117,7 @@ function ActionTreeEntry({ node, selectedName, onSelect }: {
               node={child}
               selectedName={selectedName}
               onSelect={onSelect}
+              disabled={disabled}
             />
           ))}
         </div>
@@ -112,6 +127,7 @@ function ActionTreeEntry({ node, selectedName, onSelect }: {
 
   return (
     <button
+      disabled={disabled}
       aria-current={node.id === selectedName ? "true" : undefined}
       className={node.id === selectedName ? "selected" : undefined}
       onClick={() => onSelect(node.id)}
@@ -123,7 +139,15 @@ function ActionTreeEntry({ node, selectedName, onSelect }: {
   );
 }
 
-function ActionDetails({ action }: { action: DocumentedAction }) {
+function ActionDetails({
+  action,
+  catalog,
+  onPendingChange,
+}: {
+  action: DocumentedAction;
+  catalog: StudioActionCatalog;
+  onPendingChange: (pending: boolean) => void;
+}) {
   return (
     <article className="action-details" aria-label={action.name}>
       <header className="action-detail-heading">
@@ -133,13 +157,29 @@ function ActionDetails({ action }: { action: DocumentedAction }) {
       <section className="action-middleware-section">
         <h2>Middleware</h2>
         <div className="middleware-list">
-          {action.middleware.length === 0
-            ? <span className="pill">None</span>
-            : action.middleware.map((name, index) => (
-                <span className="pill enabled" key={`${name}:${index}`}>{name}</span>
-              ))}
+          {action.middleware.length === 0 ? (
+            <span className="pill">None</span>
+          ) : (
+            action.middleware.map((name, index) => (
+              <span className="pill enabled" key={`${name}:${index}`}>
+                {name}
+              </span>
+            ))
+          )}
         </div>
       </section>
+      {action.execution?.enabled === true ? (
+        <ActionRunner
+          action={{ ...action, execution: action.execution }}
+          catalog={catalog}
+          onPendingChange={onPendingChange}
+        />
+      ) : (
+        <p className="action-runner-note">
+          {action.execution?.reason ??
+            "This action is available for documentation only."}
+        </p>
+      )}
     </article>
   );
 }
@@ -147,7 +187,7 @@ function ActionDetails({ action }: { action: DocumentedAction }) {
 type ActionsResource =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; actions: readonly DocumentedAction[] };
+  | { status: "ready"; catalog: StudioActionCatalog };
 
 function useActions(dataPath: string): ActionsResource {
   const [resource, setResource] = useState<ActionsResource>({
@@ -168,12 +208,10 @@ function useActions(dataPath: string): ActionsResource {
           );
         }
 
-        return response.json() as Promise<{
-          actions: readonly DocumentedAction[];
-        }>;
+        return response.json() as Promise<StudioActionCatalog>;
       })
-      .then(({ actions }) => {
-        setResource({ status: "ready", actions });
+      .then((catalog) => {
+        setResource({ status: "ready", catalog });
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -182,9 +220,8 @@ function useActions(dataPath: string): ActionsResource {
 
         setResource({
           status: "error",
-          message: error instanceof Error
-            ? error.message
-            : "Unable to load actions.",
+          message:
+            error instanceof Error ? error.message : "Unable to load actions.",
         });
       });
 
