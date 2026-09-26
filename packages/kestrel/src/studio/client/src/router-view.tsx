@@ -83,11 +83,6 @@ export function StudioLayout({ manifest }: StudioLayoutProperties) {
             </section>
           ))}
         </nav>
-
-        <div className="environment-badge">
-          <Icon name="local" />
-          Studio enabled
-        </div>
       </aside>
 
       <main className="main-content">

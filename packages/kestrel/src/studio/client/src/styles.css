@@ -262,19 +262,6 @@ button {
   text-align: center;
 }
 
-.environment-badge {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: auto;
-  padding: 10px;
-  border: 1px solid var(--studio-border);
-  border-radius: 8px;
-  color: var(--studio-text-subtle);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-}
-
 .main-content {
   min-width: 0;
 }
@@ -500,10 +487,6 @@ button {
 
   .brand {
     margin-bottom: 22px;
-  }
-
-  .environment-badge {
-    display: none;
   }
 
   .page {
