@@ -16,7 +16,6 @@ import {
 } from "../../../observability/dependencies.js";
 import type { AnyAction } from "../../../utils/definitions.js";
 import type { StudioActionResult } from "./contract.js";
-import { isStudioActionJson } from "./json.js";
 
 /** Preserve a failed scope outcome while exposing actionable Studio diagnostics. */
 class StudioActionError extends Error {
@@ -74,13 +73,17 @@ export async function executeStudioAction(
         .run(input);
       let result: Extract<StudioActionResult, { outcome: "success" }>["result"];
       try {
-        result = isStudioActionJson(value)
-          ? { available: true, value: JSON.parse(JSON.stringify(value)) }
-          : {
-              available: false,
-              reason:
-                "The action succeeded, but its result cannot be represented without loss as JSON.",
-            };
+        // Use native JSON semantics, including enumerable properties and toJSON hooks.
+        // Snapshot once so response serialization cannot invoke those hooks again.
+        const serialized = JSON.stringify(value);
+        result =
+          serialized !== undefined
+            ? { available: true, value: JSON.parse(serialized) }
+            : {
+                available: false,
+                reason:
+                  "The action succeeded, but its result has no JSON representation.",
+              };
       } catch {
         result = {
           available: false,

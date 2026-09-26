@@ -263,25 +263,63 @@ describe("Studio action execution", () => {
     expect(outcomes).toEqual(["failure", "failure", "failure"]);
   });
 
-  it("reports successful non-JSON results without rerunning or silently losing values", async () => {
+  it("serializes action results with native JSON semantics and invokes hooks only once", async () => {
+    const getter = vi.fn(() => "visible");
+    const toJSON = vi.fn(() => ({ converted: true }));
+    class Result {
+      value = 42;
+    }
+    const cases = [
+      {
+        value: new Date("2026-01-01T00:00:00.000Z"),
+        expected: "2026-01-01T00:00:00.000Z",
+      },
+      { value: new Result(), expected: { value: 42 } },
+      { value: { toJSON }, expected: { converted: true } },
+      {
+        value: Object.defineProperty({}, "value", {
+          enumerable: true,
+          get: getter,
+        }),
+        expected: { value: "visible" },
+      },
+      { value: Object.assign([1], { extra: "omitted" }), expected: [1] },
+      { value: { omitted: undefined, kept: true }, expected: { kept: true } },
+      { value: [undefined, NaN, Infinity], expected: [null, null, null] },
+      { value: new Map([["key", "value"]]), expected: {} },
+      { value: NaN, expected: null },
+    ];
+    const handlers = cases.map(({ value }) => vi.fn(() => value));
+    const actions = handlers.map((handler, index) =>
+      defineAction({ name: `result.${index}`, output: z.unknown(), handler }),
+    );
+    const http = await createExecutionTest(actions);
+    for (const [index, action] of actions.entries()) {
+      const response = await http.run(action.name);
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        outcome: "success",
+        result: { available: true, value: cases[index]!.expected },
+      });
+    }
+    handlers.forEach((handler) => expect(handler).toHaveBeenCalledTimes(1));
+    expect(getter).toHaveBeenCalledTimes(1);
+    expect(toJSON).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps execution successful when JSON serialization fails or produces no value", async () => {
     const cycle: Record<string, unknown> = {};
     cycle.self = cycle;
-    const getter = vi.fn(() => "do not evaluate");
-    const withGetter = Object.defineProperty({}, "value", {
-      enumerable: true,
-      get: getter,
+    const throwingToJSON = vi.fn(() => {
+      throw new Error("Cannot serialize");
     });
-    const withExtraProperty = Object.assign([1], { extra: "not in JSON" });
     const values = [
-      withGetter,
-      withExtraProperty,
-      new Date(),
-      new Map([["key", "value"]]),
       BigInt(1),
       undefined,
-      { omitted: undefined },
       cycle,
-      NaN,
+      { toJSON: throwingToJSON },
+      () => null,
+      Symbol("result"),
     ];
     const handlers = values.map((value) => vi.fn(() => value));
     const actions = handlers.map((handler, index) =>
@@ -297,7 +335,7 @@ describe("Studio action execution", () => {
       });
     }
     handlers.forEach((handler) => expect(handler).toHaveBeenCalledTimes(1));
-    expect(getter).not.toHaveBeenCalled();
+    expect(throwingToJSON).toHaveBeenCalledTimes(1);
   });
 
   it("records only action runs with their correlation ID, including failures and ambient observations", async () => {
