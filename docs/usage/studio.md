@@ -6,7 +6,7 @@ Studio is a development tool for inspecting definitions, executions and infrastr
 
 ## Mount Studio with an actions explorer
 
-Enable an actions explorer when developers need to inspect the application catalog in a browser. The page groups dotted action names into collapsible namespaces, with a navigation tree and a detail panel matching the HTTP controllers explorer. Select an action to inspect its full name, description and middleware. Actions without a namespace appear at the root. Execution is enabled by default for registered action definitions whose input can be described as JSON. Metadata-only entries remain read-only. This composition limits Studio to the development environment.
+Enable an actions explorer when developers need to inspect the application catalog in a browser. The page groups dotted action names into collapsible namespaces, with a navigation tree and a detail panel matching the HTTP controllers explorer. Select an action to inspect its full name, description and middleware. Use **Collapse all** or **Expand all** above the tree to toggle every namespace, including nested groups, while keeping the selected action. Individual namespace toggles remain available. Actions without a namespace appear at the root. Execution is enabled by default for registered action definitions whose input can be described as JSON. Metadata-only entries remain read-only. This composition limits Studio to the development environment.
 
 ```ts
 import type { App } from "@kestrel/framework/app";
@@ -65,7 +65,7 @@ Custom input adapters (for example, loading an entity from a JSON identifier), l
 
 Add the relevant explorers as the application adopts more Kestrel libraries. Each explorer receives the definitions and data source needed for its particular view.
 
-Built-in extensions have their own public entry points under `studio/extensions/<name>/index.js`. Compose the controller, worker, scheduled-task, workflow, database, log, observation or email extension with its explicit catalog and data source. No extension discovers application files automatically.
+Built-in extensions have their own public entry points under `studio/extensions/<name>/index.js`. Compose the controller, worker, scheduled-task, workflow, database, log, observation or email extension with its explicit catalog and data source. No extension discovers application files automatically. The HTTP controllers explorer also provides **Collapse all** and **Expand all** above its tree; these controls include nested namespaces and preserve the selected controller and request editor.
 
 Controller and worker explorers use declared `examples` to prepare forms and correlate executions with observations. Without examples they derive a deterministic fallback from the input schema. Add meaningful examples to complex definitions for more useful forms.
 

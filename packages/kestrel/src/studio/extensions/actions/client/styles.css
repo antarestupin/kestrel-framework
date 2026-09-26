@@ -20,6 +20,11 @@
 }
 
 .action-tree > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--studio-divider);
   color: var(--studio-text-faint);
@@ -294,4 +299,14 @@
 
 .action-observations .execution-details {
   max-height: none;
+}
+
+/* Keep the bulk control compact beside the catalog count. */
+.action-tree button.action-tree-toggle {
+  width: auto;
+  padding: 5px 7px;
+  border: 1px solid var(--studio-border);
+  font-size: 10px;
+  letter-spacing: normal;
+  white-space: nowrap;
 }

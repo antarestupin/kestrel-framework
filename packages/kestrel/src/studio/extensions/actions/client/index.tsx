@@ -62,6 +62,19 @@ function ActionCatalog({ catalog }: { catalog: StudioActionCatalog }) {
   const [pending, setPending] = useState(false);
   const [selectedName, setSelectedName] = useState<string>();
   const nodes = useMemo(() => buildActionTree(actions), [actions]);
+  const groupIds = useMemo(() => collectGroupIds(nodes), [nodes]);
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const allExpanded = groupIds.every((id) => !collapsedGroups.has(id));
+  // Share expansion state so individual toggles and the global control stay in sync.
+  const toggleGroup = (id: string) =>
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const selectedAction =
     actions.find((action) => action.name === selectedName) ?? actions[0];
 
@@ -72,7 +85,25 @@ function ActionCatalog({ catalog }: { catalog: StudioActionCatalog }) {
   return (
     <section className="action-explorer" aria-label="Action explorer">
       <aside className="action-tree">
-        <header>{actions.length} registered actions</header>
+        <header>
+          <span>{actions.length} registered actions</span>
+          {groupIds.length > 0 && (
+            <button
+              className="action-tree-toggle"
+              type="button"
+              aria-label={
+                allExpanded
+                  ? "Collapse all namespaces"
+                  : "Expand all namespaces"
+              }
+              onClick={() =>
+                setCollapsedGroups(new Set(allExpanded ? groupIds : []))
+              }
+            >
+              {allExpanded ? "Collapse all" : "Expand all"}
+            </button>
+          )}
+        </header>
         <nav aria-label="Action catalog">
           {nodes.map((node) => (
             <ActionTreeEntry
@@ -81,6 +112,8 @@ function ActionCatalog({ catalog }: { catalog: StudioActionCatalog }) {
               selectedName={selectedAction.name}
               onSelect={setSelectedName}
               disabled={pending}
+              collapsedGroups={collapsedGroups}
+              onToggleGroup={toggleGroup}
             />
           ))}
         </nav>
@@ -95,12 +128,23 @@ function ActionCatalog({ catalog }: { catalog: StudioActionCatalog }) {
   );
 }
 
+/** Include nested namespaces so one click also updates groups hidden by their parents. */
+function collectGroupIds(nodes: readonly ActionTreeNode[]): string[] {
+  return nodes.flatMap((node) =>
+    node.kind === "group" ? [node.id, ...collectGroupIds(node.children)] : [],
+  );
+}
+
 function ActionTreeEntry({
   node,
   selectedName,
   onSelect,
   disabled,
+  collapsedGroups,
+  onToggleGroup,
 }: {
+  collapsedGroups: ReadonlySet<string>;
+  onToggleGroup: (id: string) => void;
   disabled: boolean;
   node: ActionTreeNode;
   selectedName: string;
@@ -108,8 +152,18 @@ function ActionTreeEntry({
 }) {
   if (node.kind === "group") {
     return (
-      <details className="action-tree-group" open>
-        <summary>{node.name}</summary>
+      <details
+        className="action-tree-group"
+        open={!collapsedGroups.has(node.id)}
+      >
+        <summary
+          onClick={(event) => {
+            event.preventDefault();
+            onToggleGroup(node.id);
+          }}
+        >
+          {node.name}
+        </summary>
         <div>
           {node.children.map((child) => (
             <ActionTreeEntry
@@ -118,6 +172,8 @@ function ActionTreeEntry({
               selectedName={selectedName}
               onSelect={onSelect}
               disabled={disabled}
+              collapsedGroups={collapsedGroups}
+              onToggleGroup={onToggleGroup}
             />
           ))}
         </div>

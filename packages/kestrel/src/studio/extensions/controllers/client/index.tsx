@@ -64,6 +64,22 @@ function ControllerExplorer({ dataPath }: { dataPath: string }) {
     [resource],
   );
 
+  const groupIds = useMemo(
+    () => resource.status === "ready" ? collectGroupIds(resource.catalog.nodes) : [],
+    [resource],
+  );
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const allExpanded = groupIds.every((id) => !collapsedGroups.has(id));
+  // Share expansion state so individual toggles and the global control stay in sync.
+  const toggleGroup = (id: string) => setCollapsedGroups((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+
   useEffect(() => {
     if (controllers.length > 0 && !controllers.some(
       (controller) => controller.id === selectedId,
@@ -91,7 +107,19 @@ function ControllerExplorer({ dataPath }: { dataPath: string }) {
   return (
     <section className="controller-explorer" aria-label="HTTP controller explorer">
       <aside className="controller-tree">
-        <header>{controllers.length} controllers</header>
+        <header>
+          <span>{controllers.length} controllers</span>
+          {groupIds.length > 0 && (
+            <button
+              className="controller-tree-toggle"
+              type="button"
+              aria-label={allExpanded ? "Collapse all namespaces" : "Expand all namespaces"}
+              onClick={() => setCollapsedGroups(new Set(allExpanded ? groupIds : []))}
+            >
+              {allExpanded ? "Collapse all" : "Expand all"}
+            </button>
+          )}
+        </header>
         <nav aria-label="HTTP controller catalog">
           {resource.catalog.nodes.map((node) => (
             <ControllerTreeNode
@@ -99,6 +127,8 @@ function ControllerExplorer({ dataPath }: { dataPath: string }) {
               node={node}
               selectedId={selectedController.id}
               onSelect={setSelectedId}
+              collapsedGroups={collapsedGroups}
+              onToggleGroup={toggleGroup}
             />
           ))}
         </nav>
@@ -114,19 +144,33 @@ function ControllerExplorer({ dataPath }: { dataPath: string }) {
   );
 }
 
+/** Include nested namespaces even when their parents are currently collapsed. */
+function collectGroupIds(nodes: readonly StudioHttpControllerCatalogNode[]): string[] {
+  return nodes.flatMap((node) => node.kind === "group"
+    ? [node.id, ...collectGroupIds(node.children)]
+    : []);
+}
+
 function ControllerTreeNode({
   node,
   selectedId,
   onSelect,
+  collapsedGroups,
+  onToggleGroup,
 }: {
+  collapsedGroups: ReadonlySet<string>;
+  onToggleGroup: (id: string) => void;
   node: StudioHttpControllerCatalogNode;
   selectedId: string;
   onSelect: (id: string) => void;
 }) {
   if (node.kind === "group") {
     return (
-      <details className="controller-tree-group" open>
-        <summary>{node.name}</summary>
+      <details className="controller-tree-group" open={!collapsedGroups.has(node.id)}>
+        <summary onClick={(event) => {
+          event.preventDefault();
+          onToggleGroup(node.id);
+        }}>{node.name}</summary>
         <div>
           {node.children.map((child) => (
             <ControllerTreeNode
@@ -134,6 +178,8 @@ function ControllerTreeNode({
               node={child}
               selectedId={selectedId}
               onSelect={onSelect}
+              collapsedGroups={collapsedGroups}
+              onToggleGroup={onToggleGroup}
             />
           ))}
         </div>
