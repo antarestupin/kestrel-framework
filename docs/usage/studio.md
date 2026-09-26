@@ -69,6 +69,8 @@ Built-in extensions have their own public entry points under `studio/extensions/
 
 Controller and worker explorers use declared `examples` to prepare forms and correlate executions with observations. Without examples they derive a deterministic fallback from the input schema. Add meaningful examples to complex definitions for more useful forms.
 
+Page headers display the category, title and description. Available operations are exposed through each explorer's controls, without a capability badge in the header.
+
 ## Automatic refresh
 
 Workers (including worker details), Scheduled tasks, Workflows, Email history and Email inbox refresh automatically every two seconds while their page is mounted. Workflow execution details refresh every three seconds. These pages use periodic HTTP requests, like Executions, Observations and Logs; updates become visible on the next successful request. Manual refresh controls remain available.

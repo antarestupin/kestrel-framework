@@ -439,20 +439,6 @@ button {
   font-size: 14px;
 }
 
-.read-only-badge {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  padding: 6px 9px;
-  border: 1px solid var(--studio-border-muted);
-  border-radius: 999px;
-  color: var(--studio-text-faint);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 9px;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
 .empty-state {
   margin-top: 28px;
   padding: 40px;

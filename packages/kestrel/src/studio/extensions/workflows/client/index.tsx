@@ -33,7 +33,7 @@ addStudioPageRenderer(executionRenderer);
 function WorkflowCatalogPage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page workflows-page">
-      <StudioPageHeader page={page} eyebrow="Operations" badge="Durable" />
+      <StudioPageHeader page={page} eyebrow="Operations" />
       {page.dataPath === undefined
         ? <p className="error-panel">The workflows page has no data endpoint.</p>
         : <WorkflowCatalogWorkspace dataPath={page.dataPath} />}
@@ -215,7 +215,7 @@ function WorkflowExecutionPage({ page }: { page: StudioPageManifest }) {
     : undefined;
   return (
     <div className="page workflows-page">
-      <StudioPageHeader page={page} eyebrow="Durable workflow" badge="Execution" />
+      <StudioPageHeader page={page} eyebrow="Durable workflow" />
       {page.dataPath === undefined || executionId === undefined
         ? <p className="error-panel">The workflow execution link is incomplete.</p>
         : <WorkflowExecutionWorkspace dataPath={page.dataPath} executionId={executionId} />}

@@ -57,6 +57,8 @@ Server extensions remain declarative until the HTTP workload mounts. Studio vali
 
 Shared server/client data lives in transport-neutral contracts. Browser modules never import server extension definitions, and Kestrel extensions receive required catalogs or sources explicitly rather than discovering application modules.
 
+Extension renderers use `StudioPageHeader` with `page` and `eyebrow` properties. The shared header displays the category, title and optional description; it has no capability badge property or default badge.
+
 ## Execution scenarios
 
 ### Studio bootstrap and extension page

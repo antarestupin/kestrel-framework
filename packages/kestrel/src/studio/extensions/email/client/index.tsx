@@ -50,7 +50,7 @@ addStudioPageRenderer(captureRenderer);
 function EmailHistoryPage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page email-page">
-      <StudioPageHeader page={page} eyebrow="Observability" badge="Transactional" />
+      <StudioPageHeader page={page} eyebrow="Observability" />
       {page.dataPath === undefined
         ? <p className="error-panel">The email history page has no data endpoint.</p>
         : <EmailHistory dataPath={page.dataPath} />}
@@ -61,7 +61,7 @@ function EmailHistoryPage({ page }: { page: StudioPageManifest }) {
 function EmailInboxPage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page email-page">
-      <StudioPageHeader page={page} eyebrow="Development email" badge="Local only" />
+      <StudioPageHeader page={page} eyebrow="Development email" />
       {page.dataPath === undefined
         ? <p className="error-panel">The email inbox page has no data endpoint.</p>
         : <EmailInbox dataPath={page.dataPath} />}
@@ -77,7 +77,7 @@ function EmailCapturePage({ page }: { page: StudioPageManifest }) {
 
   return (
     <div className="page email-page">
-      <StudioPageHeader page={page} eyebrow="Development email" badge="Captured" />
+      <StudioPageHeader page={page} eyebrow="Development email" />
       {page.dataPath === undefined || captureId === undefined
         ? <p className="error-panel">The captured email link is incomplete.</p>
         : <EmailCaptureDetail dataPath={page.dataPath} captureId={captureId} />}

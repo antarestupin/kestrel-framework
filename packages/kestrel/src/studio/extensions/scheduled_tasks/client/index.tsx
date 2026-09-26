@@ -34,7 +34,7 @@ addStudioPageRenderer(scheduledTasksStudioPageRenderer);
 function ScheduledTasksStudioPage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page scheduled-tasks-page">
-      <StudioPageHeader page={page} eyebrow="Operations" badge="Interactive" />
+      <StudioPageHeader page={page} eyebrow="Operations" />
       {page.dataPath === undefined
         ? <p className="error-panel">The scheduled-tasks page has no data endpoint.</p>
         : <ScheduledTaskWorkspace dataPath={page.dataPath} />}

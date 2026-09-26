@@ -15,3 +15,4 @@
 - Update linked usage and implementation documentation under docs when changing APIs.
 - Comment new behavior, keep Markdown paragraphs unwrapped, and document deferred evolutions.
 - Suggest a commit message at each change; the message must be concise (1 line)
+- Run npm run test:ai directly, without shell redirection or wrappers, so the existing command approval remains reusable. Capture output through the execution tool.

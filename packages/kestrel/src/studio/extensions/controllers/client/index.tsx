@@ -45,7 +45,7 @@ addStudioPageRenderer(controllersStudioPageRenderer);
 function ControllersStudioPage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page controllers-page">
-      <StudioPageHeader page={page} eyebrow="HTTP" badge="Interactive" />
+      <StudioPageHeader page={page} eyebrow="HTTP" />
       {page.dataPath === undefined
         ? <p className="error-panel">The controllers page has no data endpoint.</p>
         : <ControllerExplorer dataPath={page.dataPath} />}

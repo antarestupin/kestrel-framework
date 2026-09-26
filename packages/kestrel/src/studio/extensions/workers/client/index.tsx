@@ -55,7 +55,7 @@ addStudioPageRenderer(workerStudioPageRenderer);
 function WorkersStudioPage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page workers-page">
-      <StudioPageHeader page={page} eyebrow="Operations" badge="Interactive" />
+      <StudioPageHeader page={page} eyebrow="Operations" />
       {page.dataPath === undefined
         ? <p className="error-panel">The workers page has no data endpoint.</p>
         : <WorkerWorkspace dataPath={page.dataPath} />}
@@ -219,7 +219,7 @@ function WorkerStudioPage({ page }: { page: StudioPageManifest }) {
 
   return (
     <div className="page workers-page">
-      <StudioPageHeader page={page} eyebrow="Operations" badge="Interactive" />
+      <StudioPageHeader page={page} eyebrow="Operations" />
       {page.dataPath === undefined || workerId === undefined
         ? <p className="error-panel">The worker link is incomplete.</p>
         : <WorkerDetailWorkspace dataPath={page.dataPath} workerId={workerId} />}
