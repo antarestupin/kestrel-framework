@@ -6,7 +6,7 @@ Studio is a development tool for inspecting definitions, executions and infrastr
 
 ## Mount Studio with an actions explorer
 
-Enable an actions explorer when developers need to inspect the application catalog in a browser. This composition limits Studio to the development environment.
+Enable an actions explorer when developers need to inspect the application catalog in a browser. The page groups dotted action names into collapsible namespaces, with a navigation tree and a detail panel matching the HTTP controllers explorer. Select an action to inspect its full name, description and middleware. Actions without a namespace appear at the root. Action execution from this page is planned for a later iteration. This composition limits Studio to the development environment.
 
 ```ts
 import type { App } from "@kestrel/framework/app";

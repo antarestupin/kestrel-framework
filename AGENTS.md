@@ -14,3 +14,4 @@
 - Keep database table names singular and schema-push exports aligned with table filters.
 - Update linked usage and implementation documentation under docs when changing APIs.
 - Comment new behavior, keep Markdown paragraphs unwrapped, and document deferred evolutions.
+- Suggest a commit message at each change; the message must be concise (1 line)
