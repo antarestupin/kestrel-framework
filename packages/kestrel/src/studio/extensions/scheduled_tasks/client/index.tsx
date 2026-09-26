@@ -70,6 +70,10 @@ function ScheduledTaskWorkspace({ dataPath }: { dataPath: string }) {
 
   useEffect(() => {
     void load();
+
+    // Refresh operational state at the same cadence as logs and observations.
+    const interval = window.setInterval(() => void load(), 2_000);
+    return () => window.clearInterval(interval);
   }, [load]);
 
   useEffect(() => {

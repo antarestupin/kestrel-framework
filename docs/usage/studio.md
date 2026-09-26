@@ -44,6 +44,12 @@ Built-in extensions have their own public entry points under `studio/extensions/
 
 Controller and worker explorers use declared `examples` to prepare forms and correlate executions with observations. Without examples they derive a deterministic fallback from the input schema. Add meaningful examples to complex definitions for more useful forms.
 
+## Automatic refresh
+
+Workers (including worker details), Scheduled tasks, Workflows, Email history and Email inbox refresh automatically every two seconds while their page is mounted. Workflow execution details refresh every three seconds. These pages use periodic HTTP requests, like Executions, Observations and Logs; updates become visible on the next successful request. Manual refresh controls remain available.
+
+Paginated lists refresh their newest page, so automatic refresh replaces any older pages loaded with “Load older”. Server-pushed updates and retaining older pages during refresh remain deferred improvements.
+
 ## Link another development tool
 
 Add a navigation link when a separate tool already provides a useful development interface. This example makes an existing database browser reachable from Studio.

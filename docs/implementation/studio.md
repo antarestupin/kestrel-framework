@@ -207,3 +207,9 @@ Extensions that share heavy presentation modules may still produce a common asyn
 Execution-scoped logs are intentionally returned without pagination so the local detail remains complete and simple. If development executions become log-heavy, the storage can promote `executionId` from JSONB into an indexed column and the UI can add incremental loading without changing the correlation contract.
 
 Observation filters intentionally use exact values so the existing category and name indexes remain useful. A future iteration can add server-provided facets, time ranges, partial search and URL-persisted filters when the number and variety of observation definitions make free-form exact filters insufficient.
+
+## Operational page refresh
+
+The worker catalog and worker detail, scheduled-task catalog and workflow catalog clients load immediately and poll their existing read endpoints every two seconds. Each effect clears its timer when the component unmounts or its load callback changes, including when workflow filters change. Existing component state keeps worker payload drafts and selected workflow filters intact across successful refreshes. The scheduled-task clock continues updating relative times every second independently of server-state refreshes.
+
+Email history, inbox and capture details already poll every two seconds; workflow execution details poll every three seconds. This is HTTP polling rather than server push. As with the existing email and execution lists, workflow catalog refreshes replace the newest page and its pagination cursor. Retaining loaded older pages and introducing server-pushed invalidations are deferred.
