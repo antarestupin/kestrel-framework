@@ -1,3 +1,4 @@
+# Automated validation is paused. Rename this file to validate.yml to restore it.
 name: Validate
 on: [push, pull_request]
 permissions:

@@ -16,7 +16,9 @@ The root package overrides pin patched transitive dependencies used by the docum
 
 ## Publishing
 
-The documentation workflow builds pull requests and deploys pushes to `main`. In the GitHub repository settings, select **Pages → Build and deployment → Source → GitHub Actions** before the first deployment. The default address is `https://antarestupin.github.io/kestrel-framework/`.
+Documentation builds and publication in GitHub Actions are paused. The workflow is preserved as `.github/workflows/docs.yml.disabled`, which GitHub Actions does not load. The root `build:ai` command also excludes the documentation so the validation and package archive jobs do not build the site indirectly. Use `npm run docs:build` to build it locally.
+
+When publication is approved, rename `.github/workflows/docs.yml.disabled` to `.github/workflows/docs.yml`. The restored workflow builds pull requests and deploys pushes to `main`; it does not require adding the documentation back to the root build. In the GitHub repository settings, select **Pages → Build and deployment → Source → GitHub Actions** before the first deployment. The default address is `https://antarestupin.github.io/kestrel-framework/`.
 
 For a custom domain, configure the domain and DNS in GitHub Pages, set the repository variable `DOCS_URL` to the origin (for example `https://docs.example.com`) and `DOCS_BASE_URL` to `/`, then rebuild. These variables can also be supplied locally. Always include the leading and trailing slashes in the base path. No search credentials or backend are needed.
 

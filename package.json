@@ -12,7 +12,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build:ai": "npm run build:ai --workspace=@kestrel/framework && npm run build:ai --workspace=@kestrel/create-app && npm run build:ai --workspace=@kestrel/playground && npm run build:ai --workspace=@kestrel/docs",
+    "build:ai": "npm run build:ai --workspace=@kestrel/framework && npm run build:ai --workspace=@kestrel/create-app && npm run build:ai --workspace=@kestrel/playground",
     "docs:dev": "npm run dev --workspace=@kestrel/docs",
     "docs:build": "npm run build:ai --workspace=@kestrel/docs",
     "docs:preview": "npm run preview --workspace=@kestrel/docs",

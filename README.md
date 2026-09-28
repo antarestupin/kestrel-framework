@@ -4,6 +4,8 @@ Kestrel is a modular application framework. This repository contains its librari
 
 ## Develop and test
 
+GitHub Actions validation is paused. Its workflow is preserved in `.github/workflows/validate.yml.disabled`; rename it to `validate.yml` to restore validation on pushes and pull requests. Local validation commands remain available below.
+
 Use Node.js 24 and Docker Compose. From this repository root:
 
 ```sh
