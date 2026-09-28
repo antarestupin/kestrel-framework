@@ -12,7 +12,10 @@
     "apps/*"
   ],
   "scripts": {
-    "build:ai": "npm run build:ai --workspace=@kestrel/framework && npm run build:ai --workspace=@kestrel/create-app && npm run build:ai --workspace=@kestrel/playground",
+    "build:ai": "npm run build:ai --workspace=@kestrel/framework && npm run build:ai --workspace=@kestrel/create-app && npm run build:ai --workspace=@kestrel/playground && npm run build:ai --workspace=@kestrel/docs",
+    "docs:dev": "npm run dev --workspace=@kestrel/docs",
+    "docs:build": "npm run build:ai --workspace=@kestrel/docs",
+    "docs:preview": "npm run preview --workspace=@kestrel/docs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test:ai": "vitest run --reporter=minimal --no-isolate",
     "test:unit": "vitest run --reporter=minimal --no-isolate --project=unit",
@@ -26,6 +29,7 @@
     "verify:archive": "node scripts/verify-archive.mjs"
   },
   "devDependencies": {
+    "@docusaurus/core": "3.10.2",
     "@redis/client": "^6.2.1",
     "@tanstack/router-plugin": "^1.168.33",
     "@types/node": "^24.13.3",
@@ -41,5 +45,12 @@
     "vite": "^8.2.0",
     "vitest": "^4.1.10",
     "pg": "^8.22.0"
+  },
+  "overrides": {
+    "lodash-es": "4.18.1",
+    "serialize-javascript": "7.1.2",
+    "sockjs": {
+      "uuid": "11.1.1"
+    }
   }
 }

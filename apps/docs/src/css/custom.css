@@ -1,0 +1,39 @@
+:root {
+  --ifm-color-primary: #246653;
+  --ifm-color-primary-dark: #205c4b;
+  --ifm-color-primary-darker: #1f5747;
+  --ifm-color-primary-darkest: #19483a;
+  --ifm-color-primary-light: #28705b;
+  --ifm-color-primary-lighter: #29755f;
+  --ifm-color-primary-lightest: #2f856c;
+  --ifm-code-font-size: 90%;
+  --ifm-heading-font-weight: 700;
+}
+[data-theme='dark'] {
+  --ifm-color-primary: #7cdcb5;
+  --ifm-color-primary-dark: #60d5a5;
+  --ifm-color-primary-darker: #52d19d;
+  --ifm-color-primary-darkest: #30be83;
+  --ifm-color-primary-light: #98e3c5;
+  --ifm-color-primary-lighter: #a6e7cd;
+  --ifm-color-primary-lightest: #cff2e4;
+  --pagefind-ui-text: var(--ifm-font-color-base);
+  --pagefind-ui-background: var(--ifm-background-color);
+  --pagefind-ui-border: #45534d;
+}
+/* A responsive split keeps the introduction and real code equally readable. */
+.kestrel-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; padding-top: 5rem; padding-bottom: 4rem; align-items: center; }
+.kestrel-hero h1 { font-size: clamp(2.5rem, 4vw, 4rem); line-height: 1.08; letter-spacing: -.04em; }
+.kestrel-eyebrow { font-size: .8rem; letter-spacing: .12em; font-weight: 700; color: var(--ifm-color-primary); }
+.kestrel-lead { font-size: 1.2rem; max-width: 36rem; }
+.kestrel-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.75rem 0 1rem; }
+.kestrel-status { font-size: .85rem; color: var(--ifm-color-emphasis-700); }
+.kestrel-example { min-width: 0; }
+.kestrel-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; padding-bottom: 5rem; }
+.kestrel-features article { border-top: 1px solid var(--ifm-color-emphasis-300); padding-top: 1.5rem; }
+.kestrel-features h2 { font-size: 1.35rem; }
+.kestrel-search { max-width: 900px; min-height: 55vh; }
+@media (max-width: 996px) {
+  .kestrel-hero { grid-template-columns: 1fr; gap: 1.5rem; padding-top: 3rem; }
+  .kestrel-features { grid-template-columns: 1fr; }
+}

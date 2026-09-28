@@ -1,0 +1,21 @@
+{
+  "name": "@kestrel/docs",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "docusaurus start",
+    "build:ai": "docusaurus build && pagefind --site build --glob 'docs/**/*.html' --root-selector article",
+    "preview": "docusaurus serve",
+    "docs:version": "docusaurus docs:version"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@docusaurus/theme-mermaid": "3.10.2",
+    "@mdx-js/react": "^3.1.1",
+    "pagefind": "1.5.2",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "@mermaid-js/layout-elk": "^0.1.9"
+  }
+}

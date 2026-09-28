@@ -36,6 +36,8 @@ The creator copies the archive into the generated application's `vendor` directo
 
 ## Documentation
 
+The Docusaurus website in `apps/docs` renders the guides below directly. Run `npm run docs:dev` for local authoring, or `npm run docs:build` followed by `npm run docs:preview` to include local search. See [website maintenance and GitHub Pages setup](apps/docs/README.md).
+
 - [Documentation home](docs/README.md)
 - [Usage guides](docs/usage/README.md)
 - [Implementation references](docs/implementation/README.md)
