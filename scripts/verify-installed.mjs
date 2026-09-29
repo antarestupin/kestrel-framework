@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, access, writeFile } from "node:fs/promises";
+import { readFile, access, writeFile, rename, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -43,4 +43,35 @@ const executable = resolve(application, "node_modules/.bin/kestrel");
 const result = spawnSync(process.execPath, [executable], { encoding: "utf8" });
 assert.equal(result.status, 1);
 assert.match(result.stderr, /An application module path is required/);
+// Verify root tooling from outside the generated project, with real installed dependencies.
+for (const file of ["do", ".devcontainer/ensure-test-database.sh"]) {
+  assert((await stat(resolve(application, file))).mode & 0o111, `${file} must be executable`);
+}
+for (const file of [".gitignore", ".nvmrc", "AGENTS.md", ".vscode/settings.json", ".devcontainer/devcontainer.json", "drizzle.database.ts", "drizzle.dev.config.ts", "drizzle.dev-push.config.ts", "vite.development.config.ts"]) {
+  await access(resolve(application, file));
+}
+for (const file of ["src/server/main.ts", "src/server/generate.ts", "src/server/core/db/migrate.ts"]) {
+  await assert.rejects(access(resolve(application, file)), { code: "ENOENT" });
+}
+const generatedClient = resolve(application, "src/generated/publicClient/publicClient.ts");
+const originalClient = await readFile(generatedClient, "utf8");
+await rename(generatedClient, resolve(application, ".previous-generated-client.ts"));
+for (const [launcher, args, environment] of [
+  ["do", ["generate", "http-clients"], {}],
+  ["do", ["--help"], {}],
+  ["do", ["--help"], { NODE_ENV: "production", KESTREL_COMPILED: "1" }],
+]) {
+  const invocation = spawnSync(resolve(application, launcher), args, {
+    cwd: dirname(application), encoding: "utf8", env: { ...process.env, ...environment },
+  });
+  assert.equal(invocation.status, 0, invocation.stderr || invocation.error?.message);
+}
+assert.equal(await readFile(generatedClient, "utf8"), originalClient);
+for (const file of ["0000_initial_note.sql", "meta/_journal.json", "meta/0000_snapshot.json"]) {
+  assert.equal(
+    await readFile(resolve(application, "dist/server/core/db/migrations", file), "utf8"),
+    await readFile(resolve(application, "src/server/core/db/migrations", file), "utf8"),
+  );
+}
 console.info(`Verified ${Object.keys(manifest.exports).length} ESM/CommonJS exports, declarations, CLI symlink, and Studio assets from ${fileURLToPath(pathToFileURL(packageRoot))}.`);
+console.info("Verified starter root tooling, source and compiled CLI entry points, client regeneration, and compiled migration assets.");

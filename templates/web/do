@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+
+# Anchor configuration and dependency resolution to the project, including npm workspaces.
+PROJECT_DIRECTORY=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$PROJECT_DIRECTORY"
+CLI_PATH=$(node -e 'const path = require("node:path"); process.stdout.write(path.join(path.dirname(require.resolve("@kestrel/framework/package.json")), "dist/cli/main.js"));')
+
+# Development and production share the same composition and Kestrel CLI lifecycle.
+if [ "${KESTREL_COMPILED:-0}" = "1" ]; then
+  set -- "$CLI_PATH" "$PROJECT_DIRECTORY/dist/server/core/app.js" "$@"
+else
+  set -- --import tsx "$CLI_PATH" "$PROJECT_DIRECTORY/src/server/core/app.ts" "$@"
+fi
+if [ "${KESTREL_WATCH:-0}" = "1" ]; then
+  set -- --watch "$@"
+fi
+exec node --import zod/compile "$@"

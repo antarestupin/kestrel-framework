@@ -1,6 +1,13 @@
 node_modules/
 dist/
+coverage/
+.vite/
+.tanstack/
+*.log
+.DS_Store
+.idea/
+
+# Keep local secrets out of Git while retaining the documented defaults.
 .env
 .env.*
 !.env.example
-.vite/

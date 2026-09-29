@@ -1,3 +1,10 @@
 import { defineConfig } from "drizzle-kit";
+import { drizzleDatabaseCredentials } from "./drizzle.database.js";
 
-export default defineConfig({ dialect: "postgresql", schema: "./src/server/core/db/schema.ts", out: "./migrations" });
+// Keep the deployment history beside the application database schema and tooling.
+export default defineConfig({
+  dialect: "postgresql",
+  schema: "./src/server/core/db/schema/app_schema.ts",
+  out: "./src/server/core/db/migrations",
+  dbCredentials: drizzleDatabaseCredentials,
+});

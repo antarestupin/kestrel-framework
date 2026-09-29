@@ -1,0 +1,11 @@
+# Application instructions
+
+- Write code, comments, and documentation in English.
+- Keep application code in this project and consume Kestrel through its public package exports.
+- Run commands through `./do`; use `npm run test:ai` and `npm run build:ai` for validation.
+- Use unit tests and Fastify injection without starting HTTP listeners. Keep tests compatible with `--no-isolate` and dispose every owned application.
+- Regenerate HTTP contracts with `npm run api:generate`; never edit files under `src/generated/` manually.
+- Keep database table names singular and preserve the ordered migration history in `src/server/core/db/migrations/`.
+- Keep local schema-push exports and table filters aligned; development-only tables must not enter deployment migrations.
+- Read environment values only in application configuration and tooling. Comment new behavior and update the README when commands change.
+- Never publish packages without explicit owner approval.

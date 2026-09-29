@@ -7,14 +7,22 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "tsx watch --import zod/compile src/server/main.ts",
-    "start": "node --import zod/compile dist/server/main.js",
-    "api:generate": "node --import tsx --import zod/compile src/server/generate.ts",
-    "build:ai": "npm run api:generate && tsc -p tsconfig.build.json && vite build --logLevel error",
+    "dev": "KESTREL_WATCH=1 ./do run server",
+    "start": "NODE_ENV=production KESTREL_COMPILED=1 ./do run server",
+    "api:generate": "./do generate http-clients",
+    "build:ai": "npm run api:generate && tsc -p tsconfig.build.json && node scripts/copy-database-assets.mjs && vite build --logLevel error",
     "typecheck": "tsc --noEmit",
     "test:ai": "vitest run --reporter=minimal --no-isolate",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "node --import tsx src/server/core/db/migrate.ts"
+    "db:generate": "tsx src/server/core/db/generate_migration.ts",
+    "db:migrate": "./do database migrate",
+    "cli": "./do",
+    "db:check": "drizzle-kit check",
+    "db:dev:migrate": "./do database migrate && drizzle-kit push --config=drizzle.dev-push.config.ts && tsx src/server/core/db/apply_development_schema_contributions.ts",
+    "dev:database": "drizzle-kit studio --config=drizzle.dev.config.ts --host=127.0.0.1 --port=4983",
+    "test": "vitest run --no-isolate",
+    "test:watch": "vitest",
+    "infra:up": "docker compose -f .devcontainer/docker-compose.yml up -d --wait postgres redis",
+    "infra:down": "docker compose -f .devcontainer/docker-compose.yml stop"
   },
   "dependencies": {
     "@kestrel/framework": "0.0.0",

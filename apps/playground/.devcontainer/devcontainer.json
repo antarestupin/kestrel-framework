@@ -1,0 +1,17 @@
+{
+  "name": "Kestrel application",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace/app",
+  "remoteUser": "node",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [
+    3333,
+    4983
+  ],
+  "postCreateCommand": "npm install",
+  "postStartCommand": "bash .devcontainer/ensure-test-database.sh",
+  "remoteEnv": {
+    "TZ": "UTC"
+  }
+}
