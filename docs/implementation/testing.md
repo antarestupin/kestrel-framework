@@ -9,13 +9,13 @@ Fastify HTTP bindings are tested with `fastify.inject()`.
 
 ## Concepts and model
 
-Kestrel unit tests exercise one library without application composition. Kestrel integration tests compose only the lower-level Kestrel dependencies they need and use dedicated PostgreSQL or Redis test databases. Application tests remain outside `packages/kestrel/src` and verify application policy and composition rather than retesting generic library behavior.
+Kestrel unit tests exercise one library without application composition. Kestrel integration tests compose only the lower-level Kestrel dependencies they need and use dedicated PostgreSQL or Redis test databases. Application tests remain outside `src/packages/kestrel/src` and verify application policy and composition rather than retesting generic library behavior.
 
 ```mermaid
 flowchart LR
     Unit[Kestrel unit test] --> Library[Owning Kestrel library]
     Integration[Kestrel integration test] --> Library
-    Integration --> Helpers[packages/kestrel/src/testing]
+    Integration --> Helpers[src/packages/kestrel/src/testing]
     Helpers --> KestrelDB[(Kestrel PostgreSQL test database)]
     Helpers --> RedisDB[(Kestrel Redis test database 2)]
     AppTest[Application test] --> App[Application composition]
@@ -28,7 +28,7 @@ For application setup and task-oriented examples, see the [Testing usage guide](
 
 ## Design and implementation
 
-The helpers stay below `packages/kestrel/src/testing` so Kestrel tests never depend on application bootstrap, application schema or application test support. The PostgreSQL helper reuses `databaseConfigBase` validation, reads only test-runner connection variables and defaults to the isolated `kestrel_test` database. It does not run migrations or own schema setup beyond the pool it returns.
+The helpers stay below `src/packages/kestrel/src/testing` so Kestrel tests never depend on application bootstrap, application schema or application test support. The PostgreSQL helper reuses `databaseConfigBase` validation, reads only test-runner connection variables and defaults to the isolated `kestrel_test` database. It does not run migrations or own schema setup beyond the pool it returns.
 
 Tests must remain compatible with Vitest's `--no-isolate` mode. Mutable global state, fake timers, event listeners, dependency overrides and resources must be restored explicitly.
 
@@ -54,13 +54,13 @@ sequenceDiagram
 
 | Module export | Purpose |
 | --- | --- |
-| `createPostgresTestPool()` from `packages/kestrel/src/testing/postgres.ts` | Creates a validated pool targeting the Kestrel integration-test database. |
-| `createRedisTestContext()` from `packages/kestrel/src/testing/redis.ts` | Connects to Redis database 2 and returns a client, unique key prefix and cleanup operation. |
-| `testHttpAccess` from `packages/kestrel/src/testing/http_access.ts` | Supplies an explicit unrestricted HTTP access policy for Kestrel tests. |
+| `createPostgresTestPool()` from `src/packages/kestrel/src/testing/postgres.ts` | Creates a validated pool targeting the Kestrel integration-test database. |
+| `createRedisTestContext()` from `src/packages/kestrel/src/testing/redis.ts` | Connects to Redis database 2 and returns a client, unique key prefix and cleanup operation. |
+| `testHttpAccess` from `src/packages/kestrel/src/testing/http_access.ts` | Supplies an explicit unrestricted HTTP access policy for Kestrel tests. |
 
 The testing library has no adapter API. Tests use the same public adapter contracts and bundled implementations as production libraries; the helpers only provide isolated test composition.
 
-Local integration tests use dedicated databases inside the same PostgreSQL instance. Application tests use the application-configured test database, while Kestrel tests use the database selected by `KESTREL_TEST_DATABASE`, defaulting to `kestrel_test`; the repository-owned `infra:prepare` command creates the framework test database idempotently, independently of playground initialization. Kestrel-only helpers live in `packages/kestrel/src/testing`, keeping Kestrel tests inside the same source boundary. Application runtime test support lives separately in `src/server/tests` and must never be imported by Kestrel code or tests. `createPostgresTestPool()` reads the test runner's `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_SSL` and `KESTREL_TEST_DATABASE` variables and otherwise uses local development defaults.
+Local integration tests use dedicated databases inside the same PostgreSQL instance. Application tests use the application-configured test database, while Kestrel tests use the database selected by `KESTREL_TEST_DATABASE`, defaulting to `kestrel_test`; the repository-owned `infra:prepare` command creates the framework test database idempotently, independently of playground initialization. Kestrel-only helpers live in `src/packages/kestrel/src/testing`, keeping Kestrel tests inside the same source boundary. Application runtime test support lives separately in `src/server/tests` and must never be imported by Kestrel code or tests. `createPostgresTestPool()` reads the test runner's `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_SSL` and `KESTREL_TEST_DATABASE` variables and otherwise uses local development defaults.
 Transaction rollback isolation is to be used between unit tests using the database.
 
 Specs in the form of comments may help drive the tests, there's an example in [Actions](./actions.md).
@@ -74,7 +74,7 @@ Redis integration tests use the existing development Redis service and logical d
 Cleanup scans and unlinks only that context's prefix, then closes its socket and removes its error listener even if cleanup fails. Never use `FLUSHDB` or `FLUSHALL`: other suites and developers can use the same logical database concurrently. Tests do not modify global Redis configuration or select application databases. An interrupted process can leave keys behind; their random prefixes prevent collisions, but automatic stale-test cleanup remains a possible future addition.
 
 ```sh
-npm run test:ai -- packages/kestrel/src/cache/adapters/redis packages/kestrel/src/testing/redis.test.ts
+npm run test:ai -- src/packages/kestrel/src/cache/adapters/redis src/packages/kestrel/src/testing/redis.test.ts
 ```
 
 The cache adapter suite checks that Redis reports `db=2`, validates the absolute TTL with `PEXPIRETIME`, and polls the physical key until native expiration removes it. Those TTL checks use real time because fake timers cannot advance the Redis server clock. Separate unit tests use injected transports for controlled failure paths. Missing infrastructure is a test failure, not an automatic skip.

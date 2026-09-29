@@ -4,9 +4,9 @@ name: Documentation
 on:
   push:
     branches: [main]
-    paths: ['apps/docs/**', 'docs/**', 'package.json', 'package-lock.json', '.github/workflows/docs.yml']
+    paths: ['src/apps/docs/**', 'docs/**', 'package.json', 'package-lock.json', '.github/workflows/docs.yml']
   pull_request:
-    paths: ['apps/docs/**', 'docs/**', 'package.json', 'package-lock.json', '.github/workflows/docs.yml']
+    paths: ['src/apps/docs/**', 'docs/**', 'package.json', 'package-lock.json', '.github/workflows/docs.yml']
   workflow_dispatch:
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
           DOCS_BASE_URL: ${{ vars.DOCS_BASE_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/docs/build
+          path: src/apps/docs/build
 
   # Pull requests validate the site; only main may publish the Pages artifact.
   deploy:

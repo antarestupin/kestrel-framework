@@ -17,7 +17,8 @@ export default {
   i18n: { defaultLocale: 'en', locales: ['en'] },
   presets: [['classic', {
     docs: {
-      path: '../../docs',
+      // Shared guides remain at the repository root, outside the source workspaces.
+      path: '../../../docs',
       routeBasePath: 'docs',
       sidebarPath: './sidebars.js',
       editUrl: 'https://github.com/antarestupin/kestrel-framework/edit/main/docs/',

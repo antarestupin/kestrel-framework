@@ -1,8 +1,8 @@
 # Kestrel documentation
 
-Kestrel is the reusable framework in `packages/kestrel/src`. Its documentation has two entry points, with the same library names on both sides.
+Kestrel is the reusable framework in `src/packages/kestrel/src`. Its documentation has two entry points, with the same library names on both sides.
 
-These Markdown files are also the source for the Docusaurus website. Keep content here and maintain the website navigation in `apps/docs/sidebars.js`; usage guides appear first, while implementation references and design records are available under Advanced.
+These Markdown files are also the source for the Docusaurus website. Keep content here and maintain the website navigation in `src/apps/docs/sidebars.js`; usage guides appear first, while implementation references and design records are available under Advanced.
 
 | Your goal | Start here |
 | --- | --- |

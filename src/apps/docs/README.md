@@ -1,6 +1,6 @@
 # Kestrel documentation website
 
-This private workspace renders the canonical Markdown in `../../docs` with Docusaurus. Do not copy guides into this application. The home page and search interface live in `src/pages`; navigation lives in `sidebars.js`.
+This private workspace renders the canonical Markdown in `../../../docs` with Docusaurus. Do not copy guides into this application. The home page and search interface live in `src/pages`; navigation lives in `sidebars.js`.
 
 From the repository root, install with `npm ci`, then run:
 

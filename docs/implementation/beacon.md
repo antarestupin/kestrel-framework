@@ -12,7 +12,7 @@ The first PostgreSQL adapter targets local development and low-traffic deploymen
 
 The first vertical slice provides:
 
-- an independent React client and server extension under `packages/kestrel/src/beacon`;
+- an independent React client and server extension under `src/packages/kestrel/src/beacon`;
 - read-only pages for executions, execution details, logs, observations, errors, slow executions, slow database queries and telemetry pipeline health;
 - bounded list APIs with exact filters and keyset cursors supplied by the shared PostgreSQL stores;
 - TanStack Router navigation and TanStack Query server-state caching, preloading, retry classification and browser cursor pagination;

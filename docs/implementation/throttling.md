@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/throttling.md)
 
-Kestrel provides a transport-independent throttling library in `packages/kestrel/src/throttling`. Its purpose is to protect external dependencies and local resources by deciding whether work may start now, should wait, should be deferred or must be rejected.
+Kestrel provides a transport-independent throttling library in `src/packages/kestrel/src/throttling`. Its purpose is to protect external dependencies and local resources by deciding whether work may start now, should wait, should be deferred or must be rejected.
 
 The public name is **throttling** because the library regulates more than request counts. Internally, the central concept is admission control: rate quotas, concurrent capacity, dependency health and local resource pressure all contribute to one admission decision without pretending that they share the same lifecycle or storage model.
 
@@ -30,7 +30,7 @@ The library does not infer dependency costs, adapt limits automatically, coordin
 
 ## Current surface
 
-The implemented files live in `packages/kestrel/src/throttling`. `ThrottlingManager` receives a `RateLimitAdapter` and resolved options. `MemoryRateLimitAdapter` owns process-local bucket state, `PostgresRateLimitAdapter` owns authoritative shared state, and `LeasedRateLimitAdapter` consumes bounded PostgreSQL grants locally. The application-facing dependency descriptor is `throttlingDependency`; `ThrottlingProvider` composes exact and leased capabilities behind the same API.
+The implemented files live in `src/packages/kestrel/src/throttling`. `ThrottlingManager` receives a `RateLimitAdapter` and resolved options. `MemoryRateLimitAdapter` owns process-local bucket state, `PostgresRateLimitAdapter` owns authoritative shared state, and `LeasedRateLimitAdapter` consumes bounded PostgreSQL grants locally. The application-facing dependency descriptor is `throttlingDependency`; `ThrottlingProvider` composes exact and leased capabilities behind the same API.
 
 The current public surface includes:
 
@@ -1295,7 +1295,7 @@ Definition identifiers and dimensions must be bounded and must not contain crede
 
 Status: complete.
 
-- Add `packages/kestrel/src/throttling` with public definitions, types and errors.
+- Add `src/packages/kestrel/src/throttling` with public definitions, types and errors.
 - Implement `defineRateLimit()`, `Throttling.run()` and `Throttling.acquire()`.
 - Implement a weighted token bucket and in-memory adapter.
 - Support immediate rejection, bounded waiting and `AbortSignal`.

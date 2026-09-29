@@ -51,10 +51,10 @@ Metrics answer whether a problem exists and how it evolves. Traces and observati
 
 ## Unified library boundary
 
-The production boundary is `packages/kestrel/src/telemetry`. Logging and typed observations now live below that boundary with their tests, public exports and supporting files. Metrics and tracing currently expose neutral contracts and tested no-op implementations; their concrete adapters remain future work.
+The production boundary is `src/packages/kestrel/src/telemetry`. Logging and typed observations now live below that boundary with their tests, public exports and supporting files. Metrics and tracing currently expose neutral contracts and tested no-op implementations; their concrete adapters remain future work.
 
 ```text
-packages/kestrel/src/telemetry/
+src/packages/kestrel/src/telemetry/
 ├── configuration.ts
 ├── dependencies.ts
 ├── health.ts
@@ -87,11 +87,11 @@ One application-owned `TelemetryResource` starts these isolated processors, shar
 
 ## Applications and reusable UI
 
-`packages/kestrel/src/beacon` owns the production-capable server extension, query contracts and client. It is independent from Studio and can be mounted locally or in deployed environments with application-provided authentication and authorization.
+`src/packages/kestrel/src/beacon` owns the production-capable server extension, query contracts and client. It is independent from Studio and can be mounted locally or in deployed environments with application-provided authentication and authorization.
 
 Local composition may mount Beacon in the ordinary HTTP runtime for convenience. Stage and production should be able to run the same application and query contracts in a dedicated read runtime so analytical queries, read credentials and UI traffic do not compete with application requests. This is a deployment separation, not a second telemetry implementation: producer processes still use the same `TelemetryProvider`, and the read runtime only queries retained data.
 
-Studio remains in `packages/kestrel/src/studio`. Its telemetry extensions reuse the same query contracts and rendering components where useful, but retain local-only capabilities such as clearing retained data, source-code links and interactive execution tools.
+Studio remains in `src/packages/kestrel/src/studio`. Its telemetry extensions reuse the same query contracts and rendering components where useful, but retain local-only capabilities such as clearing retained data, source-code links and interactive execution tools.
 
 The intended relationship is:
 
@@ -323,7 +323,7 @@ The adapter configuration defaults every raw signal to three retention days. Met
 
 ### PostgreSQL metric points
 
-The implementation lives in `packages/kestrel/src/telemetry/adapters/postgres/metrics`. Phase 2 promoted its `telemetry.metric_points` declaration into the shared PostgreSQL schema and the production migration. Local development receives the same table through migrations; it is not duplicated in the development-only `utils` push schema.
+The implementation lives in `src/packages/kestrel/src/telemetry/adapters/postgres/metrics`. Phase 2 promoted its `telemetry.metric_points` declaration into the shared PostgreSQL schema and the production migration. Local development receives the same table through migrations; it is not duplicated in the development-only `utils` push schema.
 
 The implementation follows this write and query model:
 
@@ -571,7 +571,7 @@ Status: complete.
 
 Implemented:
 
-- `packages/kestrel/src/telemetry` provides neutral metrics, tracing, active-context and propagation contracts without an OpenTelemetry runtime dependency.
+- `src/packages/kestrel/src/telemetry` provides neutral metrics, tracing, active-context and propagation contracts without an OpenTelemetry runtime dependency.
 - Tested no-op implementations make instrumentation optional while preserving producer control flow.
 - `TelemetryProvider` registers the neutral dependencies, owns instrumentation startup, flush and shutdown, and composes the existing log and observation providers under one application lifecycle.
 - The current application uses this unified composition without changing local PostgreSQL logging, typed-observation persistence or Studio behavior.
@@ -644,7 +644,7 @@ Exit criteria: each log and observation is collected once, local Studio can read
 
 Status: in progress. The first retained-signal vertical is implemented and usable locally.
 
-- Create `packages/kestrel/src/beacon` as a production-capable, read-only Kestrel application with stable routes, page identifiers and client contracts.
+- Create `src/packages/kestrel/src/beacon` as a production-capable, read-only Kestrel application with stable routes, page identifiers and client contracts.
 - Keep Beacon independent from Studio and from application code. The application supplies configuration, mounting, authentication and authorization through explicit providers.
 - Define bounded storage-neutral query contracts for executions, correlated artifacts, logs, observations and telemetry health. Providers may explicitly report unsupported capabilities.
 - Implement the first PostgreSQL query provider against `telemetry.log_records` and `telemetry.observations`, reusing the existing stores or extracting shared lower-level query abstractions without introducing a second collection path.
@@ -658,7 +658,7 @@ Status: in progress. The first retained-signal vertical is implemented and usabl
 
 Implemented in the first vertical:
 
-- `packages/kestrel/src/beacon` owns storage-neutral serialized contracts, a read-only server extension, an independent React client and dedicated Vite delivery.
+- `src/packages/kestrel/src/beacon` owns storage-neutral serialized contracts, a read-only server extension, an independent React client and dedicated Vite delivery.
 - `PostgresBeaconTelemetrySource` reuses the shared low-level PostgreSQL log and observation readers; Beacon adds no writer, table, sampling policy or retention process.
 - Stable APIs expose execution pages, correlated execution artifacts, logs, filtered observations and telemetry health under a configurable base path.
 - Initial pages cover Overview, executions, execution detail, logs, observations, errors, slow executions, slow database queries and telemetry health.

@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/tokens.md)
 
-Kestrel provides a transport-independent token library in `packages/kestrel/src/tokens`. It manages temporary bearer values that authorize a bounded action or recover a validated payload. Authentication sessions, queue reservations, lock fencing tokens, and other domain-specific ownership markers remain in their owning libraries.
+Kestrel provides a transport-independent token library in `src/packages/kestrel/src/tokens`. It manages temporary bearer values that authorize a bounded action or recover a validated payload. Authentication sessions, queue reservations, lock fencing tokens, and other domain-specific ownership markers remain in their owning libraries.
 
 The library provides opaque stored tokens, signed stateless JWTs, and hybrid JWTs with minimal persisted lifecycle state. Stateless JWTs deliberately do not claim revocation or single-use guarantees; hybrid JWTs add those guarantees without storing their application payload.
 

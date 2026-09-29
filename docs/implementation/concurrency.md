@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/concurrency.md)
 
-Kestrel provides infrastructure-neutral concurrency primitives in `packages/kestrel/src/concurrency`. It includes in-memory batch buffering, deferred task tracking and a standard representation for aggregated bulk operation results.
+Kestrel provides infrastructure-neutral concurrency primitives in `src/packages/kestrel/src/concurrency`. It includes in-memory batch buffering, deferred task tracking and a standard representation for aggregated bulk operation results.
 
 ## Concepts and model
 

@@ -2,9 +2,9 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/outbound_http.md)
 
-The server-only outbound HTTP library in `packages/kestrel/src/outbound_http` creates dedicated clients for external APIs while centralizing retries, response caching, throttling, deadlines, validation and execution observations. It builds on the native Node.js `fetch`, `Request`, `Response`, `Headers` and `AbortSignal` contracts instead of introducing a replaceable transport adapter without a concrete second transport.
+The server-only outbound HTTP library in `src/packages/kestrel/src/outbound_http` creates dedicated clients for external APIs while centralizing retries, response caching, throttling, deadlines, validation and execution observations. It builds on the native Node.js `fetch`, `Request`, `Response`, `Headers` and `AbortSignal` contracts instead of introducing a replaceable transport adapter without a concrete second transport.
 
-The inbound HTTP controller Kestrel and its generated browser-compatible clients remain in `packages/kestrel/src/http`. They have different dependency and runtime boundaries and do not depend on this server-only library.
+The inbound HTTP controller Kestrel and its generated browser-compatible clients remain in `src/packages/kestrel/src/http`. They have different dependency and runtime boundaries and do not depend on this server-only library.
 
 ## Concepts and model
 

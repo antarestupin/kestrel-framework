@@ -4,7 +4,7 @@
 
 The current implementation described below uses Pino. The [native Kestrel logging implementation plan](./native_logging_plan.md) defines its proposed replacement, including bounded delivery, saturation policy, adapter contracts and performance acceptance gates.
 
-The application uses Pino for structured logs in every transport. The reusable `LoggerProvider` lives in `packages/kestrel/src/log`, receives a resolved `LoggerConfig` and transfers logger ownership to the common `App`. The thin subclass in `src/server/core/providers` overrides the protected backend factory to select the application development database when configured. Deployed environments keep Pino's newline-delimited JSON output on stdout so the hosting platform can collect it without an application-specific integration.
+The application uses Pino for structured logs in every transport. The reusable `LoggerProvider` lives in `src/packages/kestrel/src/log`, receives a resolved `LoggerConfig` and transfers logger ownership to the common `App`. The thin subclass in `src/server/core/providers` overrides the protected backend factory to select the application development database when configured. Deployed environments keep Pino's newline-delimited JSON output on stdout so the hosting platform can collect it without an application-specific integration.
 
 ## Concepts and model
 
@@ -73,7 +73,7 @@ sequenceDiagram
 
 The library exposes no generic log-storage adapter. Pino's transport protocol is the write-side extension point, while `DevLogSource` is the read-side contract consumed by development tooling. A custom provider may override focused logger construction, but must return an `OwnedLogger` whose `close()` drains and releases every backend resource. A custom execution logger must preserve child logger behavior, structured fields and the global/local enablement rules.
 
-The `local` environment replaces stdout with the PostgreSQL transport provided by the dedicated `packages/kestrel/src/log` library. Pino runs this transport in a worker thread; the worker therefore creates and owns a small node-postgres pool instead of receiving the application's non-serializable pool. It buffers up to 50 events and flushes every 100 milliseconds, closes the pool with the application lifecycle and removes entries older than seven days when it starts. Tests use a silent Pino logger, while stage and production use JSON stdout.
+The `local` environment replaces stdout with the PostgreSQL transport provided by the dedicated `src/packages/kestrel/src/log` library. Pino runs this transport in a worker thread; the worker therefore creates and owns a small node-postgres pool instead of receiving the application's non-serializable pool. It buffers up to 50 events and flushes every 100 milliseconds, closes the pool with the application lifecycle and removes entries older than seven days when it starts. Tests use a silent Pino logger, while stage and production use JSON stdout.
 
 ## Application integration
 
@@ -125,9 +125,9 @@ npm run dev
 
 ## Development storage
 
-Local logs are stored in `dev.log`. The logging library owns the table declaration in `packages/kestrel/src/log/db/schema.ts`, but the table remains development-only. The aggregated development entrypoint in `src/server/core/db/schema/dev_schema.ts` re-exports the application schema and adds this declaration for Drizzle Studio. Synchronization uses the separate `drizzle.dev-push.config.ts`, whose `src/server/core/db/schema/push_schema.ts` entrypoint includes the development tables and the migration-owned utility declarations needed for a safe diff. Logs therefore never enter deployment migrations. Each row promotes timestamp, Pino level, message and Fastify request id into queryable columns while retaining the complete structured event as JSONB.
+Local logs are stored in `dev.log`. The logging library owns the table declaration in `src/packages/kestrel/src/log/db/schema.ts`, but the table remains development-only. The aggregated development entrypoint in `src/server/core/db/schema/dev_schema.ts` re-exports the application schema and adds this declaration for Drizzle Studio. Synchronization uses the separate `drizzle.dev-push.config.ts`, whose `src/server/core/db/schema/push_schema.ts` entrypoint includes the development tables and the migration-owned utility declarations needed for a safe diff. Logs therefore never enter deployment migrations. Each row promotes timestamp, Pino level, message and Fastify request id into queryable columns while retaining the complete structured event as JSONB.
 
-`packages/kestrel/src/log/index.ts` is the public boundary for logger construction, storage and the Studio extension. Application code should import the library through this entrypoint rather than its internal files.
+`src/packages/kestrel/src/log/index.ts` is the public boundary for logger construction, storage and the Studio extension. Application code should import the library through this entrypoint rather than its internal files.
 
 The transport has its own database connection because its worker is isolated from the main application. Studio reads the same table through the application pool and its development-only Drizzle facade.
 

@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/events.md)
 
-Kestrel provides a typed in-memory event bus in `packages/kestrel/src/events`. It lets application code, Kestrel modules and extensions react to process-local events without coupling dispatchers to listeners.
+Kestrel provides a typed in-memory event bus in `src/packages/kestrel/src/events`. It lets application code, Kestrel modules and extensions react to process-local events without coupling dispatchers to listeners.
 
 This bus is not a persistent message broker. Events are not stored, delivered across processes or replayed to listeners registered after dispatch.
 
@@ -199,7 +199,7 @@ const eventBus = app.container.resolve(eventBusDependency);
 
 ## Lifecycle events
 
-Application lifecycle definitions live in `packages/kestrel/src/app/events.ts` because their meaning belongs to `App`, not to the generic event library:
+Application lifecycle definitions live in `src/packages/kestrel/src/app/events.ts` because their meaning belongs to `App`, not to the generic event library:
 
 ```text
 bootstrap.started   -> bootstrap async work may begin

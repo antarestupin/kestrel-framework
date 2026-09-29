@@ -815,7 +815,7 @@ Application tests use `fastify.inject()` and do not start a server. They cover a
 ## Initial file structure
 
 ```text
-packages/kestrel/src/authentication/
+src/packages/kestrel/src/authentication/
   adapters/
     memory/
       adapter.ts

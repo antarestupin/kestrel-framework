@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = fileURLToPath(new URL("../packages/kestrel/src/", import.meta.url));
+const root = fileURLToPath(new URL("../src/packages/kestrel/src/", import.meta.url));
 const failures = [];
 // Check package ownership without assuming a particular checkout directory.
 for (const file of await readdir(root, { recursive: true })) {

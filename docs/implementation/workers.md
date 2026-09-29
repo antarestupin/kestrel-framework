@@ -230,7 +230,7 @@ Successful yields are not rolled back if a later result fails. Consequently, bat
 
 ## Enqueueing jobs
 
-`WorkerProvider` lives in `packages/kestrel/src/workers`, receives the resolved `WorkersConfig` and registers the public client lazily. PostgreSQL is the default adapter. Passing `adapter` installs an application-owned implementation such as SQS without requiring the workflow library or workflow tables; protected factories remain available for provider subclasses.
+`WorkerProvider` lives in `src/packages/kestrel/src/workers`, receives the resolved `WorkersConfig` and registers the public client lazily. PostgreSQL is the default adapter. Passing `adapter` installs an application-owned implementation such as SQS without requiring the workflow library or workflow tables; protected factories remain available for provider subclasses.
 
 Application code resolves the shared `WorkerClient` and enqueues against a worker definition. The definition keeps the payload type and performs runtime validation:
 

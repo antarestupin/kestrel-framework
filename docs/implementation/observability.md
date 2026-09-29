@@ -120,7 +120,7 @@ The API deliberately has no listener or subscription mechanism. Observation capt
 
 ## Definition catalogs
 
-Files that gather observation definitions are conventionally named `observations.ts` and live beside the Kestrel or application component that owns their meaning. For example, application execution lifecycle definitions live in `packages/kestrel/src/app/observations.ts`, not in the generic observability library. A component imports `defineObservation()` from observability but keeps its event names and payload contracts within its own public boundary.
+Files that gather observation definitions are conventionally named `observations.ts` and live beside the Kestrel or application component that owns their meaning. For example, application execution lifecycle definitions live in `src/packages/kestrel/src/app/observations.ts`, not in the generic observability library. A component imports `defineObservation()` from observability but keeps its event names and payload contracts within its own public boundary.
 
 The generic definition only carries its payload as a type parameter. `name` and `category` are inferred as ordinary definition metadata, so producers write `defineObservation<Payload>({ name, category })` without repeating string literals in generic arguments.
 
@@ -191,7 +191,7 @@ sequenceDiagram
 
 Observation batches are written inside an explicitly empty observer context so their own PostgreSQL insert cannot emit another `database.query` event and recursively refill the recorder. `App.dispose()` explicitly flushes remaining observations before asking the dependency container to close its resources because Awilix may dispose the recorder and shared database pool concurrently. This ordering is especially important for short CLI commands that usually exit before the periodic flush. Under `fail-fast`, that application flush owns a terminal failure; the later idempotent resource close does not report the same failure a second time.
 
-Local observations live in the disposable `dev.observation` table. `ObservationProvider` lives in `packages/kestrel/src/observability`, receives the resolved activation and retention configuration, and owns the standard recorder, context and PostgreSQL store wiring. The application currently enables it locally with seven days of retention. Frequently queried envelope fields are stored as columns, while definition payloads remain JSONB. The table is synchronized by the development-only Drizzle push configuration and never enters application migrations. Its storage is independent from `dev.log`.
+Local observations live in the disposable `dev.observation` table. `ObservationProvider` lives in `src/packages/kestrel/src/observability`, receives the resolved activation and retention configuration, and owns the standard recorder, context and PostgreSQL store wiring. The application currently enables it locally with seven days of retention. Frequently queried envelope fields are stored as columns, while definition payloads remain JSONB. The table is synchronized by the development-only Drizzle push configuration and never enters application migrations. Its storage is independent from `dev.log`.
 
 ## Studio
 

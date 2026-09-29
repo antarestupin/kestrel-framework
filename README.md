@@ -23,9 +23,11 @@ PostgreSQL is available at `127.0.0.1:55432`, with the framework database `kestr
 
 ## Local packages and applications
 
+All npm workspaces live under `src/`: framework and starter packages in `src/packages/`, and the playground and documentation website in `src/apps/`. Run workspace commands from the repository root; shared guides, infrastructure, and verification scripts remain in `docs/`, `infrastructure/`, and `scripts/`.
+
 ```sh
 npm run pack:local
-node packages/create-kestrel/bin/create.mjs /tmp/my-web-app --framework-archive artifacts/kestrel-framework-0.0.0.tgz
+node src/packages/create-kestrel/bin/create.mjs /tmp/my-web-app --framework-archive artifacts/kestrel-framework-0.0.0.tgz
 cd /tmp/my-web-app
 npm install
 npm run build:ai
@@ -34,11 +36,11 @@ npm run test:ai
 
 Run `npm run verify:archive` after packing to generate and validate an independent consumer automatically, including package exports, declarations, the CLI, and Studio assets.
 
-The creator copies the archive into the generated application's `vendor` directory. It never installs dependencies or contacts a registry itself. `packages/create-kestrel/template` is the canonical template; `apps/playground` follows it, and `npm run check:playground` detects drift. To develop the playground, run `npm run dev --workspace=@kestrel/playground`; its database migrations run through `npm run db:migrate --workspace=@kestrel/playground`.
+The creator copies the archive into the generated application's `vendor` directory. It never installs dependencies or contacts a registry itself. `src/packages/create-kestrel/template` is the canonical template; `src/apps/playground` follows it, and `npm run check:playground` detects drift. To develop the playground, run `npm run dev --workspace=@kestrel/playground`; its database migrations run through `npm run db:migrate --workspace=@kestrel/playground`.
 
 ## Documentation
 
-The Docusaurus website in `apps/docs` renders the guides below directly. Run `npm run docs:dev` for local authoring, or `npm run docs:build` followed by `npm run docs:preview` to include local search. See [website maintenance and GitHub Pages setup](apps/docs/README.md).
+The Docusaurus website in `src/apps/docs` renders the guides below directly. Run `npm run docs:dev` for local authoring, or `npm run docs:build` followed by `npm run docs:preview` to include local search. See [website maintenance and GitHub Pages setup](src/apps/docs/README.md).
 
 - [Documentation home](docs/README.md)
 - [Usage guides](docs/usage/README.md)

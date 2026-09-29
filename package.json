@@ -8,8 +8,8 @@
   },
   "name": "kestrel-workspace",
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "src/packages/*",
+    "src/apps/*"
   ],
   "scripts": {
     "build:ai": "npm run build:ai --workspace=@kestrel/framework && npm run build:ai --workspace=@kestrel/playground",

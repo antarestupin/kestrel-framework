@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/errors.md)
 
-The error library separates application failures from their transport representation. It lives in `packages/kestrel/src/errors` and does not depend on Fastify, Commander or application configuration.
+The error library separates application failures from their transport representation. It lives in `src/packages/kestrel/src/errors` and does not depend on Fastify, Commander or application configuration.
 
 ## Concepts and model
 

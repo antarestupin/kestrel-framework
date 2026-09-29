@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/lock.md)
 
-Kestrel provides a transport-independent lock library in `packages/kestrel/src/lock`. Locks coordinate work that must have at most one active owner across application instances. Unlike the cache, lock storage is part of application correctness and every adapter error is propagated.
+Kestrel provides a transport-independent lock library in `src/packages/kestrel/src/lock`. Locks coordinate work that must have at most one active owner across application instances. Unlike the cache, lock storage is part of application correctness and every adapter error is propagated.
 
 The library supports exclusive locks with automatic lease renewal around callback-based operations. Shared read/write locks can be added later through explicit APIs rather than changing the meaning of the base lock contract.
 
@@ -187,7 +187,7 @@ The in-memory adapter maintains a process-local counter. PostgreSQL uses the `bi
 
 Adapters implement three ownership operations atomically:
 
-Concrete adapters and their focused tests live in `packages/kestrel/src/lock/adapters` and are re-exported by the lock library's public index.
+Concrete adapters and their focused tests live in `src/packages/kestrel/src/lock/adapters` and are re-exported by the lock library's public index.
 
 ```ts
 export interface LockAdapter {
@@ -239,7 +239,7 @@ Expired rows are claimed in bounded batches with `FOR UPDATE SKIP LOCKED` before
 
 ## Dependency injection and configuration
 
-`LockProvider` lives in `packages/kestrel/src/lock`, receives a resolved `LockConfig` in its constructor and registers lazy singleton factories for the resource and public facade during composition. Its boot hook resolves the PostgreSQL adapter and manager in standard mode after the database provider has booted. Protected adapter, resource and maintenance-task factories allow an application subclass to replace complex behavior without duplicating registration. Actions and services declare the exported descriptor rather than accessing the container directly:
+`LockProvider` lives in `src/packages/kestrel/src/lock`, receives a resolved `LockConfig` in its constructor and registers lazy singleton factories for the resource and public facade during composition. Its boot hook resolves the PostgreSQL adapter and manager in standard mode after the database provider has booted. Protected adapter, resource and maintenance-task factories allow an application subclass to replace complex behavior without duplicating registration. Actions and services declare the exported descriptor rather than accessing the container directly:
 
 ```ts
 export const locksDependency = dep<Locks>("locks");
@@ -297,4 +297,4 @@ Durations use `performance.now()` through an injectable `monotonicNow` function 
 
 Instrumentation is strictly diagnostic. Exceptions from the sink, key formatter or injected monotonic clock are contained and never change lock acquisition, ownership or release semantics. Invalid operation input is rejected before instrumentation begins and therefore does not produce an event.
 
-The lock library owns typed `lock.acquisition`, `lock.extension` and `lock.release` observation definitions in `packages/kestrel/src/lock/observations.ts`. The instrumentation contract remains independent from observation storage so it can also feed logs or metrics. The application provider bridges its singleton lock manager to the execution-scoped `Observer` through the shared asynchronous observer context. Lock work performed outside a direct, HTTP or CLI execution remains functional and produces no stored observation.
+The lock library owns typed `lock.acquisition`, `lock.extension` and `lock.release` observation definitions in `src/packages/kestrel/src/lock/observations.ts`. The instrumentation contract remains independent from observation storage so it can also feed logs or metrics. The application provider bridges its singleton lock manager to the execution-scoped `Observer` through the shared asynchronous observer context. Lock work performed outside a direct, HTTP or CLI execution remains functional and produces no stored observation.

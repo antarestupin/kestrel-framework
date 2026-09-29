@@ -10,14 +10,14 @@ Status: proposed implementation plan, 2026-09-18. No runtime changes are impleme
 
 Replace the Pino-owned logging API and engine with a small Kestrel library that owns structured records, execution integration, bounded delivery, lifecycle and health. Performance and bounded resource usage are acceptance criteria for the replacement, not follow-up optimizations.
 
-The inspected checkout contains `packages/kestrel/src/log`, `packages/kestrel/src/observability` and development storage in `dev.log`. It does not contain `packages/kestrel/src/telemetry`. Some implementation status statements in [the monitoring design](./monitoring.md) describe a different repository state. This plan starts from the actual checkout and treats telemetry consolidation as a separate integration target. Its native logging decision supersedes the target design's intention to retain Pino as the public logging API; historical Pino measurements remain relevant.
+The inspected checkout contains `src/packages/kestrel/src/log`, `src/packages/kestrel/src/observability` and development storage in `dev.log`. It does not contain `src/packages/kestrel/src/telemetry`. Some implementation status statements in [the monitoring design](./monitoring.md) describe a different repository state. This plan starts from the actual checkout and treats telemetry consolidation as a separate integration target. Its native logging decision supersedes the target design's intention to retain Pino as the public logging API; historical Pino measurements remain relevant.
 
 Existing behavior to preserve includes scoped execution identifiers, workload metadata, dynamic and completion context projection, child bindings, application startup reporting, configurable execution-log presentation, local PostgreSQL storage, Studio correlation and JSON stdout. The application's existing missing-development-table fallback must remain an explicit application policy, never an environment check inside Kestrel.
 
 ## Scope and decisions
 
 - Own the logger contract and implementation. Use Pino only as a temporary migration backend and performance reference.
-- Keep the initial library at `packages/kestrel/src/log`. Future telemetry composition consumes this library or moves it with its tests in a separate structural change; do not create competing logging pipelines or entrypoints.
+- Keep the initial library at `src/packages/kestrel/src/log`. Future telemetry composition consumes this library or moves it with its tests in a separate structural change; do not create competing logging pipelines or entrypoints.
 - Provide standalone use and a Kestrel provider. Inject context into the core rather than importing `App`, HTTP, database infrastructure or observations there.
 - Use synchronous producer methods returning `void`, with no destination I/O and no Promise per log call. Delivery is asynchronous and lossy under an explicitly documented saturation policy.
 - Bound outstanding delivery by both record count and encoded bytes, including active batches, retries and worker handoff. Bound normalization work and individual record size as well.
@@ -46,7 +46,7 @@ flowchart TD
 Proposed layout:
 
 ```text
-packages/kestrel/src/log/
+src/packages/kestrel/src/log/
   contracts.ts               # Logger, record, context and sink contracts
   logger.ts                  # Producer fast path and concrete child loggers
   normalization.ts           # Bounded snapshot, error handling and redaction
@@ -67,7 +67,7 @@ packages/kestrel/src/log/
   dependencies.ts
   provider.ts
   index.ts
-packages/kestrel/src/http/adapters/logging/
+src/packages/kestrel/src/http/adapters/logging/
   index.ts                   # Fastify compatibility belongs to the HTTP boundary
 ```
 
@@ -239,7 +239,7 @@ Health exposes pending records and encoded bytes, in-flight records, oldest pend
 ### Phase 0: baseline and performance protocol
 
 - [ ] Inventory Pino calls, overloads, serializers, direct type imports, Fastify child options, lifecycle dependencies and Studio payload assumptions.
-- [ ] Add reproducible benchmark scripts under `packages/kestrel/src/log/benchmarks`, with injected sinks and no running application server. Keep benchmark results separate from unit-test pass/fail timing.
+- [ ] Add reproducible benchmark scripts under `src/packages/kestrel/src/log/benchmarks`, with injected sinks and no running application server. Keep benchmark results separate from unit-test pass/fail timing.
 - [ ] Measure current direct Pino and current Kestrel-wrapped Pino to distinguish engine cost from integration cost. Include stdout and the existing PostgreSQL transport in dedicated capacity runs.
 - [ ] Compare disabled logging, plain messages, 1 KiB structured records, bounded errors, nested child loggers, dynamic execution context, oversized input, sustained saturation, slow sinks, stalled writes and independent destinations.
 - [ ] Record Node 24 version, CPU, OS, source/build mode, payload distribution, warmup, offered rate, accepted/delivered rate, drops, producer p50/p95/p99 latency, CPU, allocation rate, heap/external memory/RSS, event-loop delay and shutdown duration. Measure worker memory separately when used.

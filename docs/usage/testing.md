@@ -73,7 +73,7 @@ Run a targeted test file or library while iterating on a change. Use the type ch
 
 ```sh
 # Run the relevant tests with concise output.
-npm run test:ai -- packages/kestrel/src/actions
+npm run test:ai -- src/packages/kestrel/src/actions
 # Check types across the project independently of test execution.
 npm run typecheck
 ```

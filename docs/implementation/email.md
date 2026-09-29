@@ -202,7 +202,7 @@ email provider -> capture adapter -> capture store
 Studio email extension -> email capture and observation source contracts
 ```
 
-The email core never imports Studio, application code or application configuration. The higher-level Kestrel email provider imports its own adapters and maps resolved configuration to them. The Studio email extension lives below `packages/kestrel/src/studio/extensions/email` and depends on injected email and observation source contracts. PostgreSQL storage remains an adapter below the email library, and the Kestrel provider exposes it to Studio through DI while the application selects it by configuration.
+The email core never imports Studio, application code or application configuration. The higher-level Kestrel email provider imports its own adapters and maps resolved configuration to them. The Studio email extension lives below `src/packages/kestrel/src/studio/extensions/email` and depends on injected email and observation source contracts. PostgreSQL storage remains an adapter below the email library, and the Kestrel provider exposes it to Studio through DI while the application selects it by configuration.
 
 Drizzle schema entrypoints import `kestrel/email/postgres_schema` instead of the general email barrel. This schema-only facade deliberately avoids provider and transport evaluation because Drizzle Kit loads TypeScript schemas through a CommonJS compatibility path, while Email SDK exposes ESM modules. The disposable attachment table intentionally has no database foreign key: Drizzle Push can otherwise emit that reference before the capture UUID uniqueness constraint on both fresh and partially created local schemas. `PostgresEmailCaptureStore` preserves the same invariant by inserting atomically and deleting attachments before captures during clearing and retention pruning.
 
@@ -367,7 +367,7 @@ The following guarantees apply:
 - unknown internal failures may be thrown and will be normalized by `EmailClient`;
 - `close()` releases owned resources, supports application shutdown and should tolerate being called once by the client lifecycle.
 
-Adapter-specific implementation, tests, public exports and support files live together below `packages/kestrel/src/email/adapters/<adapter>`.
+Adapter-specific implementation, tests, public exports and support files live together below `src/packages/kestrel/src/email/adapters/<adapter>`.
 
 Capture stores implement `EmailCaptureStore`. `capture()`, `get()`, `list()` and `clear()` have the same semantics for every storage backend. The optional `prepare(retentionDays)` lifecycle hook verifies persistent storage and applies its bounded retention policy when the provider boots. Store list results must omit bodies, headers and attachment contents, while `get()` returns a detached complete message for preview and explicit replay.
 

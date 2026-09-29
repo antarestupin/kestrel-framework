@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/client.md)
 
-The client library mounts a browser application on the Kestrel HTTP runtime without depending on its component framework, router, cache, or business modules. The application client currently uses React, TanStack Router, and TanStack Query, but these choices remain below `src/client` and do not enter `packages/kestrel/src/client`.
+The client library mounts a browser application on the Kestrel HTTP runtime without depending on its component framework, router, cache, or business modules. The application client currently uses React, TanStack Router, and TanStack Query, but these choices remain below `src/client` and do not enter `src/packages/kestrel/src/client`.
 
 ## Concepts and model
 

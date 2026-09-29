@@ -624,7 +624,7 @@ Before committing to the public API, implement a narrow isolated prototype with 
 - injected interruption between command persistence and result persistence;
 - one old-version history replayed through a version branch.
 
-The prototype lives under `packages/kestrel/src/workflows/replay` without being exported as a public workflow API. It confirms that native `Promise.all` and `Promise.race` can work when the runtime returns owned promises and resolves recorded results in durable completion order. It also validates positional command identity, atomic journal revision conflicts, duplicate completion handling, interruption before result persistence, and a shared handler branching on the pinned execution version.
+The prototype lives under `src/packages/kestrel/src/workflows/replay` without being exported as a public workflow API. It confirms that native `Promise.all` and `Promise.race` can work when the runtime returns owned promises and resolves recorded results in durable completion order. It also validates positional command identity, atomic journal revision conflicts, duplicate completion handling, interruption before result persistence, and a shared handler branching on the pinned execution version.
 
 The event-loop yield used to detect prototype quiescence is an internal experiment rather than a stable runtime contract. Production implementation still needs strict workflow-code restrictions and preferably lint checks because arbitrary I/O promises, native timers, and mutable external state cannot be made durable by this mechanism. Phase 3 resolves completed races by closing the workflow from the persisted completion winner and deleting pending loser tasks. A loser already executing can still perform an external effect before its stale completion is rejected, so race participants retain the same idempotency obligations as every other activity.
 
@@ -632,14 +632,14 @@ The event-loop yield used to detect prototype quiescence is an internal experime
 
 Status: complete.
 
-- Add the `packages/kestrel/src/workflows` library with definition, signal, client, handle, errors, serialization, and public exports.
+- Add the `src/packages/kestrel/src/workflows` library with definition, signal, client, handle, errors, serialization, and public exports.
 - Add workflow type guards and the singular `workflows` category to application catalogs and utilities.
 - Support input and optional output schemas, current/supported versions, descriptions, examples, and typed signals.
 - Implement idempotent start, status, result attachment, and signal APIs against a memory adapter.
 - Define execution statuses and stable serialized error contracts.
 - Add unit tests for definition validation, catalog hierarchy, duplicate names, schemas, and client typing.
 
-The public foundation now lives under `packages/kestrel/src/workflows`. It includes typed workflow and signal definitions, catalog integration, `WorkflowClient` and `WorkflowHandle`, execution and signal contracts, stable error types, a strict JSON-compatible payload codec, and an isolated memory adapter. The codec is injectable so a later encrypted or external-payload representation does not alter the client API. The default codec rejects values such as `undefined`, `BigInt`, non-finite numbers, class instances, and cycles before they cross the adapter boundary.
+The public foundation now lives under `src/packages/kestrel/src/workflows`. It includes typed workflow and signal definitions, catalog integration, `WorkflowClient` and `WorkflowHandle`, execution and signal contracts, stable error types, a strict JSON-compatible payload codec, and an isolated memory adapter. The codec is injectable so a later encrypted or external-payload representation does not alter the client API. The default codec rejects values such as `undefined`, `BigInt`, non-finite numbers, class instances, and cycles before they cross the adapter boundary.
 
 The memory adapter deliberately stops at client-facing persistence seams: it queues starts, stores signals, exposes status, and lets tests or a future runtime settle executions. It does not execute handlers yet. The phase-zero replay prototype remains internal and is not exported as the production runtime contract.
 

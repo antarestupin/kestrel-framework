@@ -379,7 +379,7 @@ A few bits of explanation:
 - Each feature owns its seed steps; `src/server/core/db/seed.ts` composes them in cross-module dependency order and declares application-wide maintenance settings
 - Schema-generated and custom migration files all land in `src/server/core/db/migrations/` so Drizzle can preserve a single execution order
 - Custom migration names use the `custom_` prefix to distinguish manually authored SQL from schema-generated SQL without splitting the migration journal
-- `src/server/core/db/schema/dev_schema.ts` re-exports the application schema and gathers development-only declarations such as the logging schema from `packages/kestrel/src/log/db/schema.ts`
+- `src/server/core/db/schema/dev_schema.ts` re-exports the application schema and gathers development-only declarations such as the logging schema from `src/packages/kestrel/src/log/db/schema.ts`
 - `src/server/core/db/schema/push_schema.ts` gathers the declarations synchronized directly in local environments
 - Development-only objects are pushed directly to the local database and never enter the application migration history
 - Entity types are inferred directly from their Drizzle schemas

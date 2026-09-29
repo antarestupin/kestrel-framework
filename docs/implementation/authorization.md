@@ -599,7 +599,7 @@ Acceptance: a trusted operator can grant and revoke the administrator role for a
 ## Proposed file structure
 
 ```text
-packages/kestrel/src/authorization/
+src/packages/kestrel/src/authorization/
   adapters/
     memory/
       adapter.ts

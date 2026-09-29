@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 // Keep them aligned so playground tests exercise the application users generate.
 // Compare template file contents and executable permissions, plus the complete
 // source file inventory; only the package name may differ in package.json.
-const source = new URL("../packages/create-kestrel/template/", import.meta.url);
-const playground = new URL("../apps/playground/", import.meta.url);
+const source = new URL("../src/packages/create-kestrel/template/", import.meta.url);
+const playground = new URL("../src/apps/playground/", import.meta.url);
 for (const file of await readdir(source, { recursive: true, withFileTypes: true })) {
   if (!file.isFile()) continue;
   const path = relative(fileURLToPath(source), join(file.parentPath, file.name));

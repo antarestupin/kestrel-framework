@@ -14,7 +14,7 @@ function run(command, args, cwd = root) {
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}`);
 }
 // Seed locked dependency versions, without allowing any workspace symlinks into the fixture.
-run(process.execPath, ["packages/create-kestrel/bin/create.mjs", application, "--framework-archive", "artifacts/kestrel-framework-0.0.0.tgz"]);
+run(process.execPath, ["src/packages/create-kestrel/bin/create.mjs", application, "--framework-archive", "artifacts/kestrel-framework-0.0.0.tgz"]);
 const manifest = JSON.parse(await readFile(join(application, "package.json"), "utf8"));
 const lock = JSON.parse(await readFile(join(root, "package-lock.json"), "utf8"));
 lock.name = manifest.name;

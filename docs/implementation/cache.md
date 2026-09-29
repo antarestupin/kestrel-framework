@@ -2,7 +2,7 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/cache.md)
 
-Kestrel provides a transport-independent cache library in `packages/kestrel/src/cache`. The cache is an optimization: application behavior must remain correct when an entry is absent, expires, is evicted, or cannot be written.
+Kestrel provides a transport-independent cache library in `src/packages/kestrel/src/cache`. The cache is an optimization: application behavior must remain correct when an entry is absent, expires, is evicted, or cannot be written.
 
 The library ships memory, PostgreSQL and Redis adapters. PostgreSQL remains the default provider backend, while Redis implements only the base storage contract and relies on native expiration and server-managed capacity.
 
@@ -170,7 +170,7 @@ Backend-specific key length limits must not leak into business code. An adapter 
 
 Adapters exchange an internal entry distinct from public write options:
 
-Concrete adapters and their focused tests live in `packages/kestrel/src/cache/adapters` and are re-exported by the cache library's public index.
+Concrete adapters and their focused tests live in `src/packages/kestrel/src/cache/adapters` and are re-exported by the cache library's public index.
 
 ```ts
 export interface CacheEntry {
@@ -348,7 +348,7 @@ import {
   RedisCacheAdapter,
   type CacheConfig,
   type RedisCacheClient,
-} from "./packages/kestrel/src/cache/index.js";
+} from "./src/packages/kestrel/src/cache/index.js";
 
 // The application owns connecting, error listeners, timeouts and shutdown.
 function createRedisCacheProvider<Config>(client: RedisCacheClient, config: CacheConfig) {
@@ -403,9 +403,9 @@ Layered writes also need a declared failure and ordering policy. These semantics
 
 ## Application integration
 
-`CacheProvider` lives in `packages/kestrel/src/cache`, receives a resolved `CacheConfig` and an optional borrowed `CacheAdapter`, and registers lazy singleton factories during composition. Without an injected adapter it creates PostgreSQL storage lazily. It constructs `TagAwareCachePool` for tag-capable adapters and `CachePool` otherwise. `CacheResource.prune` is optional, and `maintenance.cache-prune` is contributed only for prunable backends with a positive interval. The resource owns no timer. Its boot hook resolves the resource in standard mode; minimal mode leaves it lazy. Applications can inject an adapter directly or subclass the default PostgreSQL adapter factory and resource/maintenance factories.
+`CacheProvider` lives in `src/packages/kestrel/src/cache`, receives a resolved `CacheConfig` and an optional borrowed `CacheAdapter`, and registers lazy singleton factories during composition. Without an injected adapter it creates PostgreSQL storage lazily. It constructs `TagAwareCachePool` for tag-capable adapters and `CachePool` otherwise. `CacheResource.prune` is optional, and `maintenance.cache-prune` is contributed only for prunable backends with a positive interval. The resource owns no timer. Its boot hook resolves the resource in standard mode; minimal mode leaves it lazy. Applications can inject an adapter directly or subclass the default PostgreSQL adapter factory and resource/maintenance factories.
 
-Kestrel exports a typed dependency descriptor from `packages/kestrel/src/cache/index.ts`:
+Kestrel exports a typed dependency descriptor from `src/packages/kestrel/src/cache/index.ts`:
 
 ```ts
 export const cacheDependency = dep<Cache>("cache");
@@ -420,7 +420,7 @@ Application configuration selects default and maximum TTLs, entry-size limits, a
 
 Implementation should proceed in small independently tested stages:
 
-1. Define cache entries, the base adapter contract, optional capability interfaces, key validation, time abstraction and public exports in `packages/kestrel/src/cache`.
+1. Define cache entries, the base adapter contract, optional capability interfaces, key validation, time abstraction and public exports in `src/packages/kestrel/src/cache`.
 2. Implement the cache facade with `get`, `set`, `remember`, `delete`, namespace handling, finite TTL validation, fail-open storage behavior and process-local in-flight request coalescing.
 3. Implement the in-memory adapter with expiration, tag invalidation, LRU eviction, entry-count and estimated-size limits, and bounded pruning.
 4. Add focused unit tests for misses, cached `null`, expiration, loader and adapter failures, concurrent loaders, AND tag semantics, replacement accounting, oversized values, LRU behavior and pruning limits.
