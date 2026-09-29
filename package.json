@@ -12,7 +12,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build:ai": "npm run build:ai --workspace=@kestrel/framework && npm run build:ai --workspace=@kestrel/create-app && npm run build:ai --workspace=@kestrel/playground",
+    "build:ai": "npm run build:ai --workspace=@kestrel/framework && npm run build:ai --workspace=@kestrel/playground",
     "docs:dev": "npm run dev --workspace=@kestrel/docs",
     "docs:build": "npm run build:ai --workspace=@kestrel/docs",
     "docs:preview": "npm run preview --workspace=@kestrel/docs",
@@ -25,7 +25,7 @@
     "infra:prepare": "node infrastructure/prepare.mjs",
     "pack:local": "npm run build:ai && mkdir -p artifacts && npm pack --workspace=@kestrel/framework --pack-destination=artifacts",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "check:template": "node scripts/check-template.mjs",
+    "check:playground": "node scripts/check-playground.mjs",
     "verify:archive": "node scripts/verify-archive.mjs"
   },
   "devDependencies": {

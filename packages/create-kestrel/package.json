@@ -15,7 +15,6 @@
     "template"
   ],
   "scripts": {
-    "build:ai": "node ../../scripts/sync-template.mjs",
     "prepublishOnly": "node -e \"throw new Error('Publication requires explicit owner approval')\""
   }
 }

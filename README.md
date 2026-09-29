@@ -15,7 +15,7 @@ npm run infra:prepare
 npm run build:ai
 npm run typecheck
 npm run check:boundaries
-npm run check:template
+npm run check:playground
 npm run test:ai
 ```
 
@@ -34,7 +34,7 @@ npm run test:ai
 
 Run `npm run verify:archive` after packing to generate and validate an independent consumer automatically, including package exports, declarations, the CLI, and Studio assets.
 
-The creator copies the archive into the generated application's `vendor` directory. It never installs dependencies or contacts a registry itself. `templates/web` is the canonical template; `apps/playground` follows it, and `npm run check:template` detects drift. To develop the playground, run `npm run dev --workspace=@kestrel/playground`; its database migrations run through `npm run db:migrate --workspace=@kestrel/playground`.
+The creator copies the archive into the generated application's `vendor` directory. It never installs dependencies or contacts a registry itself. `packages/create-kestrel/template` is the canonical template; `apps/playground` follows it, and `npm run check:playground` detects drift. To develop the playground, run `npm run dev --workspace=@kestrel/playground`; its database migrations run through `npm run db:migrate --workspace=@kestrel/playground`.
 
 ## Documentation
 

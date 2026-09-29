@@ -16,7 +16,7 @@ jobs:
       - run: npm run infra:up
       - run: npm run infra:prepare
       - run: npm run check:boundaries
-      - run: npm run check:template
+      - run: npm run check:playground
       - run: npm run build:ai
       - run: npm run typecheck
       - run: npm run test:ai
