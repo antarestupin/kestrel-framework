@@ -1,6 +1,14 @@
 # Kestrel
 
-Kestrel is a modular application framework. This repository contains its libraries, tests, Studio, a web starter, and an independent playground. Package names are provisional, all packages are private, and the license is UNLICENSED. No npm publication is authorized.
+Kestrel is a modular application framework. This repository contains its libraries, tests, Studio, a web starter, and an independent playground.
+
+## Project status
+
+Kestrel is experimental and under active development. APIs and behavior may change without notice, and backward compatibility is not guaranteed. It is not ready for production use.
+
+The repository is being made public to support the planned distribution of Kestrel packages on npm and documentation on GitHub Pages. External contributions, including pull requests, are not accepted at this stage. No support or response times are guaranteed.
+
+Kestrel is licensed under the [MIT License](LICENSE). Package names are provisional and all packages are currently marked private. npm publication remains pending and requires explicit owner approval.
 
 ## Develop and test
 

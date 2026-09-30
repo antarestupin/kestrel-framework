@@ -46,5 +46,5 @@
     "vitest": "^4.1.10",
     "@fastify/vite": "^10.0.0"
   },
-  "license": "UNLICENSED"
+  "license": "MIT"
 }

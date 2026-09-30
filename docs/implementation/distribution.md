@@ -2,7 +2,9 @@
 
 [Implementation index](README.md) · [Installation](../usage/installation.md)
 
-Status: local extraction implemented; publication disabled. All manifests retain `private: true` and `UNLICENSED`, and publish lifecycle guards reject accidental publication. No release workflow exists. Package names are provisional.
+Status: local extraction implemented; publication disabled. All manifests retain `private: true` and declare the `MIT` license, and publish lifecycle guards reject accidental publication. No release workflow exists. Package names are provisional.
+
+The repository, framework, creator, and starter sources are MIT-licensed. Package-root `LICENSE` files preserve the notice in npm archives, and the template carries its own copy into generated applications. Keep these copies aligned with the root license when updating copyright notices.
 
 ## Model and responsibilities
 
@@ -48,7 +50,7 @@ Unit tests exercise all three supported variants, conditional questions, invalid
 
 ## Remaining work and potential evolutions
 
-- Select final package names, scope, license, and release compatibility policy before requesting explicit publication authorization.
+- Select final package names, scope, and release compatibility policy before requesting explicit publication authorization.
 - Resolve existing inter-library cycles before individual package publication, particularly definition utilities, application/observation event ownership, and maintenance scheduling integrations. Move shared contracts downward or inject composition dependencies; directory extraction alone does not establish independent libraries.
 - Classify optional integrations and reduce eager adapter dependencies as separate packages become useful. The initial distribution retains the established dependency versions and standard adapters.
 - Expand the playground beyond the minimal template with focused feature demonstrations.

@@ -2,7 +2,7 @@
 
 [Usage index](README.md) · [Distribution internals](../implementation/distribution.md)
 
-No npm release is available or authorized. Use Node.js 24 and the locally packed `@kestrel/framework` archive. Names and license are provisional. Build the repository with `npm run build:ai`, then run `npm run pack:local`; install the resulting archive with `npm install /path/to/kestrel-framework-0.0.0.tgz`.
+No npm release is available or authorized. Use Node.js 24 and the locally packed `@kestrel/framework` archive. Package names are provisional. Kestrel and its starter sources are MIT-licensed; retain the supplied license and copyright notice when redistributing them. Build the repository with `npm run build:ai`, then run `npm run pack:local`; install the resulting archive with `npm install /path/to/kestrel-framework-0.0.0.tgz`.
 
 Import supported subpaths, such as `@kestrel/framework/app`, `@kestrel/framework/http`, and the browser-safe `@kestrel/framework/http/client`. Internal source paths are not consumer APIs. The `kestrel` executable accepts an application module followed by CLI arguments. For compiled code, use `node --import zod/compile node_modules/@kestrel/framework/dist/cli/main.js dist/server/core/app.js <command>`. For TypeScript modules use `node --import tsx --import zod/compile node_modules/@kestrel/framework/dist/cli/main.js src/server/core/app.ts <command>`. Dispose application resources when invoking execution APIs directly.
 

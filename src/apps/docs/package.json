@@ -2,6 +2,7 @@
   "name": "@kestrel/docs",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "docusaurus start",
     "build:ai": "docusaurus build && pagefind --site build --glob 'docs/**/*.html' --root-selector article",
