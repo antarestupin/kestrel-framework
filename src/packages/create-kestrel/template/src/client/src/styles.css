@@ -1,0 +1,113 @@
+/* System fonts and local styles keep the starter independent of external assets. */
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #242723;
+  background: #faf9f6;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; }
+
+.welcome {
+  width: min(100%, 864px);
+  margin: 0 auto;
+  padding: 64px 32px 32px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -0.8px;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: #272b25;
+  color: #faf9f6;
+  font-size: 28px;
+  padding-bottom: 4px;
+}
+
+.intro { margin: 76px 0 44px; }
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #52634a;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.status > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #63824e;
+  box-shadow: 0 0 0 4px #63824e14;
+}
+
+h1 {
+  margin: 25px 0 20px;
+  font-size: clamp(44px, 7vw, 72px);
+  line-height: 1.08;
+  letter-spacing: -0.055em;
+  font-weight: 600;
+}
+
+h1 span { color: #7c8175; }
+.description { color: #62675d; font-size: 17px; line-height: 1.6; }
+.edit-hint { margin-top: 28px; color: #62675d; font-size: 13px; line-height: 2; }
+
+code {
+  padding: 5px 8px;
+  border: 1px solid #e4e5dd;
+  border-radius: 6px;
+  background: #f0f0e9;
+  color: #3d4535;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.resources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+
+.resource {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  border: 1px solid #dddfd4;
+  border-radius: 14px;
+  background: #ffffff80;
+  text-decoration: none;
+}
+
+.resource:hover { border-color: #959f87; background: #fff; }
+.resource:focus-visible { outline: 3px solid #63824e; outline-offset: 4px; }
+.resource-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.resource h2 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+.resource-arrow { color: #767e6d; font-size: 21px; }
+.resource p { margin: 14px 0 24px; color: #62675d; font-size: 14px; line-height: 1.7; }
+.resource-caption { margin-top: auto; color: #536347; font-size: 12px; font-weight: 600; }
+footer { margin-top: 48px; color: #75796f; font-size: 12px; }
+
+/* Stack the resource links and allow the source path to wrap on small screens. */
+@media (max-width: 600px) {
+  .welcome { padding: 32px 24px; }
+  .intro { margin-top: 52px; }
+  .resources { grid-template-columns: 1fr; }
+  .resource { padding: 22px; }
+  .edit-hint code { display: inline-block; }
+  footer { margin-top: 32px; }
+}

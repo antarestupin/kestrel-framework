@@ -4,6 +4,10 @@
 
 This template consumes the provisional `@kestrel/framework` package. No npm release exists or is authorized. The creator vendors a local framework archive. Use Node.js 24 (`nvm use`) and run `npm install` in the generated project; commit the resulting application-specific lockfile.
 
+## Welcome page
+
+The starter home page lives in `src/client/src/main.tsx`, with responsive styles in `src/client/src/styles.css`. It links to Studio at `/_studio` during local development. The documentation link is a local placeholder marked "Coming soon"; replace it when the public documentation is available. The typed greeting API remains available through `src/client/src/api.ts` as an example for your own screens.
+
 ## Application commands
 
 `./do` runs the Kestrel CLI against the default application exported by `src/server/core/app.ts`. It resolves the project from its own location, so invocation also works from another directory. Application providers are lazy: help and client generation do not open HTTP listeners or database connections. Composition is declared directly in `src/server/core/app.ts`. HTTP tests own that application for their suite; CLI tests use separate processes so disposal does not leak across tests running with `--no-isolate`.
