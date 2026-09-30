@@ -18,7 +18,21 @@ Stop services with `npm run infra:down`. Tests clean up their own resources; the
 
 ## Create an application
 
-After building the repository, run `node src/packages/create-kestrel/bin/create.mjs <empty-directory> --framework-archive artifacts/kestrel-framework-0.0.0.tgz`. The generator requires an empty destination, copies the versioned template directly from `src/packages/create-kestrel/template`, and stores the local archive inside the application. Install dependencies, then run `npm run build:ai` and `npm run test:ai` there. Generated applications keep their SQL migrations, snapshots, and journal in `src/server/core/db/migrations/`; use `npm run db:generate` and `npm run db:migrate` to generate and apply them. The template's README documents database provisioning, fresh migrations, client generation, development, and production commands.
+After packing the framework, run `node src/packages/create-kestrel/bin/create.mjs <empty-directory> --framework-archive artifacts/kestrel-framework-0.0.0.tgz`. The `create-kestrel` executable uses Yeoman internally, requires Node.js 24.11 or later within Node.js 24, and needs no global `yo` installation. It requires an empty destination and stores the local archive inside the generated application. Install dependencies, then run `npm run build:ai` and `npm run test:ai` there. Generated applications keep their SQL migrations, snapshots, and journal in `src/server/core/db/migrations/`; use `npm run db:generate` and `npm run db:migrate` to generate and apply them. The generated README documents database provisioning, fresh migrations, client generation, development, and production commands.
+
+In a terminal, choose PostgreSQL or Redis for the cache. Redis Insight is offered only when Redis is installed and defaults to no. Arguments supply the same choices without their corresponding questions:
+
+```sh
+node src/packages/create-kestrel/bin/create.mjs my-app --framework-archive artifacts/kestrel-framework-0.0.0.tgz --cache postgres --yes
+node src/packages/create-kestrel/bin/create.mjs my-app --framework-archive artifacts/kestrel-framework-0.0.0.tgz --cache redis --no-redis-insight
+node src/packages/create-kestrel/bin/create.mjs my-app --framework-archive artifacts/kestrel-framework-0.0.0.tgz --cache redis --redis-insight
+```
+
+`--yes` and noninteractive input use PostgreSQL and no Redis Insight for unspecified choices. Invalid cache values and Redis Insight without Redis fail before files are written. The creator neither installs application dependencies nor discovers third-party generators.
+
+PostgreSQL remains the database for both variants. The PostgreSQL cache uses the framework adapter and includes the `utils.cache_entry` schema, migration, UNLOGGED contribution and reset boundary. The Redis cache adds `@redis/client`, a lazy application-owned connection, typed `REDIS_URL` configuration and a loopback-bound Compose service. It uses native expiration and does not support tags. `stage` and `prod` require an explicit Redis URL. The starter has no scheduled-task runtime, so automatic PostgreSQL pruning is disabled; arrange cache pruning before production use. See [cache usage](./cache.md).
+
+When selected, Redis Insight joins `npm run infra:up`, preconfigures the local Redis connection and persists its UI settings in a named volume. Open http://127.0.0.1:5540 for local development. `npm run infra:down` stops it without deleting its settings. See [Redis Insight Docker installation](https://redis.io/docs/latest/operate/redisinsight/install/install-on-docker/) and [connection configuration](https://redis.io/docs/latest/operate/redisinsight/configuration/).
 
 The starter uses `HttpClientGenerationProvider` through `npm run api:generate` to produce `src/generated/publicClient/publicClient.ts` from its HTTP controller catalog. Keep generated contracts in that directory and browser configuration in `src/client/src/api.ts`, which instantiates the generated factory. Regenerate after changing controllers; `npm run build:ai` does this automatically. See [typed HTTP client generation](./client.md#generate-a-typed-http-client).
 

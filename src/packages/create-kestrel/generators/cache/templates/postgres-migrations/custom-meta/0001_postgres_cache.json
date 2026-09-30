@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "contributions": [
+    {
+      "id": "postgres.schema:utils:description",
+      "installSql": "COMMENT ON SCHEMA \"utils\" IS 'Reusable operational infrastructure data.';",
+      "updateSql": "COMMENT ON SCHEMA \"utils\" IS 'Reusable operational infrastructure data.';",
+      "uninstallBeforeSql": "COMMENT ON SCHEMA \"utils\" IS NULL;"
+    },
+    {
+      "id": "postgres.table:utils.cache_entry:descriptions",
+      "installSql": "COMMENT ON TABLE \"utils\".\"cache_entry\" IS 'Disposable unlogged cache entries with expiration and tag-based invalidation.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"key\" IS 'Unique application-defined cache key.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"value\" IS 'JSON value stored for the cache key.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"tags\" IS 'Application-defined tags used to invalidate related entries together.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"expires_at\" IS 'Date and time after which the entry must be treated as expired.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"created_at\" IS 'Date and time when the cache entry was created.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"size_bytes\" IS 'Estimated serialized size used to enforce cache storage budgets.';",
+      "updateSql": "COMMENT ON TABLE \"utils\".\"cache_entry\" IS 'Disposable unlogged cache entries with expiration and tag-based invalidation.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"key\" IS 'Unique application-defined cache key.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"value\" IS 'JSON value stored for the cache key.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"tags\" IS 'Application-defined tags used to invalidate related entries together.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"expires_at\" IS 'Date and time after which the entry must be treated as expired.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"created_at\" IS 'Date and time when the cache entry was created.';\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"size_bytes\" IS 'Estimated serialized size used to enforce cache storage budgets.';",
+      "uninstallBeforeSql": "COMMENT ON TABLE \"utils\".\"cache_entry\" IS NULL;\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"key\" IS NULL;\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"value\" IS NULL;\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"tags\" IS NULL;\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"expires_at\" IS NULL;\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"created_at\" IS NULL;\nCOMMENT ON COLUMN \"utils\".\"cache_entry\".\"size_bytes\" IS NULL;"
+    },
+    {
+      "id": "postgres.table:utils.cache_entry:unlogged",
+      "installSql": "ALTER TABLE \"utils\".\"cache_entry\" SET UNLOGGED;",
+      "updateSql": "ALTER TABLE \"utils\".\"cache_entry\" SET UNLOGGED;",
+      "uninstallAfterSql": "DO $database_schema$\nBEGIN\n  IF to_regclass('\"utils\".\"cache_entry\"') IS NOT NULL THEN\n    ALTER TABLE \"utils\".\"cache_entry\" SET LOGGED;\n  END IF;\nEND\n$database_schema$;"
+    }
+  ]
+}

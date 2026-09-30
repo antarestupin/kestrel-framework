@@ -11,11 +11,13 @@ const source = new URL("../src/packages/create-kestrel/template/", import.meta.u
 const playground = new URL("../src/apps/playground/", import.meta.url);
 for (const file of await readdir(source, { recursive: true, withFileTypes: true })) {
   if (!file.isFile()) continue;
-  const path = relative(fileURLToPath(source), join(file.parentPath, file.name));
-  const expected = await readFile(new URL(path, source), "utf8");
+  const templatePath = relative(fileURLToPath(source), join(file.parentPath, file.name));
+  // Generation restores the hidden filename that npm otherwise excludes from its archive.
+  const path = templatePath === "gitignore" ? ".gitignore" : templatePath;
+  const expected = await readFile(new URL(templatePath, source), "utf8");
   const actual = await readFile(new URL(path, playground), "utf8");
   // Launchers must retain the executable permissions of the package-owned template.
-  const sourceMode = (await stat(new URL(path, source))).mode & 0o111;
+  const sourceMode = (await stat(new URL(templatePath, source))).mode & 0o111;
   assert.equal((await stat(new URL(path, playground))).mode & 0o111, sourceMode, `${path}: executable permissions`);
   if (path === "package.json") {
     const left = JSON.parse(expected), right = JSON.parse(actual);

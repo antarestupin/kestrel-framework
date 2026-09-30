@@ -1,0 +1,72 @@
+import { expect, it, vi } from "vitest";
+import { createRedisCacheConnection } from "./redis_cache_provider.js";
+
+it("connects once for concurrent commands and closes the owned connection", async () => {
+  let release!: () => void;
+  const client = {
+    isOpen: true,
+    connect: vi.fn(() => new Promise<void>((resolve) => { release = resolve; })),
+    sendCommand: vi.fn(async () => "OK"),
+    destroy: vi.fn(),
+  };
+  const connection = createRedisCacheConnection(client);
+  try {
+    const first = connection.sendCommand(["GET", "first"]);
+    const second = connection.sendCommand(["GET", "second"]);
+    expect(client.connect).toHaveBeenCalledOnce();
+    release();
+    await expect(Promise.all([first, second])).resolves.toEqual(["OK", "OK"]);
+  } finally { connection.close(); }
+  expect(client.destroy).toHaveBeenCalledOnce();
+  await expect(connection.sendCommand(["GET", "closed"])).rejects.toThrow("closed");
+});
+
+it("retries a failed initial connection on a later operation", async () => {
+  const client = {
+    isOpen: false,
+    connect: vi.fn().mockRejectedValueOnce(new Error("unavailable")).mockResolvedValue(undefined),
+    sendCommand: vi.fn(async () => null),
+    destroy: vi.fn(),
+  };
+  const connection = createRedisCacheConnection(client);
+  try {
+    await expect(connection.sendCommand(["GET", "key"])).rejects.toThrow("unavailable");
+    await expect(connection.sendCommand(["GET", "key"])).resolves.toBeNull();
+    expect(client.connect).toHaveBeenCalledTimes(2);
+  } finally { connection.close(); }
+});
+
+it("reconnects on demand after a previously connected socket closes", async () => {
+  const client = {
+    isOpen: false,
+    connect: vi.fn(async () => { client.isOpen = true; }),
+    sendCommand: vi.fn(async () => "OK"),
+    destroy: vi.fn(),
+  };
+  const connection = createRedisCacheConnection(client);
+  try {
+    await connection.sendCommand(["GET", "first"]);
+    client.isOpen = false;
+    await connection.sendCommand(["GET", "second"]);
+    expect(client.connect).toHaveBeenCalledTimes(2);
+  } finally { connection.close(); }
+});
+
+it("prevents commands from continuing when disposal interrupts a connection", async () => {
+  let release!: () => void;
+  const client = {
+    isOpen: true,
+    connect: vi.fn(() => new Promise<void>((resolve) => { release = resolve; })),
+    sendCommand: vi.fn(async () => "OK"),
+    destroy: vi.fn(),
+  };
+  const connection = createRedisCacheConnection(client);
+  const command = connection.sendCommand(["GET", "key"]);
+  // Attach the rejection handler before resolving the interrupted attempt.
+  const rejected = expect(command).rejects.toThrow("closed");
+  connection.close();
+  release();
+  await rejected;
+  expect(client.destroy).toHaveBeenCalledOnce();
+  expect(client.sendCommand).not.toHaveBeenCalled();
+});

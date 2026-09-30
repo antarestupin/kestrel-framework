@@ -21,7 +21,7 @@
     "dev:database": "drizzle-kit studio --config=drizzle.dev.config.ts --host=127.0.0.1 --port=4983",
     "test": "ENVIRONMENT=test vitest run --no-isolate",
     "test:watch": "ENVIRONMENT=test vitest",
-    "infra:up": "docker compose -f .devcontainer/docker-compose.yml up -d --wait postgres redis",
+    "infra:up": "docker compose -f .devcontainer/docker-compose.yml up -d --wait postgres",
     "infra:down": "docker compose -f .devcontainer/docker-compose.yml stop"
   },
   "dependencies": {

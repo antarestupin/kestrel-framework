@@ -18,11 +18,8 @@ services:
       DB_DATABASE: kestrel_playground
       DB_TEST_DATABASE: kestrel_playground_test
       DB_SSL: "false"
-      REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   postgres:
@@ -40,19 +37,6 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres -d kestrel_playground"]
       interval: 5s
       timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:8-alpine
-    ports:
-      - "127.0.0.1:56379:6379"
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
-    tmpfs:
-      - /data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
       retries: 10
 
 volumes:

@@ -55,6 +55,8 @@ flowchart LR
 
 An application may inject one `ViteDevelopmentRuntime` into several Vite adapters. The runtime creates one middleware-mode Vite server and owns its watcher, dependency optimizer, module graph, middleware and HMR socket. `runtime.entry({ root })` resolves a client's conventional `index.html` and `src/main.tsx` against that same shared root, with explicit `html` and `module` overrides available for other layouts. Each adapter still owns its standalone HTML contract and performs any client-specific configuration injection. Without an injected runtime, every adapter retains its autonomous Vite behavior; production delivery always remains bundle-based.
 
+The shared runtime loads development configuration through Vite's native config loader, using the application's Node.js/tsx runtime. Vite's default bundle loader imports and deletes a temporary module, which makes Node's import-based watch mode restart repeatedly. Native loading avoids that cycle while keeping real configuration dependencies watched. The HMR WebSocket attaches to Fastify through `server.ws.server`, the Vite 8 option.
+
 ```mermaid
 flowchart LR
     Fastify --> Runtime[Shared Vite development runtime]

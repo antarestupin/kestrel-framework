@@ -144,10 +144,13 @@ export class ViteDevelopmentRuntime {
       this.serverPromise = this.createServer({
         root: this.options.root,
         configFile: this.options.configFile,
+        // Bundled configs are imported and deleted, triggering Node's module watch mode.
+        // Native loading uses the application's Node/tsx runtime and preserves real-file watching.
+        configLoader: "native",
         appType: "custom",
         server: {
           middlewareMode: true,
-          hmr: { server: server.server },
+          ws: { server: server.server },
         },
       });
     }

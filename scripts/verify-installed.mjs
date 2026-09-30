@@ -60,6 +60,7 @@ await rename(generatedClient, resolve(application, ".previous-generated-client.t
 const productionEnvironment = {
   ENVIRONMENT: "prod", NODE_ENV: "production", KESTREL_COMPILED: "1",
   DB_HOST: "127.0.0.1", DB_USER: "fixture", DB_PASSWORD: "fixture", DB_DATABASE: "fixture",
+  REDIS_URL: "redis://127.0.0.1:1/0",
 };
 for (const [launcher, args, environment] of [
   ["do", ["generate", "http-clients"], {}],
@@ -77,6 +78,8 @@ const browserCheck = spawnSync(process.execPath, ["--import", "zod/compile", "--
   import assert from "node:assert/strict";
   import app from "./dist/server/core/app.js";
   import { httpRuntimeDependency } from "@kestrel/framework/http";
+  // A configured Redis cache must not connect while serving routes that never use it.
+  app.container.registerFactory("redisCacheConnection", () => { throw new Error("Redis must remain lazy."); });
   const runtime = app.container.resolve(httpRuntimeDependency);
   try {
     const document = await runtime.server.inject("/");

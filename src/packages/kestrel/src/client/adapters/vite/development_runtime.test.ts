@@ -1,10 +1,63 @@
 import type { FastifyInstance } from "fastify";
+import { spawn } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
 import type { ViteDevServer } from "vite";
 
 import { ViteDevelopmentRuntime } from "./development_runtime.js";
 
 describe("ViteDevelopmentRuntime", () => {
+  it("keeps Node watch stable until a real configuration dependency changes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "kestrel-vite-watch-"));
+    const dependency = join(root, "settings.mjs");
+    const configFile = join(root, "vite.config.mts");
+    const entry = join(root, "entry.mjs");
+    let child: ReturnType<typeof spawn> | undefined;
+    let closed: Promise<unknown> | undefined;
+    let output = "";
+    try {
+      await writeFile(dependency, "export const value = 1;");
+      await writeFile(configFile, 'import { value } from "./settings.mjs"; export default { define: { value } };');
+      // Resolve the runtime's actual Vite configuration without opening any HTTP or HMR listener.
+      await writeFile(entry, `
+        import { ViteDevelopmentRuntime } from ${JSON.stringify(new URL("./development_runtime.ts", import.meta.url).href)};
+        import { resolveConfig } from ${JSON.stringify(import.meta.resolve("vite"))};
+        const runtime = new ViteDevelopmentRuntime(${JSON.stringify({ root, configFile })}, {
+          createServer: async (config) => {
+            const resolved = await resolveConfig(config, "serve");
+            console.log("READY:" + resolved.define.value);
+            return { middlewares() {}, async close() {} };
+          },
+        });
+        await runtime.mount({ server: {}, async register() {}, use() {}, addHook() {} });
+        setInterval(() => {}, 1000);
+      `);
+      child = spawn(process.execPath, ["--watch", "--watch-preserve-output", "--import", "tsx", entry], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      closed = new Promise((resolve) => child!.once("close", resolve));
+      child.stdout!.on("data", (chunk) => { output += chunk; });
+      child.stderr!.on("data", (chunk) => { output += chunk; });
+      await vi.waitFor(() => expect(output).toContain("READY:1"), { timeout: 5_000 });
+      await delay(800);
+      expect(output.match(/READY:/gu), output).toHaveLength(1);
+      expect(output).not.toContain("deprecated");
+
+      // Native loading must retain watching of modules imported by the configuration.
+      await writeFile(dependency, "export const value = 2;");
+      await vi.waitFor(() => expect(output).toContain("READY:2"), { timeout: 5_000 });
+      await delay(800);
+      expect(output.match(/READY:/gu), output).toHaveLength(2);
+    } finally {
+      child?.kill("SIGINT");
+      await closed;
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 15_000);
+
   it("resolves conventional and customized clients against its own root", () => {
     const runtime = new ViteDevelopmentRuntime({
       root: "/workspace",
@@ -78,8 +131,9 @@ describe("ViteDevelopmentRuntime", () => {
     expect(createServer).toHaveBeenCalledWith(expect.objectContaining({
       root: "/workspace",
       configFile: "/workspace/vite.development.config.ts",
+      configLoader: "native",
       appType: "custom",
-      server: expect.objectContaining({ middlewareMode: true }),
+      server: expect.objectContaining({ middlewareMode: true, ws: { server: first.server.server } }),
     }));
     expect(first.use).toHaveBeenCalledOnce();
     expect(second.use).toHaveBeenCalledOnce();

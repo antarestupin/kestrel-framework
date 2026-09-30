@@ -8,6 +8,8 @@ Mount a browser application through the existing HTTP runtime. Kestrel owns deli
 
 Serve a browser application alongside your API when both should share the HTTP runtime. The adapter handles Vite development delivery or serves the built client according to the supplied mode.
 
+The shared `ViteDevelopmentRuntime` loads configuration natively so it can run under Node's `--watch` without restarting on Vite's temporary configuration files. Run TypeScript development configuration with the supported Node.js runtime and the application's `tsx` import hook, as provided by the generated `do` launcher.
+
 ```ts
 import type { App } from "@kestrel/framework/app";
 import { ClientProvider, ViteClientAdapter } from "@kestrel/framework/client";

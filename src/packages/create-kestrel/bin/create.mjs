@@ -1,25 +1,43 @@
 #!/usr/bin/env node
-import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { parseArgs } from "node:util";
+import { createApplication } from "../generators/index.mjs";
 
-// Scaffolding writes into an empty directory and never installs dependencies implicitly.
-const [directory, flag, archive, ...extra] = process.argv.slice(2);
-if (!directory || flag !== "--framework-archive" || !archive || extra.length) {
-  throw new Error("Usage: create-kestrel <directory> --framework-archive <local-framework.tgz>");
+const usage = `Usage: create-kestrel <directory> --framework-archive <local-framework.tgz>
+  --cache <postgres|redis>  Select the cache backend (default: postgres).
+  --redis-insight           Add Redis Insight when Redis is installed.
+  --no-redis-insight        Skip Redis Insight.
+  --yes                    Use defaults without interactive questions.
+  --help                   Show this help.`;
+
+try {
+  const { values, positionals } = parseArgs({
+    allowPositionals: true,
+    options: {
+      "framework-archive": { type: "string" },
+      cache: { type: "string" },
+      "redis-insight": { type: "boolean" },
+      "no-redis-insight": { type: "boolean" },
+      yes: { type: "boolean", short: "y" },
+      help: { type: "boolean", short: "h" },
+    },
+  });
+  if (values.help) {
+    console.info(usage);
+  } else {
+    if (positionals.length !== 1 || !values["framework-archive"]) throw new Error(usage);
+    if (values["redis-insight"] && values["no-redis-insight"]) {
+      throw new Error("Choose either --redis-insight or --no-redis-insight.");
+    }
+    // Both interfaces use the same generator; redirected input never starts prompts.
+    await createApplication({
+      directory: positionals[0],
+      frameworkArchive: values["framework-archive"],
+      cache: values.cache,
+      redisInsight: values["redis-insight"] ? true : values["no-redis-insight"] ? false : undefined,
+      interactive: !values.yes && Boolean(process.stdin.isTTY && process.stdout.isTTY),
+    });
+  }
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
 }
-const destination = resolve(directory);
-const name = basename(destination);
-if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) throw new Error("Use a lowercase npm-compatible directory name.");
-const archivePath = resolve(archive);
-await readFile(archivePath); // Fail before creating files if the archive is unavailable.
-await mkdir(destination, { recursive: true });
-if ((await readdir(destination)).length) throw new Error("The destination must be empty.");
-await cp(new URL("../template/", import.meta.url), destination, { recursive: true });
-await mkdir(resolve(destination, "vendor"));
-await cp(archivePath, resolve(destination, "vendor/framework.tgz"));
-const manifestPath = resolve(destination, "package.json");
-const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-manifest.name = name;
-manifest.dependencies["@kestrel/framework"] = "file:vendor/framework.tgz";
-await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
-console.info(`Created ${destination}. Run npm install, npm run build:ai, and npm run test:ai there.`);
