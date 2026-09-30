@@ -65,6 +65,8 @@ The publish commands perform real registry writes and require npm authentication
 
 The Docusaurus website in `src/apps/docs` renders the guides below directly. Run `npm run docs:dev` for local authoring, or `npm run docs:build` followed by `npm run docs:preview` to include local search. See [website maintenance and GitHub Pages setup](src/apps/docs/README.md).
 
+The Documentation workflow validates documentation changes in pull requests and deploys matching pushes to `main` to GitHub Pages. It can also be triggered manually from GitHub Actions on `main`.
+
 - [Documentation home](docs/README.md)
 - [Usage guides](docs/usage/README.md)
 - [Implementation references](docs/implementation/README.md)
