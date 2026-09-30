@@ -1,3 +1,6 @@
+// Verifies application CLI composition and database command dispatch using isolated child processes.
+// Extend these tests for new commands without opening database connections or HTTP listeners.
+
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";

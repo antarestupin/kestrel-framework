@@ -1,3 +1,6 @@
+// Configures the editor devcontainer, forwarded ports, and setup commands.
+// Keep its service and workspace settings aligned with docker-compose.yml.
+
 {
   "name": "Kestrel application",
   "dockerComposeFile": "docker-compose.yml",

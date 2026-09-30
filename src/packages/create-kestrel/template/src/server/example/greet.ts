@@ -1,3 +1,6 @@
+// Defines the example greeting action, input/output validation, and public HTTP route.
+// Use this pattern for new operations and register them in core/appCatalog.ts.
+
 import { z } from "zod";
 import { defineAction } from "@kestrel/framework/actions";
 import { defineHttpAccessPolicy, defineActionHttpController, get } from "@kestrel/framework/http";

@@ -1,3 +1,6 @@
+// Configures workspace editor preferences and the project TypeScript installation.
+// Add shared VS Code settings here.
+
 {
   "files.exclude": {},
   "typescript.tsdk": "node_modules/typescript/lib"

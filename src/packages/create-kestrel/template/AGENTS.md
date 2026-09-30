@@ -1,3 +1,5 @@
+<!-- Defines project conventions for coding agents working on this application. Update these instructions as your development workflow evolves. -->
+
 # Application instructions
 
 - Write code, comments, and documentation in English.

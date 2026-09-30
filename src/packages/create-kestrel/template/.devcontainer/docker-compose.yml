@@ -1,3 +1,6 @@
+# Defines the application development container, local services, and persistent volumes.
+# Adjust service ports and credentials here and keep application environment settings aligned.
+
 services:
   app:
     build:

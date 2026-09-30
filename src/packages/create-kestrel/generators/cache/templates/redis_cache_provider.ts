@@ -1,3 +1,6 @@
+// Connects the framework cache adapter to an application-owned Redis client.
+// Owns lazy connections and cleanup; configure connection settings in ../config/redis.ts.
+
 import { createClient } from "@redis/client";
 import type { Provider, ProviderBootApp, ProviderCompositionApp } from "@kestrel/framework/app";
 import { CacheProvider, RedisCacheAdapter, type CacheConfig, type RedisCacheClient } from "@kestrel/framework/cache";

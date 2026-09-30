@@ -1,3 +1,6 @@
+// Copies SQL migrations and their metadata into dist after TypeScript compilation.
+// This keeps compiled database maintenance commands supplied with the complete migration history.
+
 import { cp, mkdir, rm } from "node:fs/promises";
 
 // TypeScript does not copy SQL or journals; compiled maintenance commands need the same history.

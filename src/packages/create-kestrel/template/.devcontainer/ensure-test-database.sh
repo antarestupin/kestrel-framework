@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Creates the dedicated test database when the devcontainer starts, preserving existing data.
+# Uses DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, and DB_TEST_DATABASE from the container environment.
 
 set -euo pipefail
 

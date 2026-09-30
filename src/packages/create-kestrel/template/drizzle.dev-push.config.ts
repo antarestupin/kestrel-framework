@@ -1,3 +1,6 @@
+// Limits local schema synchronization to disposable development tables.
+// Keep the filters in development_schema.ts aligned with the exports in schema/push_schema.ts.
+
 import { defineConfig } from "drizzle-kit";
 import { drizzleDatabaseCredentials, drizzleEnvironment } from "./drizzle.database.js";
 import { developmentSchemaFilter, developmentTablesFilter } from "./src/server/core/db/development_schema.js";

@@ -1,3 +1,6 @@
+# Excludes dependencies, build output, local tooling files, and secrets from Git.
+# Add application-specific generated files here while retaining shared configuration examples.
+
 node_modules/
 dist/
 coverage/

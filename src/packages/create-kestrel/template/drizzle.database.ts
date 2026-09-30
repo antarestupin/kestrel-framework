@@ -1,3 +1,6 @@
+// Shares resolved application database credentials and environment with Drizzle tooling.
+// Configure connection values in src/server/core/config/database.ts and environment variables.
+
 import { appConfig, environment } from "./src/server/core/appConfig.js";
 
 // Share the resolved configuration, including overrides, without loading application composition.

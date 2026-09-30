@@ -1,3 +1,6 @@
+// Binds the application schema to Drizzle and registers database maintenance CLI commands.
+// Extend database integration here; connection settings live in ../config/database.ts.
+
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 import type { ProviderCompositionApp } from "@kestrel/framework/app";

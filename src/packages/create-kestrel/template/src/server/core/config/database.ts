@@ -1,3 +1,6 @@
+// Defines PostgreSQL connection settings, TLS defaults, and environment-variable mappings.
+// Configure DB_* values for deployments; tests select the separate DB_TEST_DATABASE.
+
 import { databaseConfigBase } from "@kestrel/framework/db/configuration";
 import { configure } from "@kestrel/framework/configuration";
 import type { AppConfigurationApi } from "../appConfig.js";

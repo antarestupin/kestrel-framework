@@ -1,3 +1,6 @@
+-- Creates PostgreSQL cache storage, indexes, and Kestrel schema contributions.
+-- Preserve this migration after deployment; cache settings live in core/config/cache.ts.
+
 CREATE SCHEMA "utils";
 
 --> statement-breakpoint

@@ -1,3 +1,6 @@
+# Builds the Node.js development container with Git and PostgreSQL administration tools.
+# Add operating-system packages here when local development needs them.
+
 FROM node:24-bookworm
 
 # Include database administration tools for the local test-database provisioner.

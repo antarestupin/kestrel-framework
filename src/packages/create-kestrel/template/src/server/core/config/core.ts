@@ -1,3 +1,6 @@
+// Defines debug mode and application filesystem roots.
+// Use PROJECT_ROOT to override the project location without changing runtime asset resolution.
+
 import { fileURLToPath } from "node:url";
 import type { AppConfigurationApi } from "../appConfig.js";
 

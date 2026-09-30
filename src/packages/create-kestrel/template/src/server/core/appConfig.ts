@@ -1,3 +1,6 @@
+// Combines feature configuration factories and resolves settings for the selected environment.
+// Register new configuration sections here and define their defaults and overrides in config/.
+
 import { configurationApi, environment } from "./config/environment.js";
 import { createCoreConfig } from "./config/core.js";
 import { createDatabaseConfig } from "./config/database.js";

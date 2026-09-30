@@ -1,3 +1,6 @@
+// Configures the HTTP listener, request logging, and generated client audiences and output paths.
+// Use HOST and PORT for listener overrides and adjust client-generation settings here.
+
 import { fileURLToPath } from "node:url";
 import { configure } from "@kestrel/framework/configuration";
 import { httpConfigBase } from "@kestrel/framework/http";

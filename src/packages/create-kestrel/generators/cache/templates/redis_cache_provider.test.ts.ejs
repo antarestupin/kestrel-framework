@@ -1,3 +1,6 @@
+// Verifies lazy Redis connections, retries, reconnection, and disposal using fake clients.
+// Extend these lifecycle tests when changing the Redis provider without requiring a Redis server.
+
 import { expect, it, vi } from "vitest";
 import { createRedisCacheConnection } from "./redis_cache_provider.js";
 

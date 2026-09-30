@@ -1,1 +1,4 @@
+# Selects the Node.js major version used by nvm use.
+# Keep it aligned with package.json engines and the development container.
+
 24

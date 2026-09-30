@@ -1,3 +1,6 @@
+// Configures the shared Vite development graph for browser code and generated HTTP contracts.
+// Adjust development plugins and file access here; production uses src/client/vite.config.ts.
+
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";

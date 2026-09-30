@@ -1,3 +1,5 @@
+<!-- Explains application setup, configuration, development commands, and deployment. Keep this guide aligned with your application as you customize it. -->
+
 # Kestrel web application
 
 This template consumes the provisional `@kestrel/framework` package. No npm release exists or is authorized. The creator vendors a local framework archive. Use Node.js 24 (`nvm use`) and run `npm install` in the generated project; commit the resulting application-specific lockfile.

@@ -1,3 +1,6 @@
+// Declares supported environments, selects ENVIRONMENT or NODE_ENV, and loads .env locally.
+// Configure the APP_CONFIG override prefix and shared configuration API here.
+
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
 import { createConfigurationApi } from "@kestrel/framework/configuration";

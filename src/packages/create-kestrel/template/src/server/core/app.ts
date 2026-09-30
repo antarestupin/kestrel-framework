@@ -1,3 +1,6 @@
+// Composes the application catalog, configuration, and runtime providers for the Kestrel CLI.
+// Register application services here; configure their settings through appConfig.ts and config/.
+
 import { resolve } from "node:path";
 import { App } from "@kestrel/framework/app";
 import { LoggerProvider } from "@kestrel/framework/log";

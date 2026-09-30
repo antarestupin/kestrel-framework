@@ -1,3 +1,6 @@
+// Installs Kestrel schema contributions after Drizzle synchronizes local development tables.
+// Runs only in the local environment and uses the schema/push_schema.ts exports.
+
 import { Pool } from "pg";
 import { applyDatabaseSchemaContributions } from "@kestrel/framework/db";
 import { appConfig, environment } from "../appConfig.js";
