@@ -50,16 +50,21 @@ for (const file of ["do", ".devcontainer/ensure-test-database.sh"]) {
 for (const file of [".gitignore", ".nvmrc", "AGENTS.md", ".vscode/settings.json", ".devcontainer/devcontainer.json", "drizzle.database.ts", "drizzle.dev.config.ts", "drizzle.dev-push.config.ts", "vite.development.config.ts"]) {
   await access(resolve(application, file));
 }
-for (const file of ["src/server/main.ts", "src/server/generate.ts", "src/server/core/db/migrate.ts"]) {
+for (const file of ["src/server/main.ts", "src/server/generate.ts", "src/server/core/db/migrate.ts", "src/server/core/app_factory.ts", "vite.config.ts"]) {
   await assert.rejects(access(resolve(application, file)), { code: "ENOENT" });
 }
 const generatedClient = resolve(application, "src/generated/publicClient/publicClient.ts");
 const originalClient = await readFile(generatedClient, "utf8");
 await rename(generatedClient, resolve(application, ".previous-generated-client.ts"));
+// Production validates explicit credentials even for commands that never connect to PostgreSQL.
+const productionEnvironment = {
+  ENVIRONMENT: "prod", NODE_ENV: "production", KESTREL_COMPILED: "1",
+  DB_HOST: "127.0.0.1", DB_USER: "fixture", DB_PASSWORD: "fixture", DB_DATABASE: "fixture",
+};
 for (const [launcher, args, environment] of [
   ["do", ["generate", "http-clients"], {}],
   ["do", ["--help"], {}],
-  ["do", ["--help"], { NODE_ENV: "production", KESTREL_COMPILED: "1" }],
+  ["do", ["--help"], productionEnvironment],
 ]) {
   const invocation = spawnSync(resolve(application, launcher), args, {
     cwd: dirname(application), encoding: "utf8", env: { ...process.env, ...environment },
@@ -67,6 +72,29 @@ for (const [launcher, args, environment] of [
   assert.equal(invocation.status, 0, invocation.stderr || invocation.error?.message);
 }
 assert.equal(await readFile(generatedClient, "utf8"), originalClient);
+// Exercise the compiled application and its relocated browser assets without an HTTP listener.
+const browserCheck = spawnSync(process.execPath, ["--import", "zod/compile", "--input-type=module", "--eval", `
+  import assert from "node:assert/strict";
+  import app from "./dist/server/core/app.js";
+  import { httpRuntimeDependency } from "@kestrel/framework/http";
+  const runtime = app.container.resolve(httpRuntimeDependency);
+  try {
+    const document = await runtime.server.inject("/");
+    assert.equal(document.statusCode, 200);
+    const entry = document.body.match(/src="([^\"]+\\.js)"/)?.[1];
+    assert(entry, "The application must expose its compiled browser entry.");
+    assert.equal((await runtime.server.inject(entry)).statusCode, 200);
+    const response = await runtime.server.inject("/api/greet?name=Sam");
+    assert.deepEqual(response.json(), { message: "Hello, Sam!" });
+    assert.equal(response.headers["x-request-id"] !== undefined, true);
+  } finally {
+    try { await runtime.stop(); } finally { await app.dispose(); }
+  }
+`], {
+  cwd: application, encoding: "utf8",
+  env: { ...process.env, ...productionEnvironment, APP_CONFIG__HTTP__EXECUTION_ID_HEADER: "x-request-id" },
+});
+assert.equal(browserCheck.status, 0, browserCheck.stderr || browserCheck.error?.message);
 for (const file of ["0000_initial_note.sql", "meta/_journal.json", "meta/0000_snapshot.json"]) {
   assert.equal(
     await readFile(resolve(application, "dist/server/core/db/migrations", file), "utf8"),
@@ -74,4 +102,4 @@ for (const file of ["0000_initial_note.sql", "meta/_journal.json", "meta/0000_sn
   );
 }
 console.info(`Verified ${Object.keys(manifest.exports).length} ESM/CommonJS exports, declarations, CLI symlink, and Studio assets from ${fileURLToPath(pathToFileURL(packageRoot))}.`);
-console.info("Verified starter root tooling, source and compiled CLI entry points, client regeneration, and compiled migration assets.");
+console.info("Verified starter root tooling, CLI entry points, client regeneration, compiled browser delivery, configuration overrides, and migration assets.");

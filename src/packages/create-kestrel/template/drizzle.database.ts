@@ -1,6 +1,5 @@
-import { readDatabaseConfig } from "./src/server/core/db/configuration.js";
-import { readEnvironment } from "./src/server/core/environment.js";
+import { appConfig, environment } from "./src/server/core/appConfig.js";
 
-// Drizzle tooling shares application credentials without loading application composition.
-export const drizzleEnvironment = readEnvironment();
-export const drizzleDatabaseCredentials = readDatabaseConfig();
+// Share the resolved configuration, including overrides, without loading application composition.
+export const drizzleEnvironment = environment;
+export const drizzleDatabaseCredentials = appConfig.database;

@@ -9,6 +9,6 @@ export default defineConfig({
   root: projectRoot,
   cacheDir: ".vite/development",
   server: { fs: { allow: [projectRoot] } },
-  optimizeDeps: { entries: ["src/client/main.tsx"] },
+  optimizeDeps: { entries: ["src/client/src/main.tsx"] },
   plugins: [react()],
 });

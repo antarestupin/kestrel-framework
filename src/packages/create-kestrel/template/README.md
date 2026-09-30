@@ -4,7 +4,7 @@ This template consumes the provisional `@kestrel/framework` package. No npm rele
 
 ## Application commands
 
-`./do` runs the Kestrel CLI against the default application exported by `src/server/core/app.ts`. It resolves the project from its own location, so invocation also works from another directory. Application providers are lazy: help and client generation do not open HTTP listeners or database connections. Tests create independent applications through `src/server/core/app_factory.ts`.
+`./do` runs the Kestrel CLI against the default application exported by `src/server/core/app.ts`. It resolves the project from its own location, so invocation also works from another directory. Application providers are lazy: help and client generation do not open HTTP listeners or database connections. Composition is declared directly in `src/server/core/app.ts`. HTTP tests own that application for their suite; CLI tests use separate processes so disposal does not leak across tests running with `--no-isolate`.
 
 | Command | Purpose |
 | --- | --- |
@@ -25,9 +25,11 @@ The local-only `database seed`, `database reset`, and `database reset-seed` comm
 
 ## Configuration and database
 
-Copy `.env.example` to `.env` for local overrides. The application and Drizzle load it only in the local environment, without overriding process variables. `ENVIRONMENT` selects an explicit environment; otherwise `NODE_ENV=production` selects `prod`, `NODE_ENV=test` selects `test`, and the default is `local`. Tests use `DB_TEST_DATABASE` instead of the application database.
+Copy `.env.example` to `.env` for local overrides. The application and Drizzle load it only in the local environment, without overriding process variables. `ENVIRONMENT` selects an explicit environment; otherwise `NODE_ENV=production` selects `prod`, `NODE_ENV=test` selects `test`, and the default is `local`. The supported environments are `local`, `test`, `stage`, and `prod`. Tests use `DB_TEST_DATABASE` instead of the application database. `stage` and `prod` require `DB_HOST`, `DB_USER`, `DB_PASSWORD`, and `DB_DATABASE`; they default to port 5432 and TLS enabled.
 
-PostgreSQL defaults to port 55432 and database `kestrel_playground`. Run `npm run infra:up` for the template's PostgreSQL and Redis containers, or configure existing services. The repository playground already uses the framework infrastructure on those ports; do not start a second copy there. Run `npm run db:migrate` before database operations. `npm run infra:down` stops services without deleting volumes.
+`src/server/core/appConfig.ts` composes typed Kestrel configuration factories from `core/config/` for the core paths, HTTP, browser delivery, database, and logging. Schema-backed settings support conventional overrides such as `APP_CONFIG__HTTP__EXECUTION_ID_HEADER=x-request-id`. Explicit variables such as `PORT` retain their dedicated names; do not also provide a conventional override for the same field. Drizzle consumes the same resolved database settings.
+
+Local PostgreSQL defaults to port 55432 and database `kestrel_playground`. Run `npm run infra:up` for the template's PostgreSQL and Redis containers, or configure existing services. The repository playground already uses the framework infrastructure on those ports; do not start a second copy there. Run `npm run db:migrate` before database operations. `npm run infra:down` stops services without deleting volumes.
 
 `drizzle.database.ts` shares database configuration with the application without loading its providers. Deployment declarations live in `src/server/core/db/schema/app_schema.ts`. SQL migrations, snapshots, and the journal live in `src/server/core/db/migrations/`. `drizzle.dev.config.ts` browses application and development schemas; `drizzle.dev-push.config.ts` only synchronizes the exported `dev` tables. The shared filters in `development_schema.ts` must match the exports in `schema/push_schema.ts` when adding local tables. Logs, observations, and captured emails are available as local storage declarations; configure their providers when enabling those features.
 
@@ -35,9 +37,9 @@ The build copies migrations into `dist/server/core/db/migrations/`. To migrate a
 
 ## Browser client
 
-The UI calls the generated factory in `src/generated/publicClient/publicClient.ts` through the shared instance in `src/client/api.ts`. Regenerate contracts after changing controllers; never edit generated files manually. `HttpClientGenerationProvider` uses `src/server/core/http_client_generation.ts` for its audience and output settings. The build regenerates the client automatically.
+The UI calls the generated factory in `src/generated/publicClient/publicClient.ts` through the shared instance in `src/client/src/api.ts`. Regenerate contracts after changing controllers; never edit generated files manually. `HttpClientGenerationProvider` uses `src/server/core/config/http.ts` for its audience and output settings. The build regenerates the client automatically.
 
-`vite.development.config.ts` owns the shared development graph. `vite.config.ts` builds the standalone browser into `dist/web`. Both use the same client entry, and generated server links are type-only.
+`vite.development.config.ts` owns the shared development graph. `src/client/vite.config.ts` builds the standalone browser from `src/client/src/main.tsx` into `dist/client`. The client HTML remains in `src/client/index.html`. Both use the same client entry, and generated server links are type-only. Browser delivery is disabled in the test environment so API tests need neither Vite nor compiled assets.
 
 ## Development environment
 

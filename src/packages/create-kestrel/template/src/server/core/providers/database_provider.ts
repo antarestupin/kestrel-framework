@@ -1,9 +1,9 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 import type { ProviderCompositionApp } from "@kestrel/framework/app";
-import { DatabaseProvider as BaseDatabaseProvider, type DatabaseClient } from "@kestrel/framework/db";
+import { DatabaseProvider as BaseDatabaseProvider, type DatabaseClient, type DatabaseConfig } from "@kestrel/framework/db";
 import { databaseCliControllers, LocalDatabaseMaintenance } from "@kestrel/framework/database/seeder";
-import type { AppConfig } from "../appConfig.js";
+import type { AppConfig, Environment } from "../appConfig.js";
 import * as schema from "../db/schema/app_schema.js";
 import { applicationDatabaseMaintenance } from "../db/seed.js";
 
@@ -11,6 +11,10 @@ type ApplicationDatabase = NodePgDatabase<typeof schema>;
 
 /** Bind application schema and CLI maintenance while keeping connections lazy. */
 export class DatabaseProvider extends BaseDatabaseProvider<AppConfig, ApplicationDatabase> {
+  public constructor(config: DatabaseConfig, private readonly environment: Environment) {
+    super(config);
+  }
+
   protected override createDatabase(pool: Pool): ApplicationDatabase {
     return drizzle(pool, { schema });
   }
@@ -22,7 +26,7 @@ export class DatabaseProvider extends BaseDatabaseProvider<AppConfig, Applicatio
         new LocalDatabaseMaintenance({
           database: databaseClient.database,
           pool: databaseClient.pool,
-          environment: app.config.environment,
+          environment: this.environment,
         }, applicationDatabaseMaintenance),
       { lifetime: "singleton" },
     );

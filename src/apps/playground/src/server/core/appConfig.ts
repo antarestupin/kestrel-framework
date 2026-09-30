@@ -1,19 +1,21 @@
-import { z } from "zod";
-import { loggerConfigBase } from "@kestrel/framework/log";
-import { readDatabaseConfig } from "./db/configuration.js";
-import { readEnvironment } from "./environment.js";
+import { configurationApi, environment } from "./config/environment.js";
+import { createCoreConfig } from "./config/core.js";
+import { createDatabaseConfig } from "./config/database.js";
+import { createHttpConfig } from "./config/http.js";
+import { createClientConfig } from "./config/client.js";
+import { createLoggerConfig } from "./config/logger.js";
 
-/** Environment interpretation belongs to the application, not the framework. */
-export function readAppConfig() {
-  const environment = readEnvironment();
-  return {
-    environment,
-    devMode: environment === "local",
-    host: process.env.HOST ?? "127.0.0.1",
-    port: z.coerce.number().int().min(0).max(65535).parse(process.env.PORT ?? 3333),
-    database: readDatabaseConfig(),
-    logger: loggerConfigBase.schema.parse({ level: process.env.LOG_LEVEL ?? "info" }),
-  };
-}
+export { environment, type Environment, type AppConfigurationApi } from "./config/environment.js";
 
-export type AppConfig = ReturnType<typeof readAppConfig>;
+// Each feature owns its configuration contribution; no providers are loaded here.
+const configDefinition = configurationApi.defineConfig({
+  core: createCoreConfig(configurationApi),
+  database: createDatabaseConfig(configurationApi),
+  http: createHttpConfig(configurationApi),
+  client: createClientConfig(configurationApi),
+  logger: createLoggerConfig(configurationApi),
+});
+
+/** Fully resolved application settings, including supported APP_CONFIG overrides. */
+export const appConfig = configurationApi.resolveConfig(configDefinition, { environment, env: process.env });
+export type AppConfig = typeof appConfig;
