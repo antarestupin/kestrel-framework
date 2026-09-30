@@ -10,9 +10,9 @@ Expose an existing action as a command for operator tasks or scripts. The greeti
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { App, defineCatalog } from "@kestrel/framework/app";
-import { defineActionCliController, defineCliController, option, param } from "@kestrel/framework/cli";
+import { defineAction } from "@kestreljs/framework/actions";
+import { App, defineCatalog } from "@kestreljs/framework/app";
+import { defineActionCliController, defineCliController, option, param } from "@kestreljs/framework/cli";
 
 const greet = defineAction({
   name: "greeting.greet",
@@ -45,9 +45,9 @@ Use the generic launcher to execute a catalog command without writing a dedicate
 
 ```sh
 # Load the composed application, then execute its greeting command.
-node_modules/.bin/tsx --import zod/compile node_modules/@kestrel/framework/dist/cli/main.js src/example.ts greeting greet Sam --salutation Hi
+node_modules/.bin/tsx --import zod/compile node_modules/@kestreljs/framework/dist/cli/main.js src/example.ts greeting greet Sam --salutation Hi
 # Select compact JSON when a script consumes the result.
-node_modules/.bin/tsx --import zod/compile node_modules/@kestrel/framework/dist/cli/main.js src/example.ts health read --_format=json
+node_modules/.bin/tsx --import zod/compile node_modules/@kestreljs/framework/dist/cli/main.js src/example.ts health read --_format=json
 ```
 
 An application's `./do` wrapper can supply its module path once. Runtime providers add `run server`, `run workers`, `run scheduled-tasks`, `run workflows` or `run background` commands; only registered providers contribute their commands.

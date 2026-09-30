@@ -7,7 +7,7 @@ set -eu
 # Anchor configuration and dependency resolution to the project, including npm workspaces.
 PROJECT_DIRECTORY=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$PROJECT_DIRECTORY"
-CLI_PATH=$(node -e 'const path = require("node:path"); process.stdout.write(path.join(path.dirname(require.resolve("@kestrel/framework/package.json")), "dist/cli/main.js"));')
+CLI_PATH=$(node -e 'const path = require("node:path"); process.stdout.write(path.join(path.dirname(require.resolve("@kestreljs/framework/package.json")), "dist/cli/main.js"));')
 
 # Development and production share the same composition and Kestrel CLI lifecycle.
 if [ "${KESTREL_COMPILED:-0}" = "1" ]; then

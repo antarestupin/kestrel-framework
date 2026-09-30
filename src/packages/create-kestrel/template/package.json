@@ -25,7 +25,7 @@
     "infra:down": "docker compose -f .devcontainer/docker-compose.yml stop"
   },
   "dependencies": {
-    "@kestrel/framework": "0.0.0",
+    "@kestreljs/framework": "0.1.0-alpha.0",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.10.0",
     "pg": "^8.22.0",

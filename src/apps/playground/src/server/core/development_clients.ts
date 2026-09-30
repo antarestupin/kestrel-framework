@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import {
   ViteDevelopmentRuntime,
   type ViteDevelopmentRuntimeOptions,
-} from "@kestrel/framework/client";
+} from "@kestreljs/framework/client";
 import type { AppConfig } from "./appConfig.js";
 
 /** Owns the application's single lazy Vite runtime; installed Studio assets need no HMR server. */

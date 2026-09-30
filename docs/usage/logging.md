@@ -10,10 +10,10 @@ Inject a logger when an action needs operational messages tied to its execution.
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { App } from "@kestrel/framework/app";
-import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
-import { loggerConfigBase, loggerDependency, LoggerProvider } from "@kestrel/framework/log";
+import { defineAction } from "@kestreljs/framework/actions";
+import { App } from "@kestreljs/framework/app";
+import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
+import { loggerConfigBase, loggerDependency, LoggerProvider } from "@kestreljs/framework/log";
 
 const configuration = createConfigurationApi({ environments: ["production"], defaultEnvironment: "production" });
 const config = configuration.resolveConfig({ logger: configure(loggerConfigBase, { level: "info" }) }, {
@@ -38,7 +38,7 @@ Run the action through the composed application. Its scoped logger carries the e
 Add diagnostics when the final execution log should summarize a business outcome, such as the number of imported records. The action contributes data to the existing summary.
 
 ```ts
-import { executionContextDependency } from "@kestrel/framework/app";
+import { executionContextDependency } from "@kestreljs/framework/app";
 
 const summarize = defineAction({
   name: "import.summarize", input: z.object({ imported: z.number() }), output: z.void(),

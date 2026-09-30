@@ -10,9 +10,9 @@ Declare dependencies when an action needs an application-owned service or settin
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { App, type Provider, type ProviderCompositionApp } from "@kestrel/framework/app";
-import { createDependencyApi, dep } from "@kestrel/framework/di";
+import { defineAction } from "@kestreljs/framework/actions";
+import { App, type Provider, type ProviderCompositionApp } from "@kestreljs/framework/app";
+import { createDependencyApi, dep } from "@kestreljs/framework/di";
 
 type Config = { greeting: { prefix: string } };
 type NameDirectory = { findName(id: string): Promise<string> };

@@ -15,7 +15,7 @@ export {
   workerJobs,
   workerDeadLetterJobs,
   workerQueueControls,
-} from "@kestrel/framework/workers";
+} from "@kestreljs/framework/workers";
 ```
 
 Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required.
@@ -26,9 +26,9 @@ Queue an operation when it can run asynchronously and needs retry handling. This
 
 ```ts
 import { z } from "zod";
-import { App, defineCatalog } from "@kestrel/framework/app";
-import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
-import { defineWorker, MemoryWorkerAdapter, WorkerClient, WorkerProvider, workersConfigBase } from "@kestrel/framework/workers";
+import { App, defineCatalog } from "@kestreljs/framework/app";
+import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
+import { defineWorker, MemoryWorkerAdapter, WorkerClient, WorkerProvider, workersConfigBase } from "@kestreljs/framework/workers";
 
 const printGreeting = defineWorker({
   name: "greeting.print", queue: "greetings",
@@ -67,7 +67,7 @@ Prefer `enqueueMany` when publishing several inputs together. PostgreSQL inserts
 Use batch processing when several queued inputs can be handled together but may succeed independently. Report each outcome so one failed item does not invalidate earlier successes.
 
 ```ts
-import { jobFail, jobSuccess } from "@kestrel/framework/workers";
+import { jobFail, jobSuccess } from "@kestreljs/framework/workers";
 
 const importContacts = defineWorker({
   name: "contact.import", queue: "contact-imports",

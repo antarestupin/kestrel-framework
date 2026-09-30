@@ -9,7 +9,7 @@ Use representable errors for expected failures with a stable public meaning. Une
 Give an expected failure a stable representation when callers need to react to it. This conflict error becomes an HTTP 409 or a dedicated CLI exit code through the same business operation.
 
 ```ts
-import type { CliRepresentableError, HttpRepresentableError } from "@kestrel/framework/errors";
+import type { CliRepresentableError, HttpRepresentableError } from "@kestreljs/framework/errors";
 
 class ResourceConflictError extends Error implements HttpRepresentableError, CliRepresentableError {
   toHttpError() {

@@ -9,8 +9,8 @@ Resolve configuration once at the application boundary. Pass each provider its r
 Resolve library settings at application startup when deployments need different values. This example combines cache defaults, an explicit environment variable and a deployment-specific debug flag.
 
 ```ts
-import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
-import { cacheConfigBase } from "@kestrel/framework/cache";
+import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
+import { cacheConfigBase } from "@kestreljs/framework/cache";
 
 const configuration = createConfigurationApi({
   environments: ["development", "test", "production"],

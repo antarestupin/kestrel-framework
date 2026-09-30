@@ -7,6 +7,10 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const temporary = await mkdtemp(join(tmpdir(), "kestrel-consumer-"));
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+// Derive archive filenames from release metadata so version bumps do not break verification.
+const creatorManifest = JSON.parse(await readFile(new URL("../src/packages/create-kestrel/package.json", import.meta.url), "utf8"));
+const frameworkManifest = JSON.parse(await readFile(new URL("../src/packages/kestrel/package.json", import.meta.url), "utf8"));
+const archiveName = ({ name, version }) => `${name.replace(/^@/, "").replaceAll("/", "-")}-${version}.tgz`;
 function run(command, args, cwd = root) {
   const result = spawnSync(command, args, { cwd, stdio: "inherit" });
   if (result.error) throw result.error;
@@ -27,14 +31,21 @@ async function install(directory) {
 
 try {
   // Exercise the shipped create-kestrel executable, including its bundled generators and dotfiles.
-  run(npm, ["pack", "--workspace=@kestrel/create-app", "--pack-destination", temporary, "--ignore-scripts", "--silent"]);
+  run(npm, ["pack", "--workspace=@kestreljs/create-kestrel", "--pack-destination", temporary, "--ignore-scripts", "--silent"]);
   const creator = join(temporary, "creator");
   await mkdir(creator);
   await writeFile(join(creator, "package.json"), JSON.stringify({
     name: "kestrel-creator-fixture", version: "0.0.0", private: true,
-    dependencies: { "@kestrel/create-app": `file:${join(temporary, "kestrel-create-app-0.0.0.tgz")}` },
+    dependencies: { [creatorManifest.name]: `file:${join(temporary, archiveName(creatorManifest))}` },
   }, null, 2) + "\n");
   await install(creator);
+  // Verify the installed creator's default registry contract before testing local-archive consumers.
+  const registryApplication = join(temporary, "registry-app");
+  run(process.execPath, [join(creator, "node_modules/.bin/create-kestrel"), registryApplication, "--yes"]);
+  const generated = JSON.parse(await readFile(join(registryApplication, "package.json"), "utf8"));
+  if (generated.dependencies[frameworkManifest.name] !== frameworkManifest.version) {
+    throw new Error("The generated registry dependency must match the framework release.");
+  }
   for (const [name, cache, insight] of [
     ["postgres-app", "postgres", false],
     ["redis-app", "redis", false],
@@ -42,7 +53,7 @@ try {
   ]) {
     const application = join(temporary, name);
     run(process.execPath, [join(creator, "node_modules/.bin/create-kestrel"), application,
-      "--framework-archive", "artifacts/kestrel-framework-0.0.0.tgz", "--cache", cache,
+      "--framework-archive", join(root, "artifacts", archiveName(frameworkManifest)), "--cache", cache,
       insight ? "--redis-insight" : "--no-redis-insight"]);
     await install(application);
     for (const script of ["typecheck", "build:ai", "test:ai", "db:check"]) run(npm, ["run", script], application);

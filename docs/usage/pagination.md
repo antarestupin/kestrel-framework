@@ -9,7 +9,7 @@ Collection reads return `{ items, pageInfo }`. Use numbered pages for ordinary l
 Use numbered pagination for lists whose callers select a page and page size. Validate and bound those values before passing them to the repository.
 
 ```ts
-import { createPaginationInputSchema, paginationControllerInputSchema, mapPaginationControllerInput } from "@kestrel/framework/actions";
+import { createPaginationInputSchema, paginationControllerInputSchema, mapPaginationControllerInput } from "@kestreljs/framework/actions";
 
 const inputSchema = createPaginationInputSchema({
   defaultPageSize: 20,
@@ -33,7 +33,7 @@ Use cursor pagination when a caller continues an ordered traversal from the last
 
 ```ts
 import { z } from "zod";
-import { createPaginationCursorCodec, createCursorPaginationControllerInputSchema, mapCursorPaginationControllerInput } from "@kestrel/framework/actions";
+import { createPaginationCursorCodec, createCursorPaginationControllerInputSchema, mapCursorPaginationControllerInput } from "@kestreljs/framework/actions";
 
 const cursorCodec = createPaginationCursorCodec(z.object({ id: z.uuid() }));
 const pageSizes = { defaultPageSize: 20, maxPageSize: 100 };
@@ -54,7 +54,7 @@ Define cursor ordering when connecting pagination to a repository. The example u
 ```ts
 import { asc, gt } from "drizzle-orm";
 import { pgTable, uuid } from "drizzle-orm/pg-core";
-import type { RepositoryOptions } from "@kestrel/framework/db";
+import type { RepositoryOptions } from "@kestreljs/framework/db";
 
 const records = pgTable("record", { id: uuid("id").primaryKey() });
 const options: RepositoryOptions<typeof records, string, { id: string }> = {

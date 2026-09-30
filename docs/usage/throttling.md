@@ -13,8 +13,8 @@ Add these objects to the application's global Drizzle schema and to the `schema`
 export {
   throttlingRateLimits,
   throttlingRateLimitLeases,
-} from "@kestrel/framework/throttling";
-export { utilsSchema } from "@kestrel/framework/db";
+} from "@kestreljs/framework/throttling";
+export { utilsSchema } from "@kestreljs/framework/db";
 ```
 
 Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required.
@@ -24,7 +24,7 @@ Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrat
 Bound calls to a dependency when it has a request quota. A limited wait can absorb short bursts while still giving the caller a deadline and cancellation control.
 
 ```ts
-import { defineRateLimit, MemoryRateLimitAdapter, seconds, ThrottlingManager } from "@kestrel/framework/throttling";
+import { defineRateLimit, MemoryRateLimitAdapter, seconds, ThrottlingManager } from "@kestreljs/framework/throttling";
 
 const partnerLimit = defineRateLimit({ id: "partner-api", requests: 20, per: seconds(1) });
 // A standalone memory manager coordinates only this process.
@@ -43,7 +43,7 @@ Without `maxWaitMs`, exhaustion rejects immediately. Waiting is bounded and canc
 Compose admission limits when a costly dependency has several constraints at once. This generation example budgets requests and tokens, bounds concurrent calls and stops admitting calls when the dependency is unhealthy.
 
 ```ts
-import { circuitBreaker, concurrencyLimit, defineAdmissionPolicy, minutes, rateLimit } from "@kestrel/framework/throttling";
+import { circuitBreaker, concurrencyLimit, defineAdmissionPolicy, minutes, rateLimit } from "@kestreljs/framework/throttling";
 
 const generationPolicy = defineAdmissionPolicy({
   id: "text-generation",
@@ -81,7 +81,7 @@ Defer queued work when its dependency has no capacity yet. The job remains avail
 
 ```ts
 import { z } from "zod";
-import { defineWorker } from "@kestrel/framework/workers";
+import { defineWorker } from "@kestreljs/framework/workers";
 
 const synchronize = defineWorker({
   name: "partner.synchronize", queue: "partner-sync",

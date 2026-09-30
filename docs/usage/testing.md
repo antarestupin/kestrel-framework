@@ -11,8 +11,8 @@ Test business behavior in isolation when its external dependency can be replaced
 ```ts
 import { expect, it } from "vitest";
 import { z } from "zod";
-import { createActionRunner, defineAction } from "@kestrel/framework/actions";
-import { createDependencyContainer, dep } from "@kestrel/framework/di";
+import { createActionRunner, defineAction } from "@kestreljs/framework/actions";
+import { createDependencyContainer, dep } from "@kestreljs/framework/di";
 
 type Directory = { name(id: string): Promise<string> };
 const greet = defineAction({
@@ -41,8 +41,8 @@ Use an in-process request when a test needs routing and response validation as w
 
 ```ts
 import Fastify from "fastify";
-import { App } from "@kestrel/framework/app";
-import { defineHttpAccessPolicy, defineHttpController, get, HttpControllerManager } from "@kestrel/framework/http";
+import { App } from "@kestreljs/framework/app";
+import { defineHttpAccessPolicy, defineHttpController, get, HttpControllerManager } from "@kestreljs/framework/http";
 
 it("serves a validated health response", async () => {
   const app = new App({});

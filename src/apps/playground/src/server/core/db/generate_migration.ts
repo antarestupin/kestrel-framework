@@ -4,7 +4,7 @@
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
-import { generateDatabaseMigration } from "@kestrel/framework/db";
+import { generateDatabaseMigration } from "@kestreljs/framework/db";
 import * as schema from "./schema/app_schema.js";
 
 // Preserve Drizzle's interactive diff and collect Kestrel schema contributions in the same history.

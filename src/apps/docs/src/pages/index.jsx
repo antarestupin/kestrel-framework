@@ -5,7 +5,7 @@ import CodeBlock from '@theme/CodeBlock';
 
 // Keep the first example aligned with the existing actions guide.
 const example = `import { z } from 'zod';
-import { defineAction } from '@kestrel/framework/actions';
+import { defineAction } from '@kestreljs/framework/actions';
 
 export const greet = defineAction({
   name: 'greeting.greet',

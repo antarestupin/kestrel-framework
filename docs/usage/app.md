@@ -10,10 +10,10 @@ Start here when assembling a new application or a small runnable example. The ex
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { App, defineCatalog, selectHttpControllerCatalog } from "@kestrel/framework/app";
-import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
-import { defineActionHttpController, defineHttpAccessPolicy, get, httpConfigBase, HttpRuntimeProvider } from "@kestrel/framework/http";
+import { defineAction } from "@kestreljs/framework/actions";
+import { App, defineCatalog, selectHttpControllerCatalog } from "@kestreljs/framework/app";
+import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
+import { defineActionHttpController, defineHttpAccessPolicy, get, httpConfigBase, HttpRuntimeProvider } from "@kestreljs/framework/http";
 
 const configuration = createConfigurationApi({
   environments: ["development", "production"],
@@ -28,7 +28,7 @@ const config = configuration.resolveConfig({
       generators: [{
         name: "public", audiences: ["public"], factoryName: "createPublicClient",
         outputFile: "src/generated/publicClient.ts",
-        catalogImportPath: "../example.js", runtimeImportPath: "@kestrel/framework/http/client",
+        catalogImportPath: "../example.js", runtimeImportPath: "@kestreljs/framework/http/client",
       }],
     },
   }),

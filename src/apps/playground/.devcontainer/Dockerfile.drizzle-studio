@@ -1,5 +1,5 @@
 # Install the generated application's tooling independently of host dependencies.
-# The creator supplies vendor/framework.tgz; Compose mounts live configuration and schemas.
+# The optional vendor directory supports local archives as well as registry dependencies.
 FROM node:24-bookworm
 
 WORKDIR /workspace/app

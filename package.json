@@ -12,7 +12,7 @@
     "src/apps/*"
   ],
   "scripts": {
-    "build:ai": "npm run build:ai --workspace=@kestrel/framework && npm run build:ai --workspace=@kestrel/playground",
+    "build:ai": "npm run build:ai --workspace=@kestreljs/framework && npm run build:ai --workspace=@kestrel/playground",
     "docs:dev": "npm run dev --workspace=@kestrel/docs",
     "docs:build": "npm run build:ai --workspace=@kestrel/docs",
     "docs:preview": "npm run preview --workspace=@kestrel/docs",
@@ -23,10 +23,14 @@
     "infra:up": "docker compose -f infrastructure/compose.yml up -d --wait",
     "infra:down": "docker compose -f infrastructure/compose.yml stop",
     "infra:prepare": "node infrastructure/prepare.mjs",
-    "pack:local": "npm run build:ai && mkdir -p artifacts && npm pack --workspace=@kestrel/framework --pack-destination=artifacts",
+    "pack:local": "npm run build:ai && mkdir -p artifacts && npm pack --workspace=@kestreljs/framework --pack-destination=artifacts",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:playground": "node scripts/check-playground.mjs",
-    "verify:archive": "node scripts/verify-archive.mjs"
+    "verify:archive": "node scripts/verify-archive.mjs",
+    "pack:dry-run": "npm run build:ai && npm pack --dry-run --workspace=./src/packages/kestrel --workspace=./src/packages/create-kestrel",
+    "publish:kestrel": "npm publish --workspace=./src/packages/kestrel --access public --tag next",
+    "publish:create-kestrel": "npm publish --workspace=./src/packages/create-kestrel --access public --tag next",
+    "publish:next": "npm run publish:kestrel && npm run publish:create-kestrel"
   },
   "devDependencies": {
     "@docusaurus/core": "3.10.2",

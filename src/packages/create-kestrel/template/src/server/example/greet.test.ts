@@ -3,7 +3,7 @@
 
 import { afterAll, expect, it } from "vitest";
 import { createPublicClient } from "../../generated/publicClient/publicClient.js";
-import { httpRuntimeDependency } from "@kestrel/framework/http";
+import { httpRuntimeDependency } from "@kestreljs/framework/http";
 import app from "../core/app.js";
 
 // This suite owns the composed application; the test configuration disables browser delivery.

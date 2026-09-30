@@ -18,7 +18,7 @@ export {
   workflowTasks,
   workflowSignals,
   workflowDispatchOutbox,
-} from "@kestrel/framework/workflows";
+} from "@kestreljs/framework/workflows";
 ```
 
 Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required. Add the [worker schema](./workers.md#install-postgresql-storage) when using worker-backed activities.
@@ -29,9 +29,9 @@ Use a workflow when a process must wait for an external decision and resume dura
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { defineCatalog } from "@kestrel/framework/app";
-import { defineWorkflow, defineWorkflowSignal } from "@kestrel/framework/workflows";
+import { defineAction } from "@kestreljs/framework/actions";
+import { defineCatalog } from "@kestreljs/framework/app";
+import { defineWorkflow, defineWorkflowSignal } from "@kestreljs/framework/workflows";
 
 const prepare = defineAction({
   name: "report.prepare", input: z.object({ reportId: z.string() }),
@@ -64,7 +64,7 @@ Register `WorkflowProvider` after the PostgreSQL and logger providers, install i
 Use the workflow client when application code must start an execution, deliver an external decision and await completion. Stable identifiers make repeated starts and signal submissions safe to deduplicate.
 
 ```ts
-import type { WorkflowClient } from "@kestrel/framework/workflows";
+import type { WorkflowClient } from "@kestreljs/framework/workflows";
 
 async function startReport(client: WorkflowClient) {
   const handle = await client.start(publishReport, { reportId: "report-42" }, {

@@ -17,7 +17,7 @@ Studio follows the operating system's light or dark appearance through `prefers-
 
 ## Concepts and model
 
-The public `@kestrel/framework/studio/configuration` entry exports `studioConfigBase` and `StudioConfig` without the provider or browser adapters. Application configuration shared with Drizzle uses this entry so its CommonJS loader does not attempt to require the ESM-only `@fastify/vite` adapter dependency. The main Studio entry retains its existing configuration re-exports for compatibility.
+The public `@kestreljs/framework/studio/configuration` entry exports `studioConfigBase` and `StudioConfig` without the provider or browser adapters. Application configuration shared with Drizzle uses this entry so its CommonJS loader does not attempt to require the ESM-only `@fastify/vite` adapter dependency. The main Studio entry retains its existing configuration re-exports for compatibility.
 
 `Studio` validates and combines `StudioExtension` definitions into a serializable `StudioManifest`. An extension contributes navigation metadata, pages, external links and optional HTTP controllers. `StudioProvider` mounts the definition through the Kestrel HTTP runtime and delegates browser delivery to `StudioClientAdapter`. The browser selects a renderer from each page's stable `kind`.
 
@@ -118,7 +118,7 @@ A `StudioExtension` contributes a serializable manifest and may define standalon
 
 ```ts
 import { definition as faPuzzlePiece } from "@fortawesome/free-solid-svg-icons/faPuzzlePiece";
-import { fontAwesomeIcon, type StudioExtension } from "@kestrel/framework/studio";
+import { fontAwesomeIcon, type StudioExtension } from "@kestreljs/framework/studio";
 
 const extensionIcon = fontAwesomeIcon(faPuzzlePiece);
 

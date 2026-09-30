@@ -107,7 +107,7 @@ import {
   defineWorker,
   jobFail,
   jobSuccess,
-} from "@kestrel/framework/workers";
+} from "@kestreljs/framework/workers";
 
 export const sendEmailWorker = defineWorker({
   name: "email.send",
@@ -458,8 +458,8 @@ import {
   minutes,
   rateLimit,
   seconds,
-} from "@kestrel/framework/throttling";
-import { defineWorker } from "@kestrel/framework/workers";
+} from "@kestreljs/framework/throttling";
+import { defineWorker } from "@kestreljs/framework/workers";
 import { partnerClientDependency } from "../partner/dependencies.js";
 
 const partnerAdmission = defineAdmissionPolicy({
@@ -809,7 +809,7 @@ PostgreSQL stores active jobs in `workers.job` and terminal failures in `workers
 Application workers are declared in optional `workers` sections of their domain subcatalogs. `AppCatalog` derives `app.catalog.workers`, which preserves hierarchy for Studio and exposes the ordered definitions consumed by the scheduler:
 
 ```ts
-import { defineCatalog } from "@kestrel/framework/app";
+import { defineCatalog } from "@kestreljs/framework/app";
 
 export const billingCatalog = defineCatalog({
   workers: {
@@ -822,8 +822,8 @@ export const billingCatalog = defineCatalog({
 `WorkerProvider` declares the lazy adapter, client and runtime and contributes its operational controller. The Kestrel configuration base can be embedded in the application's configuration and mapped to any application-owned source. Environment variables are resolved by the application configuration boundary rather than read directly by the workers library:
 
 ```ts
-import { configure } from "@kestrel/framework/configuration";
-import { workersConfigBase } from "@kestrel/framework/workers";
+import { configure } from "@kestreljs/framework/configuration";
+import { workersConfigBase } from "@kestreljs/framework/workers";
 
 export function createWorkersConfig(_api: AppConfigurationApi) {
   // Library defaults remain conventionally overridable after configure().

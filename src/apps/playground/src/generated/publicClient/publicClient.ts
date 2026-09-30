@@ -6,7 +6,7 @@ import {
   createHttpClientTransport,
   type HttpClientOptions,
   type HttpClientOutput,
-} from "@kestrel/framework/http/client";
+} from "@kestreljs/framework/http/client";
 
 type HttpControllerCatalog = typeof applicationHttpControllerCatalog;
 type DefinedControllerOutput<Controller extends { readonly outputSchema?: ZodType }> =

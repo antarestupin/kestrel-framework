@@ -91,7 +91,7 @@ Every event connects a stable name to a Zod payload schema:
 ```ts
 import { z } from "zod";
 
-import { defineEvent } from "@kestrel/framework/events";
+import { defineEvent } from "@kestreljs/framework/events";
 
 export const userCreated = defineEvent({
   name: "user.created",

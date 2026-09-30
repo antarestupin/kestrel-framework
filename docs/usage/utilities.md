@@ -9,7 +9,7 @@ Use focused utility entry points when you need identifiers, cursor encoding or c
 Generate an identifier before persistence when a record needs an ID in server or browser code. The same helper works without a database connection.
 
 ```ts
-import { createUuid } from "@kestrel/framework/utils/uuid";
+import { createUuid } from "@kestreljs/framework/utils/uuid";
 
 const id = createUuid();
 ```
@@ -22,7 +22,7 @@ Encode a cursor when a server needs to return a validated continuation value as 
 
 ```ts
 import { z } from "zod";
-import { createPaginationCursorCodec } from "@kestrel/framework/utils";
+import { createPaginationCursorCodec } from "@kestreljs/framework/utils";
 
 const codec = createPaginationCursorCodec(z.object({ id: z.string() }));
 // Encode a validated cursor for transport; this does not sign or encrypt it.
@@ -37,8 +37,8 @@ The codec validates both directions and bounds token size. It is server-only; br
 Flatten a nested catalog when a tool needs an ordered list of selected definitions. A leaf guard identifies the action objects while traversal follows the surrounding branches.
 
 ```ts
-import { defineAction } from "@kestrel/framework/actions";
-import { flattenCatalog, isAction } from "@kestrel/framework/utils";
+import { defineAction } from "@kestreljs/framework/actions";
+import { flattenCatalog, isAction } from "@kestreljs/framework/utils";
 
 const ping = defineAction({
   name: "system.ping", input: z.object({}), output: z.literal("pong"),

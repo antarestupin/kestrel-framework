@@ -9,9 +9,9 @@ Use `EmailClient` for provider-neutral sending. Choose local capture for develop
 Capture messages when developing or testing email flows without delivering to real recipients. The application still uses the email client, while the configured driver retains messages locally.
 
 ```ts
-import { App } from "@kestrel/framework/app";
-import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
-import { emailConfigBase, EmailProvider } from "@kestrel/framework/email";
+import { App } from "@kestreljs/framework/app";
+import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
+import { emailConfigBase, EmailProvider } from "@kestreljs/framework/email";
 
 const configuration = createConfigurationApi({ environments: ["development"], defaultEnvironment: "development" });
 const config = configuration.resolveConfig({
@@ -32,7 +32,7 @@ Inject `emailClientDependency` into actions and services. For a persistent devel
 Build a message when an application needs to send a notification or document. The standalone memory transport lets you exercise the complete message shape without an external service.
 
 ```ts
-import { EmailClient, MemoryEmailAdapter } from "@kestrel/framework/email";
+import { EmailClient, MemoryEmailAdapter } from "@kestreljs/framework/email";
 
 // Standalone test transport: no message leaves the process.
 const email = new EmailClient({ name: "transactional", driver: new MemoryEmailAdapter() });

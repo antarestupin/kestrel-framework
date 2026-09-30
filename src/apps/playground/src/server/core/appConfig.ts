@@ -3,7 +3,7 @@
 
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
-import { createConfigurationApi } from "@kestrel/framework/configuration";
+import { createConfigurationApi } from "@kestreljs/framework/configuration";
 import { createCoreConfig } from "./config/core.js";
 import { createDatabaseConfig } from "./config/database.js";
 import { createHttpConfig } from "./config/http.js";

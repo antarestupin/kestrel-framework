@@ -119,8 +119,8 @@ The application completes a base with `configure()`. Its second argument is cont
 import { z } from "zod";
 
 import type { AppConfigurationApi } from "../appConfig.js";
-import { cacheConfigBase } from "@kestrel/framework/cache";
-import { configure } from "@kestrel/framework/configuration";
+import { cacheConfigBase } from "@kestreljs/framework/cache";
+import { configure } from "@kestreljs/framework/configuration";
 
 export function createCacheConfig({ envVar }: AppConfigurationApi) {
   return configure(cacheConfigBase, {

@@ -2,10 +2,10 @@
 // Owns lazy connections and cleanup; configure connection settings in ../config/redis.ts.
 
 import { createClient } from "@redis/client";
-import type { Provider, ProviderBootApp, ProviderCompositionApp } from "@kestrel/framework/app";
-import { CacheProvider, RedisCacheAdapter, type CacheConfig, type RedisCacheClient } from "@kestrel/framework/cache";
-import { dep } from "@kestrel/framework/di";
-import { applicationLoggerDependency } from "@kestrel/framework/log";
+import type { Provider, ProviderBootApp, ProviderCompositionApp } from "@kestreljs/framework/app";
+import { CacheProvider, RedisCacheAdapter, type CacheConfig, type RedisCacheClient } from "@kestreljs/framework/cache";
+import { dep } from "@kestreljs/framework/di";
+import { applicationLoggerDependency } from "@kestreljs/framework/log";
 import type { RedisConfig } from "../config/redis.js";
 
 /** Small owned transport contract, also usable with injected clients in unit tests. */

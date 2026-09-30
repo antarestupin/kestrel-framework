@@ -1,7 +1,6 @@
 {
-  "name": "@kestrel/create-app",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@kestreljs/create-kestrel",
+  "version": "0.1.0-alpha.0",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -16,11 +15,25 @@
     "template"
   ],
   "scripts": {
-    "prepublishOnly": "node -e \"throw new Error('Publication requires explicit owner approval')\""
+    "prepublishOnly": "node --check bin/create.mjs"
   },
   "dependencies": {
     "yaml": "^2.9.1",
     "yeoman-environment": "^7.2.0",
     "yeoman-generator": "^9.2.0"
-  }
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/antarestupin/kestrel-framework.git",
+    "directory": "src/packages/create-kestrel"
+  },
+  "homepage": "https://github.com/antarestupin/kestrel-framework#readme",
+  "bugs": {
+    "url": "https://github.com/antarestupin/kestrel-framework/issues"
+  },
+  "description": "Create an experimental Kestrel application with PostgreSQL or Redis cache."
 }

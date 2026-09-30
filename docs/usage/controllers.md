@@ -10,10 +10,10 @@ Use transport controllers when the same business operation should be available o
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { defineCatalog } from "@kestrel/framework/app";
-import { defineActionCliController } from "@kestrel/framework/cli";
-import { defineActionHttpController, defineHttpAccessPolicy, get } from "@kestrel/framework/http";
+import { defineAction } from "@kestreljs/framework/actions";
+import { defineCatalog } from "@kestreljs/framework/app";
+import { defineActionCliController } from "@kestreljs/framework/cli";
+import { defineActionHttpController, defineHttpAccessPolicy, get } from "@kestreljs/framework/http";
 
 const greet = defineAction({
   name: "greeting.greet",

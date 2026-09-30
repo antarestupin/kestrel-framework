@@ -10,8 +10,8 @@ Use an in-process event when local components should react to a notification wit
 
 ```ts
 import { z } from "zod";
-import { App } from "@kestrel/framework/app";
-import { defineEvent } from "@kestrel/framework/events";
+import { App } from "@kestreljs/framework/app";
+import { defineEvent } from "@kestreljs/framework/events";
 
 const memberCreated = defineEvent({
   name: "member.created", schema: z.object({ memberId: z.string() }),
@@ -49,8 +49,8 @@ Async listeners run concurrently and are owned by the dispatching scope's deferr
 Inject the scoped bus when a business action publishes events. An application-level listener can opt into descendant scopes to observe notifications from individual executions.
 
 ```ts
-import { defineAction } from "@kestrel/framework/actions";
-import { eventBusDependency } from "@kestrel/framework/events";
+import { defineAction } from "@kestreljs/framework/actions";
+import { eventBusDependency } from "@kestreljs/framework/events";
 
 const notifyCreated = defineAction({
   name: "member.notify-created", input: z.object({ memberId: z.string() }),

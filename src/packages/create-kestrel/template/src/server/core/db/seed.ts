@@ -2,7 +2,7 @@
 // Customize seed records and reset schemas here; reset deletes data inside those schemas.
 
 import { fileURLToPath } from "node:url";
-import { defineDatabaseMaintenance, defineDatabaseSeed } from "@kestrel/framework/database/seeder";
+import { defineDatabaseMaintenance, defineDatabaseSeed } from "@kestreljs/framework/database/seeder";
 import { developmentSchemaFilter, developmentTablesFilter } from "./development_schema.js";
 import * as localSchema from "./schema/push_schema.js";
 import { note } from "./schema/app_schema.js";

@@ -13,7 +13,7 @@ for (const file of await readdir(root, { recursive: true })) {
       const target = relative(root, resolve(dirname(resolve(root, file)), specifier));
       if (target.startsWith(`..${sep}`)) failures.push(`${file}: import leaves the framework (${specifier})`);
     }
-    if (/^@kestrel\/(?!framework)/.test(specifier)) failures.push(`${file}: dependency on an external product`);
+    if (/^@kestrel\//.test(specifier) || /^@kestreljs\/(?!framework(?:\/|$))/.test(specifier)) failures.push(`${file}: dependency on an external product`);
   }
   if (!/\.test\./.test(file) && /\bAgora\b|src\/(?:server|bootstrap)/.test(source)) {
     failures.push(`${file}: application-specific production reference`);

@@ -16,7 +16,7 @@ export {
   scheduledTasksSchema,
   scheduledTaskStates,
   scheduledTaskRuns,
-} from "@kestrel/framework/scheduled_tasks";
+} from "@kestreljs/framework/scheduled_tasks";
 ```
 
 Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required. Include the [lock schema](./lock.md#install-postgresql-storage) when using the default provider.
@@ -26,9 +26,9 @@ Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrat
 Use a loop schedule when maintenance should wait between completed runs. This cleanup task can postpone its next occurrence when there was nothing to remove.
 
 ```ts
-import { defineCatalog } from "@kestrel/framework/app";
-import { dep } from "@kestrel/framework/di";
-import { defineScheduledTask, loop } from "@kestrel/framework/scheduled_tasks";
+import { defineCatalog } from "@kestreljs/framework/app";
+import { dep } from "@kestreljs/framework/di";
+import { defineScheduledTask, loop } from "@kestreljs/framework/scheduled_tasks";
 
 type Pruner = { prune(): Promise<number> };
 const cleanup = defineScheduledTask({
@@ -54,7 +54,7 @@ Register the application-owned `expiredRecordRepository`. `loop` starts immediat
 Choose a fixed cadence for periodic work or a cron expression for a wall-clock schedule. These examples cover a minute interval, an immediate first run and a weekday morning in a chosen time zone.
 
 ```ts
-import { cron, every } from "@kestrel/framework/scheduled_tasks";
+import { cron, every } from "@kestreljs/framework/scheduled_tasks";
 
 const everyMinute = every({ minutes: 1 });
 const immediatelyThenHourly = every({ hours: 1, start: "immediate" });

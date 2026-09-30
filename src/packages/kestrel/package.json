@@ -1,13 +1,12 @@
 {
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0-alpha.0",
   "license": "MIT",
   "type": "module",
   "engines": {
     "node": "24.x"
   },
-  "name": "@kestrel/framework",
-  "description": "Composable application framework (provisional package name)",
+  "name": "@kestreljs/framework",
+  "description": "Composable application framework",
   "files": [
     "dist",
     "assets"
@@ -651,7 +650,7 @@
   "scripts": {
     "build:ai": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "node -e \"throw new Error('Publication requires explicit owner approval')\""
+    "prepublishOnly": "npm run build:ai"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -679,5 +678,18 @@
     "drizzle-seed": "^0.3.1",
     "vite": "^8.2.0",
     "@types/pg": "^8.20.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/antarestupin/kestrel-framework.git",
+    "directory": "src/packages/kestrel"
+  },
+  "homepage": "https://github.com/antarestupin/kestrel-framework#readme",
+  "bugs": {
+    "url": "https://github.com/antarestupin/kestrel-framework/issues"
   }
 }

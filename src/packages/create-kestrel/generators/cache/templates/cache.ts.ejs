@@ -1,8 +1,8 @@
 // Configures the application cache namespace and automatic pruning interval.
 // Adjust cache limits here; enable scheduled pruning only after installing a task runtime.
 
-import { configure } from "@kestrel/framework/configuration";
-import { cacheConfigBase } from "@kestrel/framework/cache";
+import { configure } from "@kestreljs/framework/configuration";
+import { cacheConfigBase } from "@kestreljs/framework/cache";
 
 /** Isolate this application's cache keys; add a pruning schedule when installing a task runtime. */
 export function createCacheConfig() {

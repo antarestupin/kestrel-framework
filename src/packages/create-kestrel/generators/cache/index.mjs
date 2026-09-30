@@ -17,7 +17,7 @@ export default class CacheGenerator extends Generator {
       + (redis ? "\n  redis: createRedisConfig(configurationApi)," : ""));
     replaceSource(this, "src/server/core/app.ts", 'import { DatabaseProvider } from "./providers/database_provider.js";',
       'import { DatabaseProvider } from "./providers/database_provider.js";\n'
-      + (redis ? 'import { RedisCacheProvider } from "./providers/redis_cache_provider.js";' : 'import { CacheProvider } from "@kestrel/framework/cache";'));
+      + (redis ? 'import { RedisCacheProvider } from "./providers/redis_cache_provider.js";' : 'import { CacheProvider } from "@kestreljs/framework/cache";'));
     replaceSource(this, "src/server/core/app.ts", "  .register(new DatabaseProvider(app.config.database, environment))",
       "  .register(new DatabaseProvider(app.config.database, environment))\n"
       + (redis ? "  .register(new RedisCacheProvider(app.config.cache, app.config.redis))" : "  .register(new CacheProvider(app.config.cache))"));
@@ -43,7 +43,7 @@ export default class CacheGenerator extends Generator {
         document.setIn(["services", "app", "depends_on", "redis"], { condition: "service_healthy" });
       });
     } else {
-      this.fs.append(this.destinationPath("src/server/core/db/schema/app_schema.ts"), '\n// Export the owning schema as well as its table so fresh migrations create both.\nexport { utilsSchema } from "@kestrel/framework/db";\nexport { cacheEntries } from "@kestrel/framework/cache/postgres_schema";\n');
+      this.fs.append(this.destinationPath("src/server/core/db/schema/app_schema.ts"), '\n// Export the owning schema as well as its table so fresh migrations create both.\nexport { utilsSchema } from "@kestreljs/framework/db";\nexport { cacheEntries } from "@kestreljs/framework/cache/postgres_schema";\n');
       replaceSource(this, "src/server/core/db/seed.ts", 'schemas: ["public", "dev", "drizzle"]', 'schemas: ["public", "utils", "dev", "drizzle"]');
       replaceSource(this, "README.md", '`public`, `dev`, and migration-journal schemas', '`public`, `utils`, `dev`, and migration-journal schemas');
       this.fs.copy(`${templates}/postgres-migrations`, this.destinationPath("src/server/core/db/migrations"));
@@ -52,6 +52,6 @@ export default class CacheGenerator extends Generator {
     this.fs.append(this.destinationPath("README.md"), redis
       ? '\n## Redis cache\n\nThe application registers `RedisCacheProvider` with the framework Redis adapter. `REDIS_URL` selects the connection; local development defaults to `redis://127.0.0.1:56379/0`, tests default to database 2, and stage/prod require an explicit URL. Connections open on the first cache operation and close with the application. Redis supplies native expiration; this adapter does not support cache tags. `npm run infra:up` includes Redis, and the devcontainer uses its service hostname.\n'
       : '\n## PostgreSQL cache\n\nThe application registers the framework `CacheProvider` with its PostgreSQL adapter. `npm run db:migrate` installs the included migration for `utils.cache_entry`, with expiration indexes, cache tags and the UNLOGGED contribution. Cache contents are recomputable and may be lost after a database crash. Local reset also recreates the application-owned `utils` schema.\n');
-    this.fs.append(this.destinationPath("README.md"), '\nCache settings live in `src/server/core/config/cache.ts`. Inject `cacheDependency` from `@kestrel/framework/cache` into actions to use the configured cache. PostgreSQL supports `tagAwareCacheDependency`; Redis does not. The starter does not install a scheduled-task runtime, so automatic PostgreSQL pruning is disabled; arrange pruning before production use, for example by scheduling the cache resource’s `prune()` operation.\n');
+    this.fs.append(this.destinationPath("README.md"), '\nCache settings live in `src/server/core/config/cache.ts`. Inject `cacheDependency` from `@kestreljs/framework/cache` into actions to use the configured cache. PostgreSQL supports `tagAwareCacheDependency`; Redis does not. The starter does not install a scheduled-task runtime, so automatic PostgreSQL pruning is disabled; arrange pruning before production use, for example by scheduling the cache resource’s `prune()` operation.\n');
   }
 }

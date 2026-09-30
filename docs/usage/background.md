@@ -9,8 +9,8 @@ Use `BackgroundProvider` to host workers, scheduled tasks and workflows together
 Choose the combined launcher when one process should host several kinds of background work. It reuses the workload providers already registered on the application.
 
 ```ts
-import type { App } from "@kestrel/framework/app";
-import { BackgroundProvider } from "@kestrel/framework/background";
+import type { App } from "@kestreljs/framework/app";
+import { BackgroundProvider } from "@kestreljs/framework/background";
 
 function enableBackground<Config>(app: App<Config>) {
   // Register WorkerProvider, ScheduledTaskProvider and/or WorkflowProvider first.

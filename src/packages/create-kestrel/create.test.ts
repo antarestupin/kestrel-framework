@@ -32,6 +32,28 @@ function create(target: string, archive: string, ...arguments_: string[]) {
   });
 }
 
+it.each(["postgres", "redis"])("creates a registry-based %s application without an archive or installation", async (cache) => {
+  await withFixture(async ({ target }) => {
+    // Exercise the public CLI without the local-only override, including Docker build inputs.
+    const result = spawnSync(process.execPath, [executable, target, "--cache", cache, "--yes"], {
+      encoding: "utf8", timeout: 10_000,
+    });
+    expect(result.status, result.stderr).toBe(0);
+    const manifest = JSON.parse(await readFile(join(target, "package.json"), "utf8"));
+    const framework = JSON.parse(await readFile(new URL("../kestrel/package.json", import.meta.url), "utf8"));
+    expect(manifest.dependencies[framework.name]).toBe(framework.version);
+    expect(manifest.private).toBe(true);
+    await expect(access(join(target, "vendor/framework.tgz"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(join(target, "node_modules"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(join(target, "package-lock.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    await access(join(target, "vendor/README.md"));
+    expect(await readFile(join(target, ".devcontainer/Dockerfile.drizzle-studio.dockerignore"), "utf8"))
+      .toContain("!vendor/README.md");
+    expect(await readFile(join(target, "do"), "utf8")).toContain(`${framework.name}/package.json`);
+    expect(await readFile(join(target, "src/server/core/app.ts"), "utf8")).toContain(`${framework.name}/app`);
+  });
+});
+
 it.each([
   { cache: "postgres", insight: false },
   { cache: "redis", insight: false },
@@ -43,7 +65,7 @@ it.each([
     const manifest = JSON.parse(await readFile(join(target, "package.json"), "utf8"));
     const infrastructure = parse(await readFile(join(target, ".devcontainer/docker-compose.yml"), "utf8"));
     expect(manifest.name).toBe("my-app");
-    expect(manifest.dependencies["@kestrel/framework"]).toBe("file:vendor/framework.tgz");
+    expect(manifest.dependencies["@kestreljs/framework"]).toBe("file:vendor/framework.tgz");
     expect(manifest.dependencies["yeoman-generator"]).toBeUndefined();
     expect(await readFile(join(target, "vendor/framework.tgz"), "utf8")).toBe("local fixture archive");
     // Yeoman must retain hidden tooling, executable modes and the existing database history.

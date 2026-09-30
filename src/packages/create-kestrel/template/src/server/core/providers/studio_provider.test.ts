@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
-import { App } from "@kestrel/framework/app";
-import { HttpRuntimeProvider, httpRuntimeDependency } from "@kestrel/framework/http";
-import { LoggerProvider } from "@kestrel/framework/log";
+import { App } from "@kestreljs/framework/app";
+import { HttpRuntimeProvider, httpRuntimeDependency } from "@kestreljs/framework/http";
+import { LoggerProvider } from "@kestreljs/framework/log";
 import { appCatalog } from "../appCatalog.js";
 import { appConfig } from "../appConfig.js";
 import { StudioProvider } from "./studio_provider.js";

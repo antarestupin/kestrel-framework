@@ -9,7 +9,7 @@ For recurring application jobs, prefer [scheduled tasks](./scheduled_tasks.md). 
 Use a cancellable delay when a retry loop or integration must respond promptly to shutdown. The caller checks cancellation after the delay returns early.
 
 ```ts
-import { abortableDelay } from "@kestrel/framework/scheduling";
+import { abortableDelay } from "@kestreljs/framework/scheduling";
 
 async function waitBeforeRetry(signal: AbortSignal): Promise<void> {
   await abortableDelay(100, signal);
@@ -25,7 +25,7 @@ The timer does not keep Node.js alive. This is not a persistent schedule or a re
 Use a heartbeat when an integration owns a lease outside the Kestrel lock manager. Keep renewal active during work, then drain it before releasing the lease.
 
 ```ts
-import { startLeaseHeartbeat } from "@kestrel/framework/scheduling";
+import { startLeaseHeartbeat } from "@kestreljs/framework/scheduling";
 
 async function withHeartbeat(
   extend: () => Promise<void>,

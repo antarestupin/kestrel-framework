@@ -6,9 +6,9 @@ Kestrel is a modular application framework. This repository contains its librari
 
 Kestrel is experimental and under active development. APIs and behavior may change without notice, and backward compatibility is not guaranteed. It is not ready for production use.
 
-The repository is being made public to support the planned distribution of Kestrel packages on npm and documentation on GitHub Pages. External contributions, including pull requests, are not accepted at this stage. No support or response times are guaranteed.
+The repository is public to support the planned distribution of Kestrel packages on npm and documentation on GitHub Pages. External contributions, including pull requests, are not accepted at this stage. No support or response times are guaranteed.
 
-Kestrel is licensed under the [MIT License](LICENSE). Package names are provisional and all packages are currently marked private. npm publication remains pending and requires explicit owner approval.
+Kestrel is licensed under the [MIT License](LICENSE). The public packages are `@kestreljs/framework` and `@kestreljs/create-kestrel`, initially versioned `0.1.0-alpha.0`. These names may change later. The workspace root, playground, documentation site, and generated applications remain private packages. Publication requires explicit owner approval.
 
 ## Develop and test
 
@@ -35,7 +35,7 @@ All npm workspaces live under `src/`: framework and starter packages in `src/pac
 
 ```sh
 npm run pack:local
-node src/packages/create-kestrel/bin/create.mjs /tmp/my-web-app --framework-archive artifacts/kestrel-framework-0.0.0.tgz
+node src/packages/create-kestrel/bin/create.mjs /tmp/my-web-app --framework-archive artifacts/kestreljs-framework-0.1.0-alpha.0.tgz
 cd /tmp/my-web-app
 npm install
 npm run build:ai
@@ -44,7 +44,22 @@ npm run test:ai
 
 Run `npm run verify:archive` after packing to generate and validate an independent consumer automatically, including package exports, declarations, the CLI, and Studio assets.
 
-The creator copies the archive into the generated application's `vendor` directory. It never installs dependencies or contacts a registry itself. `src/packages/create-kestrel/template` is the canonical template; `src/apps/playground` follows it, and `npm run check:playground` detects drift. To develop the playground, run `npm run dev --workspace=@kestrel/playground`; its database migrations run through `npm run db:migrate --workspace=@kestrel/playground`.
+By default, the creator generates an exact npm dependency on the compatible framework version. With `--framework-archive`, it copies the archive into the generated application's `vendor` directory instead. It never installs dependencies or contacts a registry itself. `src/packages/create-kestrel/template` is the canonical template; `src/apps/playground` follows it, and `npm run check:playground` detects drift. To develop the playground, run `npm run dev --workspace=@kestrel/playground`; its database migrations run through `npm run db:migrate --workspace=@kestrel/playground`.
+
+## Package publication
+
+After the first publication, create an application with `npx @kestreljs/create-kestrel@next my-app`, then run `npm install` in that directory. Local development can continue using the archive command above.
+
+Run `npm run build:ai`, `npm run typecheck`, `npm run check:boundaries`, `npm run check:playground`, and `npm run test:ai` with the test infrastructure available. Then run `npm run pack:local` and `npm run verify:archive` to validate independent consumers before publishing.
+
+| Root command | Purpose |
+| --- | --- |
+| `npm run pack:dry-run` | Build and inspect both npm packages without publishing. |
+| `npm run publish:kestrel` | Build and publish the framework publicly with the `next` tag. |
+| `npm run publish:create-kestrel` | Publish the creator publicly with the `next` tag. |
+| `npm run publish:next` | Publish the framework first, then the creator; stop on failure. |
+
+The publish commands perform real registry writes and require npm authentication and publishing rights to the `@kestreljs` scope. Package `publishConfig` also defaults to public access and the `next` tag. Keep the creator, framework, template dependency, playground dependency, and lockfile aligned when changing release versions. Published versions cannot be reused. If only the creator publication fails, retry its command after fixing the cause rather than republishing the framework. Automated release workflows and a stable release policy remain deferred.
 
 ## Documentation
 

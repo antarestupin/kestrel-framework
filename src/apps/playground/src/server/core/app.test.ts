@@ -18,7 +18,7 @@ function runApplication(source: string, environment = "test") {
 it.each(["local", "test"])("lists application commands in %s without initializing database or HTTP services", (environment) => {
   const result = runApplication(`
     import app from "./src/server/core/app.ts";
-    import { runCli } from "@kestrel/framework/cli";
+    import { runCli } from "@kestreljs/framework/cli";
     // A help command must never resolve either runtime service.
     const forbidden = () => { throw new Error("Infrastructure must remain lazy."); };
     app.container.registerFactory("databaseClient", forbidden);
@@ -35,7 +35,7 @@ it("dispatches database migrations through the application CLI provider", () => 
   const result = runApplication(`
     import assert from "node:assert/strict";
     import app from "./src/server/core/app.ts";
-    import { runCli } from "@kestrel/framework/cli";
+    import { runCli } from "@kestreljs/framework/cli";
     // Replace the owned maintenance service without opening a database connection.
     let migrations = 0;
     app.container.registerValue("databaseMaintenance", { migrate: async () => { migrations++; } });

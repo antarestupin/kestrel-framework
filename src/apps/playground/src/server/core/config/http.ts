@@ -2,8 +2,8 @@
 // Use HOST and PORT for listener overrides and adjust client-generation settings here.
 
 import { fileURLToPath } from "node:url";
-import { configure } from "@kestrel/framework/configuration";
-import { httpConfigBase } from "@kestrel/framework/http";
+import { configure } from "@kestreljs/framework/configuration";
+import { httpConfigBase } from "@kestreljs/framework/http";
 import type { AppConfigurationApi } from "../appConfig.js";
 
 /** HTTP runtime and client generation share the application's resolved configuration. */
@@ -33,7 +33,7 @@ export function createHttpConfig({
         // Keep the public contract and its server links in their existing generated directory.
         outputFile: fileURLToPath(new URL("../../../generated/publicClient/publicClient.ts", import.meta.url)),
         catalogImportPath: "../../server/core/appCatalog.js",
-        runtimeImportPath: "@kestrel/framework/http/client",
+        runtimeImportPath: "@kestreljs/framework/http/client",
       }],
     },
   });

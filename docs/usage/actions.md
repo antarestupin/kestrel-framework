@@ -10,8 +10,8 @@ Package a business operation with a validated input and output when several call
 
 ```ts
 import { z } from "zod";
-import { defineAction, mapActionInput } from "@kestrel/framework/actions";
-import { App, defineCatalog } from "@kestrel/framework/app";
+import { defineAction, mapActionInput } from "@kestreljs/framework/actions";
+import { App, defineCatalog } from "@kestreljs/framework/app";
 
 const greet = defineAction({
   name: "greeting.greet",

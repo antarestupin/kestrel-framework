@@ -10,9 +10,9 @@ Add an HTTP controller when an existing business action should be callable throu
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { defineCatalog } from "@kestrel/framework/app";
-import { defineActionHttpController, defineHttpAccessPolicy, defineHttpController, get, path, query } from "@kestrel/framework/http";
+import { defineAction } from "@kestreljs/framework/actions";
+import { defineCatalog } from "@kestreljs/framework/app";
+import { defineActionHttpController, defineHttpAccessPolicy, defineHttpController, get, path, query } from "@kestreljs/framework/http";
 
 const greet = defineAction({
   name: "greeting.greet",

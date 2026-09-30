@@ -2,7 +2,8 @@
 import { parseArgs } from "node:util";
 import { createApplication } from "../generators/index.mjs";
 
-const usage = `Usage: create-kestrel <directory> --framework-archive <local-framework.tgz>
+const usage = `Usage: create-kestrel <directory> [--framework-archive <local-framework.tgz>]
+  --framework-archive      Use a local archive instead of the bundled registry version.
   --cache <postgres|redis>  Select the cache backend (default: postgres).
   --redis-insight           Add Redis Insight when Redis is installed.
   --no-redis-insight        Skip Redis Insight.
@@ -24,7 +25,7 @@ try {
   if (values.help) {
     console.info(usage);
   } else {
-    if (positionals.length !== 1 || !values["framework-archive"]) throw new Error(usage);
+    if (positionals.length !== 1) throw new Error(usage);
     if (values["redis-insight"] && values["no-redis-insight"]) {
       throw new Error("Choose either --redis-insight or --no-redis-insight.");
     }

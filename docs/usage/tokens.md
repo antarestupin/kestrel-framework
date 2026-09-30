@@ -19,7 +19,7 @@ Add these objects to the application's global Drizzle schema and to the `schema`
 export {
   tokensSqlSchema,
   tokenRecords,
-} from "@kestrel/framework/tokens";
+} from "@kestreljs/framework/tokens";
 ```
 
 Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required. If you create a dedicated table with `createPostgresTokenTable()`, export that table and its namespace instead of the default objects, and pass the same table to the store.
@@ -30,7 +30,7 @@ Use a single-use token for an invitation or verification link that must not be a
 
 ```ts
 import { z } from "zod";
-import { defineToken, MemoryTokenStore, StoredTokenStrategy, TokenManager } from "@kestrel/framework/tokens";
+import { defineToken, MemoryTokenStore, StoredTokenStrategy, TokenManager } from "@kestreljs/framework/tokens";
 
 const invitation = defineToken({
   name: "member.invitation",
@@ -56,8 +56,8 @@ Issuing another invitation for the same subject replaces the previous active one
 Register token services when application actions need a shared manager. Revoke a subject's outstanding tokens when their invitations or other capabilities should no longer work.
 
 ```ts
-import { App } from "@kestrel/framework/app";
-import { TokenProvider } from "@kestrel/framework/tokens";
+import { App } from "@kestreljs/framework/app";
+import { TokenProvider } from "@kestreljs/framework/tokens";
 
 const app = new App({});
 app.container.registerValue("tokenStore", store);
@@ -73,7 +73,7 @@ Normally resolve settings through `tokensConfigBase` and inject `tokenManagerDep
 Choose signed tokens when recipients need a verifiable payload, or hybrid tokens when you also need stored revocation or single-use state. The application supplies the keyring and verification policy.
 
 ```ts
-import { HybridTokenStrategy, JwtTokenStrategy, type JwtTokenStrategyOptions, type TokenStore } from "@kestrel/framework/tokens";
+import { HybridTokenStrategy, JwtTokenStrategy, type JwtTokenStrategyOptions, type TokenStore } from "@kestreljs/framework/tokens";
 
 function signedTokens(options: JwtTokenStrategyOptions, store: TokenStore) {
   // options supplies the application's keyring, issuer and audience policy.

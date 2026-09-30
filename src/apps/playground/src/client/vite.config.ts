@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import fastifyVite from "@fastify/vite/plugin";
-import { DEFAULT_CLIENT_ASSET_BASE_PATH } from "@kestrel/framework/client";
+import { DEFAULT_CLIENT_ASSET_BASE_PATH } from "@kestreljs/framework/client";
 
 // The browser owns its production build configuration and output directory.
 export default defineConfig({

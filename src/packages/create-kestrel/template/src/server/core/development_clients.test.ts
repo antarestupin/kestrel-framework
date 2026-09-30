@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { expect, it, vi } from "vitest";
-import { ViteDevelopmentRuntime, type ViteDevelopmentRuntimeOptions } from "@kestrel/framework/client";
+import { ViteDevelopmentRuntime, type ViteDevelopmentRuntimeOptions } from "@kestreljs/framework/client";
 import { createDevelopmentClients } from "./development_clients.js";
 
 it("constructs one application runtime without starting Vite", async () => {

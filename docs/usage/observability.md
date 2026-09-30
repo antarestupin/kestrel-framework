@@ -10,8 +10,8 @@ Emit an observation when a diagnostic timeline needs a structured business miles
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { defineObservation, observerDependency, type ObservationData } from "@kestrel/framework/observability";
+import { defineAction } from "@kestreljs/framework/actions";
+import { defineObservation, observerDependency, type ObservationData } from "@kestreljs/framework/observability";
 
 interface ImportSummary extends ObservationData { imported: number }
 const importCompleted = defineObservation<ImportSummary>({ name: "import.completed", category: "import" });
@@ -32,9 +32,9 @@ The observer adds identity, time and the current execution ID. Producers own pay
 Enable the provider when development executions should persist observations for inspection in Studio. Compose its database, logger and observation storage prerequisites first.
 
 ```ts
-import type { App } from "@kestrel/framework/app";
-import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
-import { observationConfigBase, ObservationProvider } from "@kestrel/framework/observability";
+import type { App } from "@kestreljs/framework/app";
+import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
+import { observationConfigBase, ObservationProvider } from "@kestreljs/framework/observability";
 
 const configuration = createConfigurationApi({ environments: ["development"], defaultEnvironment: "development" });
 const config = configuration.resolveConfig({
@@ -54,7 +54,7 @@ The standard provider writes to the disposable development observation table and
 Use a standalone recorder for a test or integration that supplies its own storage callback. Explicit flush and close boundaries let the owner wait for buffered observations.
 
 ```ts
-import { BufferedObservationRecorder, ScopedObserver, type ObservationEvent } from "@kestrel/framework/observability";
+import { BufferedObservationRecorder, ScopedObserver, type ObservationEvent } from "@kestreljs/framework/observability";
 
 const recorded: ObservationEvent[] = [];
 const recorder = new BufferedObservationRecorder({

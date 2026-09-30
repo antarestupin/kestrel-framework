@@ -12,8 +12,8 @@ Add these objects to the application's global Drizzle schema and to the `schema`
 // Keep the library tables and namespace exported together.
 export {
   lockLeases,
-} from "@kestrel/framework/lock";
-export { utilsSchema } from "@kestrel/framework/db";
+} from "@kestreljs/framework/lock";
+export { utilsSchema } from "@kestreljs/framework/db";
 ```
 
 Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required.
@@ -23,7 +23,7 @@ Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrat
 Use an exclusive lease when concurrent callers could perform conflicting work on the same resource. The daily report example delegates renewal and release to the callback API.
 
 ```ts
-import { LockManager, MemoryLockAdapter, type Locks } from "@kestrel/framework/lock";
+import { LockManager, MemoryLockAdapter, type Locks } from "@kestreljs/framework/lock";
 
 // Standalone memory storage is suitable for tests or one process only.
 const locks = new LockManager(new MemoryLockAdapter(), {

@@ -15,7 +15,7 @@ export {
   authorizationRoles,
   authorizationRolePermissions,
   authorizationSubjectRoles,
-} from "@kestrel/framework/authorization";
+} from "@kestreljs/framework/authorization";
 ```
 
 Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required.
@@ -25,8 +25,8 @@ Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrat
 Use role-based permissions when a group of users should share access to the same operations. This example gives an operator role permission to manage contacts and assigns it to one subject.
 
 ```ts
-import { App } from "@kestrel/framework/app";
-import { AuthorizationProvider, definePermission, defineRole, MemoryAuthorizationAdapter, permission, requireAuthorization, requireHttpAuthorization } from "@kestrel/framework/authorization";
+import { App } from "@kestreljs/framework/app";
+import { AuthorizationProvider, definePermission, defineRole, MemoryAuthorizationAdapter, permission, requireAuthorization, requireHttpAuthorization } from "@kestreljs/framework/authorization";
 
 const manageContacts = definePermission({ id: "contacts.manage" });
 const operator = defineRole({
@@ -52,7 +52,7 @@ Place the permission check on an action when every caller must satisfy it, inclu
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
+import { defineAction } from "@kestreljs/framework/actions";
 
 const prepareImport = defineAction({
   name: "contacts.prepare-import",
@@ -71,8 +71,8 @@ Direct calls, CLI and workers must establish the appropriate authentication cont
 Use an HTTP policy to gate a group of administration endpoints before their controllers run. It resolves the session before checking the permission required by those endpoints.
 
 ```ts
-import { createAuthenticationHttpMiddleware, type AuthenticationConfig } from "@kestrel/framework/authentication";
-import { defineHttpAccessPolicy } from "@kestrel/framework/http";
+import { createAuthenticationHttpMiddleware, type AuthenticationConfig } from "@kestreljs/framework/authentication";
+import { defineHttpAccessPolicy } from "@kestreljs/framework/http";
 
 function operatorAccess(config: AuthenticationConfig) {
   const { requiredSession, trustedOrigin } = createAuthenticationHttpMiddleware(config);

@@ -9,9 +9,9 @@ Use `db` for PostgreSQL/Drizzle repositories and scoped transactions. The `datab
 Register database infrastructure when actions or other libraries need persistent storage. Resolve connection settings once and let the provider own the shared pool.
 
 ```ts
-import { App } from "@kestrel/framework/app";
-import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
-import { databaseConfigBase, DatabaseProvider } from "@kestrel/framework/db";
+import { App } from "@kestreljs/framework/app";
+import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
+import { databaseConfigBase, DatabaseProvider } from "@kestreljs/framework/db";
 
 const configuration = createConfigurationApi({
   environments: ["development", "production"],
@@ -39,8 +39,8 @@ Configure migration generation once for the application. Each PostgreSQL library
 For example, create an application-owned `src/database_schema.ts`:
 
 ```ts
-import { cacheEntries } from "@kestrel/framework/cache";
-import { utilsSchema } from "@kestrel/framework/db";
+import { cacheEntries } from "@kestreljs/framework/cache";
+import { utilsSchema } from "@kestreljs/framework/db";
 
 // Include library tables and their PostgreSQL namespaces alongside app tables.
 export const schema = { utilsSchema, cacheEntries };
@@ -52,7 +52,7 @@ Point the application's Drizzle configuration at this file. The following applic
 
 ```ts
 import { fileURLToPath } from "node:url";
-import { generateDatabaseMigration } from "@kestrel/framework/db";
+import { generateDatabaseMigration } from "@kestreljs/framework/db";
 import { schema } from "./database_schema.js";
 
 // Keep these paths aligned with the application's Drizzle configuration.
@@ -91,8 +91,8 @@ Use a repository and a model action helper for conventional record creation. Thi
 import { sql } from "drizzle-orm";
 import { pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { defineModelCreateAction } from "@kestrel/framework/actions";
-import { DatabaseManager, Repository } from "@kestrel/framework/db";
+import { defineModelCreateAction } from "@kestreljs/framework/actions";
+import { DatabaseManager, Repository } from "@kestreljs/framework/db";
 
 export const contacts = pgTable("contact", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
@@ -126,8 +126,8 @@ Export the table through your Drizzle migration schema. Database-side `uuidv7()`
 Wrap an action in a transaction when several database writes must succeed or fail together. Creating the pair below must not leave only one contact behind.
 
 ```ts
-import { defineAction } from "@kestrel/framework/actions";
-import { databaseTransaction } from "@kestrel/framework/db";
+import { defineAction } from "@kestreljs/framework/actions";
+import { databaseTransaction } from "@kestreljs/framework/db";
 
 const createPair = defineAction({
   name: "contact.create-pair",
@@ -151,7 +151,7 @@ Thrown failures, including output validation failures, roll back the transaction
 Add a history table when an application needs to retain changes to a source record. Include it in migrations alongside the source table before recording audited writes. Use the [Kestrel migration generator](#install-library-schemas) so the history table's functions and triggers are installed along with its Drizzle table.
 
 ```ts
-import { defineHistoryTable } from "@kestrel/framework/db";
+import { defineHistoryTable } from "@kestreljs/framework/db";
 
 // Export this beside the source table so migration generation sees both.
 export const contactHistory = defineHistoryTable(contacts);

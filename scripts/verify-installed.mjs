@@ -12,7 +12,7 @@ const require = createRequire(pathToFileURL(resolve(application, "package.json")
 const resolverPath = resolve(application, ".kestrel-package-resolver.mjs");
 await writeFile(resolverPath, "export const resolveModule = (specifier) => import.meta.resolve(specifier);\n");
 const { resolveModule } = await import(pathToFileURL(resolverPath).href);
-const manifestPath = require.resolve("@kestrel/framework/package.json");
+const manifestPath = require.resolve("@kestreljs/framework/package.json");
 const packageRoot = dirname(manifestPath);
 assert(packageRoot.includes("node_modules"), "An installed package is required, not a workspace link.");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
@@ -20,14 +20,14 @@ for (const [key, target] of Object.entries(manifest.exports)) {
   if (typeof target === "string") { await access(resolve(packageRoot, target)); continue; }
   await access(resolve(packageRoot, target.types));
   await access(resolve(packageRoot, target.import));
-  const specifier = `@kestrel/framework/${key.slice(2)}`;
+  const specifier = `@kestreljs/framework/${key.slice(2)}`;
   // Node 24 can require ESM, but tools such as Drizzle still need a matching export condition.
   const commonJs = require(specifier);
   const esm = await import(resolveModule(specifier));
   for (const name of Object.keys(esm)) assert.equal(commonJs[name], esm[name], `${specifier}: ${name}`);
 }
 const { default: Fastify } = await import(resolveModule("fastify"));
-const { Studio, ViteStudioClientAdapter } = await import(resolveModule("@kestrel/framework/studio"));
+const { Studio, ViteStudioClientAdapter } = await import(resolveModule("@kestreljs/framework/studio"));
 const server = Fastify();
 try {
   const render = await new ViteStudioClientAdapter().setup(server, new Studio());
@@ -77,7 +77,7 @@ assert.equal(await readFile(generatedClient, "utf8"), originalClient);
 const browserCheck = spawnSync(process.execPath, ["--import", "zod/compile", "--input-type=module", "--eval", `
   import assert from "node:assert/strict";
   import app from "./dist/server/core/app.js";
-  import { httpRuntimeDependency } from "@kestrel/framework/http";
+  import { httpRuntimeDependency } from "@kestreljs/framework/http";
   // A configured Redis cache must not connect while serving routes that never use it.
   app.container.registerFactory("redisCacheConnection", () => { throw new Error("Redis must remain lazy."); });
   const runtime = app.container.resolve(httpRuntimeDependency);

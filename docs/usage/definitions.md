@@ -10,8 +10,8 @@ Organize definitions into an explicit catalog when a feature includes operations
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { App, defineCatalog, selectActionCatalog } from "@kestrel/framework/app";
+import { defineAction } from "@kestreljs/framework/actions";
+import { App, defineCatalog, selectActionCatalog } from "@kestreljs/framework/app";
 
 const greet = defineAction({
   name: "greeting.greet",

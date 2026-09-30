@@ -9,7 +9,7 @@ Use these standalone primitives for in-process batching and owned asynchronous w
 Buffer small writes when the destination can process a batch more efficiently than individual calls. Size and waiting-time limits balance throughput against latency.
 
 ```ts
-import { BatchBuffer } from "@kestrel/framework/concurrency";
+import { BatchBuffer } from "@kestreljs/framework/concurrency";
 
 const written: string[][] = [];
 const buffer = new BatchBuffer<string>({
@@ -33,7 +33,7 @@ Size, age or `run()` can trigger a batch. `run()` returns accumulated successes 
 Collect individual outcomes when an import should continue after one item fails. The caller receives both successful values and errors, associated with their original inputs.
 
 ```ts
-import { AggregatedResultBuilder } from "@kestrel/framework/concurrency";
+import { AggregatedResultBuilder } from "@kestreljs/framework/concurrency";
 
 async function importNames(names: readonly string[], save: (name: string) => Promise<string>) {
   const result = new AggregatedResultBuilder<string, string, unknown>();
@@ -56,7 +56,7 @@ The result status is `success`, `partial` or `error`; an empty operation is succ
 Use deferred tasks for asynchronous work that may finish after the main operation but must complete before cleanup. The owner closes the task group before releasing resources those tasks use.
 
 ```ts
-import { DeferredTasks } from "@kestrel/framework/concurrency";
+import { DeferredTasks } from "@kestreljs/framework/concurrency";
 
 const tasks = new DeferredTasks();
 tasks.defer(async () => { console.log("Deferred work"); });

@@ -15,7 +15,7 @@ export {
   authenticationAccounts,
   authenticationPasswordCredentials,
   authenticationSessions,
-} from "@kestrel/framework/authentication";
+} from "@kestreljs/framework/authentication";
 ```
 
 Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required.
@@ -26,10 +26,10 @@ Use this composition to add password sign-in and cookie-backed sessions to an HT
 
 ```ts
 import { z } from "zod";
-import { App, defineCatalog } from "@kestrel/framework/app";
-import { Argon2idPasswordHasher, AuthenticationProvider, authenticationConfigBase, createAuthenticationActions, createAuthenticationHttpControllers, defineAuthentication, DefaultUsernameNormalizer, MemoryAuthenticationAdapter } from "@kestrel/framework/authentication";
-import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
-import { defineHttpAccessPolicy } from "@kestrel/framework/http";
+import { App, defineCatalog } from "@kestreljs/framework/app";
+import { Argon2idPasswordHasher, AuthenticationProvider, authenticationConfigBase, createAuthenticationActions, createAuthenticationHttpControllers, defineAuthentication, DefaultUsernameNormalizer, MemoryAuthenticationAdapter } from "@kestreljs/framework/authentication";
+import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
+import { defineHttpAccessPolicy } from "@kestreljs/framework/http";
 
 const configuration = createConfigurationApi({ environments: ["test"], defaultEnvironment: "test" });
 const config = configuration.resolveConfig({

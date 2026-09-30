@@ -10,8 +10,11 @@ export default class ApplicationGenerator extends Generator {
     if (!/^[a-z0-9][a-z0-9._-]*$/.test(this.applicationName)) {
       throw new Error("Use a lowercase npm-compatible directory name.");
     }
-    this.archive = resolve(this.options.frameworkArchive);
-    if (!(await stat(this.archive)).isFile()) throw new Error("The framework archive must be a file.");
+    // Registry generation needs no local archive; explicit overrides still fail before writing.
+    if (this.options.frameworkArchive !== undefined) {
+      this.archive = resolve(this.options.frameworkArchive);
+      if (!(await stat(this.archive)).isFile()) throw new Error("The framework archive must be a file.");
+    }
     try {
       if ((await readdir(this.destination)).length) throw new Error("The destination must be empty.");
     } catch (error) {

@@ -6,7 +6,7 @@ Start with [application composition](./app.md), then add the libraries needed by
 
 ## Reading the examples
 
-Examples use the provisional `@kestrel/framework` package installed from a local archive. Start with [installation and local development](./installation.md). Unless specified otherwise, application examples live in `src/example.ts`. The consuming application supplies configuration, paths, catalogs, and external services. Memory adapters are process-local and non-durable.
+Examples use the provisional `@kestreljs/framework` package installed from a local archive. Start with [installation and local development](./installation.md). Unless specified otherwise, application examples live in `src/example.ts`. The consuming application supplies configuration, paths, catalogs, and external services. Memory adapters are process-local and non-durable.
 
 Configuration is resolved before constructing providers. Register infrastructure before its consumers, declare definitions in the application catalog, and select a runtime through the application launcher. Commands using `./do` assume your wrapper already passes the composed application module to the [Kestrel CLI](./cli.md#launch-the-application).
 

@@ -1,8 +1,8 @@
 // Configures console logging defaults by environment and the LOG_LEVEL override.
 // Adjust logging settings here; tests default to silent output.
 
-import { configure } from "@kestrel/framework/configuration";
-import { loggerConfigBase } from "@kestrel/framework/log";
+import { configure } from "@kestreljs/framework/configuration";
+import { loggerConfigBase } from "@kestreljs/framework/log";
 import type { AppConfigurationApi } from "../appConfig.js";
 
 /** Keep the existing console logger, with quiet tests and an explicit level override. */

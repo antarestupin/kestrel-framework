@@ -2,7 +2,7 @@
 // Set REDIS_URL for deployments; local and test environments have separate database defaults.
 
 import { z } from "zod";
-import { configure, defineConfigBase, type ConfigOutput } from "@kestrel/framework/configuration";
+import { configure, defineConfigBase, type ConfigOutput } from "@kestreljs/framework/configuration";
 import type { AppConfigurationApi } from "../appConfig.js";
 
 const redisConfigBase = defineConfigBase(z.object({

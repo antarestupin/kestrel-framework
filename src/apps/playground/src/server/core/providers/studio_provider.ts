@@ -1,18 +1,18 @@
-import type { ProviderCompositionApp } from "@kestrel/framework/app";
-import type { DatabaseClient } from "@kestrel/framework/db";
-import { dep } from "@kestrel/framework/di";
+import type { ProviderCompositionApp } from "@kestreljs/framework/app";
+import type { DatabaseClient } from "@kestreljs/framework/db";
+import { dep } from "@kestreljs/framework/di";
 import {
   StudioProvider as KestrelStudioProvider,
   ViteStudioClientAdapter,
   type StudioExtension,
-} from "@kestrel/framework/studio";
-import { defineActionsDocumentationExtension } from "@kestrel/framework/studio/extensions/actions";
-import { defineControllersStudioExtension } from "@kestrel/framework/studio/extensions/controllers";
+} from "@kestreljs/framework/studio";
+import { defineActionsDocumentationExtension } from "@kestreljs/framework/studio/extensions/actions";
+import { defineControllersStudioExtension } from "@kestreljs/framework/studio/extensions/controllers";
 import {
   defineDatabaseStudioExtension,
   PostgresDatabaseSchemaSource,
   type DatabaseSchemaSource,
-} from "@kestrel/framework/studio/extensions/database";
+} from "@kestreljs/framework/studio/extensions/database";
 import type { AppConfig } from "../appConfig.js";
 
 /** Installs the application's catalogs and lazily resolved database into Studio. */

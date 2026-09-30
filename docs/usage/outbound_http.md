@@ -10,7 +10,7 @@ Create a dedicated client when a service calls an external API with a stable bas
 
 ```ts
 import { z } from "zod";
-import { createOutboundHttpClient, json, retryRequests } from "@kestrel/framework/outbound_http";
+import { createOutboundHttpClient, json, retryRequests } from "@kestreljs/framework/outbound_http";
 
 const weather = createOutboundHttpClient({
   name: "weather",
@@ -36,8 +36,8 @@ Path values are encoded and query arrays become repeated parameters. Use `post(p
 Use the injected client factory when outgoing requests should appear in the current execution diagnostics. Services still choose their own API client settings.
 
 ```ts
-import { App } from "@kestrel/framework/app";
-import { OutboundHttpProvider, outboundHttpClientFactoryDependency } from "@kestrel/framework/outbound_http";
+import { App } from "@kestreljs/framework/app";
+import { OutboundHttpProvider, outboundHttpClientFactoryDependency } from "@kestreljs/framework/outbound_http";
 
 const app = new App({}).register(new OutboundHttpProvider());
 // Declare this dependency on the service that creates its dedicated API client.
@@ -51,8 +51,8 @@ Call `clients.create(options)` inside that service. The provider connects calls 
 Cache a successful read when repeated calls may reuse a response for a short time. The forecast key separates cities so one location cannot receive another location's cached value.
 
 ```ts
-import type { Cache } from "@kestrel/framework/cache";
-import { cacheResponse } from "@kestrel/framework/outbound_http";
+import type { Cache } from "@kestreljs/framework/cache";
+import { cacheResponse } from "@kestreljs/framework/outbound_http";
 
 function cachedForecast(cache: Cache, city: string) {
   return weather.get("/forecast/:city", {

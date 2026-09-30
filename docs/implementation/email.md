@@ -61,7 +61,7 @@ Construct an `EmailClient` directly when dependency injection and ambient observ
 import {
   EmailClient,
   MemoryEmailAdapter,
-} from "@kestrel/framework/email";
+} from "@kestreljs/framework/email";
 
 const adapter = new MemoryEmailAdapter();
 const email = new EmailClient({
@@ -91,7 +91,7 @@ The Email SDK adapter accepts any Email SDK transport adapter and keeps its type
 import {
   EmailClient,
   EmailSdkEmailAdapter,
-} from "@kestrel/framework/email";
+} from "@kestreljs/framework/email";
 import { smtp } from "@opencoredev/email-sdk/smtp";
 
 const driver = new EmailSdkEmailAdapter({
@@ -121,7 +121,7 @@ Kestrel owns only the stable `EmailDriver` contract. Email SDK remains an implem
 `EmailProvider` is the recommended application composition path. It receives the resolved general `EmailConfig`, creates the driver selected by `driver.type`, registers the singleton `emailClientDependency`, owns its disposal and combines explicitly configured instrumentation with observations from the active execution scope. The built-in configured driver types are `capture`, `memory`, `smtp` and `ses`:
 
 ```ts
-import { EmailProvider } from "@kestrel/framework/email";
+import { EmailProvider } from "@kestreljs/framework/email";
 
 app.register(new EmailProvider({
   enabled: true,
@@ -163,7 +163,7 @@ class ApplicationEmailProvider extends EmailProvider<AppConfig> {
 Services and Actions can declare the registered dependency without importing a concrete adapter:
 
 ```ts
-import { emailClientDependency } from "@kestrel/framework/email";
+import { emailClientDependency } from "@kestreljs/framework/email";
 
 const dependencies = {
   email: emailClientDependency,

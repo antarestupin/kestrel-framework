@@ -10,10 +10,10 @@ Cache an expensive read when its result can be reused briefly and recomputed if 
 
 ```ts
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { App } from "@kestrel/framework/app";
-import { cacheConfigBase, cacheDependency, CacheProvider, MemoryCacheAdapter } from "@kestrel/framework/cache";
-import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
+import { defineAction } from "@kestreljs/framework/actions";
+import { App } from "@kestreljs/framework/app";
+import { cacheConfigBase, cacheDependency, CacheProvider, MemoryCacheAdapter } from "@kestreljs/framework/cache";
+import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
 
 const configuration = createConfigurationApi({ environments: ["test"], defaultEnvironment: "test" });
 const config = configuration.resolveConfig({
@@ -46,8 +46,8 @@ Add these objects to the application's global Drizzle schema and to the `schema`
 
 ```ts
 // Re-export the library objects so their SQL contributions remain attached.
-export { cacheEntries } from "@kestrel/framework/cache";
-export { utilsSchema } from "@kestrel/framework/db";
+export { cacheEntries } from "@kestreljs/framework/cache";
+export { utilsSchema } from "@kestreljs/framework/db";
 ```
 
 Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using the PostgreSQL adapter. The library declares `SET UNLOGGED` and database comments with its table, so installation requires no manually authored custom SQL. Keep historical cache migrations in existing applications. PostgreSQL may discard unlogged cache contents after a crash; only store recomputable data. Memory and Redis adapters do not require this schema.
@@ -57,7 +57,7 @@ Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrat
 Manage entries directly when a mutation makes cached data stale. Delete a known key for one value, or invalidate matching tags when several entries depend on the same records.
 
 ```ts
-import type { Cache, TagAwareCache } from "@kestrel/framework/cache";
+import type { Cache, TagAwareCache } from "@kestreljs/framework/cache";
 
 async function updateGreeting(cache: Cache): Promise<void> {
   await cache.set("greeting:Sam", "Welcome, Sam!", { ttlSeconds: 60 });
@@ -80,7 +80,7 @@ Inject `tagAwareCacheDependency` when tags are required; resolution fails if the
 Use shared cache storage when several processes should reuse the same results. Add shared locking when concurrent cache misses must also coordinate their loaders.
 
 ```ts
-import { RedisCacheAdapter, type RedisCacheClient, type CacheConfig } from "@kestrel/framework/cache";
+import { RedisCacheAdapter, type RedisCacheClient, type CacheConfig } from "@kestreljs/framework/cache";
 
 function redisProvider(client: RedisCacheClient, config: CacheConfig) {
   // The caller supplies a connected client and owns its errors and shutdown.

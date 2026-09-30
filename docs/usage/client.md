@@ -11,8 +11,8 @@ Serve a browser application alongside your API when both should share the HTTP r
 The shared `ViteDevelopmentRuntime` loads configuration natively so it can run under Node's `--watch` without restarting on Vite's temporary configuration files. Run TypeScript development configuration with the supported Node.js runtime and the application's `tsx` import hook, as provided by the generated `do` launcher.
 
 ```ts
-import type { App } from "@kestrel/framework/app";
-import { ClientProvider, ViteClientAdapter } from "@kestrel/framework/client";
+import type { App } from "@kestreljs/framework/app";
+import { ClientProvider, ViteClientAdapter } from "@kestreljs/framework/client";
 
 function mountClient<Config>(app: App<Config>, projectRoot: string, devMode: boolean) {
   return app.register(new ClientProvider({
@@ -31,8 +31,8 @@ Generate a client when browser code needs typed calls that follow the server con
 
 ```ts
 import { z } from "zod";
-import { defineCatalog, selectHttpControllerCatalog } from "@kestrel/framework/app";
-import { defineHttpAccessPolicy, defineHttpController, get, HttpClientGenerationProvider } from "@kestrel/framework/http";
+import { defineCatalog, selectHttpControllerCatalog } from "@kestreljs/framework/app";
+import { defineHttpAccessPolicy, defineHttpController, get, HttpClientGenerationProvider } from "@kestreljs/framework/http";
 
 const health = defineHttpController({
   route: get("/api/health"), access: defineHttpAccessPolicy("example.public"),
@@ -49,7 +49,7 @@ const generation = {
     outputFile: "src/generated/publicClient.ts",
     // Generated imports are relative to src/generated/publicClient.ts.
     catalogImportPath: "../example.js", catalogExportName: "applicationHttpControllerCatalog",
-    runtimeImportPath: "@kestrel/framework/http/client",
+    runtimeImportPath: "@kestreljs/framework/http/client",
   }],
 };
 function registerGeneration<Config>(app: App<Config>) {
@@ -69,7 +69,7 @@ The generated factory accepts `{ baseUrl, fetch?, headers? }`. Its hierarchy mir
 
 
 ```ts
-import { ViteDevelopmentRuntime } from "@kestrel/framework/client";
+import { ViteDevelopmentRuntime } from "@kestreljs/framework/client";
 
 function createSharedDevelopment(projectRoot: string) {
   const runtime = new ViteDevelopmentRuntime({ root: projectRoot, configFile: "vite.development.config.ts" });

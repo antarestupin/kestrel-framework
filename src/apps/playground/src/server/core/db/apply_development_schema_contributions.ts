@@ -2,7 +2,7 @@
 // Runs only in the local environment and uses the schema/push_schema.ts exports.
 
 import { Pool } from "pg";
-import { applyDatabaseSchemaContributions } from "@kestrel/framework/db";
+import { applyDatabaseSchemaContributions } from "@kestreljs/framework/db";
 import { appConfig, environment } from "../appConfig.js";
 import * as schema from "./schema/push_schema.js";
 

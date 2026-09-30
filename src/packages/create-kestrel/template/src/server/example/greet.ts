@@ -2,8 +2,8 @@
 // Use this pattern for new operations and register them in exampleCatalog.ts.
 
 import { z } from "zod";
-import { defineAction } from "@kestrel/framework/actions";
-import { defineHttpAccessPolicy, defineActionHttpController, get } from "@kestrel/framework/http";
+import { defineAction } from "@kestreljs/framework/actions";
+import { defineHttpAccessPolicy, defineActionHttpController, get } from "@kestreljs/framework/http";
 
 /** A small business operation that can also be invoked without HTTP. */
 export const greet = defineAction({

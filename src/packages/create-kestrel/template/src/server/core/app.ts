@@ -2,10 +2,10 @@
 // Register application services here; configure their settings through appConfig.ts and config/.
 
 import { resolve } from "node:path";
-import { App } from "@kestrel/framework/app";
-import { LoggerProvider } from "@kestrel/framework/log";
-import { HttpClientGenerationProvider, HttpRuntimeProvider } from "@kestrel/framework/http";
-import { ClientProvider, ViteClientAdapter } from "@kestrel/framework/client";
+import { App } from "@kestreljs/framework/app";
+import { LoggerProvider } from "@kestreljs/framework/log";
+import { HttpClientGenerationProvider, HttpRuntimeProvider } from "@kestreljs/framework/http";
+import { ClientProvider, ViteClientAdapter } from "@kestreljs/framework/client";
 import { DatabaseProvider } from "./providers/database_provider.js";
 import { StudioProvider } from "./providers/studio_provider.js";
 import { createDevelopmentClients } from "./development_clients.js";

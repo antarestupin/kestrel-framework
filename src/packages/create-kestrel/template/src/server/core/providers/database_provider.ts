@@ -3,9 +3,9 @@
 
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
-import type { ProviderCompositionApp } from "@kestrel/framework/app";
-import { DatabaseProvider as BaseDatabaseProvider, type DatabaseClient, type DatabaseConfig } from "@kestrel/framework/db";
-import { databaseCliControllers, LocalDatabaseMaintenance } from "@kestrel/framework/database/seeder";
+import type { ProviderCompositionApp } from "@kestreljs/framework/app";
+import { DatabaseProvider as BaseDatabaseProvider, type DatabaseClient, type DatabaseConfig } from "@kestreljs/framework/db";
+import { databaseCliControllers, LocalDatabaseMaintenance } from "@kestreljs/framework/database/seeder";
 import type { AppConfig, Environment } from "../appConfig.js";
 import * as schema from "../db/schema/app_schema.js";
 import { applicationDatabaseMaintenance } from "../db/seed.js";

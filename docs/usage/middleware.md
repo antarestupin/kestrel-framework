@@ -10,7 +10,7 @@ Use action middleware for shared behavior that should apply to every invocation.
 
 ```ts
 import { z } from "zod";
-import { defineAction, defineActionMiddleware } from "@kestrel/framework/actions";
+import { defineAction, defineActionMiddleware } from "@kestreljs/framework/actions";
 
 const timing = defineActionMiddleware("example.timing", {
   handler: async ({ action }, next) => {
@@ -40,7 +40,7 @@ Return the result of `next()` unchanged in type. Middleware may declare its own 
 Use transport middleware when behavior needs HTTP request or reply objects. The example adds a response header to selected controllers.
 
 ```ts
-import { defineHttpAccessPolicy, defineHttpController, defineHttpMiddleware, get } from "@kestrel/framework/http";
+import { defineHttpAccessPolicy, defineHttpController, defineHttpMiddleware, get } from "@kestreljs/framework/http";
 
 const responseHeader = defineHttpMiddleware("example.response-header", {
   handler: async ({ reply }, next) => {

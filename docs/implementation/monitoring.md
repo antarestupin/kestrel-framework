@@ -151,7 +151,7 @@ The currently implemented generic OTLP HTTP composition is:
 ```ts
 import {
   createOtlpOpenTelemetryInstrumentation,
-} from "@kestrel/framework/telemetry/adapters/opentelemetry";
+} from "@kestreljs/framework/telemetry/adapters/opentelemetry";
 
 new TelemetryProvider({
   resource: {
