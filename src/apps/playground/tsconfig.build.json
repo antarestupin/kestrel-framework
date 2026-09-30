@@ -1,3 +1,6 @@
+// Extends shared TypeScript settings to emit server code and source maps into dist.
+// Tests and browser sources are excluded; Vite builds the browser separately.
+
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {

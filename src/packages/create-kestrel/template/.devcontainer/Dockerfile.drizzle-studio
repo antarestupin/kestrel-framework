@@ -1,0 +1,16 @@
+# Install the generated application's tooling independently of host dependencies.
+# The creator supplies vendor/framework.tgz; Compose mounts live configuration and schemas.
+FROM node:24-bookworm
+
+WORKDIR /workspace/app
+COPY package*.json ./
+COPY vendor/ ./vendor/
+
+# Honor the application lockfile when present and never execute dependency lifecycle scripts.
+RUN if [ -f package-lock.json ]; then \
+      npm ci --ignore-scripts --no-audit --no-fund; \
+    else \
+      npm install --ignore-scripts --no-audit --no-fund; \
+    fi
+
+USER node

@@ -1,3 +1,6 @@
+// Generates deployment migrations with Drizzle and includes Kestrel schema contributions.
+// Run through npm run db:generate after updating schema/app_schema.ts.
+
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createRequire } from "node:module";

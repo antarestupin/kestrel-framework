@@ -1,3 +1,6 @@
+// Defines migration location, local database reset boundaries, and deterministic seed data.
+// Customize seed records and reset schemas here; reset deletes data inside those schemas.
+
 import { fileURLToPath } from "node:url";
 import { defineDatabaseMaintenance, defineDatabaseSeed } from "@kestrel/framework/database/seeder";
 import { developmentSchemaFilter, developmentTablesFilter } from "./development_schema.js";

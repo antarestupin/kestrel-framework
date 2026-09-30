@@ -6,16 +6,16 @@ import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 
 /** Give each CLI invocation ownership of its module-level application without resetting module caches. */
-function runApplication(source: string) {
+function runApplication(source: string, environment = "test") {
   return spawnSync(process.execPath, ["--import", "tsx", "--import", "zod/compile", "--input-type=module", "--eval", source], {
     cwd: fileURLToPath(new URL("../../../", import.meta.url)),
     encoding: "utf8",
     timeout: 15_000,
-    env: { ...process.env, ENVIRONMENT: "test", LOG_LEVEL: "silent" },
+    env: { ...process.env, ENVIRONMENT: environment, LOG_LEVEL: "silent" },
   });
 }
 
-it("lists application commands without initializing database or HTTP services", () => {
+it.each(["local", "test"])("lists application commands in %s without initializing database or HTTP services", (environment) => {
   const result = runApplication(`
     import app from "./src/server/core/app.ts";
     import { runCli } from "@kestrel/framework/cli";
@@ -24,7 +24,7 @@ it("lists application commands without initializing database or HTTP services", 
     app.container.registerFactory("databaseClient", forbidden);
     app.container.registerFactory("httpRuntime", forbidden);
     process.exitCode = await runCli(app, ["--help"]);
-  `);
+  `, environment);
   expect(result.status, result.stderr).toBe(0);
   expect(result.stdout).toContain("generate");
   expect(result.stdout).toContain("database");

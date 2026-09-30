@@ -1,3 +1,6 @@
+// Configures the editor devcontainer, forwarded ports, and setup commands.
+// Keep its service and workspace settings aligned with docker-compose.yml.
+
 {
   "name": "Kestrel application",
   "dockerComposeFile": "docker-compose.yml",
@@ -6,8 +9,7 @@
   "remoteUser": "node",
   "shutdownAction": "stopCompose",
   "forwardPorts": [
-    3333,
-    4983
+    3333
   ],
   "postCreateCommand": "npm install",
   "postStartCommand": "bash .devcontainer/ensure-test-database.sh",

@@ -6,12 +6,15 @@ Studio is a development tool for inspecting definitions, executions and infrastr
 
 ## Mount Studio with an actions explorer
 
+Import `studioConfigBase` from `@kestrel/framework/studio/configuration` in application configuration factories. This entry avoids loading browser adapters and remains usable by CommonJS configuration loaders such as Drizzle. Generated applications already mount Studio locally; see [the starter setup](./installation.md#create-an-application).
+
 Enable an actions explorer when developers need to inspect the application catalog in a browser. The page groups dotted action names into collapsible namespaces, with a navigation tree and a detail panel matching the HTTP controllers explorer. Select an action to inspect its full name, description and middleware. Use **Collapse all** or **Expand all** above the tree to toggle every namespace, including nested groups, while keeping the selected action. Individual namespace toggles remain available. Actions without a namespace appear at the root. Execution is enabled by default for registered action definitions whose input can be described as JSON. Metadata-only entries remain read-only. This composition limits Studio to the development environment.
 
 ```ts
 import type { App } from "@kestrel/framework/app";
 import { configure, createConfigurationApi } from "@kestrel/framework/configuration";
-import { studioConfigBase, StudioProvider } from "@kestrel/framework/studio";
+import { studioConfigBase } from "@kestrel/framework/studio/configuration";
+import { StudioProvider } from "@kestrel/framework/studio";
 import { defineActionsDocumentationExtension } from "@kestrel/framework/studio/extensions/actions";
 
 const configuration = createConfigurationApi({

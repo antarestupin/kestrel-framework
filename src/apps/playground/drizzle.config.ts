@@ -1,3 +1,6 @@
+// Configures deployment migration generation from the application database schema.
+// Keep development-only tables in the separate Drizzle development configurations.
+
 import { defineConfig } from "drizzle-kit";
 import { drizzleDatabaseCredentials } from "./drizzle.database.js";
 

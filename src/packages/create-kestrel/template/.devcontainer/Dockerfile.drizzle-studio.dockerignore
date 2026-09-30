@@ -1,0 +1,6 @@
+# Only dependency manifests and the vendored package enter this tooling image.
+**
+!package.json
+!package-lock.json
+!vendor/
+!vendor/framework.tgz

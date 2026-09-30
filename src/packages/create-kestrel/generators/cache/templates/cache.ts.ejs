@@ -6,5 +6,8 @@ import { cacheConfigBase } from "@kestrel/framework/cache";
 
 /** Isolate this application's cache keys; add a pruning schedule when installing a task runtime. */
 export function createCacheConfig() {
-  return configure(cacheConfigBase, { namespace: <%- JSON.stringify(applicationName) %>, pruneIntervalSeconds: 0 });
+  return configure(cacheConfigBase, {
+    namespace: <%- JSON.stringify(applicationName) %>,
+    pruneIntervalSeconds: 0,
+  });
 }

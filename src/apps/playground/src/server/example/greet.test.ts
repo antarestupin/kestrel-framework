@@ -1,3 +1,6 @@
+// Tests the greeting HTTP contract and generated client through Fastify injection.
+// Use this pattern for endpoint tests without network listeners and dispose the owned application.
+
 import { afterAll, expect, it } from "vitest";
 import { createPublicClient } from "../../generated/publicClient/publicClient.js";
 import { httpRuntimeDependency } from "@kestrel/framework/http";

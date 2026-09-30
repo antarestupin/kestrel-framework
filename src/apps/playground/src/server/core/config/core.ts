@@ -1,12 +1,25 @@
+// Defines debug mode and application filesystem roots.
+// Use PROJECT_ROOT to override the project location without changing runtime asset resolution.
+
 import { fileURLToPath } from "node:url";
 import type { AppConfigurationApi } from "../appConfig.js";
 
 /** Resolve filesystem paths independently of the launcher's working directory. */
-export function createCoreConfig({ defineConfig, envVar, fromEnv, envs }: AppConfigurationApi) {
+export function createCoreConfig({
+  defineConfig,
+  envVar,
+  fromEnv,
+  envs,
+}: AppConfigurationApi) {
   const runtimeRoot = fileURLToPath(new URL("../../../../", import.meta.url));
   return defineConfig({
-    debug: fromEnv({ ...envs(["local", "test"], true), default: false }),
+    debug: fromEnv({
+      ...envs(["local", "test"], true),
+      default: false,
+    }),
     runtimeRoot,
-    projectRoot: envVar("PROJECT_ROOT", { fallback: runtimeRoot }),
+    projectRoot: envVar("PROJECT_ROOT", {
+      fallback: runtimeRoot,
+    }),
   });
 }

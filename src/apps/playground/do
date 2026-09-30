@@ -1,4 +1,7 @@
 #!/bin/sh
+# Runs the Kestrel CLI against this application from any working directory.
+# KESTREL_COMPILED=1 selects the built server; KESTREL_WATCH=1 enables Node.js watch mode.
+
 set -eu
 
 # Anchor configuration and dependency resolution to the project, including npm workspaces.

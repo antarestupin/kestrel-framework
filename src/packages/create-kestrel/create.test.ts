@@ -61,8 +61,19 @@ it.each([
     expect(schema.includes("cacheEntries")).toBe(cache === "postgres");
     const env = await readFile(join(target, ".env.example"), "utf8");
     expect(env.includes("REDIS_URL")).toBe(cache === "redis");
-    expect(Object.keys(infrastructure.services)).toEqual(["app", "postgres", ...(cache === "redis" ? ["redis"] : []), ...(insight ? ["redis-insight"] : [])]);
-    expect(manifest.scripts["infra:up"]).toBe(`docker compose -f .devcontainer/docker-compose.yml up -d --wait postgres${cache === "redis" ? " redis" : ""}${insight ? " redis-insight" : ""}`);
+    expect(Object.keys(infrastructure.services)).toEqual(["app", "postgres", "drizzle-studio", ...(cache === "redis" ? ["redis"] : []), ...(insight ? ["redis-insight"] : [])]);
+    expect(manifest.scripts["infra:up"]).toBe(`docker compose -f .devcontainer/docker-compose.yml up -d --build --wait postgres drizzle-studio${cache === "redis" ? " redis" : ""}${insight ? " redis-insight" : ""}`);
+    // Every cache variant keeps the base database tool and its container-local credentials.
+    expect(infrastructure.services["drizzle-studio"]).toMatchObject({
+      build: { dockerfile: ".devcontainer/Dockerfile.drizzle-studio" },
+      ports: ["127.0.0.1:4983:4983"],
+      environment: { ENVIRONMENT: "local", DB_HOST: "postgres", DB_PORT: "5432" },
+      depends_on: { postgres: { condition: "service_healthy" } },
+    });
+    await access(join(target, ".devcontainer/Dockerfile.drizzle-studio"));
+    await access(join(target, "src/server/example/exampleCatalog.ts"));
+    await access(join(target, "src/server/core/providers/studio_provider.ts"));
+    await expect(access(join(target, "src/server/core/config/environment.ts"))).rejects.toMatchObject({ code: "ENOENT" });
     if (cache === "redis") {
       expect(manifest.dependencies["@redis/client"]).toBeDefined();
       expect(infrastructure.services.app.environment.REDIS_URL).toBe("redis://redis:6379/0");

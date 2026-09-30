@@ -1,3 +1,6 @@
+# Defines the application development container, local services, and persistent volumes.
+# Adjust service ports and credentials here and keep application environment settings aligned.
+
 services:
   app:
     build:
@@ -37,6 +40,39 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres -d kestrel_playground"]
       interval: 5s
       timeout: 5s
+      retries: 10
+
+  drizzle-studio:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile.drizzle-studio
+    init: true
+    working_dir: /workspace/app
+    user: node
+    volumes:
+      # Read live schema/configuration without sharing host or devcontainer dependencies.
+      - ../src:/workspace/app/src:ro
+      - ../drizzle.database.ts:/workspace/app/drizzle.database.ts:ro
+      - ../drizzle.dev.config.ts:/workspace/app/drizzle.dev.config.ts:ro
+    command: ["node", "node_modules/drizzle-kit/bin.cjs", "studio", "--config=drizzle.dev.config.ts", "--host=0.0.0.0", "--port=4983"]
+    ports:
+      - "127.0.0.1:4983:4983"
+    environment:
+      ENVIRONMENT: local
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: kestrel_playground
+      DB_SSL: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Wait for the local backend without depending on Drizzle's hosted browser UI.
+      test: ["CMD", "node", "-e", "const socket = require('node:net').connect(4983, '127.0.0.1', () => socket.end()); socket.on('error', () => process.exit(1));"]
+      interval: 5s
+      timeout: 3s
       retries: 10
 
 volumes:

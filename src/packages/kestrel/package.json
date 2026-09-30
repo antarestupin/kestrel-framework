@@ -338,6 +338,11 @@
       "import": "./dist/studio/adapters/index.js",
       "default": "./dist/studio/adapters/index.js"
     },
+    "./studio/configuration": {
+      "types": "./dist/studio/configuration.d.ts",
+      "import": "./dist/studio/configuration.js",
+      "default": "./dist/studio/configuration.js"
+    },
     "./studio/extensions/actions": {
       "types": "./dist/studio/extensions/actions/index.d.ts",
       "import": "./dist/studio/extensions/actions/index.js",

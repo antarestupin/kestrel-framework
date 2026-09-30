@@ -1,3 +1,6 @@
+// Mounts the React application and demonstrates calling the typed greeting API.
+// Replace the example interface here with your application screens.
+
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api.js";

@@ -1,3 +1,6 @@
+// Configures strict TypeScript checking for server, browser, and generated client sources.
+// Keep shared compiler options here; tsconfig.build.json controls emitted server files.
+
 {
   "compilerOptions": {
     "target": "ES2024",

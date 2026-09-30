@@ -9,8 +9,7 @@
   "remoteUser": "node",
   "shutdownAction": "stopCompose",
   "forwardPorts": [
-    3333,
-    4983
+    3333
   ],
   "postCreateCommand": "npm install",
   "postStartCommand": "bash .devcontainer/ensure-test-database.sh",

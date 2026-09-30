@@ -19,6 +19,6 @@ export function updateInfrastructure(generator, update) {
   const services = Object.keys(document.toJS().services).filter((name) => name !== "app");
   const manifestPath = generator.destinationPath("package.json");
   const manifest = generator.fs.readJSON(manifestPath);
-  manifest.scripts["infra:up"] = `docker compose -f .devcontainer/docker-compose.yml up -d --wait ${services.join(" ")}`;
+  manifest.scripts["infra:up"] = `docker compose -f .devcontainer/docker-compose.yml up -d --build --wait ${services.join(" ")}`;
   generator.fs.writeJSON(manifestPath, manifest);
 }

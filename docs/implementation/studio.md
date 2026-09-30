@@ -11,11 +11,13 @@ Studio is available at `/_studio` by default. `StudioProvider` can configure ano
 
 The Database extension includes a read-only schema layout at `/_studio/database`. It queries PostgreSQL's catalog through the application pool and groups application tables by SQL schema, with column types, nullability and primary keys. PostgreSQL system schemas are excluded. The layout is intentionally card-based rather than a relationship graph so the complete database remains easy to scan and can gain filters or foreign-key links later.
 
-The current application also starts Drizzle Studio on `127.0.0.1:4983` during local development. The Database extension links to its hosted interface at the configured `DRIZZLE_STUDIO_URL` in a separate tab for browsing and editing data. The application owns this URL and its database schema entrypoint; the Studio library only receives an external link through the extension.
+Generated applications include a separate Drizzle Studio Compose service bound to `127.0.0.1:4983`. The Database extension links to its hosted interface at the configured `DRIZZLE_STUDIO_URL` in a separate tab for browsing and editing data. The application owns this URL and its database schema entrypoint; the Studio library only receives an external link through the extension.
 
 Studio follows the operating system's light or dark appearance through `prefers-color-scheme`. Shared semantic CSS variables keep the shell and installed extensions on the same palette, and theme changes apply without a reload or a client-side preference.
 
 ## Concepts and model
+
+The public `@kestrel/framework/studio/configuration` entry exports `studioConfigBase` and `StudioConfig` without the provider or browser adapters. Application configuration shared with Drizzle uses this entry so its CommonJS loader does not attempt to require the ESM-only `@fastify/vite` adapter dependency. The main Studio entry retains its existing configuration re-exports for compatibility.
 
 `Studio` validates and combines `StudioExtension` definitions into a serializable `StudioManifest`. An extension contributes navigation metadata, pages, external links and optional HTTP controllers. `StudioProvider` mounts the definition through the Kestrel HTTP runtime and delegates browser delivery to `StudioClientAdapter`. The browser selects a renderer from each page's stable `kind`.
 

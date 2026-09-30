@@ -2,7 +2,9 @@
 // Add feature catalogs here so their operations become available to the application.
 
 import { defineCatalog, selectHttpControllerCatalog } from "@kestrel/framework/app";
-import { greet, greetHttp } from "../example/greet.js";
+import { exampleCatalog } from "../example/exampleCatalog.js";
 
-export const appCatalog = defineCatalog({ example: { actions: { greet }, controllers: { http: { greet: greetHttp } } } });
+export const appCatalog = defineCatalog({
+  example: exampleCatalog,
+});
 export const applicationHttpControllerCatalog = selectHttpControllerCatalog(appCatalog);

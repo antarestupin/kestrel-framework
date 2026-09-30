@@ -47,10 +47,10 @@ assert.match(result.stderr, /An application module path is required/);
 for (const file of ["do", ".devcontainer/ensure-test-database.sh"]) {
   assert((await stat(resolve(application, file))).mode & 0o111, `${file} must be executable`);
 }
-for (const file of [".gitignore", ".nvmrc", "AGENTS.md", ".vscode/settings.json", ".devcontainer/devcontainer.json", "drizzle.database.ts", "drizzle.dev.config.ts", "drizzle.dev-push.config.ts", "vite.development.config.ts"]) {
+for (const file of [".gitignore", ".nvmrc", "AGENTS.md", ".vscode/settings.json", ".devcontainer/devcontainer.json", ".devcontainer/Dockerfile.drizzle-studio", ".devcontainer/Dockerfile.drizzle-studio.dockerignore", "drizzle.database.ts", "drizzle.dev.config.ts", "drizzle.dev-push.config.ts", "vite.development.config.ts", "src/server/example/exampleCatalog.ts", "src/server/core/development_clients.ts"]) {
   await access(resolve(application, file));
 }
-for (const file of ["src/server/main.ts", "src/server/generate.ts", "src/server/core/db/migrate.ts", "src/server/core/app_factory.ts", "vite.config.ts"]) {
+for (const file of ["src/server/main.ts", "src/server/generate.ts", "src/server/core/db/migrate.ts", "src/server/core/app_factory.ts", "src/server/core/config/environment.ts", "vite.config.ts"]) {
   await assert.rejects(access(resolve(application, file)), { code: "ENOENT" });
 }
 const generatedClient = resolve(application, "src/generated/publicClient/publicClient.ts");
@@ -87,6 +87,16 @@ const browserCheck = spawnSync(process.execPath, ["--import", "zod/compile", "--
     const entry = document.body.match(/src="([^\"]+\\.js)"/)?.[1];
     assert(entry, "The application must expose its compiled browser entry.");
     assert.equal((await runtime.server.inject(entry)).statusCode, 200);
+    // Explicitly enable Studio to verify both packaged browser scopes coexist.
+    const studioDocument = await runtime.server.inject("/_studio");
+    assert.equal(studioDocument.statusCode, 200);
+    const studioEntry = studioDocument.body.match(/src="([^\"]+\\.js)"/)?.[1];
+    assert(studioEntry, "Studio must expose its own packaged browser entry.");
+    assert.notEqual(studioEntry, entry);
+    assert.equal((await runtime.server.inject(studioEntry)).statusCode, 200);
+    const studioManifest = await runtime.server.inject("/_studio/api/manifest");
+    assert.equal(studioManifest.statusCode, 200);
+    assert.equal(studioManifest.json().extensions.some((extension) => extension.id === "controllers"), true);
     const response = await runtime.server.inject("/api/greet?name=Sam");
     assert.deepEqual(response.json(), { message: "Hello, Sam!" });
     assert.equal(response.headers["x-request-id"] !== undefined, true);
@@ -95,7 +105,12 @@ const browserCheck = spawnSync(process.execPath, ["--import", "zod/compile", "--
   }
 `], {
   cwd: application, encoding: "utf8",
-  env: { ...process.env, ...productionEnvironment, APP_CONFIG__HTTP__EXECUTION_ID_HEADER: "x-request-id" },
+  env: {
+    ...process.env,
+    ...productionEnvironment,
+    APP_CONFIG__HTTP__EXECUTION_ID_HEADER: "x-request-id",
+    APP_CONFIG__STUDIO__ENABLED: "true",
+  },
 });
 assert.equal(browserCheck.status, 0, browserCheck.stderr || browserCheck.error?.message);
 for (const file of ["0000_initial_note.sql", "meta/_journal.json", "meta/0000_snapshot.json"]) {

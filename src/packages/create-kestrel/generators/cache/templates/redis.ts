@@ -12,11 +12,18 @@ const redisConfigBase = defineConfigBase(z.object({
 export type RedisConfig = ConfigOutput<typeof redisConfigBase>;
 
 /** Read environment values only in application configuration, with explicit deployment settings. */
-export function createRedisConfig({ envVar, fromEnv }: AppConfigurationApi) {
+export function createRedisConfig({
+  envVar,
+  fromEnv,
+}: AppConfigurationApi) {
   return configure(redisConfigBase, {
     url: fromEnv({
-      local: envVar("REDIS_URL", { fallback: "redis://127.0.0.1:56379/0" }),
-      test: envVar("REDIS_URL", { fallback: "redis://127.0.0.1:56379/2" }),
+      local: envVar("REDIS_URL", {
+        fallback: "redis://127.0.0.1:56379/0",
+      }),
+      test: envVar("REDIS_URL", {
+        fallback: "redis://127.0.0.1:56379/2",
+      }),
       default: envVar("REDIS_URL"),
     }),
   });
