@@ -1,33 +1,57 @@
-# Installation and local development
+# Install Kestrel and create an application
 
-[Usage index](README.md) · [Distribution internals](../implementation/distribution.md)
+[Usage index](README.md) · [Contributing and framework development](../contributing.md) · [Distribution internals](../implementation/distribution.md)
 
-The experimental packages are `@kestreljs/framework` and `@kestreljs/create-kestrel`, initially at `0.1.0-alpha.0` with the `next` distribution tag. Once published, install the framework with `npm install @kestreljs/framework@next` or create an application with `npx @kestreljs/create-kestrel@next my-app`. Use Node.js 24. Kestrel and its starter sources are MIT-licensed; retain the supplied license and copyright notice when redistributing them.
+Kestrel is available on npm as `@kestreljs/framework` and `@kestreljs/create-kestrel`. The published releases are experimental: APIs and behavior may change without backward compatibility. Kestrel and its starter sources are MIT-licensed; retain the supplied license and copyright notice when redistributing them.
 
-Before publication or for local verification, run `npm run pack:local` and install `artifacts/kestreljs-framework-0.1.0-alpha.0.tgz`. See the [release commands and policy](../implementation/distribution.md#publication) for packaging and publishing.
+## Requirements
 
-Import supported subpaths, such as `@kestreljs/framework/app`, `@kestreljs/framework/http`, and the browser-safe `@kestreljs/framework/http/client`. Internal source paths are not consumer APIs. The `kestrel` executable accepts an application module followed by CLI arguments. For compiled code, use `node --import zod/compile node_modules/@kestreljs/framework/dist/cli/main.js dist/server/core/app.js <command>`. For TypeScript modules use `node --import tsx --import zod/compile node_modules/@kestreljs/framework/dist/cli/main.js src/server/core/app.ts <command>`. Dispose application resources when invoking execution APIs directly.
+Use Node.js 24.11 or later within the Node.js 24 line, with npm and npx available. Docker Compose is needed if you use the generated application's PostgreSQL, Redis, and Drizzle Studio services. The generated `./do` launcher and npm scripts require a POSIX shell, such as macOS, Linux, or WSL.
 
-Studio ships prebuilt assets and its client adapter defaults to production delivery. The provider's `devMode` must remain false for installed-package use. Source development requires an explicitly composed `ViteDevelopmentRuntime` and the repository's source entry; it is not inferred from application environment variables. Application UI development still uses the application's own Vite configuration.
+## Install in an existing application
 
-## Independent integration-test infrastructure
+From your application's directory, install the published framework:
 
-Run `npm run infra:up` and `npm run infra:prepare` in the framework repository. PostgreSQL initialization creates `kestrel_test` without resetting existing data. The Compose service separately creates `kestrel_playground`. Framework suites own and clean up their test tables or schemas; Redis test contexts use logical database 2 and unique key prefixes, and never flush the shared database.
+```sh
+npm install @kestreljs/framework
+```
 
-Default ports are 55432 for PostgreSQL and 56379 for Redis. Override `KESTREL_POSTGRES_PORT` and `KESTREL_REDIS_PORT` for host testing. Test helpers also accept `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_SSL`, `KESTREL_TEST_DATABASE`, and `KESTREL_TEST_REDIS_URL`. Managed database names must be `kestrel_test` or `kestrel_test_<suffix>`. The devcontainer uses service hostnames and internal ports. CI runs the same provisioner and required integration suites; connection failures fail those suites.
+This uses npm's `latest` tag. Use `@next` explicitly when opting into the next prerelease channel; a `latest` tag does not imply a stable API while Kestrel remains experimental. Commit your application's lockfile to keep dependency resolution reproducible.
 
-Stop services with `npm run infra:down`. Tests clean up their own resources; there is intentionally no routine command deleting the shared PostgreSQL volume. A deliberate full infrastructure reset removes playground data as well and is outside normal test preparation.
+Import supported subpaths, such as `@kestreljs/framework/app`, `@kestreljs/framework/http`, and the browser-safe `@kestreljs/framework/http/client`. Internal source paths are not consumer APIs. Follow [application composition](./app.md) and [configuration](./configuration.md) to integrate providers and services into an existing project, or use the starter below for a configured web application.
 
 ## Create an application
 
-The default CLI invocation is `create-kestrel <empty-directory>` and generates an exact registry dependency from the bundled template. To override it after packing the framework, run `node src/packages/create-kestrel/bin/create.mjs <empty-directory> --framework-archive artifacts/kestreljs-framework-0.1.0-alpha.0.tgz`. The `create-kestrel` executable uses Yeoman internally, requires Node.js 24.11 or later within Node.js 24, and needs no global `yo` installation. It requires an empty destination and stores an explicitly supplied local archive inside the generated application. Install dependencies, then run `npm run build:ai` and `npm run test:ai` there. Generated applications keep their SQL migrations, snapshots, and journal in `src/server/core/db/migrations/`; use `npm run db:generate` and `npm run db:migrate` to generate and apply them. The generated README documents database provisioning, fresh migrations, client generation, development, and production commands.
-
-In a terminal, choose PostgreSQL or Redis for the cache. Redis Insight is offered only when Redis is installed and defaults to no. Arguments supply the same choices without their corresponding questions:
+Run the generator from the parent directory where you want the application to live:
 
 ```sh
-node src/packages/create-kestrel/bin/create.mjs my-app --framework-archive artifacts/kestreljs-framework-0.1.0-alpha.0.tgz --cache postgres --yes
-node src/packages/create-kestrel/bin/create.mjs my-app --framework-archive artifacts/kestreljs-framework-0.1.0-alpha.0.tgz --cache redis --no-redis-insight
-node src/packages/create-kestrel/bin/create.mjs my-app --framework-archive artifacts/kestreljs-framework-0.1.0-alpha.0.tgz --cache redis --redis-insight
+npx @kestreljs/create-kestrel@latest my-app
+cd my-app
+npm install
+```
+
+The creator creates `my-app/` and generates the application inside it; no manual `mkdir` is needed. Relative and absolute paths are also accepted. An existing destination must be empty. No global generator installation is needed. The generated application declares an exact compatible framework version; `npm install` downloads it and the application's other dependencies from npm.
+
+To use the bundled local services and start the generated application, run these commands inside `my-app/`:
+
+```sh
+npm run infra:up
+npm run db:dev:migrate
+npm run dev
+```
+
+`infra:up` starts PostgreSQL, Drizzle Studio, and the selected optional Redis services. `db:dev:migrate` applies application migrations and prepares development-only tables used by Studio. Open the application URL printed by the server, and visit `/_studio` on the same origin for Studio. Stop the development process when finished and run `npm run infra:down` to stop its services while keeping their data. If you supply your own database instead, configure the generated `.env` using `.env.example`.
+
+Run `npm run build:ai` and `npm run test:ai` inside the generated application to build and test it. Its database migrations live in `src/server/core/db/migrations/`; use `npm run db:generate` and `npm run db:migrate` when preparing and applying deployment migrations. The generated README describes configuration, commands, and local database reset boundaries.
+
+## Choose the cache backend
+
+In a terminal, the generator asks you to choose PostgreSQL or Redis for the cache. Redis Insight is offered only when Redis is selected and defaults to no. These examples are alternatives; use a different application name for each project:
+
+```sh
+npx @kestreljs/create-kestrel@latest my-app --cache postgres --yes
+npx @kestreljs/create-kestrel@latest my-app --cache redis --no-redis-insight
+npx @kestreljs/create-kestrel@latest my-app --cache redis --redis-insight
 ```
 
 `--yes` and noninteractive input use PostgreSQL and no Redis Insight for unspecified choices. Invalid cache values and Redis Insight without Redis fail before files are written. The creator neither installs application dependencies nor discovers third-party generators.
@@ -36,10 +60,18 @@ PostgreSQL remains the database for both variants. The PostgreSQL cache uses the
 
 When selected, Redis Insight joins `npm run infra:up`, preconfigures the local Redis connection and persists its UI settings in a named volume. Open http://127.0.0.1:5540 for local development. `npm run infra:down` stops it without deleting its settings. See [Redis Insight Docker installation](https://redis.io/docs/latest/operate/redisinsight/install/install-on-docker/) and [connection configuration](https://redis.io/docs/latest/operate/redisinsight/configuration/).
 
+## Develop your application
+
 The starter uses `HttpClientGenerationProvider` through `npm run api:generate` to produce `src/generated/publicClient/publicClient.ts` from its HTTP controller catalog. Keep generated contracts in that directory and browser configuration in `src/client/src/api.ts`, which instantiates the generated factory. Regenerate after changing controllers; `npm run build:ai` does this automatically. See [typed HTTP client generation](./client.md#generate-a-typed-http-client).
 
 Generated projects include the executable `do` launcher: use `./do --help`, `./do run server`, `./do generate http-clients`, and `./do database migrate`. The npm commands delegate to this shared application composition. Local `.env` loading, Drizzle development configurations, Node/editor conventions, and an independent devcontainer are included. The build copies migration assets for `NODE_ENV=production KESTREL_COMPILED=1 ./do database migrate`. See the generated README for the full root-file inventory and local reset boundaries.
 
 The starter places browser sources in `src/client/src/`, production Vite configuration in `src/client/vite.config.ts`, and browser output in `dist/client/`. Server composition lives directly in `src/server/core/app.ts`. Feature definitions belong to their own catalogs, starting with `example/exampleCatalog.ts`; `core/appCatalog.ts` composes them. `appConfig.ts` owns the typed configuration API, supported environments, local `.env` loading, and resolution of the multiline factories in `core/config/`. Set `DB_HOST`, `DB_USER`, `DB_PASSWORD`, and `DB_DATABASE` for `stage` or `prod`; TLS defaults to enabled there. Schema-backed configuration accepts `APP_CONFIG__…` overrides for fields without dedicated environment-variable bindings.
 
-Generated applications include [Studio](./studio.md) at `/_studio` in the local environment, with actions, HTTP controllers, database schema inspection, and a Drizzle Studio link. `core/development_clients.ts` creates one lazy Vite runtime for application HMR; Studio serves its packaged browser assets alongside it. `npm run infra:up` also builds and starts a separate Drizzle Studio service on loopback port 4983. Its image installs the generated application's dependencies without lifecycle scripts, using npm or the optional vendored framework archive, and the lockfile when available; schemas and configuration are mounted read-only. Open https://local.drizzle.studio, or override the link through `DRIZZLE_STUDIO_URL`. Run `npm run dev:database` only when the Compose service is stopped to avoid a port conflict. No sibling framework sources are required.
+## Explore Studio
+
+Generated applications include [Studio](./studio.md) at `/_studio` in the local environment, with actions, HTTP controllers, database schema inspection, and a Drizzle Studio link. `core/development_clients.ts` creates one lazy Vite runtime for application HMR; Studio serves its packaged browser assets alongside it. `npm run infra:up` also builds and starts a separate Drizzle Studio service on loopback port 4983. Its image installs the generated application's dependencies without lifecycle scripts, using npm and the lockfile when available; schemas and configuration are mounted read-only. Open https://local.drizzle.studio, or override the link through `DRIZZLE_STUDIO_URL`. Run `npm run dev:database` only when the Compose service is stopped to avoid a port conflict. No sibling framework sources are required.
+
+## Work on the framework
+
+For repository setup, framework tests, and trying unpublished changes in an application, use the [contribution and framework development guide](../contributing.md). The npm installation and npx creation commands above consume published packages directly.

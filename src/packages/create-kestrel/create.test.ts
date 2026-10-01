@@ -32,6 +32,21 @@ function create(target: string, archive: string, ...arguments_: string[]) {
   });
 }
 
+it("creates the named application directory from its parent", async () => {
+  await withFixture(async ({ root, target }) => {
+    // Run the documented command from the parent without preparing the application directory.
+    await expect(access(target)).rejects.toMatchObject({ code: "ENOENT" });
+    const result = spawnSync(process.execPath, [executable, "my-app", "--yes"], {
+      cwd: root, encoding: "utf8", timeout: 10_000,
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(await readFile(join(target, "package.json"), "utf8")).name).toBe("my-app");
+    await access(join(target, "src/server/core/app.ts"));
+    // Application files belong to the new directory, never its parent.
+    expect((await readdir(root)).sort()).toEqual(["framework.tgz", "my-app"]);
+  });
+});
+
 it.each(["postgres", "redis"])("creates a registry-based %s application without an archive or installation", async (cache) => {
   await withFixture(async ({ target }) => {
     // Exercise the public CLI without the local-only override, including Docker build inputs.

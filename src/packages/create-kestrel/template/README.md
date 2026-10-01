@@ -6,7 +6,7 @@ This experimental template consumes `@kestreljs/framework` at the exact compatib
 
 ## Welcome page
 
-The starter home page lives in `src/client/src/main.tsx`, with responsive styles in `src/client/src/styles.css`. It links to Studio at `/_studio` during local development. The documentation link is a local placeholder marked "Coming soon"; replace it when the public documentation is available. The typed greeting API remains available through `src/client/src/api.ts` as an example for your own screens.
+The starter home page lives in `src/client/src/main.tsx`, with responsive styles in `src/client/src/styles.css`. It links to Studio at `/_studio` during local development and to the [public Kestrel documentation](https://antarestupin.github.io/kestrel-framework/). The typed greeting API remains available through `src/client/src/api.ts` as an example for your own screens.
 
 ## Application commands
 

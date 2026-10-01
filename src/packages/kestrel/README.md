@@ -2,7 +2,7 @@
 
 Kestrel is an experimental modular application framework for Node.js 24. APIs may change without notice and backward compatibility is not guaranteed. External contributions are not accepted at this stage.
 
-After publication, install the experimental release with `npm install @kestreljs/framework@next`, or create an application with `npx @kestreljs/create-kestrel@next my-app`.
+Install the published experimental release with `npm install @kestreljs/framework`, or create an application with `npx @kestreljs/create-kestrel@latest my-app`.
 
 Import supported subpaths such as `@kestreljs/framework/app`, `@kestreljs/framework/http`, and `@kestreljs/framework/http/client`. The package includes TypeScript declarations, the `kestrel` CLI, database adapters, and prebuilt Studio assets.
 

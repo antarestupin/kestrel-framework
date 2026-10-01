@@ -18,6 +18,7 @@ export default class ApplicationGenerator extends Generator {
     try {
       if ((await readdir(this.destination)).length) throw new Error("The destination must be empty.");
     } catch (error) {
+      // Missing destinations are expected: Yeoman creates the application directory when committing files.
       if (error.code !== "ENOENT") throw error;
     }
     if (this.options.cache !== undefined && !["postgres", "redis"].includes(this.options.cache)) {

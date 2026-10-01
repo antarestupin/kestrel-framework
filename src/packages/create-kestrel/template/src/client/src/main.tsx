@@ -19,14 +19,14 @@ function Application() {
       </section>
 
       <nav className="resources" aria-label="Developer resources">
-        {/* Keep the placeholder local until the public documentation is available. */}
-        <a className="resource" href="#documentation" aria-describedby="documentation">
+        {/* Point new applications to the public framework documentation. */}
+        <a className="resource" href="https://antarestupin.github.io/kestrel-framework/">
           <div className="resource-heading">
             <h2>Documentation</h2>
             <span className="resource-arrow" aria-hidden="true">↗</span>
           </div>
           <p>Get to know the framework.<br />From your first action to your next application.</p>
-          <span className="resource-caption" id="documentation">Coming soon</span>
+          <span className="resource-caption">Read the docs <span aria-hidden="true">→</span></span>
         </a>
         {/* Studio is mounted on the application's origin during local development. */}
         <a className="resource" href="/_studio">

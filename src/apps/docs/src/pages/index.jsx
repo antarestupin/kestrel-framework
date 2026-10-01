@@ -29,7 +29,7 @@ export default function Home() {
               <Link className="button button--primary button--lg" to="/docs/usage/installation">Get started</Link>
               <Link className="button button--secondary button--lg" to="/docs/usage/">Explore the guides</Link>
             </div>
-            <p className="kestrel-status">Under active development. Packages are currently consumed from local archives.</p>
+            <p className="kestrel-status">Experimental packages available on npm. Create an application with npx.</p>
           </div>
           <div className="kestrel-example"><CodeBlock language="typescript" title="greet.ts">{example}</CodeBlock></div>
         </header>
