@@ -1,0 +1,46 @@
+/* Folding preserves the native code block spacing and overlaid toolbar. */
+.disclosure[data-expanded='false'] :global(.kestrel-code-hidden-line) {
+  display: none;
+}
+
+/* Only user-triggered expansion animates; SSR and no-JavaScript views stay still. */
+.disclosure[data-revealed='true'] :global(.kestrel-code-hidden-line) {
+  animation: revealLines 2s linear;
+}
+
+/* Fade back to permanent highlighting instead of replacing it with transparency. */
+.disclosure :global(.kestrel-code-hidden-line.theme-code-block-highlighted-line) {
+  --kestrel-reveal-base: var(--docusaurus-highlighted-code-line-bg);
+}
+
+@keyframes revealLines {
+  from {
+    /* A stronger initial tint makes newly revealed sections easier to spot. */
+    background-color: color-mix(in srgb, var(--ifm-color-primary) 50%, var(--kestrel-reveal-base, transparent));
+  }
+  to {
+    background-color: var(--kestrel-reveal-base, transparent);
+  }
+}
+
+/* Keep the cue for two seconds without interpolating colors when motion is reduced. */
+@media (prefers-reduced-motion: reduce) {
+  .disclosure[data-revealed='true'] :global(.kestrel-code-hidden-line) {
+    animation-timing-function: steps(1, end);
+  }
+}
+
+/* Printed examples should remain complete even when the interactive view is folded. */
+@media print {
+  .disclosure[data-revealed='true'] :global(.kestrel-code-hidden-line) {
+    animation: none;
+  }
+
+  .disclosure[data-expanded='false'] :global(.kestrel-code-hidden-line) {
+    display: block;
+  }
+
+  .disclosure[data-expanded='false'] :global(.kestrel-code-hidden-line[data-numbered='true']) {
+    display: table-row;
+  }
+}

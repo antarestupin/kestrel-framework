@@ -14,7 +14,7 @@ const categories = (section) => groups.map(([label, names]) => ({
 export default {
   guides: ['README', 'usage/README', 'usage/installation', ...categories('usage')],
   advanced: [
-    'contributing', 'implementation/README', 'implementation/distribution',
+    'contributing', 'implementation/README', 'implementation/distribution', 'implementation/documentation',
     ...categories('implementation'),
     { type: 'category', label: 'Design records and future work', items: [
       'stack', 'workers_specs', 'workflows_specs', 'native_logging_plan', 'monitoring', 'beacon',

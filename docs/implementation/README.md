@@ -7,6 +7,7 @@ Use these references to understand design choices, implement adapters, extend pr
 Some reference pages also preserve historical specifications and illustrative code. Treat explicitly planned sections as proposals; use the usage guides and current source exports for application recipes. Adapter authors should read operation semantics, lifecycle ownership and failure guarantees together before replacing an implementation.
 
 - [Contributing and framework development](../contributing.md)
+- [Documentation website internals](./documentation.md) · [Authoring hidden code sections](../contributing.md#focus-code-examples-with-hidden-lines)
 - [Distribution and repository boundaries](./distribution.md) · [Usage](../usage/installation.md)
 
 ## Compose an application

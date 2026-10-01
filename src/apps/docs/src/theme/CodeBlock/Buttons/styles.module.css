@@ -1,0 +1,32 @@
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  position: absolute;
+  right: calc(var(--ifm-pre-padding) / 2);
+  top: calc(var(--ifm-pre-padding) / 2);
+}
+
+/* All controls remain discoverable with touch, keyboard, and pointer input. */
+.buttons button {
+  display: flex;
+  align-items: center;
+  background: var(--prism-background-color);
+  color: var(--prism-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  padding: 0.4rem;
+  line-height: 0;
+}
+
+.buttons .disclosureButton {
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+@media print {
+  .buttons {
+    display: none;
+  }
+}

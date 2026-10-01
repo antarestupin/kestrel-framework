@@ -47,6 +47,20 @@ export default {
       ] }],
       copyright: 'Kestrel — a modular application framework.',
     },
-    prism: { additionalLanguages: ['bash', 'typescript', 'sql', 'json'] },
+    prism: {
+      additionalLanguages: ['bash', 'typescript', 'sql', 'json'],
+      magicComments: [
+        // Keep highlighting first: Docusaurus uses it for metastring line ranges.
+        {
+          className: 'theme-code-block-highlighted-line',
+          line: 'highlight-next-line',
+          block: { start: 'highlight-start', end: 'highlight-end' },
+        },
+        {
+          className: 'kestrel-code-hidden-line',
+          block: { start: 'hide-start', end: 'hide-end' },
+        },
+      ],
+    },
   },
 };

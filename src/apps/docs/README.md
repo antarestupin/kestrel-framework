@@ -24,6 +24,8 @@ For a custom domain, configure the domain and DNS in GitHub Pages, set the repos
 
 ## Authoring and future versions
 
+Use paired `hide-start` / `hide-end` magic comments to fold supporting code. Read the [authoring guide](../../../docs/contributing.md#focus-code-examples-with-hidden-lines) and [implementation notes](../../../docs/implementation/documentation.md) before changing the three code-block theme overrides. Copy always includes folded lines; numeric fence highlight ranges cannot be combined with magic comments.
+
 Use plain Markdown in `docs/**/*.md`; `.mdx` explicitly enables JSX. Keep relative Markdown links so the same content works on GitHub and on the site. Add new pages to `sidebars.js`. Usage and implementation pages should continue linking to one another. Keep design records clearly marked as proposals or historical references.
 
 Versioning is intentionally deferred. When supported framework releases need distinct documentation, run `npm run docs:version --workspace=@kestrel/docs -- <version>`, commit the generated version snapshots and metadata in this workspace, and add Docusaurus's `docsVersionDropdown` navbar item. Review homepage links and Pagefind version filtering at that point; search currently indexes every documentation page. Do not take snapshots for every development change.

@@ -9,10 +9,12 @@ Declare an action when business behavior should be reusable from HTTP, CLI, work
 Package a business operation with a validated input and output when several callers need the same behavior. This example runs a greeting directly, before exposing it through a transport.
 
 ```ts
+// hide-start
 import { z } from "zod";
 import { defineAction, mapActionInput } from "@kestreljs/framework/actions";
 import { App, defineCatalog } from "@kestreljs/framework/app";
 
+// hide-end
 const greet = defineAction({
   name: "greeting.greet",
   description: "Create a greeting.",

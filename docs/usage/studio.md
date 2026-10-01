@@ -11,11 +11,13 @@ Import `studioConfigBase` from `@kestreljs/framework/studio/configuration` in ap
 Enable an actions explorer when developers need to inspect the application catalog in a browser. The page groups dotted action names into collapsible namespaces, with a navigation tree and a detail panel matching the HTTP controllers explorer. Select an action to inspect its full name, description and middleware. Use **Collapse all** or **Expand all** above the tree to toggle every namespace, including nested groups, while keeping the selected action. Individual namespace toggles remain available. Actions without a namespace appear at the root. Execution is enabled by default for registered action definitions whose input can be described as JSON. Metadata-only entries remain read-only. This composition limits Studio to the development environment.
 
 ```ts
+// hide-start
 import type { App } from "@kestreljs/framework/app";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
 import { studioConfigBase } from "@kestreljs/framework/studio/configuration";
 import { StudioProvider } from "@kestreljs/framework/studio";
 import { defineActionsDocumentationExtension } from "@kestreljs/framework/studio/extensions/actions";
+// hide-end
 
 const configuration = createConfigurationApi({
   environments: ["development", "production"], defaultEnvironment: "development",

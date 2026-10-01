@@ -67,6 +67,33 @@ To install an archive into an existing consumer, run `npm install /absolute/path
 
 The canonical guides live in `docs/`; the Docusaurus application lives in `src/apps/docs`. Keep usage and implementation references aligned when changing APIs. Add new pages to `src/apps/docs/sidebars.js`. Run `npm run docs:build` to check links and build the search index; `npm run docs:dev` and `npm run docs:preview` are available for manual browsing. See the [website maintenance guide](https://github.com/antarestupin/kestrel-framework/blob/main/src/apps/docs/README.md).
 
+### Focus code examples with hidden lines
+
+Revealed lines briefly highlight with the theme's primary color, fading out over two seconds to help readers locate the additions. With reduced motion enabled, the highlight stays fixed for two seconds and then disappears.
+
+Surround supporting imports or setup with `hide-start` and `hide-end` comments, each on its own line. Keep the concept being explained visible. The [action example](usage/actions.md#define-and-run-an-action) demonstrates this behavior.
+
+````md
+```ts
+// hide-start
+import { defineAction } from "@kestreljs/framework/actions";
+// hide-end
+
+const greet = defineAction({
+  name: "greeting.greet",
+  handler: () => "Hello!",
+});
+```
+````
+
+On the website, **Show N hidden lines** reveals every marked section in that block; **Hide extra lines** folds them again. **Copy** always copies the complete example without magic comments, including folded lines. Line numbers refer to the complete example. The full code remains visible on GitHub, without JavaScript, and when printing.
+
+Always specify a language on the code fence and use its comment syntax: `// hide-start` / `// hide-end` for TypeScript or JavaScript, `# hide-start` / `# hide-end` for Bash, and `-- hide-start` / `-- hide-end` for SQL. Sections must be paired and must not nest. When the block starts or ends with a hidden section, exposed blank separators at that boundary fold automatically and count toward the button's line total. They return when expanded and remain in copied code. Elsewhere, include adjacent blank lines inside the section if they should also disappear.
+
+To combine folding and highlighting, use `highlight-next-line` or `highlight-start` / `highlight-end` comments. Do not add numeric highlight ranges such as `{2,4-6}` to a fence that uses magic comments: Docusaurus gives those ranges precedence and skips comment parsing. Numeric ranges still work normally on blocks without magic comments.
+
+See [documentation website internals](implementation/documentation.md) for the rendering design and maintenance checks.
+
 ## Publish a release
 
 Publication requires explicit owner approval. The following commands are for maintainers with publishing rights to the npm scope.
@@ -81,4 +108,3 @@ Run `npm run build:ai`, `npm run typecheck`, `npm run check:boundaries`, `npm ru
 | `npm run publish:next` | Publish the framework first, then the creator; stop on failure. |
 
 The publish commands perform real registry writes and require npm authentication and publishing rights to the `@kestreljs` scope. Package `publishConfig` also defaults to public access and the `next` tag. Keep the creator, framework, template dependency, playground dependency, and lockfile aligned when changing release versions. Published versions cannot be reused. If only the creator publication fails, retry its command after fixing the cause rather than republishing the framework. Automated release workflows and a stable release policy remain deferred.
-
