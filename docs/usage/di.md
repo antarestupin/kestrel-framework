@@ -47,6 +47,12 @@ const app = new App({ greeting: { prefix: "Hello" } })
 
 Run `greet` through the application as in [Actions](./actions.md). Concrete constructible classes may also be declared directly in `dependencies`. A named dependency is useful for an interface or a client whose construction belongs to a provider.
 
+## Inject an action definition
+
+Declare `dependencies: { getUser }` where `getUser` is an action definition. The handler receives a typed runner and calls `await getUser.run({ id })`. No named registration is required: the runner uses the caller's scope and preserves the child action's input validation, output validation and middleware. See the complete [nested action example](./actions.md#inject-another-action).
+
+Libraries can support their own definition types by implementing the DI-owned `ResolvableDependency<Config, Value>` protocol with the exported `resolveDependency` symbol. Business handlers consume the resolved values; container access remains inside the protocol implementation. See the [protocol contract](../implementation/di.md#resolvable-definitions).
+
 ## Own a resource's lifetime
 
 Choose a lifetime when a dependency holds state or needs cleanup. A scoped scratch buffer belongs to one execution and is cleared when that scope is disposed.

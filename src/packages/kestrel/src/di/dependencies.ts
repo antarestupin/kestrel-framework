@@ -1,4 +1,14 @@
+import type { DependencyContainer } from "./container.js";
+
 const dependencyDescriptorMarker = Symbol("dependency-descriptor");
+
+/** Opts a definition into resolution without coupling DI to its library. */
+export const resolveDependency = Symbol("resolveDependency");
+
+export interface ResolvableDependency<Config, Value> {
+  /** Produces a value synchronously in the caller's container, without caching. */
+  [resolveDependency](container: DependencyContainer<Config>): Value;
+}
 
 export type DependencyLifetime = "singleton" | "scoped" | "transient";
 
@@ -28,14 +38,22 @@ export interface RegisteredDependencyDescriptor<Value>
   readonly id: string;
 }
 
+export interface ResolvableDependencyDescriptor<Config, Value>
+  extends DependencyDescriptorBase {
+  readonly kind: "resolvable";
+  readonly target: ResolvableDependency<Config, Value>;
+}
+
 export type DependencyDescriptor<Config, Value> =
   | ClassDependencyDescriptor<Value>
   | ConfigDependencyDescriptor<Config, Value>
-  | RegisteredDependencyDescriptor<Value>;
+  | RegisteredDependencyDescriptor<Value>
+  | ResolvableDependencyDescriptor<Config, Value>;
 
 export type DependencyDeclaration<Config, Value> =
   | Constructor<Value>
-  | DependencyDescriptor<Config, Value>;
+  | DependencyDescriptor<Config, Value>
+  | ResolvableDependency<Config, Value>;
 
 export type DependencyDeclarations<Config> = Record<
   string,
@@ -43,12 +61,14 @@ export type DependencyDeclarations<Config> = Record<
 >;
 
 export type ResolvedDependency<Declaration> =
-  Declaration extends DependencyDeclaration<
-    infer _Config,
-    infer Value
-  >
+  Declaration extends ResolvableDependency<infer _Config, infer Value>
     ? Value
-    : never;
+    : Declaration extends DependencyDeclaration<
+      infer _Config,
+      infer Value
+    >
+      ? Value
+      : never;
 
 export type ResolvedDependencies<
   Declarations extends Record<string, unknown>,
@@ -101,6 +121,15 @@ export function dep<Value>(
 export function normalizeDependency<Config, Value>(
   declaration: DependencyDeclaration<Config, Value>,
 ): DependencyDescriptor<Config, Value> {
+  // Check the protocol first so callable definitions can opt in as well.
+  if (resolveDependency in declaration) {
+    return {
+      [dependencyDescriptorMarker]: true,
+      kind: "resolvable",
+      target: declaration,
+    };
+  }
+
   if (typeof declaration === "function") {
     return {
       [dependencyDescriptorMarker]: true,

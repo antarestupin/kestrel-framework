@@ -12,6 +12,8 @@ import {
   dep,
   fromConfig,
   normalizeDependency,
+  resolveDependency,
+  type ResolvableDependency,
 } from "./index.js";
 
 interface TestConfig {
@@ -65,6 +67,51 @@ describe("dependency declarations", () => {
 });
 
 describe("DependencyContainer", () => {
+  it("resolves protocol values in the current container without caching", async () => {
+    const container = createDependencyContainer({});
+    const scope = container.createScope();
+    const definition = {
+      label: "resolved",
+      [resolveDependency](current) {
+        return { label: this.label, value: current.resolve(dep<string>("value")) };
+      },
+    } satisfies ResolvableDependency<{}, { label: string; value: string }> & { label: string };
+    container.registerValue("value", "root");
+    scope.registerValue("value", "scope");
+
+    try {
+      const normalized = normalizeDependency(definition);
+      const direct = scope.resolve(definition);
+      const dependencies = scope.resolveDependencies({ definition });
+
+      expect(normalized).toMatchObject({ kind: "resolvable", target: definition });
+      expect(container.resolve(definition)).toEqual({ label: "resolved", value: "root" });
+      expect(direct).toEqual({ label: "resolved", value: "scope" });
+      expect(dependencies.definition).toEqual(direct);
+      expect(dependencies.definition).not.toBe(direct);
+      expect(scope.resolve(normalized)).toEqual(direct);
+      expectTypeOf(direct).toEqualTypeOf<{ label: string; value: string }>();
+      expectTypeOf(dependencies.definition).toEqualTypeOf<typeof direct>();
+    } finally {
+      await scope.dispose();
+      await container.dispose();
+    }
+  });
+
+  it("propagates protocol resolution failures", async () => {
+    const container = createDependencyContainer({});
+    const failure = new Error("Cannot resolve definition");
+    try {
+      expect(() => container.resolve({
+        [resolveDependency]() {
+          throw failure;
+        },
+      })).toThrow(failure);
+    } finally {
+      await container.dispose();
+    }
+  });
+
   it("resolves classes, named dependencies and configuration values", () => {
     const clock = new Date("2026-01-01T00:00:00.000Z");
     const container = createDependencyContainer<TestConfig>({

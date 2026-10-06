@@ -205,7 +205,11 @@ The dependencies part is injected using DI when running the action through its a
 const user = await app.get(userCatalog.actions.create).run(userPayload);
 ```
 
-A dedicated document on DI will explain this deeper.
+An action definition also implements the DI-owned `ResolvableDependency<never, ActionRunner<InputSchema, OutputSchema>>` protocol. Declaring `dependencies: { getUser }` injects the referenced action's runner, with its exact schema input and parsed output types, without named registration or catalog lookup. See the [usage example](../usage/actions.md#inject-another-action) and [DI protocol](./di.md#resolvable-definitions).
+
+The symbol method added by `defineAction()` calls `createActionRunner(container, this)`. Using the method receiver preserves the contract of derived or copied definitions. Resolution is synchronous and creates a fresh lightweight runner; it does not execute the action or resolve the child's dependencies until `.run()`. The runner shares the caller's container, so nested validation, middleware and errors follow the ordinary action pipeline while resource disposal remains owned by the outer execution. Injected runners must not escape that execution's lifetime.
+
+The dependency direction remains `actions -> di`: DI only understands the generic protocol, and the runner imports the `Action` contract as a type, avoiding a runtime cycle with the definition factory. Automatic action graph discovery, definition-specific overrides and cycle diagnostics remain deferred; direct references do not register catalog entries or prevent recursive `.run()` calls.
 
 ## Middleware
 

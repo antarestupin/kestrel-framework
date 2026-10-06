@@ -16,6 +16,7 @@ import {
   type DependencyDeclarations,
   type DependencyLifetime,
   normalizeDependency,
+  resolveDependency,
   type ResolvedDependencies,
   type ResolvedDependency,
 } from "./dependencies.js";
@@ -149,6 +150,11 @@ class DependencyContainerImpl<Config>
     Declaration extends DependencyDeclaration<Config, unknown>,
   >(declaration: Declaration): ResolvedDependency<Declaration> {
     const descriptor = normalizeDependency(declaration);
+
+    if (descriptor.kind === "resolvable") {
+      // Preserve the active scope and the definition's method receiver.
+      return descriptor.target[resolveDependency](this) as ResolvedDependency<Declaration>;
+    }
 
     if (descriptor.kind === "config") {
       return descriptor.selector(

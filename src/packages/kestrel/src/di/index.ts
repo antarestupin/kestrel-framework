@@ -8,6 +8,7 @@ export {
   dep,
   fromConfig,
   normalizeDependency,
+  resolveDependency,
   type ClassDependencyDescriptor,
   type ConfigDependencyDescriptor,
   type Constructor,
@@ -16,6 +17,8 @@ export {
   type DependencyDescriptor,
   type DependencyLifetime,
   type RegisteredDependencyDescriptor,
+  type ResolvableDependency,
+  type ResolvableDependencyDescriptor,
   type ResolvedDependencies,
   type ResolvedDependency,
 } from "./dependencies.js";

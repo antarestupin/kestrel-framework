@@ -38,6 +38,25 @@ try {
 
 Add `dependencies` for services and `middleware` for shared behavior; see [dependency injection](./di.md) and [middleware](./middleware.md). Call through a runner to retain validation and middleware, rather than calling `handler` yourself.
 
+## Inject another action
+
+Reference an action definition directly in `dependencies`. Kestrel injects a typed runner bound to the caller's execution scope, without a provider registration or catalog lookup.
+
+```ts
+const greetTwice = defineAction({
+  name: "greeting.greetTwice",
+  input: greet.inputSchema,
+  output: z.array(greet.outputSchema),
+  dependencies: { greet },
+  handler: async (input, { greet }) => {
+    // Each call retains the child action's validation and middleware.
+    return [await greet.run(input), await greet.run(input)];
+  },
+});
+```
+
+The runner accepts the referenced schema's input type and returns its parsed output type, including schema transformations. Derived actions work the same way. Parent and child share scoped services, and the outer execution disposes those services after completion, including on failure. Resolving the dependency only binds a runner: the child handler and its dependencies are evaluated when `.run()` is called. Await nested calls before the execution ends; an injected runner must not outlive its scope.
+
 ## Accept another input shape
 
 Adapt an existing action when a caller uses different field names or a different input structure. Here, a profile display name becomes the name expected by the greeting action.
@@ -79,5 +98,4 @@ Use [HTTP controllers](./http.md) and [CLI controllers](./cli.md) to expose the 
 ## Use cases still to document
 
 - Implement read, batch read, lookup, update and delete operations with the model action helpers.
-- Call another action inside an existing execution scope while preserving scoped dependencies.
 - Validate and transform an action output asynchronously.

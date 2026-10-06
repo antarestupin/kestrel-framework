@@ -7,14 +7,17 @@ import {
 
 import {
   type DependencyDeclarations,
+  type ResolvableDependency,
   type ResolvedDependencies,
 } from "../di/index.js";
+import { resolveDependency } from "../di/dependencies.js";
 import {
   resolveValidation,
   type DefinitionContract,
   type ValidationOptions,
 } from "../definitions/index.js";
 import type { ActionMiddleware } from "./middleware.js";
+import { createActionRunner, type ActionRunner } from "./runner.js";
 
 // Actions without an explicit input or output use null as their contract.
 const nullActionSchema = z.null();
@@ -54,7 +57,8 @@ export interface Action<
   InputSchema extends ZodType = ZodType,
   OutputSchema extends ZodType = ZodType,
   Dependencies extends DependencyDeclarations<never> = DependencyDeclarations<never>,
-> extends DefinitionContract<InputSchema, OutputSchema, Dependencies> {
+> extends DefinitionContract<InputSchema, OutputSchema, Dependencies>,
+    ResolvableDependency<never, ActionRunner<InputSchema, OutputSchema>> {
   readonly name: string;
   /** Actions always declare and validate their business output contract. */
   readonly outputSchema: OutputSchema;
@@ -124,6 +128,10 @@ export function defineAction<
     middleware: options.middleware ?? [],
     derive: (transform) => transform(action),
     handler: options.handler,
+    [resolveDependency](container) {
+      // Use the receiver so copied or derived definitions bind their own contract.
+      return createActionRunner(container, this);
+    },
   };
 
   return action;

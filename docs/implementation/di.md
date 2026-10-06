@@ -8,7 +8,7 @@ Dependency injection is handled at the Kestrel level. Application actions, model
 
 ## Concepts and model
 
-A dependency declaration describes what a consumer needs. Normalization converts its ergonomic class, configuration-selector or named-reference form into a `DependencyDescriptor`. A `DependencyContainer` owns registrations and resource lifetimes; child containers provide isolated scoped instances while inheriting singleton registrations.
+A dependency declaration describes what a consumer needs. Normalization converts its ergonomic class, configuration-selector, named-reference or resolvable-definition form into a `DependencyDescriptor`. A `DependencyContainer` owns registrations and resource lifetimes; child containers provide isolated scoped instances while inheriting singleton registrations.
 
 ```mermaid
 classDiagram
@@ -78,6 +78,8 @@ sequenceDiagram
 | `fromConfig()` | Declares a dependency selected from resolved application configuration. |
 | `createDependencyApi()` | Specializes declaration helpers for one application configuration type. |
 | `normalizeDependency()` | Converts ergonomic declarations to the descriptor contract used by Kestrel runtimes. |
+| `resolveDependency`, `ResolvableDependency<Config, Value>` | Symbol protocol for definitions that produce a typed value in the active container. |
+| `ResolvableDependencyDescriptor<Config, Value>` | Normalized `resolvable` descriptor retaining the protocol implementation as its target. |
 | Dependency declaration, descriptor, resolution and lifetime types | Preserve the relation between declaration maps and the values supplied to consumers. |
 
 The DI library has no adapter API. The `DependencyContainer` is the Kestrel runtime abstraction; applications replace individual registrations and factories rather than implementing a second container adapter.
@@ -117,6 +119,7 @@ Dependencies can be declared in several ways:
 - A concrete class, for simple dependencies that can be instantiated automatically.
 - A configuration selector, for values resolved from the typed application config.
 - A named dependency id, for dynamic dependencies, abstractions, external clients, or dependencies requiring a specific runtime registration.
+- A resolvable definition, such as an action, that binds its own runtime value to the current container.
 
 ## Dependency normalization
 
@@ -141,7 +144,6 @@ type DependencyDescriptor<T> =
   | {
       kind: "class";
       target: Constructor<T>;
-      lifetime?: "transient" | "scoped";
     }
   | {
       kind: "config";
@@ -150,6 +152,10 @@ type DependencyDescriptor<T> =
   | {
       kind: "registered";
       id: string;
+    }
+  | {
+      kind: "resolvable";
+      target: ResolvableDependency<AppConfig, T>;
     };
 ```
 
@@ -169,11 +175,40 @@ if (descriptor.kind === "config") {
 if (descriptor.kind === "registered") {
   return scope.resolve(descriptor.id);
 }
+
+if (descriptor.kind === "resolvable") {
+  return descriptor.target[resolveDependency](scope);
+}
 ```
 
 This normalization step also gives Kestrel a single place to handle future features such as dependency lifetimes, diagnostics, dependency graph inspection, test overrides, circular dependency detection, and documentation generation.
 
 Application code should rely on the ergonomic declaration syntax. Kestrel code should operate on normalized dependency descriptors.
+
+## Resolvable definitions
+
+The DI library exports a unique `resolveDependency` symbol and a structural protocol. A library-owned definition implements the method to produce the value consumers should receive:
+
+```ts
+import {
+  dep,
+  resolveDependency,
+  type ResolvableDependency,
+} from "@kestreljs/framework/di";
+
+// Bind a small facade to a service from the caller's scope.
+const clock = {
+  [resolveDependency](container) {
+    return { now: container.resolve(dep<() => Date>("currentTime")) };
+  },
+} satisfies ResolvableDependency<never, { now(): Date }>;
+```
+
+The contract is `[resolveDependency](container: DependencyContainer<Config>): Value`. `ResolvedDependency` infers the returned `Value`, and `ResolvedDependencies` preserves each declaration's type in the handler dependency map. Use a concrete `Config` when the implementation needs configuration selectors; config-independent definitions such as actions use `never`, like the existing definition declaration contracts.
+
+Normalization checks the symbol before treating functions as constructors and retains the definition in a `resolvable` descriptor. The container invokes the method with its original receiver and the current container, including child-scope registrations. Errors propagate to the caller. The protocol has no asynchronous initialization, implicit awaiting, cache, lifetime registration or automatic disposal of its return value; implementations should bind lightweight facades and resolve owned resources through ordinary registrations. A new action runner is therefore created for each resolution while the services it uses retain their registered lifetimes.
+
+DI does not import action code: the actions library implements this protocol to return a runner. Dependency graph inspection, protocol-specific overrides, cycle detection and additional lifetime controls remain deferred. Protocol authors must avoid resolving themselves recursively and must keep returned scope-bound values within the scope's lifetime.
 
 ## Class dependencies
 
