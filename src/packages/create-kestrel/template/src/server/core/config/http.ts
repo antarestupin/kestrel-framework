@@ -4,7 +4,7 @@
 import { fileURLToPath } from "node:url";
 import { configure } from "@kestreljs/framework/configuration";
 import { httpConfigBase } from "@kestreljs/framework/http";
-import type { AppConfigurationApi } from "../appConfig.js";
+import type { AppConfigurationApi } from "../app_config.js";
 
 /** HTTP runtime and client generation share the application's resolved configuration. */
 export function createHttpConfig({
@@ -31,8 +31,8 @@ export function createHttpConfig({
         audiences: ["public"],
         factoryName: "createPublicClient",
         // Keep the public contract and its server links in their existing generated directory.
-        outputFile: fileURLToPath(new URL("../../../generated/publicClient/publicClient.ts", import.meta.url)),
-        catalogImportPath: "../../server/core/appCatalog.js",
+        outputFile: fileURLToPath(new URL("../../../generated/public_client/public_client.ts", import.meta.url)),
+        catalogImportPath: "../../server/core/app_catalog.js",
         runtimeImportPath: "@kestreljs/framework/http/client",
       }],
     },

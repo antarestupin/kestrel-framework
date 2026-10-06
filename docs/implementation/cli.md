@@ -145,7 +145,7 @@ Controller executions are observed by default. Infrastructure commands that temp
 
 ## Registration
 
-Business controllers are declared in domain subcatalogs composed by `src/server/core/appCatalog.ts`. Providers contribute infrastructure controller subcatalogs through `app.catalog.contribute()`; the database and runtime providers use this path for maintenance and `run …` commands. The consolidated `app.catalog.cliControllers` index is the only input to the command manager, and there is no automatic file or module discovery.
+Business controllers are declared in domain subcatalogs composed by `src/server/core/app_catalog.ts`. Providers contribute infrastructure controller subcatalogs through `app.catalog.contribute()`; the database and runtime providers use this path for maintenance and `run …` commands. The consolidated `app.catalog.cliControllers` index is the only input to the command manager, and there is no automatic file or module discovery.
 
 The manager builds nested command paths such as `user create`, invokes controllers asynchronously and leaves process exit management to the entrypoint.
 

@@ -1,7 +1,7 @@
 import { configure } from "@kestreljs/framework/configuration";
 // Keep Drizzle's configuration loader independent of browser runtime adapters.
 import { studioConfigBase } from "@kestreljs/framework/studio/configuration";
-import type { AppConfigurationApi } from "../appConfig.js";
+import type { AppConfigurationApi } from "../app_config.js";
 
 /** Mounts developer tooling locally and uses the installed package's prebuilt browser. */
 export function createStudioConfig({

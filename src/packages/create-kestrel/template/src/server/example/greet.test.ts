@@ -2,7 +2,7 @@
 // Use this pattern for endpoint tests without network listeners and dispose the owned application.
 
 import { afterAll, expect, it } from "vitest";
-import { createPublicClient } from "../../generated/publicClient/publicClient.js";
+import { createPublicClient } from "../../generated/public_client/public_client.js";
 import { httpRuntimeDependency } from "@kestreljs/framework/http";
 import app from "../core/app.js";
 

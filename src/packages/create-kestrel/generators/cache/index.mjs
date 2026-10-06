@@ -9,9 +9,9 @@ export default class CacheGenerator extends Generator {
     const redis = this.options.cache === "redis";
     const templates = fileURLToPath(new URL("./templates/", import.meta.url));
     this.fs.copyTpl(`${templates}/cache.ts.ejs`, this.destinationPath("src/server/core/config/cache.ts"), this.options);
-    replaceSource(this, "src/server/core/appConfig.ts", 'import { createLoggerConfig } from "./config/logger.js";',
+    replaceSource(this, "src/server/core/app_config.ts", 'import { createLoggerConfig } from "./config/logger.js";',
       'import { createLoggerConfig } from "./config/logger.js";\nimport { createCacheConfig } from "./config/cache.js";');
-    replaceSource(this, "src/server/core/appConfig.ts", "  logger: createLoggerConfig(configurationApi),",
+    replaceSource(this, "src/server/core/app_config.ts", "  logger: createLoggerConfig(configurationApi),",
       "  logger: createLoggerConfig(configurationApi),\n  cache: createCacheConfig(),");
     replaceSource(this, "src/server/core/app.ts", 'import { DatabaseProvider } from "./providers/database_provider.js";',
       'import { DatabaseProvider } from "./providers/database_provider.js";\n'

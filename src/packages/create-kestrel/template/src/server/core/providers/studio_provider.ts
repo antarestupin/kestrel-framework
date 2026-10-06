@@ -13,7 +13,7 @@ import {
   PostgresDatabaseSchemaSource,
   type DatabaseSchemaSource,
 } from "@kestreljs/framework/studio/extensions/database";
-import type { AppConfig } from "../appConfig.js";
+import type { AppConfig } from "../app_config.js";
 
 /** Installs the application's catalogs and lazily resolved database into Studio. */
 export class StudioProvider extends KestrelStudioProvider<AppConfig, AppConfig["studio"]> {

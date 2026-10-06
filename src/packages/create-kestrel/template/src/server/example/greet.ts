@@ -1,5 +1,5 @@
 // Defines the example greeting action, input/output validation, and public HTTP route.
-// Use this pattern for new operations and register them in exampleCatalog.ts.
+// Use this pattern for new operations and register them in example_catalog.ts.
 
 import { z } from "zod";
 import { defineAction } from "@kestreljs/framework/actions";

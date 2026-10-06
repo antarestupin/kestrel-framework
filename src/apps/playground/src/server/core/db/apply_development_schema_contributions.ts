@@ -3,7 +3,7 @@
 
 import { Pool } from "pg";
 import { applyDatabaseSchemaContributions } from "@kestreljs/framework/db";
-import { appConfig, environment } from "../appConfig.js";
+import { appConfig, environment } from "../app_config.js";
 import * as schema from "./schema/push_schema.js";
 
 if (environment !== "local") throw new Error("Development schema contributions require the local environment.");

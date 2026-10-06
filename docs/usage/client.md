@@ -46,8 +46,8 @@ const generation = {
   audiences: { audiences: ["public"], defaultAudiences: ["public"] },
   generators: [{
     name: "public", audiences: ["public"], factoryName: "createPublicClient",
-    outputFile: "src/generated/publicClient.ts",
-    // Generated imports are relative to src/generated/publicClient.ts.
+    outputFile: "src/generated/public_client.ts",
+    // Generated imports are relative to src/generated/public_client.ts.
     catalogImportPath: "../example.js", catalogExportName: "applicationHttpControllerCatalog",
     runtimeImportPath: "@kestreljs/framework/http/client",
   }],

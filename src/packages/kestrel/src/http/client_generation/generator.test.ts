@@ -70,7 +70,7 @@ function generate(name: "app" | "admin"): string {
     factoryName: name === "app"
       ? "createAppClient"
       : "createAdminClient",
-    catalogImportPath: "../../server/core/appCatalog.js",
+    catalogImportPath: "../../server/core/app_catalog.js",
     runtimeImportPath: "../../kestrel/http/client.js",
   });
 }
@@ -97,7 +97,7 @@ describe("HTTP client generator", () => {
     const source = generate("app");
 
     expect(source).toContain(
-      'import type { applicationHttpControllerCatalog } from "../../server/core/appCatalog.js";',
+      'import type { applicationHttpControllerCatalog } from "../../server/core/app_catalog.js";',
     );
     expect(source).toContain(
       "{@link applicationHttpControllerCatalog.debate.space.get}",

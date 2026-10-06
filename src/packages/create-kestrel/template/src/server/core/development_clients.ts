@@ -3,7 +3,7 @@ import {
   ViteDevelopmentRuntime,
   type ViteDevelopmentRuntimeOptions,
 } from "@kestreljs/framework/client";
-import type { AppConfig } from "./appConfig.js";
+import type { AppConfig } from "./app_config.js";
 
 /** Owns the application's single lazy Vite runtime; installed Studio assets need no HMR server. */
 export function createDevelopmentClients(

@@ -201,7 +201,7 @@ it.each(["postgres", "redis"])("composes %s cache with its required infrastructu
       depends_on: { postgres: { condition: "service_healthy" } },
     });
     await access(join(target, ".devcontainer/Dockerfile.drizzle-studio"));
-    await access(join(target, "src/server/example/exampleCatalog.ts"));
+    await access(join(target, "src/server/example/example_catalog.ts"));
     await access(join(target, "src/server/core/providers/studio_provider.ts"));
     await expect(access(join(target, "src/server/core/config/environment.ts"))).rejects.toMatchObject({ code: "ENOENT" });
     if (cache === "redis") {

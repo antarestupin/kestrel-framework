@@ -3,7 +3,7 @@
 
 import { databaseConfigBase } from "@kestreljs/framework/db/configuration";
 import { configure } from "@kestreljs/framework/configuration";
-import type { AppConfigurationApi } from "../appConfig.js";
+import type { AppConfigurationApi } from "../app_config.js";
 
 /** Local defaults are explicit; deployed environments require their own credentials. */
 export function createDatabaseConfig({

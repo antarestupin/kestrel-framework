@@ -3,7 +3,7 @@ import { expect, it, vi } from "vitest";
 import { App } from "@kestreljs/framework/app";
 import { cacheDependency } from "@kestreljs/framework/cache";
 import { LoggerProvider } from "@kestreljs/framework/log";
-import { appConfig } from "../appConfig.js";
+import { appConfig } from "../app_config.js";
 import { dep } from "@kestreljs/framework/di";
 import { RedisCacheProvider } from "./redis_cache_provider.js";
 import { redisDependency, type RedisClient } from "./redis_provider.js";

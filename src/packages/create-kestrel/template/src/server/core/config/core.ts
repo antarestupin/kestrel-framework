@@ -2,7 +2,7 @@
 // Use PROJECT_ROOT to override the project location without changing runtime asset resolution.
 
 import { fileURLToPath } from "node:url";
-import type { AppConfigurationApi } from "../appConfig.js";
+import type { AppConfigurationApi } from "../app_config.js";
 
 /** Resolve filesystem paths independently of the launcher's working directory. */
 export function createCoreConfig({

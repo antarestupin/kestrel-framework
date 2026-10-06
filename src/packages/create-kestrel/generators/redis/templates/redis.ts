@@ -3,7 +3,7 @@
 
 import { z } from "zod";
 import { configure, defineConfigBase, type ConfigOutput } from "@kestreljs/framework/configuration";
-import type { AppConfigurationApi } from "../appConfig.js";
+import type { AppConfigurationApi } from "../app_config.js";
 
 const redisConfigBase = defineConfigBase(z.object({
   url: z.url().refine((value) => ["redis:", "rediss:"].includes(new URL(value).protocol), "Use a redis:// or rediss:// URL."),

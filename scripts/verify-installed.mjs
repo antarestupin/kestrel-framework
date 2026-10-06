@@ -67,13 +67,13 @@ assert.match(result.stderr, /An application module path is required/);
 for (const file of ["do", ".devcontainer/ensure-test-database.sh"]) {
   assert((await stat(resolve(application, file))).mode & 0o111, `${file} must be executable`);
 }
-for (const file of [".gitignore", ".nvmrc", "AGENTS.md", ".vscode/settings.json", ".devcontainer/devcontainer.json", ".devcontainer/Dockerfile.drizzle-studio", ".devcontainer/Dockerfile.drizzle-studio.dockerignore", "drizzle.database.ts", "drizzle.dev.config.ts", "drizzle.dev-push.config.ts", "vite.development.config.ts", "src/server/example/exampleCatalog.ts", "src/server/core/development_clients.ts"]) {
+for (const file of [".gitignore", ".nvmrc", "AGENTS.md", ".vscode/settings.json", ".devcontainer/devcontainer.json", ".devcontainer/Dockerfile.drizzle-studio", ".devcontainer/Dockerfile.drizzle-studio.dockerignore", "drizzle.database.ts", "drizzle.dev.config.ts", "drizzle.dev-push.config.ts", "vite.development.config.ts", "src/server/example/example_catalog.ts", "src/server/core/development_clients.ts"]) {
   await access(resolve(application, file));
 }
 for (const file of ["src/server/main.ts", "src/server/generate.ts", "src/server/core/db/migrate.ts", "src/server/core/app_factory.ts", "src/server/core/config/environment.ts", "vite.config.ts"]) {
   await assert.rejects(access(resolve(application, file)), { code: "ENOENT" });
 }
-const generatedClient = resolve(application, "src/generated/publicClient/publicClient.ts");
+const generatedClient = resolve(application, "src/generated/public_client/public_client.ts");
 const originalClient = await readFile(generatedClient, "utf8");
 await rename(generatedClient, resolve(application, ".previous-generated-client.ts"));
 // Production validates explicit credentials even for commands that never connect to PostgreSQL.

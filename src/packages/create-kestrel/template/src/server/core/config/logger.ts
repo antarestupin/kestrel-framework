@@ -3,7 +3,7 @@
 
 import { configure } from "@kestreljs/framework/configuration";
 import { loggerConfigBase } from "@kestreljs/framework/log";
-import type { AppConfigurationApi } from "../appConfig.js";
+import type { AppConfigurationApi } from "../app_config.js";
 
 /** Keep the existing console logger, with quiet tests and an explicit level override. */
 export function createLoggerConfig({

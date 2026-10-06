@@ -2,8 +2,8 @@ import { expect, it, vi } from "vitest";
 import { App } from "@kestreljs/framework/app";
 import { HttpRuntimeProvider, httpRuntimeDependency } from "@kestreljs/framework/http";
 import { LoggerProvider } from "@kestreljs/framework/log";
-import { appCatalog } from "../appCatalog.js";
-import { appConfig } from "../appConfig.js";
+import { appCatalog } from "../app_catalog.js";
+import { appConfig } from "../app_config.js";
 import { StudioProvider } from "./studio_provider.js";
 
 it("serves application explorers and packaged Studio assets while keeping the database lazy", async () => {

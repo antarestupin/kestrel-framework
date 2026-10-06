@@ -1,5 +1,5 @@
 // Composes the application catalog, configuration, and runtime providers for the Kestrel CLI.
-// Register application services here; configure their settings through appConfig.ts and config/.
+// Register application services here; configure their settings through app_config.ts and config/.
 
 import { resolve } from "node:path";
 import { App } from "@kestreljs/framework/app";
@@ -9,8 +9,8 @@ import { ClientProvider, ViteClientAdapter } from "@kestreljs/framework/client";
 import { DatabaseProvider } from "./providers/database_provider.js";
 import { StudioProvider } from "./providers/studio_provider.js";
 import { createDevelopmentClients } from "./development_clients.js";
-import { appCatalog, applicationHttpControllerCatalog } from "./appCatalog.js";
-import { appConfig, environment } from "./appConfig.js";
+import { appCatalog, applicationHttpControllerCatalog } from "./app_catalog.js";
+import { appConfig, environment } from "./app_config.js";
 
 /** Complete application composition loaded directly by the generic CLI. */
 const app = new App(appConfig, { catalog: appCatalog });

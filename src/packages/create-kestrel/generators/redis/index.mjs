@@ -11,9 +11,9 @@ export default class RedisGenerator extends Generator {
     this.fs.copy(`${templates}/redis.ts`, this.destinationPath("src/server/core/config/redis.ts"));
     this.fs.copy(`${templates}/redis_provider.ts`, this.destinationPath("src/server/core/providers/redis_provider.ts"));
     this.fs.copy(`${templates}/redis_provider.test.ts.ejs`, this.destinationPath("src/server/core/providers/redis_provider.test.ts"));
-    replaceSource(this, "src/server/core/appConfig.ts", 'import { createLoggerConfig } from "./config/logger.js";',
+    replaceSource(this, "src/server/core/app_config.ts", 'import { createLoggerConfig } from "./config/logger.js";',
       'import { createLoggerConfig } from "./config/logger.js";\nimport { createRedisConfig } from "./config/redis.js";');
-    replaceSource(this, "src/server/core/appConfig.ts", "  logger: createLoggerConfig(configurationApi),",
+    replaceSource(this, "src/server/core/app_config.ts", "  logger: createLoggerConfig(configurationApi),",
       "  logger: createLoggerConfig(configurationApi),\n  redis: createRedisConfig(configurationApi),");
     replaceSource(this, "src/server/core/app.ts", 'import { DatabaseProvider } from "./providers/database_provider.js";',
       'import { DatabaseProvider } from "./providers/database_provider.js";\nimport { RedisProvider } from "./providers/redis_provider.js";');

@@ -138,7 +138,7 @@ Application code may still describe a read as a query in domain-specific termino
 Named catalog files such as `userCatalog.ts` gather the possible operations and controllers in a scope. The catalog is the public aggregate used by other scopes, while temporary action and controller objects used to assemble it remain private.
 Simple operations can be defined directly in the catalog file. For example, conventional CRUD definitions can stay there when Kestrel helpers keep them to a few lines; more substantial behavior goes in a dedicated file.
 
-The application gathers these module catalogs by domain in `src/server/core/appCatalog.ts`. Its flat action list is derived recursively from that hierarchy for consumers such as Studio, without runtime file discovery.
+The application gathers these module catalogs by domain in `src/server/core/app_catalog.ts`. Its flat action list is derived recursively from that hierarchy for consumers such as Studio, without runtime file discovery.
 
 Along an Action may be defined one or more bindings that provide access to the operation through external interfaces — for example an HTTP call or CLI command.
 

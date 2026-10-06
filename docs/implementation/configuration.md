@@ -8,7 +8,7 @@ The configuration system separates three responsibilities:
 
 - The configuration library defines the primitives used to declare, complete and resolve configuration.
 - Each library owns a Zod configuration base describing its required values, accepted inputs, transformations and defaults.
-- The application supplies deployment-specific values and overrides through focused factories, then declares its environments and assembles the final configuration in `src/server/core/appConfig.ts`.
+- The application supplies deployment-specific values and overrides through focused factories, then declares its environments and assembles the final configuration in `src/server/core/app_config.ts`.
 
 ## Concepts and model
 
@@ -118,7 +118,7 @@ The application completes a base with `configure()`. Its second argument is cont
 ```ts
 import { z } from "zod";
 
-import type { AppConfigurationApi } from "../appConfig.js";
+import type { AppConfigurationApi } from "../app_config.js";
 import { cacheConfigBase } from "@kestreljs/framework/cache";
 import { configure } from "@kestreljs/framework/configuration";
 
@@ -277,7 +277,7 @@ const ssl = configurationApi.fromEnv({
 });
 ```
 
-The application specializes this API in `src/server/core/appConfig.ts`. The environment is resolved at the same configuration boundary using the validated `ENVIRONMENT` variable and defaults to `local` when omitted. The `test` environment is used by automated tests both locally and in CI.
+The application specializes this API in `src/server/core/app_config.ts`. The environment is resolved at the same configuration boundary using the validated `ENVIRONMENT` variable and defaults to `local` when omitted. The `test` environment is used by automated tests both locally and in CI.
 
 The application-owned `config.core.debug` value is enabled for `local` and `test`, and disabled for `stage` and `prod`. Transport error handlers use it to decide whether unexpected error details may be exposed; it does not affect complete internal logging. `config.core.executionContext.maxEntrySizeBytes` and `maxTotalSizeBytes` bound JSON diagnostics retained by each execution, defaulting to 16 KiB and 64 KiB and accepting overrides through `EXECUTION_CONTEXT_MAX_ENTRY_SIZE_BYTES` and `EXECUTION_CONTEXT_MAX_TOTAL_SIZE_BYTES`. The application explicitly passes this policy to `App`, so Kestrel remains independent from both the application configuration shape and environment variables. `config.core.runtimeRoot` retains the application working directory used for mounted files and runtime integrations. `config.core.projectRoot` separately identifies the project root as seen by developer tools. It defaults to the runtime root and can be overridden through `PROJECT_ROOT` when the application runs in a container whose source paths differ from the host editor paths. Studio combines both values when generating source links; runtime integrations such as Vite must never resolve files through the editor path.
 
@@ -287,6 +287,6 @@ The contribution wrapper deliberately leaves room for additional runtime sources
 
 The conventional target catalog is currently internal to resolution. A future inspection API could expose it for deployment manifests, generated `.env.example` files and secret-manager templates without duplicating naming logic. Complex values could later opt into explicit schema metadata, but arrays and polymorphic objects should not become implicitly addressable without a stable representation.
 
-Configuration factories currently use a type-only reference to `appConfig.ts` so unsupported environment names fail where a fragment is authored. A future declaration API could instead carry environment names as phantom source metadata and validate them during final assembly. That would make fragments completely independent from the final configuration assembly, but the additional Kestrel type machinery is deferred until configuration fragments need to be shared between applications.
+Configuration factories currently use a type-only reference to `app_config.ts` so unsupported environment names fail where a fragment is authored. A future declaration API could instead carry environment names as phantom source metadata and validate them during final assembly. That would make fragments completely independent from the final configuration assembly, but the additional Kestrel type machinery is deferred until configuration fragments need to be shared between applications.
 
 Drizzle Kit uses the side-effect-free `drizzle.database.ts` tooling boundary because its CommonJS configuration loader cannot load the complete application composition graph. This helper validates credentials with the Kestrel database schema and mirrors the application's database environment policy. A future configuration artifact format could let external tools consume selected resolved sections directly without either loading the bootstrap or maintaining this explicit tooling adapter.

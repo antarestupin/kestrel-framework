@@ -27,7 +27,7 @@ const config = configuration.resolveConfig({
       audiences: { audiences: ["public"], defaultAudiences: ["public"] },
       generators: [{
         name: "public", audiences: ["public"], factoryName: "createPublicClient",
-        outputFile: "src/generated/publicClient.ts",
+        outputFile: "src/generated/public_client.ts",
         catalogImportPath: "../example.js", runtimeImportPath: "@kestreljs/framework/http/client",
       }],
     },

@@ -6,7 +6,7 @@ import type { Pool } from "pg";
 import type { ProviderCompositionApp } from "@kestreljs/framework/app";
 import { DatabaseProvider as BaseDatabaseProvider, type DatabaseClient, type DatabaseConfig } from "@kestreljs/framework/db";
 import { databaseCliControllers, LocalDatabaseMaintenance } from "@kestreljs/framework/database/seeder";
-import type { AppConfig, Environment } from "../appConfig.js";
+import type { AppConfig, Environment } from "../app_config.js";
 import * as schema from "../db/schema/app_schema.js";
 import { applicationDatabaseMaintenance } from "../db/seed.js";
 
