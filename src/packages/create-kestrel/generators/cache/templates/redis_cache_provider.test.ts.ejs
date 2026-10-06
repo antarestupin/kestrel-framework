@@ -1,75 +1,28 @@
-// Verifies lazy Redis connections, retries, reconnection, and disposal using fake clients.
-// Extend these lifecycle tests when changing the Redis provider without requiring a Redis server.
-
+// Verify that cache composition borrows the selected connection without taking ownership.
 import { expect, it, vi } from "vitest";
-import { createRedisCacheConnection } from "./redis_cache_provider.js";
+import { App } from "@kestreljs/framework/app";
+import { cacheDependency } from "@kestreljs/framework/cache";
+import { LoggerProvider } from "@kestreljs/framework/log";
+import { appConfig } from "../appConfig.js";
+import { dep } from "@kestreljs/framework/di";
+import { RedisCacheProvider } from "./redis_cache_provider.js";
+import { redisDependency, type RedisClient } from "./redis_provider.js";
 
-it("connects once for concurrent commands and closes the owned connection", async () => {
-  let release!: () => void;
-  const client = {
-    isOpen: true,
-    connect: vi.fn(() => new Promise<void>((resolve) => { release = resolve; })),
-    sendCommand: vi.fn(async () => "OK"),
-    destroy: vi.fn(),
-  };
-  const connection = createRedisCacheConnection(client);
+it.each([false, true])("borrows the selected Redis connection (custom=%s)", async (custom) => {
+  const app = new App(appConfig).register(new LoggerProvider(appConfig.logger));
+  const shared = { sendCommand: vi.fn(async () => null) };
+  const dedicated = { sendCommand: vi.fn(async () => null) };
+  const dedicatedDependency = dep<RedisClient>("cacheRedis");
+  app.container.registerValue(redisDependency.id, shared);
+  app.container.registerValue(dedicatedDependency.id, dedicated);
+  app.register(new RedisCacheProvider(appConfig.cache, custom ? dedicatedDependency : undefined));
   try {
-    const first = connection.sendCommand(["GET", "first"]);
-    const second = connection.sendCommand(["GET", "second"]);
-    expect(client.connect).toHaveBeenCalledOnce();
-    release();
-    await expect(Promise.all([first, second])).resolves.toEqual(["OK", "OK"]);
-  } finally { connection.close(); }
-  expect(client.destroy).toHaveBeenCalledOnce();
-  await expect(connection.sendCommand(["GET", "closed"])).rejects.toThrow("closed");
-});
-
-it("retries a failed initial connection on a later operation", async () => {
-  const client = {
-    isOpen: false,
-    connect: vi.fn().mockRejectedValueOnce(new Error("unavailable")).mockResolvedValue(undefined),
-    sendCommand: vi.fn(async () => null),
-    destroy: vi.fn(),
-  };
-  const connection = createRedisCacheConnection(client);
-  try {
-    await expect(connection.sendCommand(["GET", "key"])).rejects.toThrow("unavailable");
-    await expect(connection.sendCommand(["GET", "key"])).resolves.toBeNull();
-    expect(client.connect).toHaveBeenCalledTimes(2);
-  } finally { connection.close(); }
-});
-
-it("reconnects on demand after a previously connected socket closes", async () => {
-  const client = {
-    isOpen: false,
-    connect: vi.fn(async () => { client.isOpen = true; }),
-    sendCommand: vi.fn(async () => "OK"),
-    destroy: vi.fn(),
-  };
-  const connection = createRedisCacheConnection(client);
-  try {
-    await connection.sendCommand(["GET", "first"]);
-    client.isOpen = false;
-    await connection.sendCommand(["GET", "second"]);
-    expect(client.connect).toHaveBeenCalledTimes(2);
-  } finally { connection.close(); }
-});
-
-it("prevents commands from continuing when disposal interrupts a connection", async () => {
-  let release!: () => void;
-  const client = {
-    isOpen: true,
-    connect: vi.fn(() => new Promise<void>((resolve) => { release = resolve; })),
-    sendCommand: vi.fn(async () => "OK"),
-    destroy: vi.fn(),
-  };
-  const connection = createRedisCacheConnection(client);
-  const command = connection.sendCommand(["GET", "key"]);
-  // Attach the rejection handler before resolving the interrupted attempt.
-  const rejected = expect(command).rejects.toThrow("closed");
-  connection.close();
-  release();
-  await rejected;
-  expect(client.destroy).toHaveBeenCalledOnce();
-  expect(client.sendCommand).not.toHaveBeenCalled();
+    const cache = app.container.resolve(cacheDependency);
+    await cache.get("example");
+    expect((custom ? dedicated : shared).sendCommand).toHaveBeenCalledOnce();
+    expect((custom ? shared : dedicated).sendCommand).not.toHaveBeenCalled();
+    // Cache composition must not require a database or register a private Redis connection.
+    expect(app.container.hasRegistration("database")).toBe(false);
+    expect(app.container.hasRegistration("redisCacheConnection")).toBe(false);
+  } finally { await app.dispose(); }
 });

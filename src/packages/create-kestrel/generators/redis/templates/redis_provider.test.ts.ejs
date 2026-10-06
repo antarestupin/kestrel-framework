@@ -1,0 +1,122 @@
+// Verifies lazy Redis connections, retries, reconnection, and disposal using fake clients.
+// Extend these lifecycle tests when changing the Redis provider without requiring a Redis server.
+
+import { expect, it, vi } from "vitest";
+import { createRedisConnection } from "./redis_provider.js";
+
+it("connects once for concurrent commands and closes the owned connection", async () => {
+  let release!: () => void;
+  const client = {
+    isOpen: true,
+    connect: vi.fn(() => new Promise<void>((resolve) => { release = resolve; })),
+    sendCommand: vi.fn(async () => "OK"),
+    destroy: vi.fn(),
+  };
+  const connection = createRedisConnection(client);
+  try {
+    const first = connection.sendCommand(["GET", "first"]);
+    const second = connection.sendCommand(["GET", "second"]);
+    expect(client.connect).toHaveBeenCalledOnce();
+    release();
+    await expect(Promise.all([first, second])).resolves.toEqual(["OK", "OK"]);
+  } finally { connection.close(); }
+  expect(client.destroy).toHaveBeenCalledOnce();
+  await expect(connection.sendCommand(["GET", "closed"])).rejects.toThrow("closed");
+});
+
+it("retries a failed initial connection on a later operation", async () => {
+  const client = {
+    isOpen: false,
+    connect: vi.fn().mockRejectedValueOnce(new Error("unavailable")).mockResolvedValue(undefined),
+    sendCommand: vi.fn(async () => null),
+    destroy: vi.fn(),
+  };
+  const connection = createRedisConnection(client);
+  try {
+    await expect(connection.sendCommand(["GET", "key"])).rejects.toThrow("unavailable");
+    await expect(connection.sendCommand(["GET", "key"])).resolves.toBeNull();
+    expect(client.connect).toHaveBeenCalledTimes(2);
+  } finally { connection.close(); }
+});
+
+it("reconnects on demand after a previously connected socket closes", async () => {
+  const client = {
+    isOpen: false,
+    connect: vi.fn(async () => { client.isOpen = true; }),
+    sendCommand: vi.fn(async () => "OK"),
+    destroy: vi.fn(),
+  };
+  const connection = createRedisConnection(client);
+  try {
+    await connection.sendCommand(["GET", "first"]);
+    client.isOpen = false;
+    await connection.sendCommand(["GET", "second"]);
+    expect(client.connect).toHaveBeenCalledTimes(2);
+  } finally { connection.close(); }
+});
+
+it("prevents commands from continuing when disposal interrupts a connection", async () => {
+  let release!: () => void;
+  const client = {
+    isOpen: true,
+    connect: vi.fn(() => new Promise<void>((resolve) => { release = resolve; })),
+    sendCommand: vi.fn(async () => "OK"),
+    destroy: vi.fn(),
+  };
+  const connection = createRedisConnection(client);
+  const command = connection.sendCommand(["GET", "key"]);
+  // Attach the rejection handler before resolving the interrupted attempt.
+  const rejected = expect(command).rejects.toThrow("closed");
+  connection.close();
+  release();
+  await rejected;
+  expect(client.destroy).toHaveBeenCalledOnce();
+  expect(client.sendCommand).not.toHaveBeenCalled();
+});
+
+it("shares the default connection across consumers and owns additional connections independently", async () => {
+  const { App } = await import("@kestreljs/framework/app");
+  const { dep } = await import("@kestreljs/framework/di");
+  const { RedisProvider, redisDependency } = await import("./redis_provider.js");
+  const clients: ReturnType<typeof makeClient>[] = [];
+  function makeClient() {
+    const client = {
+      isOpen: false,
+      connect: vi.fn(async () => { client.isOpen = true; }),
+      sendCommand: vi.fn(async () => "OK"),
+      destroy: vi.fn(() => { client.isOpen = false; }),
+    };
+    return client;
+  }
+  class TestRedisProvider extends RedisProvider<object> {
+    protected createClient() {
+      const client = makeClient();
+      clients.push(client);
+      return client;
+    }
+  }
+  const app = new App({});
+  const config = { url: "redis://localhost:6379/2", connectTimeoutMs: 100 };
+  const dedicated = dep<import("./redis_provider.js").RedisClient>("cacheRedis");
+  app.register(new TestRedisProvider(config));
+  app.register(new TestRedisProvider(config, dedicated));
+  try {
+    expect(clients).toHaveLength(0);
+    const firstConsumer = app.container.resolve(redisDependency);
+    const secondConsumer = app.container.resolve(redisDependency);
+    expect(secondConsumer).toBe(firstConsumer);
+    expect(clients[0]!.connect).not.toHaveBeenCalled();
+    await Promise.all([
+      firstConsumer.sendCommand(["GET", "first"]),
+      secondConsumer.sendCommand(["GET", "second"]),
+    ]);
+    expect(clients[0]!.connect).toHaveBeenCalledOnce();
+    // A custom descriptor selects a separately owned socket even with identical URL settings.
+    const separate = app.container.resolve(dedicated);
+    expect(separate).not.toBe(firstConsumer);
+    await separate.sendCommand(["GET", "dedicated"]);
+    expect(clients).toHaveLength(2);
+    expect(clients[1]!.connect).toHaveBeenCalledOnce();
+  } finally { await app.dispose(); }
+  for (const client of clients) expect(client.destroy).toHaveBeenCalledOnce();
+});

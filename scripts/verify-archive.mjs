@@ -46,19 +46,17 @@ try {
   if (generated.dependencies[frameworkManifest.name] !== frameworkManifest.version) {
     throw new Error("The generated registry dependency must match the framework release.");
   }
-  for (const [name, cache, insight] of [
-    ["postgres-app", "postgres", false],
-    ["redis-app", "redis", false],
-    ["redis-insight-app", "redis", true],
+  for (const [name, cache] of [
+    ["postgres-app", "postgres"],
+    ["redis-app", "redis"],
   ]) {
     const application = join(temporary, name);
     run(process.execPath, [join(creator, "node_modules/.bin/create-kestrel"), application,
-      "--framework-archive", join(root, "artifacts", archiveName(frameworkManifest)), "--cache", cache,
-      insight ? "--redis-insight" : "--no-redis-insight"]);
+      "--framework-archive", join(root, "artifacts", archiveName(frameworkManifest)), "--cache", cache, "--yes"]);
     await install(application);
     for (const script of ["typecheck", "build:ai", "test:ai", "db:check"]) run(npm, ["run", script], application);
     run(process.execPath, ["scripts/verify-installed.mjs", application]);
-    console.info(`Independent ${cache} consumer verified (Redis Insight: ${insight}).`);
+    console.info(`Independent ${cache} consumer verified.`);
   }
 } finally {
   // Fixture installs and compiled outputs are owned by this verification run.

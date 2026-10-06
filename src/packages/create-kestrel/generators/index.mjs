@@ -2,7 +2,7 @@ import { createEnv } from "yeoman-environment";
 import ApplicationGenerator from "./application/index.mjs";
 import BaseGenerator from "./base/index.mjs";
 import CacheGenerator from "./cache/index.mjs";
-import RedisInsightGenerator from "./redis-insight/index.mjs";
+import RedisGenerator from "./redis/index.mjs";
 
 /** Register only bundled generators: application creation never discovers or installs plugins. */
 export async function createApplication(options, adapter) {
@@ -13,7 +13,7 @@ export async function createApplication(options, adapter) {
   environment.registerStub(ApplicationGenerator, "kestrel:application");
   environment.registerStub(BaseGenerator, "kestrel:base");
   environment.registerStub(CacheGenerator, "kestrel:cache");
-  environment.registerStub(RedisInsightGenerator, "kestrel:redis-insight");
+  environment.registerStub(RedisGenerator, "kestrel:redis");
   const logger = environment.adapter.log;
   const logCreatedFile = logger.create;
   // Hide per-file creation status while retaining prompts, diagnostics and the final summary.

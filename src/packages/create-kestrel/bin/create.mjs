@@ -8,8 +8,6 @@ const usage = `Usage: create-kestrel <app-name> [--framework-archive <local-fram
 
   --framework-archive      Use a local archive instead of the bundled registry version.
   --cache <postgres|redis>  Select the cache backend (default: postgres).
-  --redis-insight           Add Redis Insight when Redis is installed.
-  --no-redis-insight        Skip Redis Insight.
   --yes                    Use defaults without interactive questions.
   --help                   Show this help.`;
 
@@ -19,8 +17,6 @@ try {
     options: {
       "framework-archive": { type: "string" },
       cache: { type: "string" },
-      "redis-insight": { type: "boolean" },
-      "no-redis-insight": { type: "boolean" },
       yes: { type: "boolean", short: "y" },
       help: { type: "boolean", short: "h" },
     },
@@ -29,15 +25,11 @@ try {
     console.info(usage);
   } else {
     if (positionals.length !== 1) throw new Error(usage);
-    if (values["redis-insight"] && values["no-redis-insight"]) {
-      throw new Error("Choose either --redis-insight or --no-redis-insight.");
-    }
     // Both interfaces use the same generator; redirected input never starts prompts.
     await createApplication({
       directory: positionals[0],
       frameworkArchive: values["framework-archive"],
       cache: values.cache,
-      redisInsight: values["redis-insight"] ? true : values["no-redis-insight"] ? false : undefined,
       interactive: !values.yes && Boolean(process.stdin.isTTY && process.stdout.isTTY),
     });
   }

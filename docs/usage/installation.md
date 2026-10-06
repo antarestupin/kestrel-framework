@@ -46,19 +46,18 @@ Run `npm run build:ai` and `npm run test:ai` inside the generated application to
 
 ## Choose the cache backend
 
-In a terminal, the generator asks you to choose PostgreSQL or Redis for the cache. Redis Insight is offered only when Redis is selected and defaults to no. These examples are alternatives; use a different application name for each project:
+In a terminal, the generator asks you to choose PostgreSQL or Redis for the cache. Selecting Redis automatically includes Redis Insight for local development. These examples are alternatives; use a different application name for each project:
 
 ```sh
 npx @kestreljs/create-kestrel@latest my-app --cache postgres --yes
-npx @kestreljs/create-kestrel@latest my-app --cache redis --no-redis-insight
-npx @kestreljs/create-kestrel@latest my-app --cache redis --redis-insight
+npx @kestreljs/create-kestrel@latest my-app --cache redis --yes
 ```
 
-`--yes` and noninteractive input use PostgreSQL and no Redis Insight for unspecified choices. Invalid cache values and Redis Insight without Redis fail before files are written. The creator neither installs application dependencies nor discovers third-party generators.
+`--yes` and noninteractive input use PostgreSQL when the cache choice is unspecified. Invalid cache values and unknown options fail before files are written. Redis Insight has no separate enable/disable flags. The creator neither installs application dependencies nor discovers third-party generators.
 
-PostgreSQL remains the database for both variants. The PostgreSQL cache uses the framework adapter and includes the `utils.cache_entry` schema, migration, UNLOGGED contribution and reset boundary. The Redis cache adds `@redis/client`, a lazy application-owned connection, typed `REDIS_URL` configuration and a loopback-bound Compose service. It uses native expiration and does not support tags. `stage` and `prod` require an explicit Redis URL. The starter has no scheduled-task runtime, so automatic PostgreSQL pruning is disabled; arrange cache pruning before production use. See [cache usage](./cache.md).
+PostgreSQL remains the database for both variants. The PostgreSQL cache uses the framework adapter and includes the `utils.cache_entry` schema, migration, UNLOGGED contribution and reset boundary. The Redis cache adds `@redis/client`, a lazy application-owned connection, typed `REDIS_URL` configuration and a loopback-bound Compose service. The cache borrows the shared connection exposed by `redisDependency`; `RedisProvider` owns its lifecycle independently of cache. It uses native expiration and does not support tags. The generated Redis service uses `noeviction`, so memory pressure rejects writes instead of evicting shared coordination keys; TTL expiration still applies. You can register additional Redis providers under distinct dependency descriptors and pass one to `RedisCacheProvider` when isolation is needed. `stage` and `prod` require an explicit Redis URL. The starter has no scheduled-task runtime, so automatic PostgreSQL pruning is disabled; arrange cache pruning before production use. See [cache usage](./cache.md).
 
-When selected, Redis Insight joins `npm run infra:up`, preconfigures the local Redis connection and persists its UI settings in a named volume. Open http://127.0.0.1:5540 for local development. `npm run infra:down` stops it without deleting its settings. See [Redis Insight Docker installation](https://redis.io/docs/latest/operate/redisinsight/install/install-on-docker/) and [connection configuration](https://redis.io/docs/latest/operate/redisinsight/configuration/).
+Whenever Redis is installed, Redis Insight joins `npm run infra:up`, preconfigures the local Redis connection and persists its UI settings in a named volume. Open http://127.0.0.1:5540 for local development. `npm run infra:down` stops it without deleting its settings. See [Redis Insight Docker installation](https://redis.io/docs/latest/operate/redisinsight/install/install-on-docker/) and [connection configuration](https://redis.io/docs/latest/operate/redisinsight/configuration/).
 
 ## Develop your application
 

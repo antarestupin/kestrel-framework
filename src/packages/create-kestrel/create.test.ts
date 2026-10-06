@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { Writable } from "node:stream";
 import { expect, it, vi } from "vitest";
 import { createEnv } from "yeoman-environment";
+import Generator from "yeoman-generator";
 import { parse } from "yaml";
 import { generateDrizzleJson, generateMigration } from "drizzle-kit/api";
 import { cacheEntries } from "../kestrel/src/cache/postgres_schema.js";
@@ -13,6 +14,8 @@ import { utilsSchema } from "../kestrel/src/db/utils_schema.js";
 import { getDatabaseSchemaContributions } from "../kestrel/src/db/schema_contributions/index.js";
 import { note } from "./template/src/server/core/db/schema/app_schema.js";
 import { createApplication } from "./generators/index.mjs";
+import BaseGenerator from "./generators/base/index.mjs";
+import RedisGenerator from "./generators/redis/index.mjs";
 
 const executable = fileURLToPath(new URL("./bin/create.mjs", import.meta.url));
 
@@ -69,13 +72,9 @@ it.each(["postgres", "redis"])("creates a registry-based %s application without 
   });
 });
 
-it.each([
-  { cache: "postgres", insight: false },
-  { cache: "redis", insight: false },
-  { cache: "redis", insight: true },
-])("composes $cache cache with Redis Insight=$insight", async ({ cache, insight }) => {
+it.each(["postgres", "redis"])("composes %s cache with its required infrastructure", async (cache) => {
   await withFixture(async ({ target, archive }) => {
-    const result = create(target, archive, "--cache", cache, insight ? "--redis-insight" : "--no-redis-insight");
+    const result = create(target, archive, "--cache", cache);
     expect(result.status, result.stderr).toBe(0);
     const manifest = JSON.parse(await readFile(join(target, "package.json"), "utf8"));
     const infrastructure = parse(await readFile(join(target, ".devcontainer/docker-compose.yml"), "utf8"));
@@ -93,13 +92,13 @@ it.each([
     expect(journal.entries.map((entry: { tag: string }) => entry.tag)).toEqual(cache === "postgres"
       ? ["0000_initial_note", "0001_postgres_cache"] : ["0000_initial_note"]);
     const app = await readFile(join(target, "src/server/core/app.ts"), "utf8");
-    expect(app).toContain(cache === "redis" ? "new RedisCacheProvider(app.config.cache, app.config.redis)" : "new CacheProvider(app.config.cache)");
+    expect(app).toContain(cache === "redis" ? "new RedisCacheProvider(app.config.cache)" : "new CacheProvider(app.config.cache)");
     const schema = await readFile(join(target, "src/server/core/db/schema/app_schema.ts"), "utf8");
     expect(schema.includes("cacheEntries")).toBe(cache === "postgres");
     const env = await readFile(join(target, ".env.example"), "utf8");
     expect(env.includes("REDIS_URL")).toBe(cache === "redis");
-    expect(Object.keys(infrastructure.services)).toEqual(["app", "postgres", "drizzle-studio", ...(cache === "redis" ? ["redis"] : []), ...(insight ? ["redis-insight"] : [])]);
-    expect(manifest.scripts["infra:up"]).toBe(`docker compose -f .devcontainer/docker-compose.yml up -d --build --wait postgres drizzle-studio${cache === "redis" ? " redis" : ""}${insight ? " redis-insight" : ""}`);
+    expect(Object.keys(infrastructure.services)).toEqual(["app", "postgres", "drizzle-studio", ...(cache === "redis" ? ["redis", "redis-insight"] : [])]);
+    expect(manifest.scripts["infra:up"]).toBe(`docker compose -f .devcontainer/docker-compose.yml up -d --build --wait postgres drizzle-studio${cache === "redis" ? " redis redis-insight" : ""}`);
     // Every cache variant keeps the base database tool and its container-local credentials.
     expect(infrastructure.services["drizzle-studio"]).toMatchObject({
       build: { dockerfile: ".devcontainer/Dockerfile.drizzle-studio" },
@@ -113,6 +112,10 @@ it.each([
     await expect(access(join(target, "src/server/core/config/environment.ts"))).rejects.toMatchObject({ code: "ENOENT" });
     if (cache === "redis") {
       expect(manifest.dependencies["@redis/client"]).toBeDefined();
+      expect(infrastructure.services.redis.command).toEqual(expect.arrayContaining(["--maxmemory-policy", "noeviction"]));
+      expect(app.match(/new RedisProvider\(/g)).toHaveLength(1);
+      expect(app.indexOf("new RedisProvider")).toBeLessThan(app.indexOf("new RedisCacheProvider"));
+      await access(join(target, "src/server/core/providers/redis_provider.test.ts"));
       expect(infrastructure.services.app.environment.REDIS_URL).toBe("redis://redis:6379/0");
       expect(infrastructure.services.app.depends_on.redis.condition).toBe("service_healthy");
       expect(infrastructure.services.redis.ports).toEqual(["127.0.0.1:56379:6379"]);
@@ -121,7 +124,7 @@ it.each([
       expect(infrastructure.services.app.environment.REDIS_URL).toBeUndefined();
       expect(infrastructure.services.app.depends_on.redis).toBeUndefined();
     }
-    if (insight) {
+    if (cache === "redis") {
       expect(infrastructure.services["redis-insight"].ports).toEqual(["127.0.0.1:5540:5540"]);
       expect(infrastructure.services["redis-insight"].environment.RI_REDIS_HOST).toBe("redis");
       expect(infrastructure.volumes).toHaveProperty("redis-insight-data");
@@ -138,11 +141,37 @@ it("uses PostgreSQL defaults without prompts for redirected input", async () => 
   });
 });
 
+it("composes shared Redis infrastructure without a cache feature", async () => {
+  await withFixture(async ({ target }) => {
+    // A future non-cache feature can request the same standalone Redis generator.
+    class RedisOnlyApplication extends Generator {
+      async configuring() {
+        const options = { destination: target, applicationName: "my-app" };
+        await this.composeWith("fixture:base", options);
+        await this.composeWith("fixture:redis", options);
+      }
+    }
+    const output = new Writable({ write(_chunk, _encoding, done) { done(); } });
+    const environment = createEnv({ stdout: output, stderr: output, sharedOptions: { skipCache: true, localConfigOnly: true } });
+    environment.registerStub(RedisOnlyApplication, "fixture:application");
+    environment.registerStub(BaseGenerator, "fixture:base");
+    environment.registerStub(RedisGenerator, "fixture:redis");
+    try {
+      await environment.run("fixture:application", { skipInstall: true });
+      const app = await readFile(join(target, "src/server/core/app.ts"), "utf8");
+      expect(app).toContain("new RedisProvider(app.config.redis)");
+      expect(app).not.toContain("CacheProvider");
+      const infrastructure = parse(await readFile(join(target, ".devcontainer/docker-compose.yml"), "utf8"));
+      expect(infrastructure.services).toHaveProperty("redis-insight");
+      await expect(access(join(target, "src/server/core/config/cache.ts"))).rejects.toMatchObject({ code: "ENOENT" });
+    } finally { environment.adapter.close(); output.destroy(); }
+  });
+});
+
 it.each([
-  { options: {}, answers: { cache: "redis", redisInsight: true }, questions: ["cache", "redisInsight"] },
+  { options: {}, answers: { cache: "redis" }, questions: ["cache"] },
   { options: {}, answers: { cache: "postgres" }, questions: ["cache"] },
-  { options: { cache: "redis" }, answers: { redisInsight: false }, questions: ["redisInsight"] },
-  { options: { cache: "redis", redisInsight: false }, answers: {}, questions: [] },
+  { options: { cache: "redis" }, answers: {}, questions: [] },
 ])("asks only unresolved, applicable questions: $questions", async ({ options, answers, questions }) => {
   await withFixture(async ({ target, archive }) => {
     const output = new Writable({ write(_chunk, _encoding, done) { done(); } });
@@ -161,8 +190,8 @@ it.each([
 
 it.each([
   { arguments: ["--cache", "mysql"], message: "Cache must be postgres or redis" },
-  { arguments: ["--cache", "postgres", "--redis-insight"], message: "Redis Insight requires Redis" },
-  { arguments: ["--redis-insight", "--no-redis-insight"], message: "Choose either" },
+  { arguments: ["--redis-insight"], message: "Unknown option" },
+  { arguments: ["--no-redis-insight"], message: "Unknown option" },
   { arguments: ["--unknown"], message: "Unknown option" },
 ])("rejects invalid choices before writing: $arguments", async ({ arguments: arguments_, message }) => {
   await withFixture(async ({ target, archive }) => {

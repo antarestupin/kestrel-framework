@@ -92,6 +92,8 @@ function redisProvider(client: RedisCacheClient, config: CacheConfig) {
 
 Redis has native expiry but no tag, reset or prune capability. Configure connection/command timeouts on the borrowed client. For shared single-flight loading, register `LockProvider` and use `remember(key, loader, { lock: true })` or explicit lock options.
 
+Applications generated with `--cache redis` share one lazy connection through `redisDependency`, owned by `RedisProvider`; Redis Insight is included automatically for development. The generated instance uses `noeviction` so it can also host coordination keys: TTLs still expire, while writes requiring more memory can be rejected. For native LRU, supply a dedicated cache instance and select its connection through the optional dependency descriptor accepted by `RedisCacheProvider`. See the [Redis adapter implementation](../implementation/cache.md#redis-adapter) for ownership and deferred infrastructure generation.
+
 Cache storage failures normally degrade to misses or skipped writes. Loader errors propagate; cache locks follow the lock library's failure policy. Do not use cache success as a correctness guarantee. TTL and entry-size limits are enforced; capacity and pruning settings depend on the adapter.
 
 ## Use cases still to document

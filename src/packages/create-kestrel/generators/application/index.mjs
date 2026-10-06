@@ -40,15 +40,6 @@ export default class ApplicationGenerator extends Generator {
     this.cache ??= "postgres";
     // Infrastructure availability is explicit so future Redis consumers can contribute here.
     this.redisInstalled = this.cache === "redis";
-    this.redisInsight = this.options.redisInsight;
-    if (this.redisInsight && !this.redisInstalled) throw new Error("Redis Insight requires Redis.");
-    if (this.redisInstalled && this.redisInsight === undefined && this.options.interactive) {
-      const answers = await this.prompt([{
-        type: "confirm", name: "redisInsight", message: "Add Redis Insight for local development?", default: false,
-      }]);
-      this.redisInsight = answers.redisInsight;
-    }
-    this.redisInsight ??= false;
   }
 
   async configuring() {
@@ -56,7 +47,7 @@ export default class ApplicationGenerator extends Generator {
     // All generators share Yeoman's staged filesystem and ordered lifecycle.
     await this.composeWith("kestrel:base", options);
     await this.composeWith("kestrel:cache", options);
-    if (this.redisInsight) await this.composeWith("kestrel:redis-insight", options);
+    if (this.redisInstalled) await this.composeWith("kestrel:redis", options);
   }
 
   end() {

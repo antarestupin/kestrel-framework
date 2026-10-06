@@ -1,4 +1,4 @@
-// Configures the Redis cache connection URL and connection timeout.
+// Configures the shared Redis connection URL and connection timeout.
 // Set REDIS_URL for deployments; local and test environments have separate database defaults.
 
 import { z } from "zod";
