@@ -1,4 +1,4 @@
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import type {
   ObservationData,
   ObservationDefinition,
@@ -75,7 +75,7 @@ export class ScopedObserver implements Observer {
     options: RecordObservationOptions = {},
   ): void {
     this.recorder.enqueue({
-      id: options.id ?? createUuid(),
+      id: options.id ?? uuidV7(),
       executionId: this.executionId,
       occurredAt: options.occurredAt ?? new Date(),
       name: definition.name,

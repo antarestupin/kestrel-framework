@@ -1,4 +1,4 @@
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import type {
   EmailDriver,
   EmailMessage,
@@ -23,7 +23,7 @@ export class MemoryEmailAdapter implements EmailDriver {
 
   public constructor(options: MemoryEmailAdapterOptions = {}) {
     this.name = options.name ?? "memory";
-    this.createMessageId = options.createMessageId ?? createUuid;
+    this.createMessageId = options.createMessageId ?? uuidV7;
     this.now = options.now ?? (() => new Date());
   }
 

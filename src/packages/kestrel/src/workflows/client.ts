@@ -3,7 +3,7 @@ import type {
   ZodType,
 } from "zod";
 
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import { parseSchema } from "../definitions/index.js";
 import type {
   WorkflowAdapter,
@@ -118,7 +118,7 @@ export class WorkflowClient {
     private readonly adapter: WorkflowAdapter,
     options: WorkflowClientOptions = {},
   ) {
-    this.createExecutionId = options.createExecutionId ?? createUuid;
+    this.createExecutionId = options.createExecutionId ?? uuidV7;
     this.payloadCodec = options.payloadCodec ?? jsonWorkflowPayloadCodec;
     this.instrumentation = options.instrumentation;
     this.maxStartBatchSize = options.maxStartBatchSize ?? 100;

@@ -1,4 +1,4 @@
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import {
   EmailSendError,
   normalizeEmailSendError,
@@ -29,7 +29,7 @@ export class EmailClient {
     this.name = normalizeIdentifier(options.name, "client name");
     normalizeIdentifier(options.driver.name, "driver name");
     this.monotonicNow = options.monotonicNow ?? (() => performance.now());
-    this.createObservationId = options.createObservationId ?? createUuid;
+    this.createObservationId = options.createObservationId ?? uuidV7;
   }
 
   /** Validates and hands one message to the configured transport. */

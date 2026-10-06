@@ -6,7 +6,7 @@ import {
 } from "vitest";
 import { z } from "zod";
 
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import { defineAction } from "../actions/index.js";
 import { App } from "../app/index.js";
 import { dep } from "../di/index.js";
@@ -200,7 +200,7 @@ describe("CacheProvider", () => {
       output: z.string(),
       dependencies: { cache: cacheDependency },
       handler: (_input, { cache }) => cache.remember(
-        createUuid(),
+        uuidV7(),
         async () => "loaded",
         { lock: true },
       ),

@@ -17,5 +17,5 @@ export {
   type AnyWorker,
   type AnyWorkflow,
 } from "./definitions.js";
-export { createUuid } from "./uuid.js";
+export { uuidV7 } from "./uuid.js";
 export { createPaginationCursorCodec, type PaginationCursorCodec } from "./cursor_codec.js";

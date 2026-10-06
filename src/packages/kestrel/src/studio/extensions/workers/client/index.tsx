@@ -9,7 +9,7 @@ import {
   useParams,
 } from "@tanstack/react-router";
 
-import { createUuid } from "../../../../utils/uuid.js";
+import { uuidV7 } from "../../../../utils/uuid.js";
 import { StudioPageHeader } from "../../../client/src/page.js";
 import type { StudioPageRenderer } from "../../../client/src/page_renderer.js";
 import { addStudioPageRenderer } from "../../../client/src/page_renderer_registry.js";
@@ -408,7 +408,7 @@ function WorkerPublisher({
 
     try {
       const parsedPayload = JSON.parse(payload) as unknown;
-      const requestedExecutionId = createUuid();
+      const requestedExecutionId = uuidV7();
 
       setExecutionId(requestedExecutionId);
 

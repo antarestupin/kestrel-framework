@@ -4,7 +4,7 @@ import {
   useState,
 } from "react";
 
-import { createUuid } from "../../../../utils/uuid.js";
+import { uuidV7 } from "../../../../utils/uuid.js";
 import { StudioPageHeader } from "../../../client/src/page.js";
 import type { StudioPageRenderer } from "../../../client/src/page_renderer.js";
 import { addStudioPageRenderer } from "../../../client/src/page_renderer_registry.js";
@@ -244,7 +244,7 @@ function ControllerRequestEditor({
     try {
       const requestedExecutionId = observability === undefined
         ? undefined
-        : createUuid();
+        : uuidV7();
       const request = buildRequest(
         controller,
         fieldValues,

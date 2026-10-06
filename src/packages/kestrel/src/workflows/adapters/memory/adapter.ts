@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { decodeWorkflowExecutionCursor, formatWorkflowCursorDate, workflowExecutionCursorCodec } from "../../execution_cursor.js";
 
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import type {
   CommitWorkflowActivationRequest,
   ContinueWorkflowAsNewRequest,
@@ -143,9 +143,9 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
   public constructor(options: MemoryWorkflowAdapterOptions = {}) {
     this.activityDispatchMode = options.activityDispatchMode ?? "embedded";
     this.now = options.now ?? (() => new Date());
-    this.createSignalId = options.createSignalId ?? createUuid;
-    this.createTaskId = options.createTaskId ?? createUuid;
-    this.createReservationToken = options.createReservationToken ?? createUuid;
+    this.createSignalId = options.createSignalId ?? uuidV7;
+    this.createTaskId = options.createTaskId ?? uuidV7;
+    this.createReservationToken = options.createReservationToken ?? uuidV7;
   }
 
   public async start(

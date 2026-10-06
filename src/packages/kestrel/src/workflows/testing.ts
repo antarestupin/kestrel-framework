@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import { parseSchema } from "../definitions/index.js";
 import type {
   WorkflowAdapter,
@@ -237,7 +237,7 @@ export async function assertWorkflowReplayCompatible(
         new DurableWorkflowExecutionContext(replay, {
           cancellationRequested: snapshot.cancellationRequested,
           codec,
-          createUuid: options.createUuid ?? createUuid,
+          createUuid: options.createUuid ?? uuidV7,
           now: options.now ?? Date.now,
           signals: definition.signals,
         }),

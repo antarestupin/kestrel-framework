@@ -6,7 +6,7 @@ The database libraries provide PostgreSQL and Drizzle composition, execution-sco
 
 ## UUID generation and PostgreSQL compatibility
 
-PostgreSQL adapters require PostgreSQL 18 or later. Database-generated UUID columns use Drizzle's `.default(sql`uuidv7()`)`, and SQL reservation operations use the same native function. IDs generated before insertion use `createUuid()` from `utils/uuid.js`; injectable generator options remain supported. UUID columns and generic UUID validators continue accepting caller-supplied identifiers of other versions.
+PostgreSQL adapters require PostgreSQL 18 or later. Database-generated UUID columns use Drizzle's `.default(sql`uuidv7()`)`, and SQL reservation operations use the same native function. IDs generated before insertion use `uuidV7()` from `utils/uuid.js`; injectable generator options remain supported. UUID columns and generic UUID validators continue accepting caller-supplied identifiers of other versions.
 
 Changing a column default affects subsequent inserts only. Existing identifiers, foreign keys and history references are preserved when applying migrations to an existing database. Recreating disposable databases and seeding them after migrations produces new v7 identities. Keep migration-owned schema changes in ordered migrations and development-only objects in the existing aligned push-schema exports and table filters.
 

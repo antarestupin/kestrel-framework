@@ -3,7 +3,7 @@ import {
   randomBytes,
 } from "node:crypto";
 
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import type { TokenDefinition } from "./definition.js";
 import { resolveTokenExpiration } from "./lifetime.js";
 import type {
@@ -54,7 +54,7 @@ export class StoredTokenStrategy implements TokenStrategy {
     this.now = options.now ?? (() => new Date());
     this.randomToken = options.randomToken
       ?? ((bytes) => randomBytes(bytes).toString("base64url"));
-    this.createId = options.createId ?? createUuid;
+    this.createId = options.createId ?? uuidV7;
     this.digest = options.digest
       ?? ((token) => createHash("sha256").update(token).digest());
     this.pruningScope = store;

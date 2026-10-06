@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import { startLeaseHeartbeat } from "../scheduling/index.js";
 import {
   LockAcquisitionAbortedError,
@@ -53,7 +53,7 @@ export class LockManager implements Locks {
   ) {
     validateManagerOptions(options);
     this.now = options.now ?? (() => new Date());
-    this.createOwnerId = options.createOwnerId ?? createUuid;
+    this.createOwnerId = options.createOwnerId ?? uuidV7;
     this.random = options.random ?? Math.random;
     this.sleep = options.sleep ?? defaultSleep;
     this.retryJitterRatio = options.retryJitterRatio ?? 0.2;

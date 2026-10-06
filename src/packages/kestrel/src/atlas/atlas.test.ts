@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import { defineAction } from "../actions/index.js";
 import {
   defineCatalogAtlasSource,
@@ -53,7 +53,7 @@ const createAction = defineAction({
   input: writeSchema,
   output: modelSchema,
   handler: ({ email }) => ({
-    id: createUuid(),
+    id: uuidV7(),
     email,
     active: true,
     createdAt: new Date(),

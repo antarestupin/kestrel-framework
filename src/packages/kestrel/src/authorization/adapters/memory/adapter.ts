@@ -1,4 +1,4 @@
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import type {
   AuthorizationRole,
   PermissionResolver,
@@ -26,7 +26,7 @@ export class MemoryAuthorizationAdapter
 
   public constructor(options: MemoryAuthorizationAdapterOptions = {}) {
     this.now = options.now ?? (() => new Date());
-    this.createId = options.createId ?? createUuid;
+    this.createId = options.createId ?? uuidV7;
 
     for (const role of options.roles ?? []) {
       this.addRole(role);

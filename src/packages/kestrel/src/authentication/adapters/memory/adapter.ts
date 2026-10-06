@@ -1,4 +1,4 @@
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import type {
   AuthenticationAdapter,
   CreateAuthenticationAccount,
@@ -41,7 +41,7 @@ export class MemoryAuthenticationAdapter<Claims = unknown>
 
   public constructor(options: MemoryAuthenticationAdapterOptions = {}) {
     this.now = options.now ?? (() => new Date());
-    this.createId = options.createId ?? createUuid;
+    this.createId = options.createId ?? uuidV7;
   }
 
   public async findById(

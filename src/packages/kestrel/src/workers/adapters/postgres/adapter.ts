@@ -8,7 +8,7 @@ import {
 import { isDeepStrictEqual } from "node:util";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 
 import {
   workerDeadLetterJobs,
@@ -119,7 +119,7 @@ export class PostgresWorkerAdapter implements WorkerAdapter {
         }
 
         // Assign IDs before insertion instead of relying on RETURNING order.
-        const id = createUuid();
+        const id = uuidV7();
         inserts.push({ ...request, id });
         if (request.identity !== undefined) {
           // Match the stored JSON representation for repetitions within this

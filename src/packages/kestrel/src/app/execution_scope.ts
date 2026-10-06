@@ -1,4 +1,4 @@
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import {
   createActionRunner,
   type Action,
@@ -73,7 +73,7 @@ export class ExecutionScope<Config> implements ActionExecution {
 
   public constructor(
     public readonly container: DependencyContainer<Config>,
-    public readonly id: string = createUuid(),
+    public readonly id: string = uuidV7(),
     public readonly errorHandler: ErrorHandler = new DefaultErrorHandler({
       debug: false,
     }),

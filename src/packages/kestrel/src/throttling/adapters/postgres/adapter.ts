@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import {
   ThrottlingBackendUnavailableError,
   ThrottlingDefinitionConflictError,
@@ -1193,7 +1193,7 @@ function createLeaseDecision(
     key: request.key,
     mode: "lease",
     remaining: Math.max(0, capacity.available - units),
-    leaseId: createUuid(),
+    leaseId: uuidV7(),
     leaseMs: request.coordination.leaseMs,
     units,
   };

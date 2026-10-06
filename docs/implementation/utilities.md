@@ -50,7 +50,7 @@ sequenceDiagram
 
 | Export | Purpose |
 | --- | --- |
-| `createUuid()` | Generates a server/browser UUID v7 without database access. |
+| `uuidV7()` | Generates a server/browser UUID v7 without database access. |
 | `createPaginationCursorCodec()`, `PaginationCursorCodec` | Encodes and validates typed, versioned server-side cursor tokens without a dependency on actions or database libraries. |
 | `CatalogTree` | Recursive catalog type. |
 | `flattenCatalog()` | Extracts terminal definitions in deterministic declaration order. |

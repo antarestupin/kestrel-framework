@@ -1,4 +1,4 @@
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import { contentBytes, type EmailCaptureStore } from "../../capture.js";
 import { EmailDriverError } from "../../errors.js";
 import type {
@@ -30,7 +30,7 @@ export class EmailCaptureAdapter implements EmailDriver {
 
   public constructor(private readonly options: EmailCaptureAdapterOptions) {
     this.name = options.name ?? "capture";
-    this.createCaptureId = options.createCaptureId ?? createUuid;
+    this.createCaptureId = options.createCaptureId ?? uuidV7;
     this.maxMessageBytes = options.maxMessageBytes ?? defaultMaximumMessageBytes;
     this.now = options.now ?? (() => new Date());
 

@@ -1,4 +1,4 @@
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import { parseSchema } from "../definitions/index.js";
 import {
   abortableDelay,
@@ -113,7 +113,7 @@ export class WorkflowScheduler {
     this.leaseMs = options.leaseMs ?? 30_000;
     this.payloadCodec = options.payloadCodec ?? jsonWorkflowPayloadCodec;
     this.replayer = options.replayer ?? new WorkflowReplayer();
-    this.createUuid = options.createUuid ?? createUuid;
+    this.createUuid = options.createUuid ?? uuidV7;
     this.now = options.now ?? Date.now;
     this.maxHistoryEvents = options.maxHistoryEvents ?? 10_000;
     this.taskKinds = options.taskKinds ?? ["workflow", "activity", "timer"];

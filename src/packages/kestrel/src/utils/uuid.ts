@@ -2,7 +2,7 @@
  * Creates an RFC 9562 UUID v7 in Node.js and browsers using Web Crypto.
  * The timestamp orders milliseconds, not calls within a millisecond or commits.
  */
-export function createUuid(): string {
+export function uuidV7(): string {
   const timestamp = Date.now();
 
   // Reject unsupported clocks instead of silently truncating the 48-bit epoch.

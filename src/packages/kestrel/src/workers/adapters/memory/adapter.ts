@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import { WorkerJobIdentityConflictError } from "../../errors.js";
 
 import type {
@@ -62,9 +62,9 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
   public constructor(options: MemoryWorkerAdapterOptions = {}) {
     this.acknowledgementGrouping = options.acknowledgementGrouping ?? "global";
     this.now = options.now ?? (() => new Date());
-    this.createId = options.createId ?? createUuid;
+    this.createId = options.createId ?? uuidV7;
     this.createReservationToken = options.createReservationToken
-      ?? createUuid;
+      ?? uuidV7;
   }
 
   public async enqueue<Payload>(

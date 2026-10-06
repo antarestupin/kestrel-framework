@@ -2,7 +2,7 @@ import {
   createHash,
 } from "node:crypto";
 
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import type { TokenDefinition } from "../../definition.js";
 import type {
   CreateStoredToken,
@@ -54,7 +54,7 @@ export class HybridTokenStrategy implements TokenStrategy {
   ) {
     this.now = options.now ?? (() => new Date());
     this.codec = new JwtTokenCodec({ ...options, now: this.now });
-    this.createStateId = options.createStateId ?? createUuid;
+    this.createStateId = options.createStateId ?? uuidV7;
     this.digestId = options.digestId
       ?? ((id) => createHash("sha256").update(id).digest());
     this.pruningScope = store;

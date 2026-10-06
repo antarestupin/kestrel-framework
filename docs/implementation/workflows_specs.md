@@ -268,7 +268,7 @@ A future PostgreSQL transaction activity may atomically commit an application mu
 The context provides replay-safe time and identifiers. A more general API can capture a small serializable nondeterministic value once:
 
 ```ts
-const requestId = await workflow.sideEffect(() => createUuid(), {
+const requestId = await workflow.sideEffect(() => uuidV7(), {
   label: "External request ID",
 });
 ```

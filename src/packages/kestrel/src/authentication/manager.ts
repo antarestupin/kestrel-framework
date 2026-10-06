@@ -4,7 +4,7 @@ import {
 } from "node:crypto";
 import type { ZodType } from "zod";
 
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import type { AuthenticationConfig } from "./configuration.js";
 import type { AuthenticationDefinition } from "./definition.js";
 import {
@@ -67,7 +67,7 @@ export class AuthenticationManager<
     options: AuthenticationManagerOptions = {},
   ) {
     this.now = options.now ?? (() => new Date());
-    this.createId = options.createId ?? createUuid;
+    this.createId = options.createId ?? uuidV7;
     this.createToken = options.createToken ?? randomBytes;
   }
 

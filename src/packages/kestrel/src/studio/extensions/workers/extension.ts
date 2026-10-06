@@ -1,7 +1,7 @@
 import { definition as faGears } from "@fortawesome/free-solid-svg-icons/faGears";
 import { z, type ZodType } from "zod";
 
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import { safeParseSchema } from "../../../definitions/index.js";
 import {
   defineHttpController,
@@ -183,7 +183,7 @@ export function defineWorkersStudioExtension(
               });
             }
 
-            const executionId = input.executionId ?? createUuid();
+            const executionId = input.executionId ?? uuidV7();
             const [jobId] = await adapter.enqueue([{
               queue: worker.queue,
               payload: payload.data,

@@ -6,7 +6,7 @@ import {
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import {
   scheduledTaskRuns,
   scheduledTaskStates,
@@ -129,7 +129,7 @@ export class PostgresScheduledTaskAdapter implements ScheduledTaskAdapter {
         return { status: "paused" };
       }
 
-      const reservationToken = createUuid();
+      const reservationToken = uuidV7();
       const reservedAt = new Date();
       await consumeOccurrence(
         transaction,

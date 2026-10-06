@@ -1,4 +1,4 @@
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import type {
   CompleteScheduledTaskRequest,
   ExtendScheduledTaskLeaseRequest,
@@ -39,7 +39,7 @@ export class MemoryScheduledTaskAdapter implements ScheduledTaskAdapter {
 
   public constructor(options: MemoryScheduledTaskAdapterOptions = {}) {
     this.now = options.now ?? (() => new Date());
-    this.createReservationToken = options.createReservationToken ?? createUuid;
+    this.createReservationToken = options.createReservationToken ?? uuidV7;
   }
 
   public async reconcile(

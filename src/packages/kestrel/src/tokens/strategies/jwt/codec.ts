@@ -5,7 +5,7 @@ import {
   type JWTPayload,
 } from "jose";
 
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import type { TokenDefinition } from "../../definition.js";
 import { resolveTokenExpiration } from "../../lifetime.js";
 import type {
@@ -91,7 +91,7 @@ export class JwtTokenCodec {
     }
 
     this.now = options.now ?? (() => new Date());
-    this.createId = options.createId ?? createUuid;
+    this.createId = options.createId ?? uuidV7;
   }
 
   /** Signs a complete batch against one consistent issuance instant. */

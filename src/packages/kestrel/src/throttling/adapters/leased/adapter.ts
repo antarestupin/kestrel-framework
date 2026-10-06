@@ -1,4 +1,4 @@
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import {
   ThrottlingAdapterCapabilityError,
   ThrottlingBackendUnavailableError,
@@ -83,7 +83,7 @@ export class LeasedRateLimitAdapter implements
     this.maxCachedDenials = options.maxCachedDenials
       ?? DEFAULT_MAX_CACHED_DENIALS;
     this.now = options.now ?? (() => new Date());
-    this.ownerId = options.ownerId ?? createUuid();
+    this.ownerId = options.ownerId ?? uuidV7();
     this.random = options.random ?? Math.random;
     this.retryJitterRatio = options.retryJitterRatio
       ?? DEFAULT_RETRY_JITTER_RATIO;

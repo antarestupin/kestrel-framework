@@ -15,7 +15,7 @@ import { z } from "zod";
 import { defineAction, createPaginationInputSchema, createPaginatedOutputSchema } from "@kestreljs/framework/actions";
 import { defineAtlas, defineAtlasResource, defineCatalogAtlasSource } from "@kestreljs/framework/atlas";
 import { createPaginatedResult } from "@kestreljs/framework/db";
-import { createUuid } from "@kestreljs/framework/utils/uuid";
+import { uuidV7 } from "@kestreljs/framework/utils/uuid";
 
 const contact = z.object({ id: z.uuid(), name: z.string() });
 const identifier = contact.pick({ id: true });
@@ -39,7 +39,7 @@ const actions = {
   }),
   create: defineAction({
     name: "contact.create", input: contact.omit({ id: true }), output: contact,
-    handler: ({ name }) => { const record = { id: createUuid(), name }; records.set(record.id, record); return record; },
+    handler: ({ name }) => { const record = { id: uuidV7(), name }; records.set(record.id, record); return record; },
   }),
   update: defineAction({
     name: "contact.update", input: contact, output: contact.nullable(),

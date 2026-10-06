@@ -23,7 +23,7 @@ import type {
 } from "pg";
 
 import { createPostgresTestPool } from "../../../testing/postgres.js";
-import { createUuid } from "../../../utils/uuid.js";
+import { uuidV7 } from "../../../utils/uuid.js";
 import { WorkerJobIdentityConflictError } from "../../errors.js";
 import {
   workerDeadLetterJobs,
@@ -253,7 +253,7 @@ describe("PostgresWorkerAdapter", () => {
   it("deduplicates concurrent publications with opposite identity order", async () => {
     // Separate sessions need a shared relation. Its unique name and cleanup
     // keep this concurrency probe independent of other suites and app tables.
-    const name = `worker_enqueue_${createUuid().replaceAll("-", "")}`;
+    const name = `worker_enqueue_${uuidV7().replaceAll("-", "")}`;
     const table = createTestWorkerJobs(name);
     const secondClient = await pool.connect();
     try {

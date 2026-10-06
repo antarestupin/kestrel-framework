@@ -9,9 +9,9 @@ Use focused utility entry points when you need identifiers, cursor encoding or c
 Generate an identifier before persistence when a record needs an ID in server or browser code. The same helper works without a database connection.
 
 ```ts
-import { createUuid } from "@kestreljs/framework/utils/uuid";
+import { uuidV7 } from "@kestreljs/framework/utils/uuid";
 
-const id = createUuid();
+const id = uuidV7();
 ```
 
 This generates a UUID v7 in server or browser code without a database round trip. Its timestamp is not a transaction sequence or a guarantee of strict ordering between concurrent callers.

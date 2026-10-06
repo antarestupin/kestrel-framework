@@ -1,4 +1,4 @@
-import { createUuid } from "../utils/uuid.js";
+import { uuidV7 } from "../utils/uuid.js";
 import {
   type Action,
   type ActionRunner,
@@ -358,7 +358,7 @@ export class App<
     }
 
     const container = this.container.createScope();
-    const executionId = id ?? createUuid();
+    const executionId = id ?? uuidV7();
     const tasks = new DeferredTasks();
     const context = new ExecutionContext(this.executionContextOptions);
 
