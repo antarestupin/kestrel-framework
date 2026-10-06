@@ -54,6 +54,8 @@ try {
 
 Recipients accept one address or an array; CC, BCC and reply-to fields use the same address model. At least one text or HTML body is required. The stable `operation` identifies the logical send in observations without including recipient data.
 
+You can provide `text` and `html` together: they are alternative representations of a single email, not two separate emails. The recipient's email client chooses which version to display according to its capabilities and preferences. Keep their content equivalent, using `text` for plain text and `html` for formatted content.
+
 ## Switch to SMTP
 
 Select SMTP when the application is ready to deliver through a mail server. Keep credentials in application configuration so deployments can supply their own account.
