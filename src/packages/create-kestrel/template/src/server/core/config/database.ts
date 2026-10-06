@@ -38,10 +38,10 @@ export function createDatabaseConfig({
     }),
     database: fromEnv({
       local: envVar("DB_DATABASE", {
-        fallback: "kestrel_playground",
+        fallback: "__KESTREL_DATABASE_NAME__",
       }),
       test: envVar("DB_TEST_DATABASE", {
-        fallback: "kestrel_playground_test",
+        fallback: "__KESTREL_TEST_DATABASE_NAME__",
       }),
       default: envVar("DB_DATABASE"),
     }),

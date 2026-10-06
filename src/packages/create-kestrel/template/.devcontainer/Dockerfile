@@ -7,4 +7,4 @@ FROM node:24-bookworm
 RUN apt-get update \
   && apt-get install -y --no-install-recommends git postgresql-client \
   && rm -rf /var/lib/apt/lists/*
-RUN mkdir -p /workspace/app && chown -R node:node /workspace
+RUN mkdir -p /workspace/__KESTREL_APPLICATION_NAME__ && chown -R node:node /workspace

@@ -2,10 +2,10 @@
 // Keep its service and workspace settings aligned with docker-compose.yml.
 
 {
-  "name": "Kestrel application",
+  "name": "Kestrel Playground",
   "dockerComposeFile": "docker-compose.yml",
   "service": "app",
-  "workspaceFolder": "/workspace/app",
+  "workspaceFolder": "/workspace/kestrel-playground",
   "remoteUser": "node",
   "shutdownAction": "stopCompose",
   "forwardPorts": [

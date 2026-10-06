@@ -17,7 +17,7 @@ export const applicationDatabaseMaintenance = defineDatabaseMaintenance({
   seed: defineDatabaseSeed({
     steps: [{ type: "records", key: "note", table: note, records: () => [{
       key: "welcome",
-      values: { id: "00000000-0000-4000-8000-000000000001", content: "Welcome to Kestrel." },
+      values: { id: "00000000-0000-4000-8000-000000000001", content: "Welcome to Kestrel Playground." },
     }] }],
   }),
 });

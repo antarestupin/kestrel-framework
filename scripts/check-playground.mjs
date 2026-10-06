@@ -2,19 +2,22 @@ import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { relative, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createApplicationNames, renderApplicationTemplate } from "../src/packages/create-kestrel/generators/application_names.mjs";
 
 // The playground is maintained separately from the package-owned starter template.
 // Keep them aligned so playground tests exercise the application users generate.
-// Compare template file contents and executable permissions, plus the complete
+// Compare rendered template contents and executable permissions, plus the complete
 // source file inventory; only the package name may differ in package.json.
 const source = new URL("../src/packages/create-kestrel/template/", import.meta.url);
 const playground = new URL("../src/apps/playground/", import.meta.url);
+// Preserve the playground's existing database identity while exercising the same name rendering.
+const playgroundNames = createApplicationNames("kestrel-playground");
 for (const file of await readdir(source, { recursive: true, withFileTypes: true })) {
   if (!file.isFile()) continue;
   const templatePath = relative(fileURLToPath(source), join(file.parentPath, file.name));
   // Generation restores the hidden filename that npm otherwise excludes from its archive.
   const path = templatePath === "gitignore" ? ".gitignore" : templatePath;
-  const expected = await readFile(new URL(templatePath, source), "utf8");
+  const expected = renderApplicationTemplate(await readFile(new URL(templatePath, source), "utf8"), playgroundNames);
   const actual = await readFile(new URL(path, playground), "utf8");
   // Launchers must retain the executable permissions of the package-owned template.
   const sourceMode = (await stat(new URL(templatePath, source))).mode & 0o111;

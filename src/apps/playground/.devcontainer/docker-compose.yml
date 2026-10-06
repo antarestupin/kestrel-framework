@@ -6,11 +6,11 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
-    working_dir: /workspace/app
+    working_dir: /workspace/kestrel-playground
     volumes:
-      - ..:/workspace/app:cached
-      - node-modules:/workspace/app/node_modules
-    command: /bin/sh -c "mkdir -p /workspace/app/node_modules && chown -R node:node /workspace/app/node_modules && sleep infinity"
+      - ..:/workspace/kestrel-playground:cached
+      - node-modules:/workspace/kestrel-playground/node_modules
+    command: /bin/sh -c "mkdir -p /workspace/kestrel-playground/node_modules && chown -R node:node /workspace/kestrel-playground/node_modules && sleep infinity"
     environment:
       HOST: 0.0.0.0
       PORT: "3333"
@@ -18,8 +18,8 @@ services:
       DB_PORT: "5432"
       DB_USER: postgres
       DB_PASSWORD: postgres
-      DB_DATABASE: kestrel_playground
-      DB_TEST_DATABASE: kestrel_playground_test
+      DB_DATABASE: "kestrel_playground"
+      DB_TEST_DATABASE: "kestrel_playground_test"
       DB_SSL: "false"
     depends_on:
       postgres:
@@ -33,7 +33,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: kestrel_playground
+      POSTGRES_DB: "kestrel_playground"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
@@ -47,13 +47,13 @@ services:
       context: ..
       dockerfile: .devcontainer/Dockerfile.drizzle-studio
     init: true
-    working_dir: /workspace/app
+    working_dir: /workspace/kestrel-playground
     user: node
     volumes:
       # Read live schema/configuration without sharing host or devcontainer dependencies.
-      - ../src:/workspace/app/src:ro
-      - ../drizzle.database.ts:/workspace/app/drizzle.database.ts:ro
-      - ../drizzle.dev.config.ts:/workspace/app/drizzle.dev.config.ts:ro
+      - ../src:/workspace/kestrel-playground/src:ro
+      - ../drizzle.database.ts:/workspace/kestrel-playground/drizzle.database.ts:ro
+      - ../drizzle.dev.config.ts:/workspace/kestrel-playground/drizzle.dev.config.ts:ro
     command: ["node", "node_modules/drizzle-kit/bin.cjs", "studio", "--config=drizzle.dev.config.ts", "--host=0.0.0.0", "--port=4983"]
     ports:
       - "127.0.0.1:4983:4983"
@@ -63,7 +63,7 @@ services:
       DB_PORT: "5432"
       DB_USER: postgres
       DB_PASSWORD: postgres
-      DB_DATABASE: kestrel_playground
+      DB_DATABASE: "kestrel_playground"
       DB_SSL: "false"
     depends_on:
       postgres:

@@ -6,15 +6,16 @@ import "./styles.css";
 function Application() {
   return (
     <main className="welcome">
-      <header className="brand" aria-label="Kestrel">
-        <span className="brand-mark" aria-hidden="true">k.</span>
-        <span>kestrel</span>
+      {/* Application identity is filled in by the creator; framework resource links stay shared. */}
+      <header className="brand" aria-label="__KESTREL_DISPLAY_NAME__">
+        <span className="brand-mark" aria-hidden="true">__KESTREL_APPLICATION_INITIAL__.</span>
+        <span>__KESTREL_DISPLAY_NAME__</span>
       </header>
 
       <section className="intro" aria-labelledby="welcome-title">
-        <p className="status"><span aria-hidden="true" />Your Kestrel app is running</p>
+        <p className="status"><span aria-hidden="true" />__KESTREL_DISPLAY_NAME__ is running</p>
         <h1 id="welcome-title">A fresh start.<br /><span>Make it yours.</span></h1>
-        <p className="description">Welcome to Kestrel. Your next idea starts here.</p>
+        <p className="description">Welcome to __KESTREL_DISPLAY_NAME__. Your next idea starts here.</p>
         <p className="edit-hint">Get started by editing <code>src/client/src/main.tsx</code></p>
       </section>
 

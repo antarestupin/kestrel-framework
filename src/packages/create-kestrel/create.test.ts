@@ -72,6 +72,100 @@ it.each(["postgres", "redis"])("creates a registry-based %s application without 
   });
 });
 
+it.each([
+  { directory: "my-great-app", name: "my-great-app", display: "My Great App", database: "my_great_app", cache: "postgres" },
+  { directory: "my_great..app--", name: "my-great-app", display: "My Great App", database: "my_great_app", cache: "redis" },
+  { directory: "123", name: "123", display: "123", database: "123", cache: "postgres" },
+])("uses the application identity consistently for $directory with $cache cache", async ({ directory, name, display, database, cache }) => {
+  await withFixture(async ({ root, archive }) => {
+    const target = join(root, directory);
+    const result = create(target, archive, "--cache", cache);
+    expect(result.status, result.stderr).toBe(0);
+    const read = (path: string) => readFile(join(target, path), "utf8");
+    const infrastructure = parse(await read(".devcontainer/docker-compose.yml"));
+    const services = infrastructure.services;
+    const testDatabase = `${database}_test`;
+    const workspace = `/workspace/${name}`;
+
+    // Name normalization must not redirect output to a different destination directory.
+    expect(JSON.parse(await read("package.json")).name).toBe(name);
+    expect(await read("src/server/core/config/database.ts")).toContain(`fallback: "${database}"`);
+    expect(await read("src/server/core/config/database.ts")).toContain(`fallback: "${testDatabase}"`);
+    expect(await read(".env.example")).toContain(`DB_DATABASE=${database}\nDB_TEST_DATABASE=${testDatabase}`);
+    expect(services.app.environment).toMatchObject({ DB_DATABASE: database, DB_TEST_DATABASE: testDatabase });
+    expect(services.postgres.environment.POSTGRES_DB).toBe(database);
+    expect(services.postgres.healthcheck.test).toEqual(["CMD-SHELL", `pg_isready -U postgres -d ${database}`]);
+    expect(services["drizzle-studio"].environment.DB_DATABASE).toBe(database);
+    expect(await read(".devcontainer/ensure-test-database.sh")).toContain(`DB_TEST_DATABASE:-${testDatabase}`);
+
+    // Every path participating in the container workspace must agree, including tooling mounts.
+    expect(await read(".devcontainer/devcontainer.json")).toContain(`"name": "${display}"`);
+    expect(await read(".devcontainer/devcontainer.json")).toContain(`"workspaceFolder": "${workspace}"`);
+    expect(services.app.working_dir).toBe(workspace);
+    expect(services.app.volumes).toEqual([`..:${workspace}:cached`, `node-modules:${workspace}/node_modules`]);
+    expect(services.app.command).toBe(`/bin/sh -c "mkdir -p ${workspace}/node_modules && chown -R node:node ${workspace}/node_modules && sleep infinity"`);
+    expect(services["drizzle-studio"].working_dir).toBe(workspace);
+    expect(services["drizzle-studio"].volumes).toEqual([
+      `../src:${workspace}/src:ro`,
+      `../drizzle.database.ts:${workspace}/drizzle.database.ts:ro`,
+      `../drizzle.dev.config.ts:${workspace}/drizzle.dev.config.ts:ro`,
+    ]);
+    expect(await read(".devcontainer/Dockerfile")).toContain(`mkdir -p ${workspace}`);
+    expect(await read(".devcontainer/Dockerfile.drizzle-studio")).toContain(`WORKDIR ${workspace}`);
+
+    const readme = await read("README.md");
+    expect(readme).toContain(`# ${display}\n`);
+    expect(readme).toContain(`database \`${database}\`; tests use \`${testDatabase}\``);
+    expect(readme).not.toContain("repository playground");
+    const html = await read("src/client/index.html");
+    expect(html).toContain(`<title>${display}</title>`);
+    expect(html).toContain(`content="Welcome to ${display}."`);
+    const client = await read("src/client/src/main.tsx");
+    expect(client).toContain(`aria-label="${display}"`);
+    expect(client).toContain(`>${display}</span>`);
+    expect(client).toContain(`>${display[0]}.</span>`);
+    expect(client).toContain(`${display} is running`);
+    expect(client).toContain(`Welcome to ${display}.`);
+    expect(client).toContain("Kestrel Studio");
+    expect(client).toContain("https://antarestupin.github.io/kestrel-framework/");
+    expect(await read("src/server/core/db/seed.ts")).toContain(`content: "Welcome to ${display}."`);
+    expect(await read("src/server/core/config/cache.ts")).toContain(`namespace: "${name}"`);
+    if (cache === "redis") expect(services["redis-insight"].environment.RI_REDIS_ALIAS).toBe(display);
+
+    // Detect forgotten placeholders and old defaults throughout the generated tree, including dotfiles.
+    for (const file of await readdir(target, { recursive: true, withFileTypes: true })) {
+      if (!file.isFile() || file.name.endsWith(".tgz")) continue;
+      const content = await readFile(join(file.parentPath, file.name), "utf8");
+      expect(content, file.name).not.toMatch(/__KESTREL_|kestrel_playground|\/workspace\/app\b/);
+    }
+  });
+});
+
+it("uses the same bounded database names in generated configuration and infrastructure", async () => {
+  await withFixture(async ({ root, archive }) => {
+    const target = join(root, "a".repeat(59));
+    expect(create(target, archive).status).toBe(0);
+    const infrastructure = parse(await readFile(join(target, ".devcontainer/docker-compose.yml"), "utf8"));
+    const { DB_DATABASE: database, DB_TEST_DATABASE: testDatabase } = infrastructure.services.app.environment;
+    expect(database).toMatch(/^a{49}_[a-f0-9]{8}$/);
+    expect(testDatabase).toBe(`${database}_test`);
+    expect(testDatabase).toHaveLength(63);
+    const config = await readFile(join(target, "src/server/core/config/database.ts"), "utf8");
+    expect(config).toContain(`fallback: "${database}"`);
+    expect(config).toContain(`fallback: "${testDatabase}"`);
+  });
+});
+
+it.each(["UpperCase", "invalid name", "invalid'name", "a".repeat(215)])("rejects unsafe or oversized application names before writing: %s", async (name) => {
+  await withFixture(async ({ root, archive }) => {
+    const target = join(root, name);
+    const result = create(target, archive);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("lowercase npm-compatible directory name");
+    await expect(access(target)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
+
 it.each(["postgres", "redis"])("composes %s cache with its required infrastructure", async (cache) => {
   await withFixture(async ({ target, archive }) => {
     const result = create(target, archive, "--cache", cache);

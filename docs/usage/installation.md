@@ -32,6 +32,8 @@ npm install
 
 The creator creates `my-app/` and generates the application inside it; no manual `mkdir` is needed. Relative and absolute paths are also accepted. An existing destination must be empty. No global generator installation is needed. The generated application declares an exact compatible framework version; `npm install` downloads it and the application's other dependencies from npm.
 
+The destination basename determines the application identity. Use lowercase ASCII letters, digits, dots, underscores or hyphens, starting with a letter or digit, with at most 214 characters. The requested directory keeps its spelling; separator groups become single hyphens for the npm package, cache namespace and container workspace path. For example, `my_great.app` generates package `my-great-app`, workspace `/workspace/my-great-app`, databases `my_great_app` and `my_great_app_test`, and display name `My Great App`. The display name labels the README, welcome page, devcontainer and Redis Insight connection. Database names longer than 58 characters are shortened with a stable hash, leaving room for `_test` within PostgreSQL’s 63-byte limit. `DB_DATABASE` and `DB_TEST_DATABASE` still override the generated defaults. Framework imports, CLI environment variables and Studio branding retain their Kestrel names.
+
 To use the bundled local services and start the generated application, run these commands inside `my-app/`:
 
 ```sh

@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import Generator from "yeoman-generator";
 import { replaceSource, updateInfrastructure } from "../files.mjs";
+import { createApplicationNames } from "../application_names.mjs";
 
 /** Install shared Redis infrastructure and its development UI once for all consumers. */
 export default class RedisGenerator extends Generator {
@@ -35,7 +36,7 @@ export default class RedisGenerator extends Generator {
       document.setIn(["services", "app", "depends_on", "redis"], { condition: "service_healthy" });
       document.setIn(["services", "redis-insight"], {
         image: "redis/redisinsight:3.8.0", ports: ["127.0.0.1:5540:5540"],
-        environment: { RI_REDIS_HOST: "redis", RI_REDIS_PORT: "6379", RI_REDIS_ALIAS: this.options.applicationName },
+        environment: { RI_REDIS_HOST: "redis", RI_REDIS_PORT: "6379", RI_REDIS_ALIAS: createApplicationNames(this.options.applicationName).displayName },
         volumes: ["redis-insight-data:/data"],
         depends_on: { redis: { condition: "service_healthy" } },
       });

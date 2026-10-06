@@ -2,7 +2,7 @@
 # The optional vendor directory supports local archives as well as registry dependencies.
 FROM node:24-bookworm
 
-WORKDIR /workspace/app
+WORKDIR /workspace/__KESTREL_APPLICATION_NAME__
 COPY package*.json ./
 COPY vendor/ ./vendor/
 

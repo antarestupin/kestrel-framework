@@ -1,15 +1,13 @@
 import { readdir, stat } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import Generator from "yeoman-generator";
+import { createApplicationNames } from "../application_names.mjs";
 
 /** Own input validation and choices; feature generators own the application files. */
 export default class ApplicationGenerator extends Generator {
   async initializing() {
     this.destination = resolve(this.options.directory);
-    this.applicationName = basename(this.destination);
-    if (!/^[a-z0-9][a-z0-9._-]*$/.test(this.applicationName)) {
-      throw new Error("Use a lowercase npm-compatible directory name.");
-    }
+    this.applicationName = createApplicationNames(basename(this.destination)).applicationName;
     // Registry generation needs no local archive; explicit overrides still fail before writing.
     if (this.options.frameworkArchive !== undefined) {
       this.archive = resolve(this.options.frameworkArchive);

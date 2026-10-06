@@ -1,5 +1,5 @@
 {
-  "name": "kestrel-web-app",
+  "name": "__KESTREL_APPLICATION_NAME__",
   "version": "0.0.0",
   "private": true,
   "type": "module",

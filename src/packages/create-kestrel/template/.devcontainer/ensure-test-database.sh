@@ -9,7 +9,7 @@ database_host="${DB_HOST:-postgres}"
 database_port="${DB_PORT:-5432}"
 database_user="${DB_USER:-postgres}"
 database_password="${DB_PASSWORD:-postgres}"
-application_test_database="${DB_TEST_DATABASE:-kestrel_playground_test}"
+application_test_database="${DB_TEST_DATABASE:-__KESTREL_TEST_DATABASE_NAME__}"
 
 ensure_database() {
   local database_name="$1"
