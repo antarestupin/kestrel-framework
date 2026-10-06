@@ -34,7 +34,6 @@ export default {
         { type: 'doc', docId: 'usage/installation', label: 'Get started', position: 'left' },
         { type: 'docSidebar', sidebarId: 'guides', label: 'Guides', position: 'left' },
         { type: 'docSidebar', sidebarId: 'advanced', label: 'Advanced', position: 'left' },
-        { to: '/search', label: 'Search', position: 'right' },
         { href: 'https://github.com/antarestupin/kestrel-framework', label: 'GitHub', position: 'right' },
       ],
     },

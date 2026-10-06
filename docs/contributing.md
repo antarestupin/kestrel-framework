@@ -55,7 +55,7 @@ npm run build:ai
 npm run test:ai
 ```
 
-Back in the framework repository root, run `npm run verify:archive` after packing to generate and validate an independent consumer automatically, including package exports, declarations, the CLI, and Studio assets.
+Back in the framework repository root, run `npm run verify:archive` after packing to generate and validate an independent consumer automatically, including package exports, declarations, the CLI, and Atlas/Studio assets.
 
 By default, the creator generates an exact npm dependency on the compatible framework version. With `--framework-archive`, it copies the archive into the generated application's `vendor` directory instead. It never installs dependencies or contacts a registry itself. `src/packages/create-kestrel/template` is the canonical template; `src/apps/playground` follows it, and `npm run check:playground` detects drift. To develop the playground, run `npm run dev --workspace=@kestrel/playground`; its database migrations run through `npm run db:migrate --workspace=@kestrel/playground`.
 

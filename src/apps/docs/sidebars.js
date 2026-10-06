@@ -1,7 +1,7 @@
 // Share the reading order across usage and implementation without copying content.
 const groups = [
   ['Compose an application', ['app', 'configuration', 'di', 'definitions', 'actions', 'middleware', 'errors']],
-  ['Expose operations', ['controllers', 'http', 'cli', 'client', 'studio']],
+  ['Expose operations', ['controllers', 'http', 'cli', 'client', 'atlas', 'studio']],
   ['Store and coordinate data', ['database', 'pagination', 'cache', 'lock', 'throttling']],
   ['Authenticate and integrate', ['authentication', 'authorization', 'tokens', 'email', 'outbound_http']],
   ['Run background work', ['workers', 'scheduled_tasks', 'workflows', 'background', 'events', 'concurrency', 'scheduling']],
@@ -12,12 +12,13 @@ const categories = (section) => groups.map(([label, names]) => ({
 }));
 
 export default {
-  guides: ['README', 'usage/README', 'usage/installation', ...categories('usage')],
+  // Keep the introduction first and outside the feature categories.
+  guides: ['introduction', 'README', 'usage/README', 'usage/installation', ...categories('usage')],
   advanced: [
     'contributing', 'implementation/README', 'implementation/distribution', 'implementation/documentation',
     ...categories('implementation'),
     { type: 'category', label: 'Design records and future work', items: [
-      'stack', 'workers_specs', 'workflows_specs', 'native_logging_plan', 'monitoring', 'beacon',
+      'atlas_specs', 'authorization-integration', 'stack', 'workers_specs', 'workflows_specs', 'native_logging_plan', 'monitoring', 'beacon',
     ].map((name) => `implementation/${name}`) },
   ],
 };

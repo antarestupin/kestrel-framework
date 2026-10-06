@@ -26,6 +26,7 @@ Some reference pages also preserve historical specifications and illustrative co
 - [HTTP](./http.md) · [Usage](../usage/http.md)
 - [CLI](./cli.md) · [Usage](../usage/cli.md)
 - [Browser client delivery](./client.md) · [Usage](../usage/client.md)
+- [Atlas](./atlas.md) · [Usage](../usage/atlas.md)
 - [Studio](./studio.md) · [Usage](../usage/studio.md)
 
 ## Store and coordinate data
@@ -79,3 +80,5 @@ These pages are maintained separately from application recipes. They preserve de
 Keep observable behavior and runnable application recipes in usage pages. Keep adapter contracts, algorithms, sequence diagrams and future evolutions here. Link both directions when a behavior needs a deeper explanation, and update both indexes when a library is added.
 
 Potential follow-ups are automatic recipe compilation in CI and generated API/configuration reference pages. They should reuse source contracts and preserve these short, curated usage guides rather than expanding every guide into an exhaustive reference.
+
+- [Atlas design specification](./atlas_specs.md) · [Authorization integration design](./authorization-integration.md)

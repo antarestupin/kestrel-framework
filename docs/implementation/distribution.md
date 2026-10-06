@@ -68,3 +68,7 @@ The root scripts `pack:dry-run`, `publish:kestrel`, `publish:create-kestrel`, an
 The template pins the compatible framework prerelease exactly, so generating an application never silently switches to a later alpha. Keep both published package versions and the template/playground dependencies aligned, regenerate the root lockfile, and rerun archive verification for each release. Archive verification derives tarball names from package metadata and checks the installed creator's registry default before exercising all local-archive variants. The optional `vendor/README.md` ensures the Drizzle Docker build has a valid vendor directory in both modes. No registry publication occurs during packing or verification.
 
 Authenticate to npm and confirm scope ownership before running a publish command. If the framework succeeds but the creator fails, retry only `publish:create-kestrel`; npm versions are immutable. CI trusted publishing, scope migration, and stable release automation remain deferred.
+
+## Atlas distribution
+
+Atlas is a public library within `@kestreljs/framework/atlas`, under the same MIT license. Its server exports, declarations and compiled `assets/atlas` client ship in the framework archive alongside Studio. No separate Atlas repository or package is required. See [Atlas internals](./atlas.md#package-ownership-and-distribution) and the [usage guide](../usage/atlas.md).

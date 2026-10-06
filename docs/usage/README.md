@@ -32,6 +32,7 @@ Configuration is resolved before constructing providers. Register infrastructure
 | [HTTP](./http.md) | Declare routes, access policies and bindings. |
 | [CLI](./cli.md) | Declare commands and launch an application. |
 | [Browser client delivery](./client.md) | Mount a Vite client and generate typed HTTP calls. |
+| [Atlas](./atlas.md) | Build an administration interface from selected application operations. |
 | [Studio](./studio.md) | Inspect application definitions and development infrastructure. |
 
 ## Store and coordinate data

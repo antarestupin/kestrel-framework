@@ -1,4 +1,4 @@
-# Install Kestrel and create an application
+# Installation
 
 [Usage index](README.md) · [Contributing and framework development](../contributing.md) · [Distribution internals](../implementation/distribution.md)
 

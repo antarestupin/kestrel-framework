@@ -28,16 +28,36 @@ for (const [key, target] of Object.entries(manifest.exports)) {
 }
 const { default: Fastify } = await import(resolveModule("fastify"));
 const { Studio, ViteStudioClientAdapter } = await import(resolveModule("@kestreljs/framework/studio"));
-const server = Fastify();
-try {
-  const render = await new ViteStudioClientAdapter().setup(server, new Studio());
-  server.get("/studio", (_request, reply) => render(reply));
-  const document = await server.inject("/studio");
-  assert.equal(document.statusCode, 200);
-  const entry = document.body.match(/src="([^\"]+\.js)"/)?.[1];
-  assert(entry, "Studio must expose a packaged browser entry.");
-  assert.equal((await server.inject(entry)).statusCode, 200);
-} finally { await server.close(); }
+const { Atlas, ViteAtlasClientAdapter } = await import(resolveModule("@kestreljs/framework/atlas"));
+// Exercise both relocated browser bundles from the independent installed archive.
+for (const name of ["studio", "atlas"]) {
+  const server = Fastify();
+  try {
+    const render = name === "studio"
+      ? await new ViteStudioClientAdapter().setup(server, new Studio())
+      : await new ViteAtlasClientAdapter().setup(server,
+        new Atlas({ basePath: "/atlas", resources: [] }), { basePath: "/atlas", title: "Atlas" });
+    server.get(`/${name}`, (_request, reply) => render(reply));
+    const document = await server.inject(`/${name}`);
+    assert.equal(document.statusCode, 200);
+    assert(!document.body.includes(`/@fs/`), "Installed HTML must not reference checkout sources.");
+    if (name === "atlas") {
+      const config = document.body.match(/data-atlas-config="([^"]+)"/)?.[1];
+      assert(config, "Atlas must receive application configuration.");
+      assert.deepEqual(JSON.parse(decodeURIComponent(config)), { basePath: "/atlas", title: "Atlas" });
+    }
+    const assets = [...document.body.matchAll(/(?:src|href)="([^" ]+\.(?:js|css))"/gu)].map((match) => match[1]);
+    assert(assets.some((url) => url.endsWith(".js")), `${name} must expose packaged JavaScript.`);
+    assert(assets.some((url) => url.endsWith(".css")), `${name} must expose packaged styles.`);
+    for (const url of assets) {
+      assert(url.startsWith(`/_${name}_assets/`));
+      const asset = await server.inject(url);
+      assert.equal(asset.statusCode, 200, url);
+      assert.match(asset.headers["content-type"], url.endsWith(".css") ? /css/u : /javascript/u);
+      assert(asset.body.length > 0);
+    }
+  } finally { await server.close(); }
+}
 // The npm executable is a symlink; a missing application argument must report an error.
 const executable = resolve(application, "node_modules/.bin/kestrel");
 const result = spawnSync(process.execPath, [executable], { encoding: "utf8" });
@@ -119,5 +139,5 @@ for (const file of ["0000_initial_note.sql", "meta/_journal.json", "meta/0000_sn
     await readFile(resolve(application, "src/server/core/db/migrations", file), "utf8"),
   );
 }
-console.info(`Verified ${Object.keys(manifest.exports).length} ESM/CommonJS exports, declarations, CLI symlink, and Studio assets from ${fileURLToPath(pathToFileURL(packageRoot))}.`);
+console.info(`Verified ${Object.keys(manifest.exports).length} ESM/CommonJS exports, declarations, CLI symlink, and Atlas/Studio assets from ${fileURLToPath(pathToFileURL(packageRoot))}.`);
 console.info("Verified starter root tooling, CLI entry points, client regeneration, compiled browser delivery, configuration overrides, and migration assets.");

@@ -642,6 +642,31 @@
       "types": "./dist/studio/client_config.d.ts",
       "import": "./dist/studio/client_config.js",
       "default": "./dist/studio/client_config.js"
+    },
+    "./atlas": {
+      "types": "./dist/atlas/index.d.ts",
+      "import": "./dist/atlas/index.js",
+      "default": "./dist/atlas/index.js"
+    },
+    "./atlas/adapters": {
+      "types": "./dist/atlas/adapters/index.d.ts",
+      "import": "./dist/atlas/adapters/index.js",
+      "default": "./dist/atlas/adapters/index.js"
+    },
+    "./atlas/adapters/client": {
+      "types": "./dist/atlas/adapters/client/index.d.ts",
+      "import": "./dist/atlas/adapters/client/index.js",
+      "default": "./dist/atlas/adapters/client/index.js"
+    },
+    "./atlas/client_config": {
+      "types": "./dist/atlas/client_config.d.ts",
+      "import": "./dist/atlas/client_config.js",
+      "default": "./dist/atlas/client_config.js"
+    },
+    "./atlas/contract": {
+      "types": "./dist/atlas/contract.d.ts",
+      "import": "./dist/atlas/contract.js",
+      "default": "./dist/atlas/contract.js"
     }
   },
   "bin": {
@@ -677,7 +702,8 @@
     "drizzle-kit": "^0.31.10",
     "drizzle-seed": "^0.3.1",
     "vite": "^8.2.0",
-    "@types/pg": "^8.20.0"
+    "@types/pg": "^8.20.0",
+    "@tanstack/react-query": "^5.101.4"
   },
   "publishConfig": {
     "access": "public",
