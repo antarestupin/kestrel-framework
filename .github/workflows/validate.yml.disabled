@@ -19,7 +19,7 @@ jobs:
       - run: npm run check:playground
       - run: npm run build:ai
       - run: npm run typecheck
-      - run: npm run test:ai
+      - run: npm run test:all
       - run: npm run pack:local
       - run: npm run verify:archive
       # No publishing job: local archives are the only release artifacts.

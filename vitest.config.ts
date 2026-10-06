@@ -19,6 +19,8 @@ const integration = [
   "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts"
 ];
 export default defineConfig({ test: { projects: [
-  { test: { name: "unit", include: ["src/packages/**/*.test.{ts,tsx}", "src/apps/**/*.test.{ts,tsx}"], exclude: ["**/node_modules/**", "src/packages/create-kestrel/template/**", ...integration] } },
+  { test: { name: "unit", include: ["src/packages/**/*.test.{ts,tsx}", "src/apps/**/*.test.{ts,tsx}"], exclude: ["**/node_modules/**", "src/packages/create-kestrel/**", ...integration] } },
   { test: { name: "integration", include: integration } },
+  // Generator CLI scenarios own slower child processes and run through a dedicated command.
+  { test: { name: "generator", include: ["src/packages/create-kestrel/**/*.test.{ts,tsx}"], exclude: ["**/node_modules/**", "src/packages/create-kestrel/template/**"] } },
 ] } });

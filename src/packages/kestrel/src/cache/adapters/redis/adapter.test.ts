@@ -74,10 +74,14 @@ describe("RedisCacheAdapter on the Kestrel Redis database", () => {
   it("lets Redis expire the physical key without relying on the adapter clock", async ({ redis }) => {
     const createdAt = new Date();
     const adapter = createAdapter(redis, { now: () => createdAt });
-    await adapter.set("app:item", entry("short-lived", new Date(createdAt.getTime() + 500)));
-    expect(await redis.client.pTTL(`${redis.keyPrefix}app:item`)).toBeGreaterThan(0);
+    const key = `${redis.keyPrefix}app:item`;
+    await adapter.set("app:item", entry("short-lived", new Date(createdAt.getTime() + 60_000)));
+    expect(await redis.client.pTTL(key)).toBeGreaterThan(0);
+    // Start the short TTL on Redis after verifying storage, avoiding a race with client scheduling.
+    // Exact adapter-supplied deadlines are covered by the PEXPIRETIME assertions above.
+    await expect(redis.client.pExpire(key, 100)).resolves.toBe(1);
     // Poll actual Redis time: fake timers cannot advance a remote server's TTL.
-    await expect.poll(() => redis.client.get(`${redis.keyPrefix}app:item`), {
+    await expect.poll(() => redis.client.get(key), {
       timeout: 3_000, interval: 20,
     }).toBeNull();
     await expect(adapter.get("app:item")).resolves.toBeUndefined();

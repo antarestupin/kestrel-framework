@@ -32,7 +32,7 @@ npm run check:playground
 npm run test:ai
 ```
 
-Use `npm run test:unit` for unit tests without Docker, or `npm run test:integration` for database adapters. The devcontainer reuses the repository service definitions.
+At the repository root, `npm run test` and `npm run test:ai` run framework and playground unit/integration tests, excluding the slower application-generator scenarios; `test:ai` uses compact output. Use `npm run test:unit` for unit tests without Docker, `npm run test:integration` for database adapters, `npm run test:generator` for the creator without Docker, or `npm run test:all` for all three groups. Run the generator group whenever changing the creator or its template. The devcontainer reuses the repository service definitions.
 
 ## Integration-test infrastructure
 
@@ -98,7 +98,7 @@ See [documentation website internals](implementation/documentation.md) for the r
 
 Publication requires explicit owner approval. The following commands are for maintainers with publishing rights to the npm scope.
 
-Run `npm run build:ai`, `npm run typecheck`, `npm run check:boundaries`, `npm run check:playground`, and `npm run test:ai` with the test infrastructure available. Then run `npm run pack:local` and `npm run verify:archive` to validate independent consumers before publishing.
+Run `npm run build:ai`, `npm run typecheck`, `npm run check:boundaries`, `npm run check:playground`, and `npm run test:all` with the test infrastructure available. Then run `npm run pack:local` and `npm run verify:archive` to validate independent consumers before publishing.
 
 | Root command | Purpose |
 | --- | --- |
