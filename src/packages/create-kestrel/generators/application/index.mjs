@@ -22,6 +22,9 @@ export default class ApplicationGenerator extends Generator {
     if (this.options.cache !== undefined && !["postgres", "redis"].includes(this.options.cache)) {
       throw new Error("Cache must be postgres or redis.");
     }
+    if (this.options.atlas !== undefined && typeof this.options.atlas !== "boolean") {
+      throw new Error("Atlas must be a boolean.");
+    }
     this.destinationRoot(this.destination);
   }
 
@@ -36,6 +39,16 @@ export default class ApplicationGenerator extends Generator {
       this.cache = answers.cache;
     }
     this.cache ??= "postgres";
+    this.atlas = this.options.atlas;
+    // Explicit positive and negative choices both suppress the feature question.
+    if (this.atlas === undefined && this.options.interactive) {
+      const answers = await this.prompt([{
+        type: "confirm", name: "atlas", message: "Do you want to include Atlas?", default: true,
+      }]);
+      this.atlas = answers.atlas;
+    }
+    // Noninteractive creation uses the same default as accepting the prompt.
+    this.atlas ??= true;
     // Infrastructure availability is explicit so future Redis consumers can contribute here.
     this.redisInstalled = this.cache === "redis";
   }
@@ -46,9 +59,10 @@ export default class ApplicationGenerator extends Generator {
     await this.composeWith("kestrel:base", options);
     await this.composeWith("kestrel:cache", options);
     if (this.redisInstalled) await this.composeWith("kestrel:redis", options);
+    if (this.atlas) await this.composeWith("kestrel:atlas", options);
   }
 
   end() {
-    this.log(`Created ${this.destination} with ${this.cache} cache. Run npm install, npm run build:ai, and npm run test:ai there.`);
+    this.log(`Created ${this.destination} with ${this.cache} cache${this.atlas ? " and Atlas" : ""}. Run npm install, npm run build:ai, and npm run test:ai there.`);
   }
 }

@@ -61,6 +61,17 @@ PostgreSQL remains the database for both variants. The PostgreSQL cache uses the
 
 Whenever Redis is installed, Redis Insight joins `npm run infra:up`, preconfigures the local Redis connection and persists its UI settings in a named volume. Open http://127.0.0.1:5540 for local development. `npm run infra:down` stops it without deleting its settings. See [Redis Insight Docker installation](https://redis.io/docs/latest/operate/redisinsight/install/install-on-docker/) and [connection configuration](https://redis.io/docs/latest/operate/redisinsight/configuration/).
 
+## Choose whether to include Atlas
+
+After the cache choice, an interactive terminal asks whether to include [Atlas](./atlas.md), with yes selected by default. Explicit `--atlas` and `--no-atlas` flags skip that question; `--yes` and redirected input include Atlas unless `--no-atlas` is supplied. Supplying both flags fails before writing files. Atlas works with either cache backend.
+
+```sh
+npx @kestreljs/create-kestrel@latest my-app --atlas --yes
+npx @kestreljs/create-kestrel@latest my-app --no-atlas --yes
+```
+
+The Atlas option adds an empty resource definition at `src/admin/index.ts`, a configuration factory at `src/server/core/config/backoffice.ts`, an application-owned `ApplicationAtlasProvider` in `src/server/core/providers/atlas_provider.ts`, registration in `core/app.ts`, tests, and a welcome-page link to `/admin`. It uses the framework's packaged browser assets without another dependency or build. The generated configuration enables Atlas only in `local`. Define application resources explicitly and configure authentication, authorization, and trusted-Origin middleware before exposing business data or enabling deployments. The generated README explains the entry points. Omitting Atlas leaves those files, imports, registration, and links out of the application; the framework package itself still includes the Atlas library.
+
 ## Develop your application
 
 The starter uses `HttpClientGenerationProvider` through `npm run api:generate` to produce `src/generated/public_client/public_client.ts` from its HTTP controller catalog. Keep generated contracts in that directory and browser configuration in `src/client/src/api.ts`, which instantiates the generated factory. Regenerate after changing controllers; `npm run build:ai` does this automatically. See [typed HTTP client generation](./client.md#generate-a-typed-http-client).

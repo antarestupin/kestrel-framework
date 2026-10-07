@@ -227,11 +227,49 @@ it.each(["postgres", "redis"])("composes %s cache with its required infrastructu
   });
 });
 
-it("uses PostgreSQL defaults without prompts for redirected input", async () => {
+it.each([
+  { cache: "postgres", atlas: true }, { cache: "postgres", atlas: false },
+  { cache: "redis", atlas: true }, { cache: "redis", atlas: false },
+])("composes the explicit Atlas choice with $cache cache: $atlas", async ({ cache, atlas }) => {
   await withFixture(async ({ target, archive }) => {
-    const result = create(target, archive);
+    const result = create(target, archive, "--cache", cache, atlas ? "--atlas" : "--no-atlas", "--yes");
+    expect(result.status, result.stderr).toBe(0);
+    const read = (path: string) => readFile(join(target, path), "utf8");
+    const app = await read("src/server/core/app.ts");
+    expect(app.includes("new ApplicationAtlasProvider")).toBe(atlas);
+    // Administration definitions live beside the server and browser, not inside the server tree.
+    await expect(access(join(target, "src/server/atlas"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await read("src/server/core/app_config.ts")).includes("createBackofficeConfig")).toBe(atlas);
+    expect((await read("src/client/src/main.tsx")).includes('href="/admin"')).toBe(atlas);
+    const manifest = JSON.parse(await read("package.json"));
+    expect(Object.keys(manifest.dependencies).some((name) => name.includes("atlas"))).toBe(false);
+    if (atlas) {
+      expect(await read("src/admin/index.ts")).toContain("resources: []");
+      expect(await read("src/admin/index.ts")).toContain('basePath: "/admin"');
+      const provider = await read("src/server/core/providers/atlas_provider.ts");
+      expect(provider).toContain('import { applicationBackoffice } from "../../../admin/index.js"');
+      expect(provider).toContain('AppConfig["backoffice"]');
+      expect(app).toContain("new ApplicationAtlasProvider(app.config.backoffice)");
+      expect(await read("src/server/core/config/backoffice.ts")).toContain("local: true");
+      expect(app).toContain('...(app.config.backoffice.enabled ? [] : [applicationBackoffice.basePath, "/_atlas_assets"])');
+      expect(app.indexOf("new ApplicationAtlasProvider")).toBeLessThan(app.indexOf("new StudioProvider"));
+      expect(await read("README.md")).toContain("## Atlas");
+      await access(join(target, "src/admin/index.test.ts"));
+    } else {
+      await expect(access(join(target, "src/admin"))).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(access(join(target, "src/server/core/providers/atlas_provider.ts"))).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(access(join(target, "src/server/core/config/backoffice.ts"))).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  });
+});
+
+it.each([[], ["--yes"]])("uses PostgreSQL and Atlas defaults without prompts: %j", async (...arguments_: string[]) => {
+  await withFixture(async ({ target, archive }) => {
+    const result = create(target, archive, ...arguments_);
     expect(result.status, result.stderr).toBe(0);
     expect(await readFile(join(target, "src/server/core/app.ts"), "utf8")).toContain("new CacheProvider");
+    await access(join(target, "src/admin/index.ts"));
+    expect(await readFile(join(target, "src/server/core/app.ts"), "utf8")).toContain("new ApplicationAtlasProvider");
   });
 });
 
@@ -263,27 +301,43 @@ it("composes shared Redis infrastructure without a cache feature", async () => {
 });
 
 it.each([
-  { options: {}, answers: { cache: "redis" }, questions: ["cache"] },
-  { options: {}, answers: { cache: "postgres" }, questions: ["cache"] },
-  { options: { cache: "redis" }, answers: {}, questions: [] },
+  { options: {}, answers: { cache: "redis", atlas: true }, questions: ["cache", "atlas"] },
+  { options: {}, answers: { cache: "postgres", atlas: false }, questions: ["cache", "atlas"] },
+  { options: { cache: "redis" }, answers: { atlas: true }, questions: ["atlas"] },
+  { options: { atlas: false }, answers: { cache: "postgres" }, questions: ["cache"] },
+  { options: { cache: "redis", atlas: false }, answers: {}, questions: [] },
+  { options: { cache: "postgres", atlas: true }, answers: {}, questions: [] },
+  { options: { cache: "postgres" }, answers: {}, questions: ["atlas"] },
 ])("asks only unresolved, applicable questions: $questions", async ({ options, answers, questions }) => {
   await withFixture(async ({ target, archive }) => {
     const output = new Writable({ write(_chunk, _encoding, done) { done(); } });
     const adapter = createEnv({ stdout: output, stderr: output }).adapter;
     const prompt = vi.spyOn(adapter, "prompt").mockImplementation(async (items) => {
       const list = Array.isArray(items) ? items : [items];
-      return Object.fromEntries(list.map((item) => [item.name, answers[item.name as keyof typeof answers]]));
+      // An unanswered confirmation accepts the displayed default, as pressing Enter would.
+      return Object.fromEntries(list.map((item) => [item.name, answers[item.name as keyof typeof answers] ?? item.default]));
     });
     try {
       await createApplication({ directory: target, frameworkArchive: archive, interactive: true, ...options }, adapter);
       expect(prompt.mock.calls.flatMap(([items]) => (Array.isArray(items) ? items : [items]).map((item) => item.name))).toEqual(questions);
+      for (const [items] of prompt.mock.calls) {
+        const atlasQuestion = (Array.isArray(items) ? items : [items]).find((item) => item.name === "atlas");
+        if (atlasQuestion) expect(atlasQuestion.default).toBe(true);
+      }
       expect(await readdir(target)).not.toContain(".yo-rc.json");
+      expect(await readFile(join(target, "src/server/core/app.ts"), "utf8")).toContain(
+        (options.atlas ?? answers.atlas ?? true) ? "new ApplicationAtlasProvider" : "new StudioProvider",
+      );
+      if (!(options.atlas ?? answers.atlas ?? true)) {
+        await expect(access(join(target, "src/admin"))).rejects.toMatchObject({ code: "ENOENT" });
+      }
     } finally { prompt.mockRestore(); adapter.close(); output.destroy(); }
   });
 });
 
 it.each([
   { arguments: ["--cache", "mysql"], message: "Cache must be postgres or redis" },
+  { arguments: ["--atlas", "--no-atlas"], message: "Choose either --atlas or --no-atlas" },
   { arguments: ["--redis-insight"], message: "Unknown option" },
   { arguments: ["--no-redis-insight"], message: "Unknown option" },
   { arguments: ["--unknown"], message: "Unknown option" },

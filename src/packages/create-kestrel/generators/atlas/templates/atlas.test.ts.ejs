@@ -1,0 +1,38 @@
+import { expect, it } from "vitest";
+import { App } from "@kestreljs/framework/app";
+import { ApplicationAtlasProvider } from "../server/core/providers/atlas_provider.js";
+import { createConfigurationApi } from "@kestreljs/framework/configuration";
+import { HttpRuntimeProvider, httpRuntimeDependency } from "@kestreljs/framework/http";
+import { LoggerProvider } from "@kestreljs/framework/log";
+import { appConfig } from "../server/core/app_config.js";
+import { createBackofficeConfig } from "../server/core/config/backoffice.js";
+
+it.each(["local", "test", "stage", "prod"])("enables the Atlas starter only locally: %s", (environment) => {
+  // Resolve the feature alone so deployment database credentials are unnecessary.
+  const api = createConfigurationApi({ environments: ["local", "test", "stage", "prod"], defaultEnvironment: "local" });
+  const config = api.resolveConfig({ backoffice: createBackofficeConfig(api) }, { environment, env: {} });
+  expect(config.backoffice.enabled).toBe(environment === "local");
+});
+
+it.each([true, false])("serves Atlas only when enabled: %s", async (enabled) => {
+  // Each test owns its runtime; injection needs neither a database nor a network listener.
+  const app = new App(appConfig);
+  app.register(new LoggerProvider(appConfig.logger));
+  app.register(new HttpRuntimeProvider(appConfig.http));
+  app.register(new ApplicationAtlasProvider({ enabled }));
+  const runtime = app.container.resolve(httpRuntimeDependency);
+  try {
+    const manifest = await runtime.server.inject("/admin/api/manifest");
+    expect(manifest.statusCode).toBe(enabled ? 200 : 404);
+    const document = await runtime.server.inject("/admin");
+    expect(document.statusCode).toBe(enabled ? 200 : 404);
+    if (enabled) {
+      expect(manifest.json().resources).toEqual([]);
+      const entry = document.body.match(/src="([^"]+\.js)"/)?.[1];
+      expect(entry).toMatch(/^\/_atlas_assets\//);
+      expect((await runtime.server.inject(entry!)).statusCode).toBe(200);
+    }
+  } finally {
+    try { await runtime.stop(); } finally { await app.dispose(); }
+  }
+});

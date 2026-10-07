@@ -94,45 +94,70 @@ for (const [launcher, args, environment] of [
 }
 assert.equal(await readFile(generatedClient, "utf8"), originalClient);
 // Exercise the compiled application and its relocated browser assets without an HTTP listener.
-const browserCheck = spawnSync(process.execPath, ["--import", "zod/compile", "--input-type=module", "--eval", `
-  import assert from "node:assert/strict";
-  import app from "./dist/server/core/app.js";
-  import { httpRuntimeDependency } from "@kestreljs/framework/http";
-  // A configured Redis cache must not connect while serving routes that never use it.
-  app.container.registerFactory("redisCacheConnection", () => { throw new Error("Redis must remain lazy."); });
-  const runtime = app.container.resolve(httpRuntimeDependency);
-  try {
-    const document = await runtime.server.inject("/");
-    assert.equal(document.statusCode, 200);
-    const entry = document.body.match(/src="([^\"]+\\.js)"/)?.[1];
-    assert(entry, "The application must expose its compiled browser entry.");
-    assert.equal((await runtime.server.inject(entry)).statusCode, 200);
-    // Explicitly enable Studio to verify both packaged browser scopes coexist.
-    const studioDocument = await runtime.server.inject("/_studio");
-    assert.equal(studioDocument.statusCode, 200);
-    const studioEntry = studioDocument.body.match(/src="([^\"]+\\.js)"/)?.[1];
-    assert(studioEntry, "Studio must expose its own packaged browser entry.");
-    assert.notEqual(studioEntry, entry);
-    assert.equal((await runtime.server.inject(studioEntry)).statusCode, 200);
-    const studioManifest = await runtime.server.inject("/_studio/api/manifest");
-    assert.equal(studioManifest.statusCode, 200);
-    assert.equal(studioManifest.json().extensions.some((extension) => extension.id === "controllers"), true);
-    const response = await runtime.server.inject("/api/greet?name=Sam");
-    assert.deepEqual(response.json(), { message: "Hello, Sam!" });
-    assert.equal(response.headers["x-request-id"] !== undefined, true);
-  } finally {
-    try { await runtime.stop(); } finally { await app.dispose(); }
-  }
-`], {
-  cwd: application, encoding: "utf8",
-  env: {
-    ...process.env,
-    ...productionEnvironment,
-    APP_CONFIG__HTTP__EXECUTION_ID_HEADER: "x-request-id",
-    APP_CONFIG__STUDIO__ENABLED: "true",
-  },
-});
-assert.equal(browserCheck.status, 0, browserCheck.stderr || browserCheck.error?.message);
+const hasAtlas = (await readFile(resolve(application, "src/server/core/app.ts"), "utf8")).includes("new ApplicationAtlasProvider");
+if (hasAtlas) {
+  // The administration entry must be emitted alongside the server in an installed build.
+  await access(resolve(application, "dist/admin/index.js"));
+  await access(resolve(application, "dist/server/core/providers/atlas_provider.js"));
+}
+// Check both exposure states against the real compiled composition and SPA fallback.
+for (const atlasEnabled of hasAtlas ? [false, true] : [false]) {
+  const browserCheck = spawnSync(process.execPath, ["--import", "zod/compile", "--input-type=module", "--eval", `
+    import assert from "node:assert/strict";
+    import app from "./dist/server/core/app.js";
+    import { httpRuntimeDependency } from "@kestreljs/framework/http";
+    // A configured Redis cache must not connect while serving routes that never use it.
+    app.container.registerFactory("redisCacheConnection", () => { throw new Error("Redis must remain lazy."); });
+    const runtime = app.container.resolve(httpRuntimeDependency);
+    try {
+      const document = await runtime.server.inject("/");
+      assert.equal(document.statusCode, 200);
+      const entry = document.body.match(/src="([^\"]+\\.js)"/)?.[1];
+      assert(entry, "The application must expose its compiled browser entry.");
+      assert.equal((await runtime.server.inject(entry)).statusCode, 200);
+      // Explicitly enable Studio to verify both packaged browser scopes coexist.
+      const studioDocument = await runtime.server.inject("/_studio");
+      assert.equal(studioDocument.statusCode, 200);
+      const studioEntry = studioDocument.body.match(/src="([^\"]+\\.js)"/)?.[1];
+      assert(studioEntry, "Studio must expose its own packaged browser entry.");
+      assert.notEqual(studioEntry, entry);
+      assert.equal((await runtime.server.inject(studioEntry)).statusCode, 200);
+      const studioManifest = await runtime.server.inject("/_studio/api/manifest");
+      assert.equal(studioManifest.statusCode, 200);
+      assert.equal(studioManifest.json().extensions.some((extension) => extension.id === "controllers"), true);
+      if (${atlasEnabled}) {
+        // The generated composition must serve Atlas alongside both other browser clients.
+        const atlasDocument = await runtime.server.inject("/admin");
+        assert.equal(atlasDocument.statusCode, 200);
+        const atlasEntry = atlasDocument.body.match(/src="([^\"]+\\.js)"/)?.[1];
+        assert(atlasEntry?.startsWith("/_atlas_assets/"));
+        assert.equal((await runtime.server.inject(atlasEntry)).statusCode, 200);
+        const atlasManifest = await runtime.server.inject("/admin/api/manifest");
+        assert.equal(atlasManifest.statusCode, 200);
+        assert.deepEqual(atlasManifest.json().resources, []);
+      } else if (${hasAtlas}) {
+        for (const path of ["/admin", "/admin/api/manifest", "/_atlas_assets/missing.js"]) {
+          assert.equal((await runtime.server.inject(path)).statusCode, 404, path);
+        }
+      }
+      const response = await runtime.server.inject("/api/greet?name=Sam");
+      assert.deepEqual(response.json(), { message: "Hello, Sam!" });
+      assert.equal(response.headers["x-request-id"] !== undefined, true);
+    } finally {
+      try { await runtime.stop(); } finally { await app.dispose(); }
+    }
+  `], {
+    cwd: application, encoding: "utf8",
+    env: {
+      ...process.env,
+      ...productionEnvironment,
+      APP_CONFIG__HTTP__EXECUTION_ID_HEADER: "x-request-id",
+      APP_CONFIG__STUDIO__ENABLED: "true",
+      ...(hasAtlas ? { APP_CONFIG__BACKOFFICE__ENABLED: String(atlasEnabled) } : {}),
+    },
+  });
+  assert.equal(browserCheck.status, 0, browserCheck.stderr || browserCheck.error?.message);
+}
 for (const file of ["0000_initial_note.sql", "meta/_journal.json", "meta/0000_snapshot.json"]) {
   assert.equal(
     await readFile(resolve(application, "dist/server/core/db/migrations", file), "utf8"),

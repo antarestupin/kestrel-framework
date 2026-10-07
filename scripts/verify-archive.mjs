@@ -46,17 +46,20 @@ try {
   if (generated.dependencies[frameworkManifest.name] !== frameworkManifest.version) {
     throw new Error("The generated registry dependency must match the framework release.");
   }
-  for (const [name, cache] of [
-    ["postgres-app", "postgres"],
-    ["redis-app", "redis"],
+  for (const [name, cache, atlas] of [
+    ["postgres-app", "postgres", false],
+    ["redis-app", "redis", false],
+    ["postgres-atlas-app", "postgres", true],
+    ["redis-atlas-app", "redis", true],
   ]) {
     const application = join(temporary, name);
     run(process.execPath, [join(creator, "node_modules/.bin/create-kestrel"), application,
-      "--framework-archive", join(root, "artifacts", archiveName(frameworkManifest)), "--cache", cache, "--yes"]);
+      "--framework-archive", join(root, "artifacts", archiveName(frameworkManifest)), "--cache", cache,
+      atlas ? "--atlas" : "--no-atlas", "--yes"]);
     await install(application);
     for (const script of ["typecheck", "build:ai", "test:ai", "db:check"]) run(npm, ["run", script], application);
     run(process.execPath, ["scripts/verify-installed.mjs", application]);
-    console.info(`Independent ${cache} consumer verified.`);
+    console.info(`Independent ${cache} consumer ${atlas ? "with" : "without"} Atlas verified.`);
   }
 } finally {
   // Fixture installs and compiled outputs are owned by this verification run.

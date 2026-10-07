@@ -6,6 +6,8 @@ Use Atlas to expose selected application operations through a resource-oriented 
 
 Atlas is included in `@kestreljs/framework` under the `@kestreljs/framework/atlas` entry point. The package ships its compiled browser assets; no separate Atlas installation or browser build is needed. Applications own authentication, authorization and business data.
 
+New projects include Atlas by default, both interactively and with `--yes` or redirected input; answer no or pass `--no-atlas` to omit it. The generated starter mounts an empty Atlas at `/admin` only in the local environment, with application-owned resource and exposure configuration. See [installation choices](./installation.md#choose-whether-to-include-atlas).
+
 ## Describe an application resource
 
 Use a resource when operators need to browse and edit application records through Atlas. This example uses a tiny in-memory repository for clarity; provide the same operations with repository-backed [model action helpers](./database.md#create-a-repository-backed-action) in an application.

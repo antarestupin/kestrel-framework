@@ -1,0 +1,8 @@
+
+## Atlas
+
+Open `/admin` on the application's origin during local development. `src/admin/index.ts` owns the Atlas definition and its initially empty resource list; add explicit resources backed by your application operations. `ApplicationAtlasProvider` imports this definition and is registered by `src/server/core/app.ts`. The welcome page links to this interface. Atlas uses the framework's packaged browser assets and needs no extra dependency, browser build, database migration, or development server.
+
+`src/server/core/config/backoffice.ts` enables Atlas only in `local`; it is disabled in `test`, `stage`, and `prod`. The schema-backed setting accepts `APP_CONFIG__BACKOFFICE__ENABLED=true` as an explicit deployment override. The empty starter has no authentication. Before exposing business data or enabling Atlas in a deployment, configure `ApplicationAtlasProvider` in `src/server/core/providers/atlas_provider.ts` with application authentication, required authorization middleware, and trusted-Origin protection for cookie-authenticated mutations. The existing `adminAccessPermission` and `adminRole` definitions do not enforce access by themselves. See [Atlas usage](https://github.com/antarestupin/kestrel-framework/blob/main/docs/usage/atlas.md) for resource and access configuration.
+
+Atlas owns its base path and asset prefix when enabled; the application browser reserves them as 404 routes while Atlas is disabled. If you change its base path, update the welcome link as well. Authentication scaffolding, example business resources, and adding Atlas to an existing project remain future generator evolutions.
