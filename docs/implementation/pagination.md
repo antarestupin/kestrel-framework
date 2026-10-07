@@ -377,7 +377,7 @@ const listAction = defineAction({
 });
 
 const controllerAction = listAction.derive(mapCursorPaginationInput(cursorCodec, pageSizes));
-const controller = defineActionHttpController(controllerAction, get("/api/records"), accessPolicy);
+const controller = defineActionHttpController(controllerAction, get("/api/records"), { access: accessPolicy });
 ```
 
 The first request is `GET /api/records?pageSize=20`. A continuation uses `GET /api/records?after=<nextCursor>&pageSize=20`. The returned `pageInfo.nextCursor` is a URL-safe string, or `null` when traversal is complete. Additional action fields remain available as flat controller fields; `after` and `pageSize` are reserved for pagination. Existing numbered pagination helpers and conventional model-list controller factories keep their current contracts.
@@ -450,7 +450,7 @@ const cliController = defineModelListActionCliController(
 const httpController = defineModelListActionHttpController(
   listUserAction,
   "/api/users",
-  anonymousHttpAccess,
+  { access: anonymousHttpAccess },
 );
 ```
 

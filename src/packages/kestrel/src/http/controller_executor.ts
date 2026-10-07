@@ -9,11 +9,14 @@ import type {
 } from "../di/index.js";
 import { runMiddlewarePipeline } from "../middleware/index.js";
 import type { HttpController, HttpObjectSchema } from "./controller.js";
+import { anonymousHttpAccess, type HttpAccessPolicy } from "./access.js";
 
 export interface HttpControllerExecutionContext {
   readonly execution: ActionExecution;
   readonly request: FastifyRequest;
   readonly reply: FastifyReply;
+  /** Inherited access for this execution and any nested controller delegation. */
+  readonly defaultAccess?: HttpAccessPolicy;
 }
 
 /**
@@ -39,10 +42,12 @@ export function executeHttpController<
   parsedInput: output<ControllerInputSchema>,
   context: HttpControllerExecutionContext,
 ): Promise<unknown> {
+  const defaultAccess = context.defaultAccess ?? anonymousHttpAccess;
+
   return runMiddlewarePipeline(
     [
       // Access middleware cannot be displaced by controller-local concerns.
-      ...controller.access.middleware,
+      ...(controller.access ?? defaultAccess).middleware,
       ...controller.middleware,
     ],
     {
@@ -64,6 +69,7 @@ export function executeHttpController<
             request: context.request,
             reply: context.reply,
             execution: context.execution,
+            defaultAccess,
           })
         : await executeActionController(
             controller,
@@ -116,6 +122,7 @@ async function executeActionController<
         request: context.request,
         reply: context.reply,
         execution: context.execution,
+        defaultAccess: context.defaultAccess ?? anonymousHttpAccess,
       });
 }
 

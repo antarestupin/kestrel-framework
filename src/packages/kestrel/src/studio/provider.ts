@@ -5,7 +5,7 @@ import type {
 } from "fastify";
 
 import type { Provider, ProviderCompositionApp } from "../app/index.js";
-import { HttpControllerManager } from "../http/index.js";
+import { HttpControllerManager, type HttpAccessPolicy } from "../http/index.js";
 import type { StudioClientAdapter } from "./adapters/index.js";
 import { ViteStudioClientAdapter } from "./adapters/index.js";
 import { STUDIO_ASSET_BASE_PATH } from "./client_config.js";
@@ -46,7 +46,8 @@ export class StudioProvider<
     // Studio without coupling the application core to its user interface.
     app.container.registerValue("studio", studio);
     app.httpExtensions.register({
-      mount: ({ server }) => this.mount(app, server, studio, client),
+      mount: ({ server, defaultAccess }) =>
+        this.mount(app, server, studio, client, defaultAccess),
     });
   }
 
@@ -76,6 +77,7 @@ export class StudioProvider<
     server: FastifyInstance,
     studio: Studio,
     client: StudioClientAdapter,
+    defaultAccess?: HttpAccessPolicy,
   ): Promise<void> {
     await server.register(async (server) => {
       const renderClient = await client.setup(server, studio);
@@ -86,6 +88,7 @@ export class StudioProvider<
         {
           observe: false,
           executionLog: false,
+          ...(defaultAccess === undefined ? {} : { defaultAccess }),
         },
       );
 

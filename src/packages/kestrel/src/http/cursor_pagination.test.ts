@@ -35,7 +35,7 @@ it("maps URL cursors to database pagination and returns reusable continuation to
   server.addHook("onReady", async () => app.start());
   try {
     const manager = new HttpControllerManager(app, server);
-    manager.register(defineActionHttpController(action, get("/records"), testHttpAccess));
+    manager.register(defineActionHttpController(action, get("/records"), { access: testHttpAccess }));
     const first = await server.inject({ method: "GET", url: "/records?category=selected" });
     expect(first.statusCode).toBe(200);
     expect(first.json()).toEqual({ items: [{ id: 1 }, { id: 2 }], pageInfo: {

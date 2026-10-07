@@ -13,7 +13,7 @@ import { z } from "zod";
 import { defineAction } from "@kestreljs/framework/actions";
 import { App, defineCatalog, selectHttpControllerCatalog } from "@kestreljs/framework/app";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
-import { defineActionHttpController, defineHttpAccessPolicy, get, httpConfigBase, HttpRuntimeProvider } from "@kestreljs/framework/http";
+import { defineActionHttpController, get, httpConfigBase, HttpRuntimeProvider } from "@kestreljs/framework/http";
 
 const configuration = createConfigurationApi({
   environments: ["development", "production"],
@@ -40,12 +40,11 @@ const greet = defineAction({
   output: z.string(),
   handler: ({ name }) => `Hello, ${name}!`,
 });
-const publicAccess = defineHttpAccessPolicy("example.public");
 export const catalog = defineCatalog({
   greeting: {
     actions: { greet },
     controllers: {
-      http: { greet: defineActionHttpController(greet, get("/greet"), publicAccess) },
+      http: { greet: defineActionHttpController(greet, get("/greet")) },
     },
   },
 });

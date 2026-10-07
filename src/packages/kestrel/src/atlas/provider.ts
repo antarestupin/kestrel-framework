@@ -82,7 +82,7 @@ implements Provider<Config> {
 
     app.container.registerValue("atlas", this.atlas);
     app.httpExtensions.register({
-      mount: ({ server }) => {
+      mount: ({ server, defaultAccess }) => {
         server.register(async (server) => {
           const renderClient = await this.client.setup(
             server,
@@ -92,6 +92,7 @@ implements Provider<Config> {
           const controllerManager = new HttpControllerManager(
             app.runtime,
             server,
+            defaultAccess === undefined ? {} : { defaultAccess },
           );
           const required = [
             ...(this.requiredSession === undefined

@@ -1,4 +1,5 @@
 export {
+  anonymousHttpAccess,
   defineHttpAccessPolicy,
   type HttpAccessPolicy,
 } from "./access.js";

@@ -26,7 +26,6 @@ describe("controllers Studio extension", () => {
       {
         app: {
           health: defineHttpController({
-            access: testHttpAccess,
             route: get("/health"),
             description: "Report application health.",
             handler: () => ({ status: "ok" }),
@@ -79,7 +78,7 @@ describe("controllers Studio extension", () => {
         id: "app.health",
         method: "GET",
         url: "/health",
-        access: "test.http.unrestricted",
+        access: "Inherited from HTTP runtime",
         inputs: [],
         examples: [],
       }],
@@ -88,6 +87,7 @@ describe("controllers Studio extension", () => {
       kind: "group",
       children: [{
         id: "user.get",
+        access: "test.http.unrestricted",
         inputs: [{
           name: "id",
           sourceName: "userId",

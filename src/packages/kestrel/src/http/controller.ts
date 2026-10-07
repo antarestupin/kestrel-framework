@@ -71,6 +71,8 @@ export interface HttpControllerHandlerContext<
   request: FastifyRequest;
   reply: FastifyReply;
   execution: ActionExecution;
+  /** Runtime fallback forwarded when a handler delegates to another controller. */
+  defaultAccess: HttpAccessPolicy;
 }
 
 export interface ActionHttpControllerHandlerContext<
@@ -90,6 +92,8 @@ interface BaseHttpControllerOptions<
   OutputSchema extends ControllerOutputSchema,
   Dependencies extends DependencyDeclarations<never>,
 > {
+  /** Overrides the runtime's default access policy for this controller. */
+  access?: HttpAccessPolicy;
   /** Human-readable description exposed to documentation tooling. */
   description?: string;
   /** Stable identifier shared by generated clients and API documents. */
@@ -125,8 +129,6 @@ export interface HttpControllerOptions<
     OutputSchema,
     Dependencies
   > {
-  /** Explicit access boundary required before this controller may execute. */
-  access: HttpAccessPolicy;
   /** Route exposed by the standalone HTTP controller. */
   route: HttpRoute;
   handler: (
@@ -170,7 +172,8 @@ interface BaseHttpController<
   OutputSchema extends ControllerOutputSchema,
   Dependencies extends DependencyDeclarations<never>,
 > extends ControllerContract<InputSchema, OutputSchema, Dependencies> {
-  readonly access: HttpAccessPolicy;
+  /** Omission inherits the access policy of the runtime executing this definition. */
+  readonly access?: HttpAccessPolicy;
   readonly route: HttpRoute;
   readonly operationId: string;
   readonly audiences?: readonly HttpControllerAudience[];
@@ -265,7 +268,9 @@ export function defineHttpController<
   return {
     source: "standalone",
     validation: resolveValidation(options.validation),
-    access: validateHttpAccessPolicy(options.access),
+    ...(options.access === undefined
+      ? {}
+      : { access: validateHttpAccessPolicy(options.access) }),
     route: options.route,
     operationId: resolveHttpOperationId(
       options.operationId,
@@ -315,7 +320,6 @@ export function defineActionHttpController<
     ActionDependencies
   >,
   route: HttpRoute,
-  access: HttpAccessPolicy,
   options: ActionHttpControllerOptions<
     ActionInputSchema,
     ActionOutputSchema,
@@ -342,7 +346,9 @@ export function defineActionHttpController<
       output: options.output === undefined ? action.validation.output : "sync",
     }),
     action,
-    access: validateHttpAccessPolicy(access),
+    ...(options.access === undefined
+      ? {}
+      : { access: validateHttpAccessPolicy(options.access) }),
     route,
     operationId: resolveHttpOperationId(
       options.operationId,

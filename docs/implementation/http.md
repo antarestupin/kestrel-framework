@@ -134,10 +134,10 @@ Action controllers are declared next to their related actions:
 
 ```ts
 export const userHttpControllers = {
-  create: defineActionHttpController(userActions.create, post("/users"), anonymousHttpAccess),
-  get: defineActionHttpController(userActions.get, get("/users/:id"), anonymousHttpAccess),
-  list: defineModelListActionHttpController(userActions.list, "/users", anonymousHttpAccess),
-  delete: defineActionHttpController(userActions.delete, del("/users/:id"), authenticatedHttpAccess),
+  create: defineActionHttpController(userActions.create, post("/users"), { access: anonymousHttpAccess }),
+  get: defineActionHttpController(userActions.get, get("/users/:id"), { access: anonymousHttpAccess }),
+  list: defineModelListActionHttpController(userActions.list, "/users", { access: anonymousHttpAccess }),
+  delete: defineActionHttpController(userActions.delete, del("/users/:id"), { access: authenticatedHttpAccess }),
 };
 ```
 
@@ -161,22 +161,41 @@ The default success status is `201` for POST routes and `200` for GET, PATCH and
 
 ## Access policies
 
-Every HTTP controller selects an explicit access policy. There is no implicit anonymous default: adding a controller requires a visible decision at its definition site. `defineActionHttpController()` and conventional model helpers receive the policy immediately before their optional options object, while standalone controllers declare `access` in their options.
+Every HTTP controller can override access with `options.access`. Without an override, it inherits `HttpRuntimeProvider`'s `defaultAccess` option. An unconfigured runtime uses the exported `anonymousHttpAccess` policy (`kestrel.http.anonymous`), whose empty middleware list permits anonymous requests. The same rules apply to standalone controllers, action controllers and conventional model-list helpers.
+
+```ts
+import { anonymousHttpAccess, HttpRuntimeProvider } from "@kestreljs/framework/http";
+
+// Require the application's session policy on controllers that omit access.
+app.register(new HttpRuntimeProvider(config.http, {
+  defaultAccess: authenticatedHttpAccess,
+}));
+
+const profile = defineActionHttpController(profileAction, get("/profile"));
+// An explicit policy replaces the default, so sign-in remains reachable.
+const signIn = defineActionHttpController(signInAction, post("/sign-in"), {
+  access: anonymousHttpAccess,
+});
+```
+
+Migration: replace `defineActionHttpController(action, route, access, options)` with `defineActionHttpController(action, route, { ...options, access })`. The model-list helper uses `defineModelListActionHttpController(action, url, { access })`. Omit `access` to inherit the runtime default; an explicitly public route should retain its override if it must remain public under a restrictive default.
 
 The Kestrel-owned `defineHttpAccessPolicy()` helper stores a stable name and the HTTP middleware that enforce the boundary. Applications define their concrete policies in their own authorization integration:
 
 ```ts
-export const anonymousHttpAccess = defineHttpAccessPolicy(
-  "application.http.anonymous",
-);
-
 export const adminHttpAccess = defineHttpAccessPolicy(
   "application.http.admin",
   [requiredSession, requireAdminAuthorization],
 );
 ```
 
-An empty middleware list is therefore an explicit anonymous decision rather than an omitted configuration. Access middleware always surrounds controller-local middleware, dependencies, a delegated Action and output validation. Catalog organization and future route groups cannot remove the controller's access policy.
+An explicit controller policy replaces the default; middleware lists are never merged. The effective access middleware surrounds controller-local middleware, dependencies, a delegated Action and output validation. Malformed explicit policies are rejected at definition or registration, and malformed runtime defaults are rejected before Fastify is constructed. Omitting the policy is valid.
+
+`HttpControllerManager` resolves access once per route registration without mutating the catalog definition. A definition may therefore be reused by runtimes with different defaults. Direct manager users may supply `defaultAccess` as well. `executeHttpController()` accepts an optional `defaultAccess` in its execution context and otherwise uses anonymous access. Handler contexts expose the runtime's `defaultAccess` so nested controller invocations can forward it, even when the outer controller has an explicit policy.
+
+HTTP extensions receive the runtime default in their mount context and must forward it to their controller managers. Atlas and Studio do this for their managed controllers; their explicit policies remain overrides. Atlas also forwards the default when dispatching a referenced HTTP controller. Raw Fastify routes and static asset handlers do not participate in controller policy resolution.
+
+Studio displays an explicit policy name or “Inherited from HTTP runtime” for an unresolved catalog definition. Displaying a runtime-specific effective policy in static catalog tooling and introducing route-group defaults are deferred.
 
 ## Explicit bindings
 
@@ -186,8 +205,8 @@ An empty middleware list is therefore an explicit anonymous decision rather than
 const controller = defineActionHttpController(
   action,
   get("/users/:id"),
-  authenticatedHttpAccess,
   {
+    access: authenticatedHttpAccess,
     bindings: {
       userId: path("id"),
       projection: query("fields"),
@@ -206,8 +225,8 @@ A custom handler can perform interface-specific mapping while continuing to use 
 const controller = defineActionHttpController(
   action,
   post("/users/:id/notify"),
-  authenticatedHttpAccess,
   {
+    access: authenticatedHttpAccess,
     dependencies: {
       presenter: dep<NotificationPresenter>("notificationPresenter"),
     },
@@ -222,7 +241,7 @@ const controller = defineActionHttpController(
 
 Controller dependencies are available to standalone and action controller handlers. They are resolved in a request scope and disposed after handling. If a handler sends the Fastify reply itself, Kestrel does not apply its default result mapping.
 
-Controllers can declare local `middleware` created with `defineHttpMiddleware()`. Middleware receives validated controller input, the request, reply and execution scope, and surrounds the handler or delegated action plus controller output validation inside the mandatory access policy. See [Middleware](./middleware.md).
+Controllers can declare local `middleware` created with `defineHttpMiddleware()`. Middleware receives validated controller input, the request, reply and execution scope, and surrounds the handler or delegated action plus controller output validation inside the effective access policy. See [Middleware](./middleware.md).
 
 The `fastify` option accepts Fastify route settings such as hooks, constraints and body limits. The method, URL, schema and handler remain owned by the controller Kestrel so its contracts cannot be replaced accidentally.
 

@@ -83,7 +83,7 @@ function operatorAccess(config: AuthenticationConfig) {
 }
 ```
 
-Use this on administration endpoints requiring an Origin header. HTTP policy protects that boundary; retain action middleware where the permission must apply to other callers. `allOf(permission(a), permission(b))` requires every child; `anyOf(...)` accepts any child. Empty combinations are rejected. Effective permissions are cached within one execution, so revocations affect subsequent executions.
+Use this as `options.access` on administration endpoints requiring an Origin header, or as `HttpRuntimeProvider`'s `defaultAccess` when it should apply to every controller without an override. See [default HTTP access](./http.md#set-default-access-and-override-a-route). HTTP policy protects that boundary; retain action middleware where the permission must apply to other callers. `allOf(permission(a), permission(b))` requires every child; `anyOf(...)` accepts any child. Empty combinations are rejected. Effective permissions are cached within one execution, so revocations affect subsequent executions.
 
 ## Use cases still to document
 

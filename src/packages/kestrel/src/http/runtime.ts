@@ -10,6 +10,11 @@ import { applicationLoggerDependency } from "../log/index.js";
 import type { HttpConfig } from "./configuration.js";
 import { HttpControllerManager } from "./controller_manager.js";
 import type { HttpHardeningProfile } from "./hardening/index.js";
+import {
+  anonymousHttpAccess,
+  type HttpAccessPolicy,
+  validateHttpAccessPolicy,
+} from "./access.js";
 
 export type HttpRuntimeServerOptions = Omit<
   FastifyServerOptions,
@@ -17,6 +22,8 @@ export type HttpRuntimeServerOptions = Omit<
 >;
 
 export interface HttpRuntimeOptions {
+  /** Policy inherited by controllers without access; defaults to unrestricted access. */
+  readonly defaultAccess?: HttpAccessPolicy;
   readonly profile?: HttpHardeningProfile;
   readonly server?: HttpRuntimeServerOptions;
   readonly onListening?: (address: string) => Promise<void> | void;
@@ -27,12 +34,17 @@ export class HttpRuntime<Config> {
   public readonly server: FastifyInstance;
 
   private stopPromise: Promise<void> | undefined;
+  private readonly defaultAccess: HttpAccessPolicy;
 
   public constructor(
     private readonly app: RuntimeApp<Config>,
     private readonly config: HttpConfig,
     private readonly options: HttpRuntimeOptions = {},
   ) {
+    // Validate composition before allocating the Fastify runtime.
+    this.defaultAccess = validateHttpAccessPolicy(
+      options.defaultAccess === undefined ? anonymousHttpAccess : options.defaultAccess,
+    );
     if (
       options.profile !== undefined
       && options.server?.serverFactory !== undefined
@@ -97,14 +109,17 @@ export class HttpRuntime<Config> {
   private composeServer(): void {
     for (const extension of this.app.httpExtensions.definitions) {
       this.server.register(async (server) => {
-        await extension.mount({ app: this.app, server });
+        await extension.mount({ app: this.app, server, defaultAccess: this.defaultAccess });
       });
     }
 
     const controllerManager = new HttpControllerManager(
       this.app,
       this.server,
-      { executionIdHeader: this.config.executionIdHeader },
+      {
+        executionIdHeader: this.config.executionIdHeader,
+        defaultAccess: this.defaultAccess,
+      },
     );
 
     for (const controller of this.app.catalog.httpControllers.definitions) {

@@ -57,7 +57,7 @@ const health = defineHttpController({
 });
 ```
 
-Use `defineCliMiddleware` similarly for command behavior. Put HTTP access checks in an explicit [access policy](./authorization.md), and business permission checks on the action when they must protect direct calls too.
+Use `defineCliMiddleware` similarly for command behavior. Put HTTP access checks in a default or controller-specific [access policy](./http.md#set-default-access-and-override-a-route), and business permission checks on the action when they must protect direct calls too.
 
 Each call to `next()` replays the downstream middleware and handler. Retry middleware must bound attempts and ensure downstream side effects are safe to repeat. For database transactions, use the existing [transaction middleware](./database.md#group-writes-in-a-transaction).
 

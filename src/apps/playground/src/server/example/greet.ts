@@ -3,7 +3,7 @@
 
 import { z } from "zod";
 import { defineAction } from "@kestreljs/framework/actions";
-import { defineHttpAccessPolicy, defineActionHttpController, get } from "@kestreljs/framework/http";
+import { defineActionHttpController, get } from "@kestreljs/framework/http";
 
 /** A small business operation that can also be invoked without HTTP. */
 export const greet = defineAction({
@@ -12,4 +12,4 @@ export const greet = defineAction({
   handler: ({ name }) => ({ message: `Hello, ${name}!` }),
 });
 // Derive the transport from the action so validation and behavior stay shared.
-export const greetHttp = defineActionHttpController(greet, get("/api/greet"), defineHttpAccessPolicy("example.public"));
+export const greetHttp = defineActionHttpController(greet, get("/api/greet"));

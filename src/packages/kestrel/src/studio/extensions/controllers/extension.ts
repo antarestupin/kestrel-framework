@@ -150,7 +150,8 @@ function documentController(
     name,
     method: controller.route.method,
     url: controller.route.url,
-    access: controller.access.name,
+    // Catalog definitions remain reusable across runtimes with different defaults.
+    access: controller.access?.name ?? "Inherited from HTTP runtime",
     ...(controller.description === undefined
       ? {}
       : { description: controller.description }),

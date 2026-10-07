@@ -10,6 +10,7 @@ import { App } from "../app/index.js";
 import { AuthenticationRequiredError } from "../authentication/index.js";
 import {
   defineActionHttpController,
+  defineHttpAccessPolicy,
   defineHttpMiddleware,
   post,
 } from "../http/index.js";
@@ -59,7 +60,7 @@ class TestAtlasClientAdapter implements AtlasClientAdapter {
 const controllerMiddlewareRun = vi.fn();
 const workerHandler = vi.fn();
 
-function createTestAtlas(): Atlas {
+function createTestAtlas(inheritControllerAccess = false): Atlas {
   const modelSchema = z.object({ id: z.string(), name: z.string() });
   const idSchema = modelSchema.pick({ id: true });
   const writeSchema = z.object({ name: z.string() });
@@ -120,8 +121,8 @@ function createTestAtlas(): Atlas {
   const controller = defineActionHttpController(
     normalize,
     post("/models/:id/normalize"),
-    testHttpAccess,
     {
+      ...(inheritControllerAccess ? {} : { access: testHttpAccess }),
       middleware: [defineHttpMiddleware("atlas-controller-test", {
         handler: async (_context, next) => {
           controllerMiddlewareRun();
@@ -220,6 +221,39 @@ function createTestAtlas(): Atlas {
 }
 
 describe("AtlasProvider", () => {
+  it.each([false, true])("preserves the runtime default when delegating to a controller (inherited: %s)", async (inherited) => {
+    const server = Fastify();
+    const app = new App({});
+    const defaultAccess = defineHttpAccessPolicy("test.runtime.required", [
+      defineHttpMiddleware("test.runtime.session", {
+        handler: () => { throw new AuthenticationRequiredError(); },
+      }),
+    ]);
+
+    try {
+      app.register(new AtlasProvider({
+        atlas: createTestAtlas(inherited),
+        client: new TestAtlasClientAdapter(),
+      }));
+      for (const extension of app.httpExtensions.definitions) {
+        await extension.mount({ app, server, defaultAccess });
+      }
+      await app.start();
+
+      // Atlas has its own outer policy; the delegated controller still inherits
+      // the runtime default unless its declaration explicitly overrides it.
+      const response = await server.inject({
+        method: "POST",
+        url: "/management/api/resources/model/record-actions/normalize",
+        payload: { input: { id: "1" } },
+      });
+      expect(response.statusCode).toBe(inherited ? 401 : 200);
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
   it("does not expose HTTP extensions when explicitly disabled", () => {
     const app = new App({});
 

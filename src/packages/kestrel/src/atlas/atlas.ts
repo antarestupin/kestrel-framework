@@ -179,7 +179,7 @@ export class Atlas {
         }),
         output: z.unknown(),
         successStatusCode: 200,
-        handler: async ({ input, execution, reply, request }) => {
+        handler: async ({ input, execution, reply, request, defaultAccess }) => {
           const invocation = this.operations.get(input.operationId);
 
           if (invocation === undefined) {
@@ -205,7 +205,7 @@ export class Atlas {
 
           return invocation.reference.execute(
             parsedInput.data,
-            createCatalogOperationExecutor({ execution, request, reply }),
+            createCatalogOperationExecutor({ execution, request, reply, defaultAccess }),
           );
         },
       }),
@@ -223,7 +223,7 @@ export class Atlas {
         }),
         output: z.unknown(),
         successStatusCode: 200,
-        handler: async ({ input, execution, reply, request }) => {
+        handler: async ({ input, execution, reply, request, defaultAccess }) => {
           const invocation = this.recordActions.get(
             getRecordActionKey(input.resourceId, input.recordActionId),
           );
@@ -250,7 +250,7 @@ export class Atlas {
 
           return operation.execute(
             parsedInput.data,
-            createCatalogOperationExecutor({ execution, request, reply }),
+            createCatalogOperationExecutor({ execution, request, reply, defaultAccess }),
           );
         },
       }),

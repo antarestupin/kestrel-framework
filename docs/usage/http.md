@@ -2,7 +2,26 @@
 
 [Usage index](./README.md) · [Implementation and transport contracts](../implementation/http.md)
 
-Use typed controllers for routes and register `HttpRuntimeProvider` as shown in [application composition](./app.md). Every controller must choose an explicit access policy.
+Use typed controllers for routes and register `HttpRuntimeProvider` as shown in [application composition](./app.md). Controllers inherit the runtime access policy, which permits anonymous requests by default. Set `defaultAccess` on the provider to change that default, or `access` in a controller's options to override it.
+
+## Set default access and override a route
+
+```ts
+import { anonymousHttpAccess, defineActionHttpController, get, post, HttpRuntimeProvider } from "@kestreljs/framework/http";
+
+// Apply the application's authenticated policy to routes that omit access.
+app.register(new HttpRuntimeProvider(config.http, {
+  defaultAccess: authenticatedHttpAccess,
+}));
+
+const profileHttp = defineActionHttpController(profileAction, get("/profile"));
+const signInHttp = defineActionHttpController(signInAction, post("/sign-in"), {
+  // Replace the default so anonymous callers can sign in.
+  access: anonymousHttpAccess,
+});
+```
+
+`authenticatedHttpAccess` is an application policy built from [authentication](./authentication.md) middleware. An override replaces the default policy rather than adding to it. Without `defaultAccess`, routes that omit `access` are public. Standalone controllers and `defineModelListActionHttpController(action, url, options?)` follow the same rule. When migrating action controllers, move the former third `access` argument into the options object.
 
 ## Expose an action and map URL fields
 
@@ -22,7 +41,8 @@ const greet = defineAction({
 });
 // An empty policy is an explicit decision to allow anonymous requests.
 const publicAccess = defineHttpAccessPolicy("example.public");
-const greetHttp = defineActionHttpController(greet, get("/greetings/:person"), publicAccess, {
+const greetHttp = defineActionHttpController(greet, get("/greetings/:person"), {
+  access: publicAccess,
   // Translate URL field names into the reusable action's input names.
   bindings: { name: path("person"), prefix: query("salutation") },
 });
@@ -47,14 +67,15 @@ const health = defineHttpController({
 // Include health in the catalog's controllers.http category to expose it.
 ```
 
-Handlers receive a context object containing `input`, `deps`, `request`, `reply` and `execution`. For action controllers, `action` is the execution-bound runner. Add controller `dependencies` or a custom handler for transport-specific mapping; keep reusable business behavior in the action.
+Handlers receive a context object containing `input`, `deps`, `request`, `reply`, `execution` and `defaultAccess`. For action controllers, `action` is the execution-bound runner. Add controller `dependencies` or a custom handler for transport-specific mapping; keep reusable business behavior in the action.
 
 ## Set a response status and protect a route
 
 Choose a success status when the HTTP contract needs one other than the method default. This example keeps public access; protected routes additionally select the session and permission policies described below.
 
 ```ts
-const acceptedGreeting = defineActionHttpController(greet, get("/accepted-greeting"), publicAccess, {
+const acceptedGreeting = defineActionHttpController(greet, get("/accepted-greeting"), {
+  access: publicAccess,
   // Override only the success status; the action still executes in this request.
   successStatusCode: 202,
   // Use the execution-bound runner to retain action validation and middleware.

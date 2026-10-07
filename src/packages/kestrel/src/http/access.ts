@@ -1,6 +1,6 @@
 import type { HttpMiddleware } from "./middleware.js";
 
-/** Declares the mandatory access boundary applied to one HTTP controller. */
+/** Declares an access boundary applied to an HTTP controller. */
 export interface HttpAccessPolicy {
   /** Stable name exposed to diagnostics and documentation tooling. */
   readonly name: string;
@@ -20,7 +20,10 @@ export function defineHttpAccessPolicy(
   return { name, middleware };
 }
 
-/** Rejects missing or malformed access policies at the definition boundary. */
+/** Unrestricted fallback used when a runtime does not configure default access. */
+export const anonymousHttpAccess = defineHttpAccessPolicy("kestrel.http.anonymous");
+
+/** Rejects malformed explicit policies at definition and composition boundaries. */
 export function validateHttpAccessPolicy(
   policy: HttpAccessPolicy,
 ): HttpAccessPolicy {

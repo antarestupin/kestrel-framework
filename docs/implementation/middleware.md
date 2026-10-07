@@ -118,7 +118,7 @@ Business authorization belongs in action middleware when it must also protect di
 
 Transport authentication and request-specific authorization can live here. Authorization failures should normally throw a representable error rather than send a reply directly, keeping error rendering centralized.
 
-Every HTTP controller declares an access policy created with `defineHttpAccessPolicy()`. Its middleware run before and surround controller-local middleware, making anonymous exposure an explicit named policy rather than an omitted middleware list. Given access middleware `[access]` and controller middleware `[local]`, execution is equivalent to `access(context, () => local(context, handler))`.
+Every HTTP controller uses its explicit `options.access` policy or inherits the runtime's `defaultAccess`, which is anonymous when unconfigured. An explicit policy replaces the default. The effective policy's middleware run before and surround controller-local middleware. See [HTTP access policies](./http.md#access-policies). Given access middleware `[access]` and controller middleware `[local]`, execution is equivalent to `access(context, () => local(context, handler))`.
 
 Access policies protect the HTTP boundary only. Business authorization that must also apply to CLI commands, workers or direct application calls remains Action middleware.
 

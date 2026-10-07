@@ -20,6 +20,12 @@ afterEach(async () => {
 });
 
 describe("HttpRuntime", () => {
+  it.each([null, {}, { name: "", middleware: [] }])("rejects malformed default access before constructing the server (%s)", (defaultAccess) => {
+    expect(() => new HttpRuntime(createRuntimeApp(), config, {
+      defaultAccess: defaultAccess as never,
+    })).toThrow("An HTTP controller requires a valid access policy.");
+  });
+
   it("lets the selected hardening profile override generic server options", async () => {
     const install = vi.fn();
     const profile: HttpHardeningProfile = {

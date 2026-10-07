@@ -42,6 +42,11 @@ import type {
   HttpObjectSchema,
 } from "./controller.js";
 import { executeHttpController } from "./controller_executor.js";
+import {
+  anonymousHttpAccess,
+  type HttpAccessPolicy,
+  validateHttpAccessPolicy,
+} from "./access.js";
 
 const executionIdSchema = z.uuid();
 
@@ -53,6 +58,8 @@ interface HttpErrorBody {
 }
 
 export interface HttpControllerManagerOptions {
+  /** Inherited by controllers without an explicit policy; defaults to anonymous. */
+  defaultAccess?: HttpAccessPolicy;
   /** Omits execution observations while preserving normal request handling. */
   observe?: boolean;
   /** Enables or suppresses execution-context logging for managed requests. */
@@ -65,11 +72,17 @@ export interface HttpControllerManagerOptions {
  * Registers standalone and action-backed controllers on a Fastify instance.
  */
 export class HttpControllerManager<Config> {
+  private readonly defaultAccess: HttpAccessPolicy;
+
   public constructor(
     private readonly app: RuntimeApp<Config>,
     private readonly server: FastifyInstance,
     private readonly options: HttpControllerManagerOptions = {},
-  ) {}
+  ) {
+    this.defaultAccess = validateHttpAccessPolicy(
+      options.defaultAccess === undefined ? anonymousHttpAccess : options.defaultAccess,
+    );
+  }
 
   /**
    * Adds one controller to the Fastify route catalog.
@@ -93,12 +106,20 @@ export class HttpControllerManager<Config> {
   ): this {
     this.assertPathBindings(controller);
 
+    // Resolve per registration without mutating a definition shared by runtimes.
+    const resolvedController = {
+      ...controller,
+      access: validateHttpAccessPolicy(
+        controller.access === undefined ? this.defaultAccess : controller.access,
+      ),
+    };
+
     this.server.route({
       ...controller.fastify,
       method: controller.route.method,
       url: controller.route.url,
       handler: async (request, reply) =>
-        this.handle(controller, request, reply),
+        this.handle(resolvedController, request, reply),
     });
 
     return this;
@@ -193,7 +214,7 @@ export class HttpControllerManager<Config> {
         const parsedResult = await executeHttpController(
           controller,
           parsedInput,
-          { request, reply, execution },
+          { request, reply, execution, defaultAccess: this.defaultAccess },
         );
 
         // A custom handler can take full ownership by sending a reply itself.

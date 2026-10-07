@@ -13,7 +13,7 @@ import { z } from "zod";
 import { defineAction } from "@kestreljs/framework/actions";
 import { defineCatalog } from "@kestreljs/framework/app";
 import { defineActionCliController } from "@kestreljs/framework/cli";
-import { defineActionHttpController, defineHttpAccessPolicy, get } from "@kestreljs/framework/http";
+import { defineActionHttpController, get } from "@kestreljs/framework/http";
 
 const greet = defineAction({
   name: "greeting.greet",
@@ -26,7 +26,7 @@ export const catalog = defineCatalog({
   controllers: {
     http: {
       // GET /greet?name=Sam supplies the action input through the query.
-      greet: defineActionHttpController(greet, get("/greet"), defineHttpAccessPolicy("example.public")),
+      greet: defineActionHttpController(greet, get("/greet")),
     },
     // The command supplies the same input as greet --name Sam.
     cli: { greet: defineActionCliController(greet, "greet") },

@@ -15,6 +15,8 @@ import {
 import { get } from "./route.js";
 
 export interface ModelListActionHttpControllerOptions {
+  /** Overrides the runtime's default access policy for this controller. */
+  access?: HttpAccessPolicy;
   /** Selects the targets that may expose this contract. */
   audiences?: readonly HttpControllerAudience[];
 }
@@ -34,7 +36,6 @@ export function defineModelListActionHttpController<
     Dependencies
   >,
   url: string,
-  access: HttpAccessPolicy,
   options: ModelListActionHttpControllerOptions = {},
 ) {
   const controllerAction =
@@ -43,7 +44,6 @@ export function defineModelListActionHttpController<
   return defineActionHttpController(
     controllerAction,
     get(url),
-    access,
     options,
   );
 }

@@ -249,7 +249,7 @@ const banUserInput = z.object({ userId: z.string(), reason: z.string() });
 
 // :userId is automatically bound to input's userId; because this is a POST
 // route, other parameters such as reason are bound to the request body.
-export const banUserHttpController = defineActionHttpController(banUserAction, post("/user/:userId/ban"), adminHttpAccess);
+export const banUserHttpController = defineActionHttpController(banUserAction, post("/user/:userId/ban"), { access: adminHttpAccess });
 ```
 
 Here is an example of a more complex controller, showing more options:
@@ -258,8 +258,8 @@ Here is an example of a more complex controller, showing more options:
 export const banUserHttpControllerExtended = defineActionHttpController(
   banUserAction,
   post("/user/:id/ban"), // routing configuration
-  adminHttpAccess,
   {
+    access: adminHttpAccess,
     // controller configuration
     input: banUserInput.variants.byId,
     bindings: {
@@ -371,7 +371,8 @@ export const banUserAction = defineAction({
 // -----------
 
 // HTTP controller, to register in a Fastify route
-export const banUserHttpController = defineActionHttpController(banUserAction, post("/user/:userId/ban"), adminHttpAccess, {
+export const banUserHttpController = defineActionHttpController(banUserAction, post("/user/:userId/ban"), {
+  access: adminHttpAccess,
   input: banUserInput.variants.byId,
 });
 

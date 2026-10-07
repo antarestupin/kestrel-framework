@@ -74,7 +74,7 @@ describe("HttpControllerManager", () => {
       validation: { input: "async", output: "async" },
       handler: ({ value }) => value,
     });
-    const inherited = defineActionHttpController(action, post("/inherited"), testHttpAccess);
+    const inherited = defineActionHttpController(action, post("/inherited"), { access: testHttpAccess });
     http.manager.register(inherited);
     expect(inherited.validation).toEqual({ input: "async", output: "async" });
     const response = await http.server.inject({ method: "POST", url: "/inherited", payload: { value: "value" } });
@@ -83,7 +83,8 @@ describe("HttpControllerManager", () => {
     const invalid = await http.server.inject({ method: "POST", url: "/inherited", payload: { value: "" } });
     expect(invalid.statusCode).toBe(400);
 
-    const replaced = defineActionHttpController(action, post("/replaced"), testHttpAccess, {
+    const replaced = defineActionHttpController(action, post("/replaced"), {
+      access: testHttpAccess,
       input: z.object({ value: z.string() }),
       output: z.string(),
     });
@@ -260,7 +261,7 @@ describe("HttpControllerManager", () => {
     const controller = defineActionHttpController(
       action,
       get("/greeting"),
-      testHttpAccess,
+      { access: testHttpAccess },
     );
     const http = createTestHttp();
 
@@ -286,8 +287,8 @@ describe("HttpControllerManager", () => {
     const controller = defineActionHttpController(
       action,
       get("/profile"),
-      testHttpAccess,
       {
+        access: testHttpAccess,
         output,
         handler: async ({ action: runner, input }) =>
           (await runner.run(input)).name,
@@ -353,7 +354,7 @@ describe("HttpControllerManager", () => {
     expect(response.body).toBe("HELLO ADA");
   });
 
-  it("runs HTTP middleware around the handler and output validation", async () => {
+  it.each([false, true])("runs access around local middleware and output validation (inherited: %s)", async (inherited) => {
     const events: string[] = [];
     const dependencies = {
       label: dep<string>("label"),
@@ -386,12 +387,12 @@ describe("HttpControllerManager", () => {
         },
       }),
     ]);
-    const http = createTestHttp();
+    const http = createTestHttp(inherited ? { defaultAccess: access } : {});
 
     http.app.container.registerValue("label", "http");
     http.manager.register(
       defineHttpController({
-        access,
+        ...(inherited ? {} : { access }),
         route: get("/middleware/:name"),
         input: z.object({ name: z.string() }),
         output: z.string().transform((value) => value.toUpperCase()),
@@ -436,7 +437,7 @@ describe("HttpControllerManager", () => {
     const controller = defineActionHttpController(
       action,
       post("/messages/:id"),
-      testHttpAccess,
+      { access: testHttpAccess },
     );
     const http = createTestHttp();
 
@@ -473,7 +474,7 @@ describe("HttpControllerManager", () => {
     const controller = defineActionHttpController(
       action,
       get("/messages/:category"),
-      testHttpAccess,
+      { access: testHttpAccess },
     );
     const http = createTestHttp();
 
@@ -505,8 +506,8 @@ describe("HttpControllerManager", () => {
     const controller = defineActionHttpController(
       action,
       get("/resources/:id"),
-      testHttpAccess,
       {
+        access: testHttpAccess,
         bindings: {
           resourceId: path("id"),
           search: query("q"),
@@ -536,7 +537,7 @@ describe("HttpControllerManager", () => {
     const http = createTestHttp();
 
     http.manager.register(
-      defineActionHttpController(action, post("/emails"), testHttpAccess),
+      defineActionHttpController(action, post("/emails"), { access: testHttpAccess }),
     );
 
     const response = await http.server.inject({
@@ -570,7 +571,7 @@ describe("HttpControllerManager", () => {
     const http = createTestHttp();
 
     http.manager.register(
-      defineActionHttpController(action, get("/resources/:id"), testHttpAccess),
+      defineActionHttpController(action, get("/resources/:id"), { access: testHttpAccess }),
     );
 
     const response = await http.server.inject({
@@ -597,7 +598,8 @@ describe("HttpControllerManager", () => {
 
     http.app.container.registerValue("prefix", "Hello");
     http.manager.register(
-      defineActionHttpController(action, get("/greetings/:name"), testHttpAccess, {
+      defineActionHttpController(action, get("/greetings/:name"), {
+        access: testHttpAccess,
         dependencies: {
           prefix: dep<string>("prefix"),
         },
@@ -643,7 +645,8 @@ describe("HttpControllerManager", () => {
       },
     );
     http.manager.register(
-      defineActionHttpController(firstAction, get("/scope"), testHttpAccess, {
+      defineActionHttpController(firstAction, get("/scope"), {
+        access: testHttpAccess,
         // The custom handler replaces the action object with a wire string.
         output: z.string(),
         handler: async ({ action, execution, input }) => {
@@ -702,7 +705,7 @@ describe("HttpControllerManager", () => {
     );
 
     http.manager.register(
-      defineActionHttpController(action, get("/failure"), testHttpAccess),
+      defineActionHttpController(action, get("/failure"), { access: testHttpAccess }),
     );
 
     const response = await http.server.inject({
@@ -762,7 +765,7 @@ describe("HttpControllerManager", () => {
     const http = createTestHttp();
 
     http.manager.register(
-      defineActionHttpController(action, post("/conflict"), testHttpAccess),
+      defineActionHttpController(action, post("/conflict"), { access: testHttpAccess }),
     );
 
     const response = await http.server.inject({
@@ -790,8 +793,8 @@ describe("HttpControllerManager", () => {
     const controller = defineActionHttpController(
       action,
       get("/resources/:id"),
-      testHttpAccess,
       {
+        access: testHttpAccess,
         bindings: {
           resourceId: path("missing"),
         },

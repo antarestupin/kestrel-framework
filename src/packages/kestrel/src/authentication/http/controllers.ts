@@ -40,8 +40,8 @@ export function createAuthenticationHttpControllers<
   const signInWithPassword = defineActionHttpController(
     authentication.actions.signInWithPassword,
     post(`${prefix}/password/sign-in`),
-    access,
     {
+      access,
       input: passwordSignInHttpInputSchema,
       output: authentication.schemas.principal,
       // Credential requests are intentionally much smaller than normal JSON APIs.
@@ -67,8 +67,8 @@ export function createAuthenticationHttpControllers<
   const signOut = defineActionHttpController(
     authentication.actions.signOut,
     post(`${prefix}/sign-out`),
-    access,
     {
+      access,
       middleware: [middleware.trustedOrigin, middleware.optionalSession],
       successStatusCode: 204,
       handler: async ({ action, reply }) => {
@@ -88,8 +88,8 @@ export function createAuthenticationHttpControllers<
   const getCurrentSession = defineActionHttpController(
     authentication.actions.getCurrentSession,
     get(`${prefix}/session`),
-    access,
     {
+      access,
       middleware: [middleware.optionalSession],
       successStatusCode: 200,
     },

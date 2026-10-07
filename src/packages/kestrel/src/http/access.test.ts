@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
+import { defineAction } from "../actions/index.js";
 import { defineHttpAccessPolicy } from "./access.js";
-import { defineHttpController } from "./controller.js";
+import { defineHttpController, defineActionHttpController } from "./controller.js";
 import { defineHttpMiddleware } from "./middleware.js";
 import { get } from "./route.js";
 
@@ -24,12 +26,22 @@ describe("HTTP access policies", () => {
     });
   });
 
-  it("rejects a missing policy at the runtime definition boundary", () => {
+  it.each([null, {}, { name: "", middleware: [] }, { name: "invalid", middleware: null }])("rejects malformed explicit access (%s)", (access) => {
     expect(() => defineHttpController({
-      route: get("/missing-access"),
+      access,
+      route: get("/invalid-access"),
       handler: () => undefined,
     } as never)).toThrow(
       "An HTTP controller requires a valid access policy.",
     );
+    const action = defineAction({
+      name: "test.invalid-access",
+      input: z.object({}),
+      output: z.string(),
+      handler: () => "unused",
+    });
+    expect(() => defineActionHttpController(action, get("/invalid-access"), {
+      access,
+    } as never)).toThrow("An HTTP controller requires a valid access policy.");
   });
 });
