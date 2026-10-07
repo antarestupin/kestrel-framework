@@ -20,7 +20,7 @@ export function definePermission(
   });
 }
 
-/** Declares role metadata used by application setup and seed data. */
+/** Declares an immutable role and its authoritative permission mapping. */
 export function defineRole(definition: RoleDefinition): RoleDefinition {
   validateIdentifier(definition.key, "Role");
 
@@ -46,7 +46,8 @@ export function defineRole(definition: RoleDefinition): RoleDefinition {
     ...(definition.description === undefined
       ? {}
       : { description: definition.description }),
-    permissions: Object.freeze([...definition.permissions]),
+    // Snapshot nested definitions so later caller mutations cannot change policy.
+    permissions: Object.freeze(definition.permissions.map(definePermission)),
   });
 }
 

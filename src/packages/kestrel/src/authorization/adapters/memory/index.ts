@@ -1,4 +1,1 @@
-export {
-  MemoryAuthorizationAdapter,
-  type MemoryAuthorizationAdapterOptions,
-} from "./adapter.js";
+export { MemorySubjectRoleStore } from "./store.js";

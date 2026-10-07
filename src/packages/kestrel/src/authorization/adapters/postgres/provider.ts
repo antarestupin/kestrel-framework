@@ -1,36 +1,21 @@
 import type { Provider, ProviderCompositionApp } from "../../../app/index.js";
 import type { DatabaseManager } from "../../../db/index.js";
-import { PostgresAuthorizationAdapter } from "./adapter.js";
+import { PostgresSubjectRoleStore } from "./store.js";
 import { authorizationTables } from "./schema.js";
 import type { PostgresAuthorizationTables } from "./tables.js";
 
-interface Dependencies {
-  readonly databaseManager: DatabaseManager;
-  readonly authorizationAdapter: PostgresAuthorizationAdapter;
-}
-
-/** Selects the bundled PostgreSQL RBAC adapter and exposes its focused ports. */
-export class PostgresAuthorizationAdapterProvider<Config>
-  implements Provider<Config>
-{
+/** Registers PostgreSQL assignments independently from permission resolution. */
+export class PostgresSubjectRoleStoreProvider<Config> implements Provider<Config> {
   public constructor(
     private readonly tables: PostgresAuthorizationTables = authorizationTables,
   ) {}
 
   public register(app: ProviderCompositionApp<Config>): void {
     app.container.registerFactory(
-      "authorizationAdapter",
-      ({ databaseManager }: Dependencies) =>
-        new PostgresAuthorizationAdapter(databaseManager, this.tables),
+      "subjectRoleStore",
+      ({ databaseManager }: { readonly databaseManager: DatabaseManager }) =>
+        new PostgresSubjectRoleStore(databaseManager, this.tables),
       { lifetime: "scoped" },
     );
-
-    for (const name of ["permissionResolver", "roleStore", "subjectRoleStore"] as const) {
-      app.container.registerFactory(
-        name,
-        ({ authorizationAdapter }: Dependencies) => authorizationAdapter,
-        { lifetime: "scoped" },
-      );
-    }
   }
 }

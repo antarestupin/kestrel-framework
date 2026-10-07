@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 // Integration suites always run when selected; unavailable infrastructure is a failure.
 const integration = [
   "src/packages/kestrel/src/authentication/adapters/postgres/adapter.test.ts",
-  "src/packages/kestrel/src/authorization/adapters/postgres/adapter.test.ts",
+  "src/packages/kestrel/src/authorization/adapters/postgres/store.test.ts",
   "src/packages/kestrel/src/cache/adapters/postgres/adapter.test.ts",
   "src/packages/kestrel/src/cache/adapters/redis/adapter.test.ts",
   "src/packages/kestrel/src/database/seeder/database_seeder.test.ts",

@@ -30,19 +30,7 @@ export interface PermissionResolver {
   resolvePermissions(subjectId: string): Promise<ReadonlySet<string>>;
 }
 
-export type AuthorizationRoleState = "active" | "disabled";
-
-/** Persisted role metadata used by management operations. */
-export interface AuthorizationRole {
-  readonly id: string;
-  readonly key: string;
-  readonly name: string;
-  readonly description?: string;
-  readonly state: AuthorizationRoleState;
-  readonly createdAt: Date;
-  readonly updatedAt: Date;
-}
-
+/** Application-owned role whose meaning is versioned with the code. */
 export interface RoleDefinition {
   readonly key: string;
   readonly name: string;
@@ -50,17 +38,13 @@ export interface RoleDefinition {
   readonly permissions: readonly PermissionDefinition[];
 }
 
-/** Management port kept separate from permission resolution. */
-export interface RoleStore {
-  findRoleByKey(key: string): Promise<AuthorizationRole | undefined>;
-}
-
-/** Assigns and removes roles without exposing adapter internals to the app. */
+/** Persists assignments only; role definitions belong to the application code. */
 export interface SubjectRoleStore {
+  listRoleKeys(subjectId: string): Promise<ReadonlySet<string>>;
   grantRole(
     subjectId: string,
-    roleId: string,
+    roleKey: string,
     grantedBySubjectId?: string,
   ): Promise<boolean>;
-  revokeRole(subjectId: string, roleId: string): Promise<boolean>;
+  revokeRole(subjectId: string, roleKey: string): Promise<boolean>;
 }

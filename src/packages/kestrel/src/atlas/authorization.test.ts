@@ -13,10 +13,11 @@ import {
   AtlasProvider,
   defineAtlas,
 } from "./index.js";
-import { MemoryAuthorizationAdapter } from "../authorization/adapters/memory/index.js";
+import { MemorySubjectRoleStore } from "../authorization/adapters/memory/index.js";
 import { definePermission, defineRole } from "../authorization/definition.js";
 import { requireHttpAuthorization } from "../authorization/middleware.js";
 import { AuthorizationProvider } from "../authorization/provider.js";
+import { RolePermissionResolverProvider } from "../authorization/resolvers/roles/index.js";
 import { permission } from "../authorization/requirements.js";
 
 class TestClient implements AtlasClientAdapter {
@@ -50,10 +51,7 @@ async function expectAccess(
   const server = Fastify();
   const app = new App({});
   const context = new AuthenticationContext<{}>();
-  const adapter = new MemoryAuthorizationAdapter({
-    roles: [operatorRole],
-    createId: () => "role-1",
-  });
+  const store = new MemorySubjectRoleStore();
 
   if (state === "anonymous") {
     context.resolveAnonymous();
@@ -72,11 +70,12 @@ async function expectAccess(
   }
 
   if (state === "operator") {
-    await adapter.grantRole("subject-1", "role-1");
+    await store.grantRole("subject-1", operatorRole.key);
   }
 
   app.container.registerValue("authenticationContext", context);
-  app.container.registerValue("permissionResolver", adapter);
+  app.container.registerValue("subjectRoleStore", store);
+  app.register(new RolePermissionResolverProvider([operatorRole]));
   app.register(new AuthorizationProvider());
   app.register(new AtlasProvider({
     atlas: defineAtlas({ basePath: "/atlas", resources: [] }),
@@ -86,14 +85,16 @@ async function expectAccess(
     },
   }));
 
-  for (const extension of app.httpExtensions.definitions) {
-    await extension.mount({ app, server });
+  try {
+    for (const extension of app.httpExtensions.definitions) {
+      await extension.mount({ app, server });
+    }
+    await app.start();
+
+    const response = await server.inject({ method: "GET", url: "/atlas" });
+    expect(response.statusCode).toBe(expectedStatus);
+  } finally {
+    await server.close();
+    await app.dispose();
   }
-  await app.start();
-
-  const response = await server.inject({ method: "GET", url: "/atlas" });
-  expect(response.statusCode).toBe(expectedStatus);
-
-  await server.close();
-  await app.dispose();
 }

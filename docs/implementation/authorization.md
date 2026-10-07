@@ -2,660 +2,125 @@
 
 [Documentation](../README.md) · [Implementation index](./README.md) · [Usage guide](../usage/authorization.md)
 
-The authorization library decides whether an authenticated principal may perform an operation. It is a separate Kestrel library built on the principal produced by authentication. Authentication establishes identity and assurance; authorization evaluates permissions and policies for that identity.
-
-The first application use is protecting the complete administration boundary. The protected boundary is the exact `/admin` path and every descendant below `/admin/`. Protection is defined once for the subtree rather than repeated for the SPA shell, manifest, API operations, fallbacks, or future administration routes.
-
-## Status
-
-This document specifies the architecture and records the first implemented increment. The authorization core, memory and PostgreSQL adapters, application role policy, operator commands, database seed, and complete `/admin` protection are implemented.
-
-
-The authentication foundation required by this design already exists: immutable scoped principals, opaque revocable sessions, HTTP session resolution, transport-independent Action middleware, account disablement, and session invalidation through account security versions.
-
-## Usage guide
-
-For application setup and task-oriented examples, see the [Authorization usage guide](../usage/authorization.md).
+Authorization evaluates requirements for the immutable principal established by authentication. Kestrel's bundled policy consists of code-defined roles and permissions, with live subject-role assignments stored separately. Application user models, authentication credentials, and session claims do not own authorization policy.
 
 ## Public API
 
-| API group | Main exports |
+| API group | Exports |
 | --- | --- |
-| Definitions | `definePermission()`, `defineRole()`, permission and role definition types |
-| Requirements | `permission()`, `allOf()`, `anyOf()` and `AuthorizationRequirement` |
-| Evaluation | `AuthorizationManager`, `AuthorizationDecision`, manager dependency types |
-| Enforcement | `requireAuthorization()`, `requireHttpAuthorization()`, `AuthorizationDeniedError` |
-| Composition and DI | `AuthorizationProvider`, manager, resolver, role-store and subject-role-store dependencies |
-| Storage contracts | `PermissionResolver`, `RoleStore`, `SubjectRoleStore`, authorization role/state types |
-| Bundled adapters | `MemoryAuthorizationAdapter`, `PostgresAuthorizationAdapter`, PostgreSQL adapter provider and schema/table exports |
-
-## Adapter API
-
-The core storage port is `PermissionResolver.resolvePermissions(subjectId)`. It returns the subject's complete current effective permission-id set. The result must exclude disabled roles and unknown or inactive policy state according to the adapter's model. Failures reject; an unavailable backend must not be interpreted as an empty authoritative grant set unless the application deliberately wraps it with that fail-closed policy.
-
-RBAC administration uses two narrower ports. `RoleStore.findRoleByKey()` resolves current role metadata. `SubjectRoleStore.grantRole()` and `revokeRole()` return whether they changed the association and must be idempotent under repeated operator requests. Grant metadata such as the granting subject remains adapter-owned but must not weaken those semantics.
-
-The authorization manager caches one resolver result only within an execution. Adapters must therefore return a coherent snapshot for one call and must not rely on longer manager-side caching. The PostgreSQL and memory implementations satisfy all three ports; custom policy engines may implement only `PermissionResolver` when role administration is handled elsewhere. The detailed PostgreSQL behavior appears in [PostgreSQL RBAC adapter](#postgresql-rbac-adapter).
-
-## Goals
-
-The library must:
-
-- deny operations by default;
-- consume the authenticated principal without adding roles or permissions to authentication tables;
-- remain independent from the application's `User` class and identifier format;
-- remain independent from persistence through a focused permission resolver contract;
-- provide a PostgreSQL RBAC adapter and Kestrel-owned Drizzle schema for the common case;
-- allow applications to declare stable, inspectable permissions in code;
-- support reusable requirements such as one permission, all permissions, or any permission;
-- protect Actions independently from their transport;
-- protect HTTP boundaries such as the complete administration subtree;
-- distinguish missing authentication from denied authorization through consistent 401 and 403 responses;
-- cache permission resolution only within one execution so grants and revocations take effect on the next execution;
-- leave room for resource ownership, organizations, contextual policies, external policy engines, and richer role management without requiring those features now.
-
-## Non-goals for the first increment
-
-The first increment does not provide:
-
-- resource ownership or row-level authorization;
-- attribute-based policy evaluation;
-- organization, workspace, or tenant boundaries;
-- role inheritance or role hierarchies;
-- explicit deny rules, rule priorities, or conflict resolution;
-- time-based or network-based authorization conditions;
-- permissions copied into authentication session claims;
-- direct permission grants to subjects;
-- a graphical role-management interface;
-- self-service access requests or approval workflows;
-- a general-purpose policy language;
-- integration with an external IAM or policy engine;
-- durable security audit history beyond normal observations and grant metadata;
-- authorization for trusted operator CLI commands used to bootstrap the first administrator.
-
-These features influence the contracts retained below, but they must be introduced only with concrete semantics and tests.
-
-## Concepts and terminology
-
-| Term | Meaning |
-| --- | --- |
-| Principal | The immutable authenticated identity available in the current execution. |
-| Subject | The application-owned entity identified by `principal.subjectId`. |
-| Permission | A stable application-defined capability such as `admin.access`. |
-| Requirement | An inspectable expression describing which permissions are required. |
-| Decision | The manager's allowed or denied result for one requirement. |
-| Permission resolver | The storage-neutral port that loads a subject's effective permission identifiers. |
-| Role | A PostgreSQL-adapter concept grouping permission identifiers. Roles are not a core authorization assumption. |
-| Grant | An association between a subject and a role. |
-| Policy enforcement point | Middleware or a boundary that prevents an operation after a denied decision. |
-| Administration boundary | The exact `/admin` route and every route below `/admin/`. |
-
-## Design principles
-
-### Authentication and authorization remain separate
-
-Authorization depends on authentication in one direction:
-
-```text
-authorization -> authentication
-authentication -X-> authorization
-```
-
-Authentication does not define roles, permissions, or policies. Authorization reads `AuthenticationContext` and the resulting `AuthenticatedPrincipal`. This provides direct synergy without turning authentication accounts or sessions into authorization storage.
-
-### Permissions are application language
-
-Permission identifiers describe stable application capabilities. They are declared in code, reviewed like API contracts, and namespaced by domain:
-
-```ts
-export const adminAccess = definePermission({
-  id: "admin.access",
-  description: "Access the application administration.",
-});
-```
-
-Permission identifiers are not UI labels and must not be renamed casually. Renaming a permission requires a storage migration for every role mapping that uses it.
-
-### The core does not assume RBAC
-
-The core asks a `PermissionResolver` for effective permissions. The bundled PostgreSQL adapter computes those permissions through roles, but a custom resolver may use an IAM service, LDAP groups, direct grants, static configuration, or another policy system.
-
-This keeps `Role` out of the core manager and prevents a first RBAC implementation from becoming the universal authorization model.
-
-### Server decisions are authoritative
-
-Hiding an administration link or client route is only presentation. Every protected server operation must enforce authorization. The administration shell, manifest, APIs, and operations are protected on the server before any administration content or data is returned.
-
-### Requirements are inspectable
-
-The first version uses immutable requirement values rather than arbitrary callbacks. This keeps policies visible to tests, documentation, tooling, and future administrative introspection.
-
-### Permission state is live across executions
-
-Permissions are not copied into session claims in the first increment. The resolver is called at most once per execution and its result is cached only in that scope. A role grant or revocation therefore affects the next HTTP request or other execution without revoking an otherwise valid authentication session.
+| Definitions | `definePermission`, `defineRole`, `PermissionDefinition`, `RoleDefinition` |
+| Requirements | `permission`, `allOf`, `anyOf`, `AuthorizationRequirement` |
+| Evaluation | `AuthorizationManager`, `AuthorizationDecision`, `PermissionResolver` |
+| Enforcement | `requireAuthorization`, `requireHttpAuthorization`, `AuthorizationDeniedError` |
+| Core composition | `AuthorizationProvider`, `authorizationManagerDependency`, `permissionResolverDependency` |
+| Code-defined RBAC | `RolePermissionResolver`, `RolePermissionResolverOptions`, `RolePermissionResolverProvider` |
+| Assignment storage | `SubjectRoleStore`, `subjectRoleStoreDependency`, `MemorySubjectRoleStore`, `PostgresSubjectRoleStore`, `PostgresSubjectRoleStoreProvider` |
+| PostgreSQL schema | `authorizationSqlSchema`, `authorizationSubjectRoles`, `authorizationTables`, `PostgresAuthorizationTables`, `PostgresAuthorizationSubjectRoleTable` |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    HTTP[HTTP authentication middleware] --> AuthContext[Authentication context]
-    Action[Action authorization middleware] --> Manager[Authorization manager]
-    Admin[Administration boundary] --> Manager
-    AuthContext --> Manager
-    Manager --> Resolver[Permission resolver]
-    Resolver --> Custom[Custom resolver]
-    Resolver --> RBAC[PostgreSQL RBAC adapter]
-    RBAC --> Schema[authorization SQL schema]
-    Manager --> Decision[Authorization decision]
-    Decision --> Allowed[Continue]
-    Decision --> Denied[Reject]
+    Authentication[Authentication context] --> Manager[Authorization manager]
+    Middleware[Action or HTTP middleware] --> Manager
+    Manager --> Resolver[PermissionResolver]
+    Resolver --> Roles[RolePermissionResolver]
+    Catalog[Code-defined roles and permissions] --> Roles
+    Roles --> Store[SubjectRoleStore]
+    Store --> Memory[Memory assignments]
+    Store --> Postgres[PostgreSQL assignments]
 ```
 
-The manager owns requirement evaluation, scoped caching, failure semantics, and decision instrumentation. Resolvers own effective-permission retrieval. Enforcement points own the operation that continues or stops.
+The manager depends only on `PermissionResolver.resolvePermissions(subjectId): Promise<ReadonlySet<string>>`. Applications may inject their own implementation, including an external policy engine. The only bundled implementation is `RolePermissionResolver`; neither assignment store resolves permissions or stores role definitions.
 
-## Core model
+The core manager, requirements, and middleware remain independent of RBAC. Role resolution and its provider, tests, and exports live together under `authorization/resolvers/roles`. Assignment adapters retain their implementation, tests, schema, and exports under their own adapter directories.
 
-### Permission definitions
+## Code-defined policy
 
-Permissions are immutable definitions with a stable identifier:
+Permission identifiers and role keys use lowercase dot- or dash-separated segments, with at most 128 characters. Empty names, invalid identifiers, duplicate permissions within a role, and duplicate keys in a catalog are rejected. Empty role catalogs and roles without permissions are valid and grant nothing.
+
+`definePermission` and `defineRole` produce immutable values. Role definitions copy and freeze nested permissions. `RolePermissionResolver` snapshots the catalog and maps role keys to permission identifiers. `RolePermissionResolverProvider` also validates and snapshots its input at construction, before executions begin.
+
+On each resolution, the resolver asks the assignment store for the subject's current role keys and returns the union of the catalog permissions associated with those keys. Unknown or removed roles contribute nothing. Assignment-store errors propagate as operational errors, rather than authoritative empty permission sets. Each result is a fresh set, independent from retained policy and assignment state.
+
+There is no stored role UUID, stored role state, role-permission join, seed of policy definitions, automatic policy synchronization, or runtime role editing. Removing a role from the deployed catalog disables its effect. Removing or adding a permission changes the meaning of all assignments of that role when that code is deployed.
+
+Role keys are persistent identifiers. Renaming a key requires an explicit assignment migration. Retained assignments become effective again if the same key is reintroduced, so retired keys must not be reused accidentally. During rolling deployments, different versions can evaluate different policy catalogs; coordinate deployment where a policy transition must be atomic.
+
+## Assignment-store contract
 
 ```ts
-export interface PermissionDefinition {
-  readonly id: string;
-  readonly description?: string;
-}
-
-export function definePermission(
-  definition: PermissionDefinition,
-): PermissionDefinition;
-```
-
-Identifiers use lowercase dot- or dash-separated segments such as `admin.access`, `users.manage`, or `debates.moderate`. Definition validation rejects empty segments, whitespace, duplicate permissions in one role definition, and unreasonably long identifiers.
-
-The initial application declares only `admin.access`. More granular administration permissions are added only when the application needs different administrator capabilities.
-
-### Requirements
-
-The first requirement algebra is deliberately small:
-
-```ts
-export type AuthorizationRequirement =
-  | {
-      readonly type: "permission";
-      readonly permission: PermissionDefinition;
-    }
-  | {
-      readonly type: "all";
-      readonly requirements: readonly AuthorizationRequirement[];
-    }
-  | {
-      readonly type: "any";
-      readonly requirements: readonly AuthorizationRequirement[];
-    };
-```
-
-Public helpers create and freeze these values:
-
-```ts
-permission(adminAccess);
-allOf(permission(adminAccess), permission(usersManage));
-anyOf(permission(debatesModerate), permission(adminAccess));
-```
-
-Empty `allOf` and `anyOf` declarations are rejected because their implicit truth values are easy to misuse. Negation, explicit deny, dynamic predicates, and resource input are deferred.
-
-### Permission resolver
-
-The storage-neutral port is intentionally narrow:
-
-```ts
-export interface PermissionResolver {
-  resolvePermissions(
-    subjectId: string,
-  ): Promise<ReadonlySet<string>>;
-}
-```
-
-The resolver receives the stable application subject identifier, not a Kestrel-owned user or account. Returned sets are copied into manager-private state before being retained, so adapter-side mutation cannot alter a decision.
-
-Unknown persisted permission identifiers do not grant access. They may produce an operational observation so stale role mappings can be repaired.
-
-### Decisions
-
-Decisions are explicit internal values:
-
-```ts
-export interface AuthorizationDecision {
-  readonly allowed: boolean;
-  readonly requirement: AuthorizationRequirement;
-  readonly reason: "granted" | "missing-permission";
-}
-```
-
-The public HTTP error never includes missing permission identifiers, role names, effective permissions, or resolver details. Those values could reveal administration capabilities to an unauthorized caller.
-
-### Authorization manager
-
-The manager depends on the scoped authentication context and permission resolver:
-
-```ts
-export class AuthorizationManager {
-  check(
-    requirement: AuthorizationRequirement,
-  ): Promise<AuthorizationDecision>;
-
-  require(
-    requirement: AuthorizationRequirement,
-  ): Promise<void>;
-}
-```
-
-`check()` evaluates a decision without throwing for an authenticated principal. `require()` enforces it and raises a typed error when denied.
-
-The manager behavior is:
-
-1. read the principal from the scoped authentication context;
-2. raise the common authentication-required error when no principal exists;
-3. resolve the subject's permission set once for the execution;
-4. evaluate the immutable requirement;
-5. return the decision or enforce it.
-
-Concurrent checks in one execution share one in-flight resolver promise. A resolver failure fails closed but remains an operational failure rather than being represented as an ordinary 403 denial. This distinction prevents an unavailable authorization backend from being mistaken for a valid negative decision.
-
-## Enforcement
-
-### Action middleware
-
-Business operations use transport-independent middleware:
-
-```ts
-export const deleteUser = defineAction({
-  name: "user.delete",
-  middleware: [requireAuthorization(permission(adminAccess))],
-  // ...
-});
-```
-
-The middleware receives the same execution scope as the Action. It calls the authorization manager before the handler and output validation. Missing authentication produces 401 semantics; missing permission produces 403 semantics.
-
-
-
-- administration-only and protected with `admin.access` at the Action boundary;
-- intentionally available to non-administrative application users under a future or existing business policy;
-- currently unsafe and removed from direct public exposure until its intended policy is defined.
-
-### HTTP middleware
-
-Authorization also provides HTTP middleware for transport boundaries that do not correspond to one business Action, such as the administration shell and manifest:
-
-```ts
-requireHttpAuthorization(permission(adminAccess));
-```
-
-The middleware reads the principal previously resolved by authentication and delegates decisions to the same authorization manager. It does not parse cookies or duplicate authentication logic.
-
-Application HTTP controllers reference mandatory, named access policies defined in `src/server/authorization`. A policy owns the complete middleware chain required by its HTTP guarantee, while an explicitly anonymous policy has an empty chain. This keeps the decision visible on every controller and prevents moving a controller between future catalog groups from removing its access protection. Administration-only Actions retain their separate Action authorization as defense across every transport.
-
-
-The application authentication integration exposes stable middleware instances:
-
-```ts
-applicationAuthenticationHttp.middleware.requiredSession;
-applicationAuthenticationHttp.middleware.trustedOrigin;
-```
-
-
-## PostgreSQL RBAC adapter
-
-### Kestrel-owned schema
-
-The bundled PostgreSQL adapter owns a conventional Drizzle schema named `authorization`. The application statically re-exports these definitions from its aggregate Drizzle schema for migration discovery but does not redefine them.
-
-```mermaid
-erDiagram
-    ROLE ||--o{ ROLE_PERMISSION : contains
-    ROLE ||--o{ SUBJECT_ROLE : granted_as
-
-    ROLE {
-        uuid id PK
-        string key UK
-        string name
-        string state
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    ROLE_PERMISSION {
-        uuid role_id PK,FK
-        string permission_id PK
-    }
-
-    SUBJECT_ROLE {
-        string subject_id PK
-        uuid role_id PK,FK
-        timestamp granted_at
-        string granted_by_subject_id
-    }
-```
-
-The schema provides:
-
-- `authorization.role`;
-- `authorization.role_permission`;
-- `authorization.subject_role`.
-
-`subject_id` and `granted_by_subject_id` are text without foreign keys to application users. This keeps Kestrel independent from application models and deletion policy. Role foreign keys are internal to the authorization schema and cascade when a role is deliberately deleted.
-
-Permissions remain code-defined identifiers rather than rows in a central permissions table. Unknown identifiers loaded from storage are inert unless application code declares and requires that exact identifier.
-
-Disabled roles do not contribute permissions. Removing a subject-role grant or disabling a role takes effect on the next execution because there is no cross-request permission cache.
-
-### Focused storage capabilities
-
-The PostgreSQL implementation can expose focused ports for application management workflows while the core manager depends only on `PermissionResolver`:
-
-```ts
-export interface RoleStore {
-  findRoleByKey(key: string): Promise<AuthorizationRole | undefined>;
-}
-
 export interface SubjectRoleStore {
+  listRoleKeys(subjectId: string): Promise<ReadonlySet<string>>;
   grantRole(
     subjectId: string,
-    roleId: string,
+    roleKey: string,
     grantedBySubjectId?: string,
   ): Promise<boolean>;
-  revokeRole(subjectId: string, roleId: string): Promise<boolean>;
+  revokeRole(subjectId: string, roleKey: string): Promise<boolean>;
 }
 ```
 
-Grant and revoke operations are idempotent. Composite constraints make concurrent duplicate grants safe. Role creation, permission replacement, role listing, and role state management remain later management features.
+The store returns a current snapshot of assigned keys for one subject, or an empty set when no assignments exist. Grant and revoke return whether the association changed and are idempotent. Stores accept opaque application subject identifiers and do not verify application user existence or catalog membership. Application management actions must authorize the actor and validate user-supplied role keys against their catalog before granting them. Revocation of stale keys remains possible after a role is removed from the catalog.
 
-### Custom adapters
+`MemorySubjectRoleStore` retains only assignment sets and returns copies. Its optional granting-subject argument is accepted for contract compatibility but grant metadata is not retained. It owns no external resources.
 
-Applications may replace only `PermissionResolver` or supply a complete adapter. A custom resolver is not required to expose roles. The Kestrel core does not inspect adapter-specific role records.
+## PostgreSQL assignment store
 
-Every Kestrel adapter has its own directory containing implementation, schema, tests, and public exports.
+The bundled schema contains only `authorization.subject_role`:
 
-## Application composition
-
-The application registers one authorization-specific provider:
-
-```ts
-app.register(
-  new ApplicationAuthorizationProvider(),
-);
-```
-
-The application provider composes:
-
-- Kestrel authorization core services;
-- the PostgreSQL permission resolver and management stores;
-- application permissions and role definitions imported by seed and policy modules;
-- optional custom child-provider overrides.
-
-Database and authentication providers remain separate shared infrastructure. Authorization is registered after authentication so the scoped authentication context is available.
-
-No authorization environment configuration is required in the first increment. Role assignments are data, not deployment flags.
-
-## Initial application policy
-
-The application declares one permission and role:
-
-```ts
-export const adminAccess = definePermission({
-  id: "admin.access",
-  description: "Access the complete administration boundary.",
-});
-
-export const adminRole = defineRole({
-  key: "admin",
-  name: "Administrator",
-  permissions: [adminAccess],
-});
-```
-
-The role and its permission mapping are installed deterministically by local database maintenance (and exercised directly by database tests). The same seed creates one application user, authentication account, password credential, and role grant so a fresh local installation is immediately usable:
-
-```text
-username: admin
-password: admin
-```
-
-These deliberately weak bootstrap credentials are seed data only. Database maintenance is restricted to the local environment; tests invoke the seed declaration directly inside isolated transactions. The application has no production fallback, environment-based administrator, or runtime auto-provisioning. A deployed environment must provision its own subject, password, and role grant through controlled operations.
-
-### Administrator bootstrap
-
-A trusted operator CLI Action grants or revokes the role by subject identifier:
-
-```text
-authorization grant-role <subject-id> admin
-authorization revoke-role <subject-id> admin
-```
-
-The workflow validates that the application subject and role exist, then performs an idempotent storage mutation. It is not exposed over public HTTP in the first increment.
-
-The initial CLI is a trusted operational interface with the same authority as direct database maintenance. Authorization for operator transports, durable approval, and administrative self-management are later concerns.
-
-## Errors
-
-The library exposes typed errors with safe representations:
-
-| Condition | Behavior |
+| Column | Purpose |
 | --- | --- |
-| No authenticated principal | Reuse `AuthenticationRequiredError`, HTTP 401 |
-| Authenticated principal lacks permission | `AuthorizationDeniedError`, HTTP 403 |
-| Invalid requirement definition | Programming/configuration error during composition |
-| Resolver unavailable or returns invalid data | Operational failure, fail closed |
-| Unknown stored permission | Inert unless application code declares and requires it |
+| `subject_id` | Opaque application subject identifier, text |
+| `role_key` | Stable code-defined role key, text |
+| `granted_at` | Timestamp defaulting to the database's current time |
+| `granted_by_subject_id` | Optional granting subject identifier, text |
 
-The 403 response uses a generic message such as `The operation is not permitted.` It does not identify the missing requirement.
+The composite primary key is `(subject_id, role_key)`, with a separate index on `role_key`. There are no foreign keys to application users or role definitions. Application deletion and retirement workflows own cleanup.
 
-## Observations and privacy
+`PostgresSubjectRoleStore.listRoleKeys` reads assignments in one query, without policy joins. Grants use `ON CONFLICT DO NOTHING`, preserving the original timestamp and actor on duplicate grants. Revocation deletes only the requested subject-key pair. Both mutations use `RETURNING` to report whether a row changed.
 
-Authorization decision observations are deferred. When integrated with the existing observation system, a safe decision observation may include:
+The constructor takes a `DatabaseManager` and optional `PostgresAuthorizationTables`, defaulting to the bundled schema. The optional mapping contains only `subjectRoles`. `PostgresSubjectRoleStoreProvider` registers a scoped `subjectRoleStore` using that mapping and the execution's database manager. It never registers `permissionResolver`.
 
-- stable requirement or permission identifiers;
-- allowed or denied outcome;
-- enforcement point kind such as Action or HTTP boundary;
-- operation name or route already present in execution context;
-- resolver duration and cache hit status.
+Applications statically export the namespace and assignment table in their aggregate migration schema. Development schema-push filters must include the exported schema and table. Kestrel does not maintain application migration histories or mutate deployed schemas automatically.
 
-It must not include:
+## Composition
 
-- complete effective permission sets;
-- role membership lists;
-- session tokens or cookies;
-- Action input or resource data by default;
-- subject profile data.
+Register database and authentication infrastructure, then an assignment store, `RolePermissionResolverProvider(roles)`, and `AuthorizationProvider`. The resolver provider binds a scoped `permissionResolver` to the scoped `subjectRoleStore`. The core provider binds a scoped `authorizationManager` to the resolver and authentication context. Memory setups may register the store as a value shared across executions.
 
-Subject correlation follows the application's existing execution-context and privacy policy rather than being duplicated automatically in each decision event.
+Custom integrations register `permissionResolver` directly and omit `RolePermissionResolverProvider`. No role-management ports are required for custom resolvers. See the [usage guide](../usage/authorization.md) for complete examples.
 
-Role grants retain `granted_at` and an optional granting subject identifier. A durable append-only authorization audit log with reasons and operator metadata is deferred but should be added before broad self-service administration.
+## Requirements and execution semantics
 
-## Security properties
+`permission`, `allOf`, and `anyOf` create immutable, inspectable requirement expressions. Empty combinations are rejected. Requirements refer to capabilities, not role names. This keeps enforcement stable as applications regroup permissions into roles.
 
-The first increment must preserve these properties:
+`AuthorizationManager.check` returns an explicit decision; `require` throws on denial. Missing authentication produces `AuthenticationRequiredError` with HTTP 401 semantics. An authenticated subject lacking a required permission produces `AuthorizationDeniedError` with HTTP 403 semantics. External denial responses do not expose role names, permission identifiers, or resolver details. Backend failures propagate and never permit the protected operation.
 
-- default deny for every unsatisfied or unknown requirement;
-- no trust in client-side route visibility;
-- no permission or role state in authentication cookies;
-- no cross-request permission cache;
-- no application user import from the Kestrel schema;
-- no production administrator fallback based on email, creation order, or environment;
-- generic external denial errors;
-- fail closed on resolver failure;
-- trusted-Origin protection for unsafe cookie-authenticated administration requests;
-- one administration boundary covering the exact base path and all descendants;
-- Action-level enforcement for operations that can be reached outside that boundary;
-- one execution scope shared by authentication, authorization, and the protected operation.
+The manager shares one in-flight resolution per execution and copies returned sets into private state. It has no cross-execution cache. Assignment changes affect subsequent executions without requiring session revocation; checks already performed in an execution retain their coherent snapshot.
 
-## Testing strategy
+Place `requireAuthorization` on Actions when every transport must enforce the requirement. Use `requireHttpAuthorization` to protect HTTP boundaries after session resolution. Cookie-authenticated unsafe requests also need trusted-Origin enforcement. Client-side visibility is presentation only. [Atlas integration](./authorization-integration.md) describes the complete administration boundary.
 
-### Core tests
+## Migrating the previous database role model
 
-Implemented Kestrel tests cover:
+This is a breaking API and schema change. The old `MemoryAuthorizationAdapter`, `PostgresAuthorizationAdapter`, `PostgresAuthorizationAdapterProvider`, `RoleStore`, `roleStoreDependency`, `AuthorizationRole`, and `AuthorizationRoleState` are removed. The `authorizationRoles`, `authorizationRolePermissions`, and role-definition table mapping exports are removed as well.
 
-- permission identifier validation and duplicate detection;
-- immutable permission and requirement definitions;
-- one permission, `allOf`, and `anyOf` evaluation;
-- rejection of empty composite requirements;
-- default denial;
-- 401 behavior without an authenticated principal;
-- 403 behavior for an authenticated principal without permission;
-- one resolver call across sequential checks in one scope;
-- fail-closed resolver errors;
-- safe decision error representations.
+Replace adapters with assignment stores plus `RolePermissionResolver`. Replace `findRoleByKey` followed by UUID-based grant/revoke calls with the application's role definition and its stable `.key`. Custom assignment stores must implement `listRoleKeys` and persist keys rather than UUIDs. Existing custom `PermissionResolver` implementations remain compatible.
 
-### Adapter tests
+For an existing application database, prepare an application-owned migration with these steps:
 
-The implemented memory and PostgreSQL paths cover:
+1. Review the existing roles, their states, and permission mappings. Declare the intended active policy in application code, including any roles previously defined only in the database.
+2. Add a nullable `role_key` column to `authorization.subject_role` and populate it by joining the existing `role_id` to `authorization.role.id`, using the role's `key`.
+3. Remove assignments to disabled roles, or otherwise explicitly preserve their denial in the deployment plan. Copying disabled-role assignments into the active catalog would grant access that was previously denied. Verify all remaining rows have mapped keys and retain grant timestamps and granting subjects.
+4. Make `role_key` non-null, replace the composite primary key and role index to use it, and remove the old `role_id` column and foreign key.
+5. Remove `authorization.role_permission` and `authorization.role` after the assignment conversion. Remove their aggregate schema exports and old policy seeds.
+6. Deploy the updated application and schema together, or design an explicit compatibility phase if old and new application versions must overlap.
 
-- effective permission resolution through active roles;
-- duplicate idempotent grants;
-- revocation;
-- effective permission resolution by the real PostgreSQL joins;
-- the deterministic initial role and subject grant.
+Review generated SQL instead of accepting a destructive drop-and-recreate of the assignment table. The repository has no application authorization migration history to update; schema transitions remain application-owned. Fresh installations create only the new assignment table.
 
-Disabled-role, concurrency, non-UUID subject, and rollback conformance cases remain useful additions to the adapter suite.
+## Validation
 
-### Administration integration tests
+Tests cover role and permission validation, immutable catalogs, duplicate role keys, union semantics, unknown roles, store failures, live grants and revocations, subject isolation, idempotence, PostgreSQL grant metadata, and PostgreSQL assignment resolution with custom table mappings. Action and Atlas tests exercise the composed resolver through execution scopes and `fastify.inject()`, including 401, 403, allowed access, and revocation before the next Action execution. Tests do not start HTTP listeners and dispose owned resources.
 
-Tests use `fastify.inject()` and cover:
+## Deferred evolutions
 
-- `/admin`, `/admin/`, an arbitrary SPA path, manifest, operations, and unmatched descendants all pass through the same guard;
-- an anonymous API request receives 401 and an anonymous document navigation is redirected to the login page;
-- an authenticated non-administrator receives 403;
-- an authenticated administrator reaches the requested route;
-- Kestrel asset behavior matches the selected separate-prefix policy;
-- no real server is started.
-
-The application integration additionally exercises an anonymous document redirect, an anonymous API `401`, a real password sign-in with `admin` / `admin`, the authenticated 403-to-allowed transition, and trusted-Origin enforcement for an unsafe administration request. The deterministic PostgreSQL seed is tested separately with the real Argon2id verifier and PostgreSQL permission resolver. Future administration-only Action classifications can be added as the corresponding product policy grows.
-
-## First implementation increment
-
-The first increment is implemented through the following phases. Items explicitly deferred below are not silently implied by the completed boundary protection.
-
-### Phase 0: authentication integration preparation
-
-1. Expose one application-owned authentication HTTP integration containing `requiredSession` and `trustedOrigin` middleware.
-3. Add a focused integration test proving a principal resolved by HTTP middleware is visible to later Action and authorization middleware in the same execution scope.
-
-This is a small integration refinement, not a new authentication feature.
-
-### Phase 1: authorization core
-
-1. Add permission definitions and validation.
-2. Add immutable `permission`, `allOf`, and `anyOf` requirements.
-3. Add `PermissionResolver`.
-4. Implement `AuthorizationManager` with one scoped in-flight permission resolution.
-5. Add safe decisions and `AuthorizationDeniedError`.
-6. Add Action and HTTP enforcement middleware.
-7. Add dependency declarations and the Kestrel provider.
-8. Add core unit tests.
-
-Acceptance: an authenticated test principal with a memory resolver can run a protected Action, while an anonymous principal receives 401 and an authenticated principal without permission receives 403.
-
-### Phase 2: adapters
-
-1. Add the memory adapter and conformance tests.
-2. Add the PostgreSQL adapter in its own directory.
-3. Add Kestrel-owned `authorization` Drizzle tables.
-4. Add focused role and subject-role management stores.
-5. Default the PostgreSQL provider to the bundled schema while retaining optional custom mappings.
-6. Add adapter tests for active and disabled roles, idempotent grants, revocation, custom subject identifiers, and PostgreSQL permission joins.
-
-Acceptance: granting the `admin` role produces `admin.access`, revoking it removes the permission on a new execution, and no Kestrel code imports the application user schema.
-
-### Phase 3: application composition and bootstrap
-
-1. Statically aggregate the Kestrel schema into the application Drizzle schema.
-2. Generate the application migration.
-3. Define the application permission `admin.access` and the `admin` role in code.
-4. Seed the role-to-permission mapping.
-5. Add one `ApplicationAuthorizationProvider` with optional child customization.
-6. Add idempotent CLI grant and revoke Actions.
-7. Add deterministic role setup and the requested local administrator grant.
-
-Acceptance: a trusted operator can grant and revoke the administrator role for an existing subject, and the application registers only one authorization-specific provider.
-
-### Phase 4: complete administration protection
-
-2. Apply required middleware once to the exact base path and every descendant.
-3. Apply trusted-Origin validation additionally to unsafe methods.
-4. Ensure the SPA shell, fallbacks, manifest, APIs, operations, and future routes cannot bypass the boundary.
-5. Keep authentication, authorization, and operation execution in one execution scope.
-6. Keep existing direct business endpoints unchanged until each one has an explicit product authorization policy.
-7. Add integration tests for the complete prefix, anonymous page redirection, and the 401, 403, and allowed response classes.
-
-
-### Phase 5: documentation and validation
-
-1. Document public contracts, application permissions, role bootstrap, and operational recovery.
-2. Document future evolutions retained by the design.
-3. Generate HTTP clients if controller contracts change.
-4. Run targeted tests, the complete `test:ai` suite, typecheck, build, Drizzle validation, and migration checks.
-
-## Proposed file structure
-
-```text
-src/packages/kestrel/src/authorization/
-  adapters/
-    memory/
-      adapter.ts
-      adapter.test.ts
-      index.ts
-    postgres/
-      adapter.ts
-      adapter.test.ts
-      provider.ts
-      schema.ts
-      tables.ts
-      index.ts
-  definition.ts
-  dependencies.ts
-  errors.ts
-  manager.ts
-  manager.test.ts
-  middleware.ts
-  provider.ts
-  requirements.ts
-  types.ts
-  index.ts
-
-src/server/authorization/
-  actions/
-    manage_subject_role.ts
-    authorizationCatalog.ts
-  permissions/
-    application_permissions.ts
-  providers/
-    authorization_provider.ts
-  db/
-    seed.ts
-```
-
-Files may be combined where the implementation remains small, but every adapter retains its own directory, tests, exports, schema, and supporting types.
-
-## Potential evolutions
-
-The contracts intentionally retain room for:
-
-- granular administration permissions such as `admin.users.manage` and `admin.debates.moderate`;
-- resource requirements carrying validated resource type and identifier;
-- ownership and membership resolvers;
-- organization-scoped roles and grants;
-- direct subject permissions;
-- role hierarchy with explicit cycle handling;
-- contextual conditions based on authentication assurance or freshness;
-- step-up authentication requirements coordinated with authorization decisions;
-- external IAM, Zanzibar-style relationship stores, or policy engines;
-- batched permission and relationship resolution;
-- bounded cross-request caches with explicit invalidation only when measurements require them;
-- role and grant administration protected by dedicated permissions;
-- durable audit trails and access reviews;
-- client-visible capability hints that remain non-authoritative;
-- service and machine principals once authentication supports them;
-- policy simulation and explainability tooling restricted to authorized operators.
-
-These evolutions should extend the requirement and resolver boundaries without placing authorization data in authentication accounts or weakening the simple `requireAuthorization(permission)` case.
+Database-defined policies and runtime role editing are intentionally not supplied. External integrations remain possible through `PermissionResolver`. Organization-scoped grants, resource ownership, role inheritance, explicit deny rules, direct subject permissions, contextual conditions, durable audit history, and capability hints require separate semantics and tests before introduction. There is no global mutable policy registry or cross-request permission cache.

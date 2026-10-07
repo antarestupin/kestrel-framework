@@ -519,7 +519,7 @@ sequenceDiagram
 
 Credential rejection uses one generic message. Rate limiting, an untrusted page origin, and service unavailability have distinct actionable messages without exposing credential details. Password fields use the standard username and current-password autocomplete semantics. An authenticated subject without `admin.access` still receives `403`; a dedicated access-denied page remains a future client improvement.
 
-See [Authorization](./authorization.md) for the implemented policy, PostgreSQL RBAC model, operator bootstrap, and response semantics.
+See [Authorization](./authorization.md) for the implemented policy, code-defined roles, persisted assignments, and response semantics.
 
 Future security work includes:
 
