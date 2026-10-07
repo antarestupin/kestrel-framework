@@ -42,6 +42,12 @@ Local PostgreSQL defaults to port 55432 and database `__KESTREL_DATABASE_NAME__`
 
 The build copies migrations into `dist/server/core/db/migrations/`. To migrate a compiled deployment, run `NODE_ENV=production KESTREL_COMPILED=1 ./do database migrate`. Retain the complete `dist` directory, the launcher, and runtime dependencies. The default source commands use the runtime `tsx` dependency.
 
+## Authorization definitions
+
+`src/server/core/authorization/permissions.ts` declares application capabilities, starting with `adminAccessPermission`. `roles.ts` groups them into `adminRole` and exports the immutable `applicationRoles` catalog. Extend these application-owned files as your access model grows; keep permission identifiers and role keys stable.
+
+These definitions do not enable authentication or restrict the starter's public routes. When adding authentication and authorization, register an assignment store, `RolePermissionResolverProvider(applicationRoles)`, and `AuthorizationProvider`, then apply permission requirements to the relevant Actions and HTTP boundaries. PostgreSQL stores only subject-role assignments; local seeds grant `adminRole.key` to an application subject and never insert role or permission definitions. Organization-specific roles and more granular capabilities remain application evolutions.
+
 ## Browser client
 
 `src/server/example/example_catalog.ts` owns the example feature's actions and controllers. `src/server/core/app_catalog.ts` composes feature catalogs and derives the HTTP catalog used for generation. Add definitions to their owning feature catalog, then include that catalog in the application.
