@@ -240,7 +240,7 @@ For custom query executors that do not use a Drizzle select builder, `getPaginat
 
 ## Cursor pagination
 
-The recommended database composition is `Repository.findAll()` or a specialized method that calls `findAllWhere()`. Supply the cursor type as the fifth `Repository` type argument and configure `RepositoryOptions.cursor`. The cursor contract owns its own ordering; numbered queries continue to use the repository's existing `orderBy`. `findAllWhere()` rejects an explicit ordering override for a cursor request. `findCollection()` remains a numbered-page contract with caller-selected sorting.
+The recommended database composition is `Repository.findAll()` or a specialized method that calls `findAllWhere()`. Supply the cursor type as the fifth `Repository` type argument and configure `RepositoryOptions.cursor`. The cursor contract owns its required non-empty `orderBy`; numbered queries use the protected `getOrderBy()` hook, which defaults to `[]`. Override that hook with a deterministic order before using numbered pages. `findAllWhere()` distinguishes an omitted ordering (`undefined`) from any explicit array, including `[]`, and rejects explicit ordering overrides for cursor requests without comparing array identities. Cursor reads do not evaluate `getOrderBy()`. `findCollection()` remains a numbered-page contract with caller-selected sorting.
 
 For example, a record ordered by a non-null integer priority descending and an integer identifier ascending needs both values in the cursor:
 
@@ -260,7 +260,7 @@ const cursor: CursorPaginationOptions<typeof records.$inferSelect, RecordCursor>
   )!,
 };
 
-// Pass `cursor` alongside `table`, `idColumn` and `orderBy` in repository options.
+// Pass `cursor` alongside `table` and `idColumn` in repository options.
 const first = await repository.findAll({ type: "cursor", pageSize: 20 });
 if (first.pageInfo.nextCursor !== null) {
   const next = await repository.findAll({

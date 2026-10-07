@@ -37,6 +37,7 @@ import type {
 import { createPostgresTestPool } from "../testing/postgres.js";
 import { DatabaseManager } from "./database_manager.js";
 import { Repository } from "./repository.js";
+import type { RepositoryCollectionOptions } from "./collection.js";
 import type { CursorPagination, CursorPaginationOptions } from "./pagination.js";
 
 const records = pgTable("repository_test_record", {
@@ -83,23 +84,31 @@ class TestRepository extends Repository<
     super(new DatabaseManager({ database }), {
       table: records,
       idColumn: records.id,
-      orderBy: [records.createdAt, records.id],
       ...(enableCursor ? { cursor: cursorOptions } : {}),
-      collection: {
-        search: { value: records.value, category: records.category },
-        filters: {
-          value: {
-            column: records.value,
-            operators: ["equals", "contains", "starts-with"],
-          },
-          category: {
-            column: records.category,
-            operators: ["equals", "not-equals"],
-          },
-        },
-        sorting: { value: records.value, category: records.category },
-      },
     });
+  }
+
+  /** Keep numbered reads deterministic independently from cursor ordering. */
+  protected override getOrderBy() {
+    return [records.createdAt, records.id];
+  }
+
+  /** Allow only the collection criteria exercised by this repository. */
+  protected override getCollectionConfiguration(): RepositoryCollectionOptions {
+    return {
+      search: { value: records.value, category: records.category },
+      filters: {
+        value: {
+          column: records.value,
+          operators: ["equals", "contains", "starts-with"],
+        },
+        category: {
+          column: records.category,
+          operators: ["equals", "not-equals"],
+        },
+      },
+      sorting: { value: records.value, category: records.category },
+    };
   }
 
   /** Exercises keyset composition through the protected filtering extension. */

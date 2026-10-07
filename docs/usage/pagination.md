@@ -49,7 +49,11 @@ The first request omits `after`; the next supplies the returned `pageInfo.nextCu
 
 ## Configure repository ordering
 
-Define cursor ordering when connecting pagination to a repository. The example uses the unique record ID for both sorting and selecting records after the previous page.
+Repositories default to `getOrderBy()` returning `[]`, which produces no SQL ordering. Override this protected method before using numbered pagination: without a deterministic order, pages are unstable and may repeat or omit records. Finish the ordering with a unique tie-breaker such as the primary key; sorting only by a non-unique name or timestamp is insufficient. See the [repository example](./database.md#create-a-repository-backed-action) for the hook declaration. Concurrent inserts or deletes can still shift numbered page boundaries even with deterministic ordering.
+
+`findAll()`, `findManyByIds()` and `findAllWhere()` use this default ordering unless a specialized query supplies an explicit order. `findCollection()` also uses it when no non-empty sort is requested. Caller-selected collection sorting replaces the default entirely, so include an allowlisted unique tie-breaker in that sort too; Kestrel does not append one automatically.
+
+Cursor pagination has a separate ordering contract. Whenever `cursor` is configured, its non-empty `orderBy`, `getCursor` and `getCondition` are required. Cursor reads use `cursor.orderBy` independently of `getOrderBy()` and reject explicit ordering overrides. The example uses the unique record ID for both sorting and selecting records after the previous page.
 
 ```ts
 import { asc, gt } from "drizzle-orm";
@@ -60,7 +64,6 @@ const records = pgTable("record", { id: uuid("id").primaryKey() });
 const options: RepositoryOptions<typeof records, string, { id: string }> = {
   table: records,
   idColumn: records.id,
-  orderBy: [asc(records.id)],
   cursor: {
     orderBy: [asc(records.id)],
     getCursor: (record) => ({ id: record.id }),

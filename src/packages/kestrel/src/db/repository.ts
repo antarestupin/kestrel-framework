@@ -50,12 +50,6 @@ export interface RepositoryOptions<
 > {
   table: Table;
   idColumn: AnyPgColumn<{ data: Id }>;
-  orderBy: readonly [
-    PgColumn | SQL | SQL.Aliased,
-    ...(PgColumn | SQL | SQL.Aliased)[],
-  ];
-  /** Explicitly allowlists fields accepted by collection queries. */
-  collection?: RepositoryCollectionOptions;
   /** Explicit keyset contract, independent from numbered collection sorting. */
   cursor?: CursorPaginationOptions<Table["$inferSelect"], Cursor>;
 }
@@ -96,6 +90,19 @@ export abstract class Repository<
    */
   protected get database(): DatabaseExecutor {
     return this.databaseManager.database;
+  }
+
+  /**
+   * Defaults to unordered reads. Override with a deterministic order, including
+   * a unique tie-breaker, before using numbered pagination.
+   */
+  protected getOrderBy(): readonly (PgColumn | SQL | SQL.Aliased)[] {
+    return [];
+  }
+
+  /** Allows collection search, filters and caller-selected sorting only when overridden. */
+  protected getCollectionConfiguration(): RepositoryCollectionOptions | undefined {
+    return undefined;
   }
 
   /**
@@ -155,8 +162,8 @@ export abstract class Repository<
   }
 
   /**
-   * Finds multiple records by identifier in the repository's deterministic
-   * order. Missing identifiers are omitted from the result.
+   * Finds multiple records by identifier using the repository's optional
+   * ordering. Missing identifiers are omitted from the result.
    */
   public async findManyByIds(
     ids: readonly Id[],
@@ -170,7 +177,7 @@ export abstract class Repository<
       // See the generic-table note in `findById`.
       .from(this.options.table as never)
       .where(inArray(this.options.idColumn, [...ids]))
-      .orderBy(...this.options.orderBy);
+      .orderBy(...this.getOrderBy());
 
     return records as Table["$inferSelect"][];
   }
@@ -193,14 +200,16 @@ export abstract class Repository<
   public async findCollection(
     query: CollectionQuery,
   ): Promise<PaginatedResult<Table["$inferSelect"], typeof query.pagination>> {
-    const condition = this.compileCollectionCondition(query);
-    const orderBy = this.compileCollectionSorting(query);
+    // Resolve the hook once so filters and sorting share the same configuration.
+    const collection = this.getCollectionConfiguration();
+    const condition = this.compileCollectionCondition(query, collection);
+    const orderBy = this.compileCollectionSorting(query, collection);
 
     return this.findAllWhere(condition, query.pagination, orderBy);
   }
 
   /**
-   * Applies the repository's deterministic ordering and pagination to a
+   * Applies the repository's optional ordering and pagination to a
    * filtered query so specialized repositories only need to define the filter.
    */
   protected async findAllWhere<
@@ -208,8 +217,7 @@ export abstract class Repository<
   >(
     condition: SQL | undefined,
     pagination?: Strategy,
-    orderBy: RepositoryOptions<Table, Id, Cursor>["orderBy"]
-      | readonly (PgColumn | SQL | SQL.Aliased)[] = this.options.orderBy,
+    orderBy?: readonly (PgColumn | SQL | SQL.Aliased)[],
   ): Promise<
     PaginatedResult<
       Table["$inferSelect"],
@@ -225,19 +233,22 @@ export abstract class Repository<
       if (cursor === undefined) {
         throw new TypeError("This repository does not support cursor pagination.");
       }
-      if (orderBy !== this.options.orderBy) {
+      // Detect explicit overrides without relying on array identity from hooks.
+      if (orderBy !== undefined) {
         throw new TypeError("Cursor pagination must use its configured ordering.");
       }
       // Compose filters before building the query so neither WHERE is lost.
       condition = getCursorPaginationCondition(resolvedPagination, cursor, condition);
       orderBy = cursor.orderBy;
     }
+    // Cursor reads own their ordering and never evaluate the default-order hook.
+    const resolvedOrderBy = orderBy ?? this.getOrderBy();
     const query = this.database
       .select()
       // See the generic-table note in `findById`.
       .from(this.options.table as never)
       .where(condition)
-      .orderBy(...orderBy);
+      .orderBy(...resolvedOrderBy);
 
     // Use Drizzle's dynamic mode because pagination conditionally adds clauses.
     const paginatedQuery = paginateQuery(
@@ -250,8 +261,10 @@ export abstract class Repository<
     return createPaginatedResult(records, resolvedPagination, cursor?.getCursor);
   }
 
-  private compileCollectionCondition(query: CollectionQuery): SQL | undefined {
-    const collection = this.options.collection;
+  private compileCollectionCondition(
+    query: CollectionQuery,
+    collection: RepositoryCollectionOptions | undefined,
+  ): SQL | undefined {
     const conditions: SQL[] = [];
 
     if (query.search !== undefined && query.search.term !== "") {
@@ -287,13 +300,14 @@ export abstract class Repository<
 
   private compileCollectionSorting(
     query: CollectionQuery,
-  ): readonly (PgColumn | SQL | SQL.Aliased)[] {
+    collection: RepositoryCollectionOptions | undefined,
+  ): readonly (PgColumn | SQL | SQL.Aliased)[] | undefined {
     if (query.sort === undefined || query.sort.length === 0) {
-      return this.options.orderBy;
+      return undefined;
     }
 
     return query.sort.map((criterion) => {
-      const configuredColumn = this.options.collection?.sorting?.[criterion.field];
+      const configuredColumn = collection?.sorting?.[criterion.field];
       const column = asColumn(configuredColumn, `sorting "${criterion.field}"`);
 
       return criterion.direction === "asc" ? asc(column) : desc(column);

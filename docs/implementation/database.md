@@ -113,6 +113,8 @@ sequenceDiagram
 
 Repositories support `all`, `page` and forward `cursor` strategies through `findAll()` and the protected `findAllWhere()` helper. Cursor-enabled repositories declare `cursor.orderBy`, `cursor.getCursor` and `cursor.getCondition` in `RepositoryOptions`, with an optional fifth repository type argument for the structured cursor. See [pagination](./pagination.md#cursor-pagination) for configuration, standalone query composition, precision guarantees and future transport integration. Conventional `findCollection()` queries continue to use numbered pagination.
 
+`RepositoryOptions` contains storage identity (`table`, `idColumn`) and the optional cursor contract. Override protected `getOrderBy()` for ordinary read ordering; its default `[]` omits SQL ordering. Override protected `getCollectionConfiguration(): RepositoryCollectionOptions | undefined` to allowlist search columns, filter fields/operators and caller-selected sorting. Its default `undefined` allows plain collection pages only. `findCollection()` resolves collection configuration once per call and uses it for both condition and sort compilation; missing or empty sort criteria defer to `getOrderBy()`, while an explicit sort replaces it. See the [usage and migration recipe](../usage/database.md#create-a-repository-backed-action) and [pagination ordering requirements](../usage/pagination.md#configure-repository-ordering).
+
 ## Custom schema contributions
 
 For application setup and library installation, follow [Install library schemas](../usage/database.md#install-library-schemas).

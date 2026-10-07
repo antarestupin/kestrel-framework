@@ -92,7 +92,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineModelCreateAction } from "@kestreljs/framework/actions";
-import { DatabaseManager, Repository } from "@kestreljs/framework/db";
+import { DatabaseManager, Repository, type RepositoryCollectionOptions } from "@kestreljs/framework/db";
 
 export const contacts = pgTable("contact", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
@@ -105,8 +105,21 @@ class ContactRepository extends Repository<typeof contacts, string, ContactInser
     super(databaseManager, {
       table: contacts,
       idColumn: contacts.id,
-      orderBy: [contacts.id],
     });
+  }
+
+  // A unique ordering makes numbered pagination deterministic.
+  protected override getOrderBy() {
+    return [contacts.id];
+  }
+
+  // Explicitly allow the fields accepted by conventional list actions.
+  protected override getCollectionConfiguration(): RepositoryCollectionOptions {
+    return {
+      search: { name: contacts.name },
+      filters: { name: { column: contacts.name, operators: ["equals", "contains"] } },
+      sorting: { name: contacts.name, id: contacts.id },
+    };
   }
 }
 const createContact = defineModelCreateAction(
@@ -120,6 +133,10 @@ const createContact = defineModelCreateAction(
 ```
 
 Export the table through your Drizzle migration schema. Database-side `uuidv7()` requires PostgreSQL 18. `findById` returns `null` for a missing row. Direct `create`/`update`/`delete` writes return data only when requested with `{ returning: true }`; model action helpers select that behavior for you. Use `findManyByIds` for batch reads and [pagination](./pagination.md) for collection reads.
+
+Both protected hooks are optional: `getOrderBy()` defaults to `[]` (no SQL ordering), and `getCollectionConfiguration()` defaults to `undefined`. Without collection configuration, `findCollection()` still supports plain numbered pages but rejects non-empty search, filters and caller-selected sorting. You may configure search, filters and sorting independently. An explicit collection sort replaces the default ordering entirely.
+
+Migration: move the former constructor `orderBy` and `collection` options into `getOrderBy()` and `getCollectionConfiguration()` overrides. Keep `table`, `idColumn` and optional `cursor` in the constructor options.
 
 ## Group writes in a transaction
 
