@@ -38,6 +38,27 @@ Compose this catalog into the application. The HTTP call supplies `name` in the 
 
 Use an object input schema so transport bindings can address individual fields. Standalone controllers may omit `input` for an empty object and omit `output` when they do not declare a response contract. For custom bindings, dependencies and result mapping, continue with [HTTP](./http.md) or [CLI](./cli.md).
 
+## Access the HTTP request and reply
+
+HTTP controller handlers receive the native Fastify `request` and `reply` objects in their context, both with `defineHttpController` and with a custom `defineActionHttpController` handler. Use `request` to inspect request metadata such as headers, and `reply` to set response headers or send a response directly.
+
+```ts
+import { defineHttpController, get } from "@kestreljs/framework/http";
+
+const requestInfo = defineHttpController({
+  route: get("/request-info"),
+  handler: ({ request, reply }) => {
+    // Sending the reply directly preserves this handler's HTTP status.
+    return reply.code(202).header("Cache-Control", "no-store").send({
+      userAgent: request.headers["user-agent"] ?? "unknown",
+    });
+  },
+});
+// Include requestInfo in the catalog's controllers.http category.
+```
+
+For a fixed success status, prefer the controller's `successStatusCode` option and return the response body normally; see [response status configuration](./http.md#set-a-response-status-and-protect-a-route). Calling `reply.code(...)` alone does not override that option: Kestrel applies `successStatusCode` when it sends a returned value. When the handler sends the reply itself, Kestrel skips controller output validation and automatic response sending, so the handler owns the response body and status.
+
 ## Use cases still to document
 
 - Expose one action with different HTTP and CLI input mappings and output representations.

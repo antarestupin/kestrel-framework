@@ -67,7 +67,7 @@ const health = defineHttpController({
 // Include health in the catalog's controllers.http category to expose it.
 ```
 
-Handlers receive a context object containing `input`, `deps`, `request`, `reply`, `execution` and `defaultAccess`. For action controllers, `action` is the execution-bound runner. Add controller `dependencies` or a custom handler for transport-specific mapping; keep reusable business behavior in the action.
+Handlers receive a context object containing `input`, `deps`, `request`, `reply`, `execution` and `defaultAccess`. For action controllers, `action` is the execution-bound runner. Add controller `dependencies` or a custom handler for transport-specific mapping; keep reusable business behavior in the action. See [direct request and reply access](./controllers.md#access-the-http-request-and-reply) for reading Fastify request metadata and manually sending a response.
 
 ## Set a response status and protect a route
 
@@ -96,6 +96,6 @@ Configure proxy trust, accepted hosts, limits and security headers through `http
 ## Use cases still to document
 
 - Bind path, query and JSON body values for a mutation with input coercion.
-- Map action results and return empty responses or manually controlled replies.
+- Map action results and return empty responses.
 - Inject dependencies into a standalone controller.
 - Compose authentication, authorization and trusted-origin checks on unsafe routes.
