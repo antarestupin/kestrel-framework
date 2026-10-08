@@ -1,4 +1,4 @@
-import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
+import { monitorEventLoopDelay } from "node:perf_hooks";
 import { getHeapStatistics } from "node:v8";
 
 import type { LocalResourcePressureSource } from "./monitor.js";
@@ -23,7 +23,8 @@ implements LocalResourcePressureSource {
 
   private previousCpuAt = performance.now();
 
-  private eventLoopDelay: IntervalHistogram | undefined;
+  // Infer the histogram contract across supported Node 24 type-definition revisions.
+  private eventLoopDelay: ReturnType<typeof monitorEventLoopDelay> | undefined;
 
   public supports(signalId: string): boolean {
     return supportedSignals.has(signalId);

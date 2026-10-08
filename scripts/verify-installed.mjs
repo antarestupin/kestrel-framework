@@ -58,6 +58,11 @@ for (const name of ["studio", "atlas"]) {
     }
   } finally { await server.close(); }
 }
+// Production-only package checks stop before generated application development tooling.
+if (process.argv.includes("--package-only")) {
+  console.info("Production-only framework exports, declarations, and browser assets verified.");
+  process.exit(0);
+}
 // The npm executable is a symlink; a missing application argument must report an error.
 const executable = resolve(application, "node_modules/.bin/kestrel");
 const result = spawnSync(process.execPath, [executable], { encoding: "utf8" });

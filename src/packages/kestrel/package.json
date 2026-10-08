@@ -3,7 +3,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": "24.x"
+    "node": ">=24.11.0 <25"
   },
   "name": "@kestreljs/framework",
   "description": "Composable application framework",
@@ -690,7 +690,7 @@
     "commander": "^15.0.0",
     "cron-parser": "^5.8.1",
     "drizzle-orm": "^0.45.2",
-    "fastify": "^5.10.0",
+    "fastify": "^5.12.5",
     "jose": "^6.2.10",
     "pg": "^8.22.0",
     "pino": "^10.3.1",

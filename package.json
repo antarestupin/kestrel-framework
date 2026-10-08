@@ -4,7 +4,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": "24.x"
+    "node": ">=24.11.0 <25"
   },
   "name": "kestrel-workspace",
   "workspaces": [
@@ -26,14 +26,18 @@
     "infra:up": "docker compose -f infrastructure/compose.yml up -d --wait",
     "infra:down": "docker compose -f infrastructure/compose.yml stop",
     "infra:prepare": "node infrastructure/prepare.mjs",
-    "pack:local": "npm run build:ai && mkdir -p artifacts && npm pack --workspace=@kestreljs/framework --pack-destination=artifacts",
+    "pack:local": "npm run build:ai && node scripts/release.mjs pack artifacts",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:playground": "node scripts/check-playground.mjs",
     "verify:archive": "node scripts/verify-archive.mjs",
     "pack:dry-run": "npm run build:ai && npm pack --dry-run --workspace=./src/packages/kestrel --workspace=./src/packages/create-kestrel",
-    "publish:kestrel": "npm publish --workspace=./src/packages/kestrel --access public --tag next",
-    "publish:create-kestrel": "npm publish --workspace=./src/packages/create-kestrel --access public --tag next",
-    "publish:next": "npm run publish:kestrel && npm run publish:create-kestrel"
+    "publish:kestrel": "node scripts/release.mjs publish artifacts/candidate framework",
+    "publish:create-kestrel": "node scripts/release.mjs publish artifacts/candidate creator",
+    "publish:next": "node scripts/release.mjs publish artifacts/candidate all",
+    "test:release": "node --test scripts/release/*.test.mjs",
+    "check:security": "node scripts/release/security.mjs",
+    "release:validate": "node scripts/release.mjs validate",
+    "release:verify": "node scripts/release.mjs verify"
   },
   "devDependencies": {
     "@docusaurus/core": "3.10.2",
@@ -44,7 +48,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
-    "concurrently": "^10.0.4",
+    "concurrently": "^10.0.6",
     "drizzle-kit": "^0.31.10",
     "drizzle-seed": "^0.3.1",
     "tsx": "^4.23.1",
@@ -58,6 +62,11 @@
     "serialize-javascript": "7.1.2",
     "sockjs": {
       "uuid": "11.1.1"
+    },
+    "tinypool": "2.1.2",
+    "minimatch@>=10": {
+      "brace-expansion": "5.0.12"
     }
-  }
+  },
+  "packageManager": "npm@11.9.0"
 }

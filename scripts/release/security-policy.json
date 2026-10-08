@@ -1,0 +1,14 @@
+{
+  "exceptions": [
+    {
+      "package": "braces",
+      "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+      "severity": "high",
+      "versions": ["3.0.3"],
+      "scopes": ["workspace", "framework", "creator", "consumer", "application"],
+      "owner": "Kestrel maintainer",
+      "expires": "2026-11-08",
+      "reason": "No upstream patch exists. Kestrel registers DI bindings explicitly and never invokes Awilix loadModules. Generator and build globs are trusted repository/template configuration, not request data. Do not pass untrusted glob patterns to tooling or expose development servers. Reassess when upstream publishes a patch; this exception does not cover new versions or advisories."
+    }
+  ]
+}

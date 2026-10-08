@@ -2,7 +2,7 @@
 
 # Kestrel Playground
 
-This experimental template consumes `@kestreljs/framework` at the exact compatible version declared in `package.json`. By default, dependencies come from npm when you install them. If created with `--framework-archive`, it uses a vendored local framework archive instead. Use Node.js 24 (`nvm use`) and run `npm install` in the generated project; commit the resulting application-specific lockfile.
+This experimental template consumes `@kestreljs/framework` at the exact compatible version declared in `package.json`. By default, dependencies come from npm when you install them. If created with `--framework-archive`, it uses a vendored local framework archive instead. Use Node.js 24.11 or later within Node.js 24 (`nvm use`) and run `npm install` in the generated project; commit the resulting application-specific lockfile.
 
 ## Welcome page
 
@@ -10,7 +10,7 @@ The starter home page lives in `src/client/src/main.tsx`, with responsive styles
 
 ## Application commands
 
-`./do` runs the Kestrel CLI against the default application exported by `src/server/core/app.ts`. It resolves the project from its own location, so invocation also works from another directory. Application providers are lazy: help and client generation do not open HTTP listeners or database connections. Composition is declared directly in `src/server/core/app.ts`. HTTP tests own that application for their suite; CLI tests use separate processes so disposal does not leak across tests running with `--no-isolate`.
+`./do` runs the Kestrel CLI against the default application exported by `src/server/core/app.ts`. It resolves the project from its own location, so invocation also works from another directory. Application providers are lazy: help and client generation do not open HTTP listeners or database connections. Composition is declared directly in `src/server/core/app.ts`. Feature providers select explicit adapter definitions; shared connections are borrowed through typed dependency descriptors such as `databaseDependency` from the database provider. Backend settings belong in the nested `adapter` contribution of each feature configuration. HTTP tests own that application for their suite; CLI tests use separate processes so disposal does not leak across tests running with `--no-isolate`.
 
 | Command | Purpose |
 | --- | --- |
@@ -65,3 +65,5 @@ Studio uses the installed framework's prebuilt assets alongside the application'
 ## Development environment
 
 The `.devcontainer` directory supplies Node.js, PostgreSQL, Drizzle Studio, and a non-destructive test-database provisioner. It mounts only this application and its optional vendored archive; it needs no sibling repository. The application port is forwarded by the editor, while the separate Drizzle service publishes its own loopback port. `.nvmrc`, `.vscode/settings.json`, `.gitignore`, and `AGENTS.md` provide the matching local tooling conventions. The source and compiled CLI launchers target POSIX shells; a native Windows launcher remains a future addition.
+
+Infrastructure is explicit: `PostgresDrizzleProvider` owns PostgreSQL and Drizzle, `LoggerProvider` receives `pinoLogger()`, and browser providers receive Vite adapter definitions. Feature backend factories keep their dependencies separate from validated settings; shared development runtimes remain application-owned.

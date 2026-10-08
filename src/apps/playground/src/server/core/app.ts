@@ -32,7 +32,10 @@ if (app.config.client.enabled) {
     new ClientProvider(
       viteClient(development, {
         devMode: app.config.client.devMode,
-        projectRoot: resolve(app.config.core.runtimeRoot, "src/client"),
+        // Production discovers the cached Vite build without requiring application sources.
+        projectRoot: app.config.client.devMode
+          ? resolve(app.config.core.runtimeRoot, "src/client")
+          : app.config.core.runtimeRoot,
         distDir: "dist/client",
       }),
       {

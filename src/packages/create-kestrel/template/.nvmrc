@@ -1,4 +1,4 @@
-# Selects the Node.js major version used by nvm use.
-# Keep it aligned with package.json engines and the development container.
+# Selects the minimum supported Node.js runtime for local verification.
+# CI also checks a recent Node.js 24 release.
 
-24
+24.11.0

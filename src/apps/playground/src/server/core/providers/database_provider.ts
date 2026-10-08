@@ -3,6 +3,7 @@
 
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
+import { dep } from "@kestreljs/framework/di";
 import type { ProviderCompositionApp } from "@kestreljs/framework/app";
 import {
   PostgresDrizzleProvider as BaseDatabaseProvider,
@@ -18,6 +19,9 @@ import * as schema from "../db/schema/app_schema.js";
 import { applicationDatabaseMaintenance } from "../db/seed.js";
 
 type ApplicationDatabase = NodePgDatabase<typeof schema>;
+
+/** Typed connection shared by feature adapter definitions without transferring ownership. */
+export const databaseDependency = dep<ApplicationDatabase>("database");
 
 /** Bind application schema and CLI maintenance while keeping connections lazy. */
 export class PostgresDrizzleProvider extends BaseDatabaseProvider<AppConfig, ApplicationDatabase> {

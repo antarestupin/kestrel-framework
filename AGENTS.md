@@ -2,6 +2,7 @@
 
 - Write code, comments, and documentation in English.
 - Never publish to npm without explicit owner approval.
+- Never access GitHub on your own initiative, including through the browser, CLI, API, connectors, or Git remote operations. Require an explicit user request for the specific GitHub action; general implementation or validation requests do not authorize GitHub access.
 - This repository must contain only Kestrel and public examples.
 - Use npm run test:ai and npm run build:ai.
 - Use unit tests and fastify.inject(), without starting HTTP servers.
@@ -15,5 +16,11 @@
 - Keep database table names singular and schema-push exports aligned with table filters.
 - Update linked usage and implementation documentation under docs when changing APIs.
 - Comment new behavior, keep Markdown paragraphs unwrapped, and document deferred evolutions.
-- Suggest a commit message at each change; the message must be concise (1 line)
+- Suggest a commit message at each change; the message must be concise (1 line).
+- At each change, if relevant, suggest changes that could help reduce permission requests based on the permissions you needed to request during the change; the suggestions must stay concise, and do not spend too much time on these suggestions.
 - Run npm run test:ai directly, without shell redirection or wrappers, so the existing command approval remains reusable. Capture output through the execution tool.
+- Prefer existing npm scripts for recurring checks, including npm run check:security, npm run release:validate, and npm run release:verify. Keep invocations direct and stable; avoid ad hoc shell wrappers or inline environment assignments when the configured environment already provides the required runtime.
+- Before working across repositories, compare the requested project scope with the session's effective writable roots. Report discrepancies once; project membership and AGENTS.md instructions do not grant sandbox permissions.
+- Reuse existing command approvals. When a recurring command needs approval and is not already covered, propose a narrowly scoped reusable prefix; never use a blanket interpreter or shell permission to avoid prompts, and never change permission settings without user authorization.
+- Run container package installations, builds, and tests as the configured development user (for example, docker exec --user node), not the container's default root user, so generated files remain writable by the developer.
+- Check prerequisites and targeted failures before rerunning the full release pipeline. Do not run downstream archive checks after packing fails, and do not repeat successful checks without a relevant change or unresolved concern.

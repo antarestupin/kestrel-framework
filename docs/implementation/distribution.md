@@ -2,7 +2,7 @@
 
 [Implementation index](README.md) · [Installation](../usage/installation.md) · [Contributing](../contributing.md)
 
-Status: experimental packages published as `@kestreljs/framework` and `@kestreljs/create-kestrel`, with an initial release of `0.1.0-alpha.0`. Their manifests use the MIT license and public `next` publication defaults. The workspace root, playground, documentation site, and generated applications retain `private: true`. Publication requires explicit owner approval; no automated release workflow exists.
+Status: experimental packages published as `@kestreljs/framework` and `@kestreljs/create-kestrel`, with an initial release of `0.1.0-alpha.0`. Their manifests use the MIT license and public `next` publication defaults. The workspace root, playground, documentation site, and generated applications retain `private: true`. Publication requires explicit owner approval; CI validates candidates but never publishes.
 
 The repository, framework, creator, and starter sources are MIT-licensed. Package-root `LICENSE` files preserve the notice in npm archives, and the template carries its own copy into generated applications. Keep these copies aligned with the root license when updating copyright notices.
 
@@ -32,7 +32,7 @@ The starter includes Node/editor/agent conventions, local environment defaults, 
 
 Application-specific lockfiles are generated after the creator assigns the project name and selects the registry dependency or local archive. Dependency folders, build output, secrets, source-integration scripts for sibling repositories, and private product configuration are not template inputs. Native Windows CLI launchers remain future work.
 
-Local archive validation must exercise imports, TypeScript declarations, CLI loading, Studio HTML and assets, and browser bundling from an installation outside the monorepo. This catches dependencies and source files accidentally supplied by workspace links. The currently paused validation workflow runs these checks and produces local archives when enabled; it does not publish them.
+Local archive validation must exercise imports, TypeScript declarations, CLI loading, Studio HTML and assets, and browser bundling from an installation outside the monorepo. This catches dependencies and source files accidentally supplied by workspace links. The validation workflow runs these checks and retains candidate archives and reports; it does not publish them.
 
 ## Application generation
 
@@ -71,7 +71,7 @@ Each JavaScript subpath has an `import` condition and a `default` fallback point
 
 ## Publication
 
-The root scripts `pack:dry-run`, `publish:kestrel`, `publish:create-kestrel`, and `publish:next` target only the two distributable workspaces. `pack:dry-run` builds before inspecting both archives. `publish:next` publishes the framework before the creator and stops on failure. Both package manifests default to public access and the `next` tag. The framework's `prepublishOnly` hook rebuilds its outputs; the creator's hook checks its CLI syntax. These hooks do not replace the full test and installed-archive verification described above.
+The root scripts `pack:dry-run`, `publish:kestrel`, `publish:create-kestrel`, and `publish:next` target only the two distributable workspaces. `pack:dry-run` builds before inspecting both archives. `publish:next` publishes the framework before the creator and stops on failure. Both package manifests default to public access and the `next` tag. The supported publication scripts consume only validated candidate archives with lifecycle scripts disabled. Direct workspace publication bypasses this contract and must not be used; package lifecycle hooks alone do not replace candidate validation.
 
 The template pins the compatible framework prerelease exactly, so generating an application never silently switches to a later alpha. Keep both published package versions and the template/playground dependencies aligned, regenerate the root lockfile, and rerun archive verification for each release. Archive verification derives tarball names from package metadata and checks the installed creator's registry default before exercising all local-archive variants. The optional `vendor/README.md` ensures the Drizzle Docker build has a valid vendor directory in both modes. No registry publication occurs during packing or verification.
 
@@ -80,3 +80,23 @@ Authenticate to npm and confirm scope ownership before running a publish command
 ## Atlas distribution
 
 Atlas is a public library within `@kestreljs/framework/atlas`, under the same MIT license. Its server exports, declarations and compiled `assets/atlas` client ship in the framework archive alongside Studio. No separate Atlas repository or package is required. See [Atlas internals](./atlas.md#package-ownership-and-distribution) and the [usage guide](../usage/atlas.md).
+
+## Release validation
+
+[Maintainer commands](../contributing.md#validate-and-publish-a-release) are implemented by `scripts/release.mjs`. The workflow builds and packs each distributable once, verifies those exact archives in independently installed consumers, and retains candidate metadata and evidence. Source-input hashes guard against edits or generated drift during validation. Additional runtime verification reuses the archives and requires matching source inputs. Failed runs retain their reports and cannot be published through the supported commands.
+
+The workspace gate runs security evaluation, package-boundary and template/playground checks, release-script regression tests, build, type checking, unit/integration tests, generator tests, and documentation build. CI uses npm 11.9.0 with Node 24 followed by the supported minimum 24.11.0; it reruns source tests at the minimum and verifies the same tarballs. PostgreSQL and Redis belong to the isolated CI runner. Local release scripts use existing configured services rather than stopping a contributor's infrastructure.
+
+Archive verification first resolves fresh production-only installations of the framework and creator without workspace overrides or lockfile seeding. It audits the resulting locks before installing with lifecycle scripts disabled. Framework exports, declaration files, ESM/CommonJS identity, and shipped Atlas/Studio assets are exercised independently. Generated consumers also resolve their own complete locks instead of copying workspace metadata, avoiding resolver-dependent missing peer entries. Four generated consumers cover PostgreSQL/Redis cache and Atlas enabled/omitted. Each builds and passes its development checks, then its compiled output and lockfile are copied into a separate deployment without application sources or development dependencies. That deployment applies migrations twice to an owned temporary database, exercises compiled HTTP routes and browser assets through injection, and disposes resources before dropping the database. This is fresh-install/repeat-migration coverage, not a historical schema-upgrade or crash-recovery guarantee.
+
+### Security policy
+
+`scripts/release/security-policy.json` contains exact advisory exceptions with package versions, severity, scope, owner, reason, and UTC expiry. High and critical advisory causes block unless every affected version has a matching exception. Npm's parent/metavulnerability entries are retained in raw reports but are not counted as independent vulnerabilities. Lower-severity findings remain visible. Registry errors, malformed reports, missing lockfile versions, and expired exceptions fail validation. The workspace, independent framework, independent creator, and generated-consumer reports remain separate; a workspace finding must not be described as a deployed-framework finding without checking its runtime report.
+
+The temporary `braces` 3.0.3 exception covers [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), which has no upstream patch as of 2026-10-08. Kestrel uses explicit DI registrations rather than Awilix glob discovery; build/generator patterns are controlled repository configuration. Untrusted glob input and public development servers are outside that mitigation. Review or remove the exception before 2026-11-08; do not extend it automatically. Workspace overrides update Tinypool for documentation builds and brace-expansion where required. Overrides do not propagate to consumers, so fresh consumer audits remain mandatory. Moderate transitive findings remain reported rather than being hidden by exceptions.
+
+### Evidence and remaining work
+
+The candidate records SHA-256 hashes for archives and every report, the source commit, source-input digest, dirty state, Node/npm versions, and completion times. Logs, raw npm audit results, resolved consumer locks, and policy decisions are retained even on failure. CI uploads the directory for 14 days. Publication accepts only a clean-source candidate with both Node checkpoints, intact files, unexpired exceptions, and validation less than seven days old. Downloaded evidence must come from a trusted successful workflow: hashes alone do not provide authentication. The repository ruleset must require `release-validation`; this administrative setting is separate from workflow source control.
+
+Future work includes signed provenance and trusted publishing after explicit owner approval, broader platform/runtime support, deterministic archive comparison, historical migration/replay fixtures, and browser interaction checks. No production-readiness claim for those deferred behaviors follows from a successful release gate.

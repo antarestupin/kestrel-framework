@@ -8,7 +8,7 @@ For application development with the published packages, start with the [npm ins
 
 ## Set up a checkout
 
-Use Node.js 24.11 or later within Node.js 24, npm, Git, and Docker Compose. Clone the framework repository:
+Use Node.js 24.11 or later within Node.js 24, npm 11.9.0 for release validation, Git, and Docker Compose. Clone the framework repository:
 
 ```sh
 git clone https://github.com/antarestupin/kestrel-framework.git
@@ -17,7 +17,7 @@ cd kestrel-framework
 
 ## Develop and test
 
-GitHub Actions validation is paused. Its workflow is preserved in `.github/workflows/validate.yml.disabled`; rename it to `validate.yml` to restore validation on pushes and pull requests. Local validation commands remain available below.
+GitHub Actions runs `.github/workflows/validate.yml` on pushes, pull requests, merge groups, and manual dispatch. Configure the stable `release-validation` job as a required check in the repository ruleset. Workflow files cannot enforce branch protection by themselves. See [release validation](implementation/distribution.md#release-validation) for the candidate and security contracts.
 
 Use Node.js 24 and Docker Compose. From this repository root:
 
@@ -38,7 +38,7 @@ At the repository root, `npm run test` and `npm run test:ai` run framework and p
 
 Run `npm run infra:up` and `npm run infra:prepare` in the framework repository. PostgreSQL initialization creates `kestrel_test` without resetting existing data. The Compose service separately creates `kestrel_playground`. Framework suites own and clean up their test tables or schemas; Redis test contexts use logical database 2 and unique key prefixes, and never flush the shared database.
 
-Default ports are 55432 for PostgreSQL and 56379 for Redis. Override `KESTREL_POSTGRES_PORT` and `KESTREL_REDIS_PORT` for host testing. Test helpers also accept `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_SSL`, `KESTREL_TEST_DATABASE`, and `KESTREL_TEST_REDIS_URL`. Managed database names must be `kestrel_test` or `kestrel_test_<suffix>`. The devcontainer uses service hostnames and internal ports. When enabled, CI runs the same provisioner and required integration suites; connection failures fail those suites.
+Default ports are 55432 for PostgreSQL and 56379 for Redis. Override `KESTREL_POSTGRES_PORT` and `KESTREL_REDIS_PORT` for host testing. Test helpers also accept `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_SSL`, `KESTREL_TEST_DATABASE`, and `KESTREL_TEST_REDIS_URL`. Managed database names must be `kestrel_test` or `kestrel_test_<suffix>`. The devcontainer uses service hostnames and internal ports. CI runs the same provisioner and required integration suites; connection failures fail those suites.
 
 Stop services with `npm run infra:down`. Tests clean up their own resources; there is intentionally no routine command deleting the shared PostgreSQL volume. A deliberate full infrastructure reset removes playground data as well and is outside normal test preparation.
 
@@ -55,7 +55,7 @@ npm run build:ai
 npm run test:ai
 ```
 
-Back in the framework repository root, run `npm run verify:archive` after packing to generate and validate an independent consumer automatically, including package exports, declarations, the CLI, and Atlas/Studio assets.
+Back in the framework repository root, run `npm run verify:archive` after packing both archives. This validates independent consumers, package exports, declarations, the CLI, Atlas/Studio assets, and compiled production deployments. It requires registry access for security checks and PostgreSQL permissions to create and drop uniquely named temporary databases. It never opens an HTTP listener. `pack:local` archives are development artifacts; they are not validated release candidates.
 
 By default, the creator generates an exact npm dependency on the compatible framework version. With `--framework-archive`, it copies the archive into the generated application's `vendor` directory instead. It never installs dependencies or contacts a registry itself. `src/packages/create-kestrel/template` is the canonical template; `src/apps/playground` follows its rendered `kestrel-playground` identity, and `npm run check:playground` detects drift. The playground uses the repository infrastructure on the same ports as the standalone starter; use `npm run dev:database --workspace=@kestrel/playground` for its Drizzle Studio instead of starting the playground’s standalone Compose stack. To develop the playground, run `npm run dev --workspace=@kestrel/playground`; its database migrations run through `npm run db:migrate --workspace=@kestrel/playground`.
 
@@ -94,17 +94,35 @@ To combine folding and highlighting, use `highlight-next-line` or `highlight-sta
 
 See [documentation website internals](implementation/documentation.md) for the rendering design and maintenance checks.
 
-## Publish a release
+## Validate and publish a release
 
-Publication requires explicit owner approval. The following commands are for maintainers with publishing rights to the npm scope.
+Publication requires explicit owner approval. Validation never publishes to npm.
 
-Run `npm run build:ai`, `npm run typecheck`, `npm run check:boundaries`, `npm run check:playground`, and `npm run test:all` with the test infrastructure available. Then run `npm run pack:local` and `npm run verify:archive` to validate independent consumers before publishing.
+From a checkout with dependencies installed and test infrastructure prepared, run:
+
+```sh
+# Build once, validate, and retain archives plus evidence in a new directory.
+npm run release:validate
+
+# Switch to the minimum Node runtime, reinstall the workspace lock, and reuse the same archives.
+nvm use 24.11.0
+npm install --global npm@11.9.0 --ignore-scripts --no-audit --no-fund
+npm ci --ignore-scripts --no-audit --no-fund
+npm run release:verify
+```
+
+Start validation on a recent Node 24 version other than 24.11.0 with npm 11.9.0 at both checkpoints. CI performs both runtime checkpoints automatically, also running source tests on the minimum runtime. `release:validate -- artifacts/candidate-2` selects a different output directory; `release:verify -- artifacts/candidate-2` verifies it. Existing directories are never overwritten by validation. A failed run remains available for diagnosis; use a new directory after fixing the problem. Tests assume the normal framework PostgreSQL/Redis infrastructure is available.
+
+`candidate.json` records the source commit and dirty state, a digest of source inputs, tool versions, archive hashes, runtime verification results, and report hashes. A local dirty checkout may be validated for review; publication requires a candidate built from a clean commit and verified on both Node checkpoints. Download the complete CI candidate artifact into `artifacts/candidate` before publishing; preserve its directory structure. Check the successful `release-validation` result and the source commit before authorizing publication. Local checksums detect replacement, but do not authenticate a candidate received from an untrusted source.
 
 | Root command | Purpose |
 | --- | --- |
 | `npm run pack:dry-run` | Build and inspect both npm packages without publishing. |
-| `npm run publish:kestrel` | Build and publish the framework publicly with the `next` tag. |
-| `npm run publish:create-kestrel` | Publish the creator publicly with the `next` tag. |
-| `npm run publish:next` | Publish the framework first, then the creator; stop on failure. |
+| `npm run release:validate` | Run all gates, pack once, verify consumers, and retain the candidate. |
+| `npm run release:verify` | Verify the candidate on the current Node 24 runtime without rebuilding. |
+| `npm run check:security` | Audit the workspace using the versioned security policy. |
+| `npm run publish:kestrel` | Publish the candidate framework archive with the `next` tag. |
+| `npm run publish:create-kestrel` | Publish the candidate creator archive with the `next` tag. |
+| `npm run publish:next` | Publish the candidate framework, then creator; stop on failure. |
 
-The publish commands perform real registry writes and require npm authentication and publishing rights to the `@kestreljs` scope. Package `publishConfig` also defaults to public access and the `next` tag. Keep the creator, framework, template dependency, playground dependency, and lockfile aligned when changing release versions. Published versions cannot be reused. If only the creator publication fails, retry its command after fixing the cause rather than republishing the framework. Automated release workflows and a stable release policy remain deferred.
+Publishing verifies artifact and report hashes, requires both runtime checkpoints, rejects expired security exceptions, and rejects evidence older than seven days. It passes the validated tarball directly to npm with lifecycle scripts disabled: no rebuild or repack occurs. For another candidate path, use `node scripts/release.mjs publish <directory> [all|framework|creator]` after approval. These commands perform real registry writes and require npm authentication and publishing rights. Published versions cannot be reused; if only creator publication fails, retry only the creator. Keep both package versions and the template/playground dependency aligned when changing release versions. Automatic publication, signed provenance, and a stable release policy remain deferred.

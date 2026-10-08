@@ -2,7 +2,7 @@
 
 # __KESTREL_DISPLAY_NAME__
 
-This experimental template consumes `@kestreljs/framework` at the exact compatible version declared in `package.json`. By default, dependencies come from npm when you install them. If created with `--framework-archive`, it uses a vendored local framework archive instead. Use Node.js 24 (`nvm use`) and run `npm install` in the generated project; commit the resulting application-specific lockfile.
+This experimental template consumes `@kestreljs/framework` at the exact compatible version declared in `package.json`. By default, dependencies come from npm when you install them. If created with `--framework-archive`, it uses a vendored local framework archive instead. Use Node.js 24.11 or later within Node.js 24 (`nvm use`) and run `npm install` in the generated project; commit the resulting application-specific lockfile.
 
 ## Welcome page
 

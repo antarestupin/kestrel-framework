@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": "24.x"
+    "node": ">=24.11.0 <25"
   },
   "scripts": {
     "dev": "KESTREL_WATCH=1 ./do run server",
@@ -27,7 +27,7 @@
   "dependencies": {
     "@kestreljs/framework": "0.1.0-alpha.0",
     "drizzle-orm": "^0.45.2",
-    "fastify": "^5.10.0",
+    "fastify": "^5.12.5",
     "pg": "^8.22.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
