@@ -26,6 +26,8 @@ classDiagram
     class PostgresDrizzleClient {
         +database
         +pool
+        +snapshot()
+        +checkHealth()
         +close()
     }
     class PostgresDrizzleManager {
@@ -51,6 +53,26 @@ For application setup and task-oriented examples, see the [Database usage guide]
 The provider registers the pool and Drizzle facade lazily as application singletons and registers `PostgresDrizzleManager` as scoped. `AsyncLocalStorage` binds a Drizzle transaction to the current asynchronous branch. Nested transactions join the existing boundary, while parallel branches in one execution do not leak transaction state into each other.
 
 Query instrumentation wraps both the physical pool and deferred Drizzle builders so raw, prepared, generated and transactional commands share observation semantics. Repositories own deterministic ordering and persistence mapping; schema composition and migration policy remain application concerns.
+
+## Pool resource policy
+
+`configuration.ts` validates native pg capacity, timeout and TLS fields and preserves additional native options. `resourcePolicy` contains only Kestrel admission and shutdown settings. The provider strips its two non-driver namespaces before pool construction. PostgreSQL 18 transaction deadlines use the native startup `options` string, since the installed pg client has no dedicated `transaction_timeout` property. Defaults and maintenance overrides are documented in the [usage guide](../usage/database.md#pool-budgets-failures-and-recovery).
+
+`PostgresPoolRuntime` installs the error boundary before the Drizzle factory or query instrumentation can use the pool. It decorates the pool's native `connect()` method, preserving callback and promise forms and the original Pool instance used by Drizzle. It bounds outstanding acquisitions by connection capacity plus the configured waiting allowance, measures acquisition latency, and tracks checked-out leases. Native errors remain unchanged for callers. Only policy rejection introduces `PostgresPoolPolicyError`; it is never a retry instruction.
+
+Pool and checked-out-client error events share a sanitized reporting boundary. A WeakSet deduplicates errors forwarded by pg from the client to the pool. A terminated connection's `end` event evicts its lease before application code needs to release it. Ordinary releases preserve pg semantics; a release after provider eviction is ignored so a late Drizzle `finally` cannot mask the original failure. The runtime never rewrites SQL or implements transactions. Direct facade transaction options, nested savepoints and the manager's AsyncLocalStorage behavior remain intact.
+
+Pool health is local evidence, not application readiness. The initial state is unknown. An explicit successful query establishes health only when no newer failure has occurred. Error sinks are optional and independent of execution-scoped query observation; their errors are contained. Snapshot data is copied and contains no raw database errors. Applications own sink buffering and readiness integration.
+
+Disposal rejects pending callers, invokes native `pool.end()`, and bounds waiting by a timer. On expiration it destroys the typed pg connection stream before evicting the lease, including pipelined connections whose native `end()` otherwise waits for drain. The timer is cleared, closure remains idempotent, and its failure remains observable. In-progress native acquisitions can outlive provider closure until their own native timeout; late completions are released. No private pg queue or client-array fields are accessed. The error boundary remains attached for late completions.
+
+Regression tests cover native configuration forwarding, TLS validation, error sanitization and failing sinks, promise/callback acquisition, pending and late acquisitions, server statement/lock/transaction timeouts, idle-client loss, recovery, Drizzle transaction options/savepoints, and graceful/forced shutdown with and without pipelining. Integration cases own independent pools and use advisory transaction locks without persistent schema changes.
+
+### Deferred evolutions and explicit limits
+
+Cooperative cancellation of arbitrary transaction callbacks and a global application shutdown deadline belong to the runtime lifecycle work. A pool timer cannot cancel JavaScript or establish whether a disconnected commit succeeded. Drizzle retains its own transaction error precedence, including rollback errors masking the initiating failure and cleanup behavior around failed BEGIN; Kestrel does not substitute a transaction implementation to change those semantics. Server termination frees owned dead leases, but a live lease retained by upstream or application code remains occupied until released or provider shutdown.
+
+Automatic readiness integration, workload fairness/reserved connection capacity, and a stable cross-driver cancellation protocol remain separate work. Public native pg configuration is retained; applications using custom Client/stream implementations must preserve pg's connection, event and release contracts. Explicitly disabling deadlines or replacing startup options changes the stated bounds. No automatic query/write retry or claim of server-side cancellation is attached to client-side query timeouts.
 
 ## Execution scenarios
 
@@ -102,6 +124,7 @@ sequenceDiagram
 | API group | Main exports |
 | --- | --- |
 | Runtime composition | `PostgresDrizzleProvider`, `PostgresDrizzleClient`, `postgresDrizzleConfigBase`, `PostgresDrizzleConfig` |
+| Pool policy | `PostgresPoolPolicyError`, `PostgresPoolState`, `PostgresPoolFailure`, `PostgresPoolEvent`, `PostgresPoolSnapshot` |
 | Scoped execution | `PostgresDrizzleManager`, `PostgresDrizzleExecutor`, `databaseTransaction` |
 | Repository and collections | `Repository`, repository option types, collection query/filter/sort types |
 | Pagination | `paginateQuery()`, `getPaginationQueryWindow()`, `getCursorPaginationCondition()`, `createPaginatedResult()` and pagination model types |

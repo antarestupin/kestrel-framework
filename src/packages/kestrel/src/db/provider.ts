@@ -3,7 +3,8 @@ import { Pool, type PoolConfig } from "pg";
 
 import type { Provider, ProviderCompositionApp } from "../app/index.js";
 import { observerContextDependency } from "../observability/index.js";
-import type { PostgresDrizzleConfig } from "./configuration.js";
+import { postgresDrizzleConfigBase, type PostgresDrizzleConfig } from "./configuration.js";
+import { PostgresPoolRuntime, type PostgresPoolEvent, type PostgresPoolSnapshot } from "./pool_runtime.js";
 import { PostgresDrizzleManager } from "./database_manager.js";
 import {
   type DatabaseQueryInstrumentation,
@@ -14,10 +15,16 @@ import { instrumentDrizzleDatabase, instrumentPostgresPool } from "./query_instr
 export interface PostgresDrizzleClient<Database extends NodePgDatabase<any> = NodePgDatabase<any>> {
   readonly database: Database;
   readonly pool: Pool;
+  /** Returns local pool state without opening a connection. */
+  snapshot(): PostgresPoolSnapshot;
+  /** Checks connectivity explicitly; construction remains lazy. */
+  checkHealth(): Promise<PostgresPoolSnapshot>;
   close(): Promise<void>;
 }
 
 export interface PostgresDrizzleProviderOptions<Database> {
+  /** Sanitized pool diagnostics, independent of request-scoped observation. */
+  readonly onPoolEvent?: (event: PostgresPoolEvent) => void | Promise<void>;
   readonly schema?: Record<string, unknown>;
   /** Overrides facade construction while the provider retains pool ownership. */
   readonly createDatabase?: (pool: Pool) => Database;
@@ -31,7 +38,10 @@ export class PostgresDrizzleProvider<
   public constructor(
     protected readonly config: PostgresDrizzleConfig,
     private readonly options: PostgresDrizzleProviderOptions<Database> = {},
-  ) {}
+  ) {
+    // Validate direct construction as well as declarative configuration.
+    this.config = postgresDrizzleConfigBase.schema.parse(config);
+  }
 
   public register(app: ProviderCompositionApp<Config>): void {
     // The pool stays lazy so minimal maintenance commands can compose safely.
@@ -68,6 +78,7 @@ export class PostgresDrizzleProvider<
   /** Creates the owned pool and its typed Drizzle facade. */
   protected createClient(app: ProviderCompositionApp<Config>): PostgresDrizzleClient<Database> {
     const pool = new Pool(this.createPoolConfig());
+    const runtime = new PostgresPoolRuntime(pool, this.config.resourcePolicy, this.options.onPoolEvent);
     const getInstrumentation = (): DatabaseQueryInstrumentation | undefined => {
       if (!app.container.hasRegistration("observerContext")) {
         return undefined;
@@ -92,21 +103,15 @@ export class PostgresDrizzleProvider<
     return {
       database,
       pool,
-      close: async () => {
-        await pool.end();
-      },
+      snapshot: () => runtime.snapshot(),
+      checkHealth: () => runtime.checkHealth(),
+      close: () => runtime.close(),
     };
   }
 
   /** Maps the validated library configuration to node-postgres options. */
   protected createPoolConfig(): PoolConfig {
-    return {
-      host: this.config.host,
-      port: this.config.port,
-      user: this.config.user,
-      password: this.config.password,
-      database: this.config.database,
-      ssl: this.config.ssl,
-    };
+    const { queryObservability: _observability, resourcePolicy: _policy, ...poolConfig } = this.config;
+    return poolConfig;
   }
 }

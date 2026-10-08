@@ -1,4 +1,5 @@
 import { once } from "node:events";
+import type { ConnectionOptions } from "node:tls";
 import { fileURLToPath } from "node:url";
 import pino, {
   type Logger,
@@ -27,7 +28,8 @@ export interface LoggerDatabaseConfig {
   user: string;
   password: string;
   database: string;
-  ssl: boolean;
+  /** Preserve native TLS settings shared with the application database provider. */
+  ssl: boolean | ConnectionOptions;
 }
 
 export interface OwnedLogger {

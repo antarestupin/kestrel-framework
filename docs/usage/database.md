@@ -23,6 +23,14 @@ const config = configuration.resolveConfig({
     user: configuration.envVar("DB_USER"),
     password: configuration.envVar("DB_PASSWORD"),
     database: configuration.envVar("DB_NAME"),
+    // Allocate connections per process, including every deployed replica.
+    max: configuration.envVar("DB_POOL_MAX", { fallback: 10 }),
+    connectionTimeoutMillis: 5_000,
+    statement_timeout: 30_000,
+    lock_timeout: 5_000,
+    idle_in_transaction_session_timeout: 10_000,
+    options: "-c transaction_timeout=60000",
+    resourcePolicy: { maxWaitingRequests: 100, shutdownTimeoutMs: 10_000 },
     // Use the application environment to select the connection policy once.
     ssl: configuration.fromEnv({ development: false, default: true }),
   }),
@@ -31,6 +39,59 @@ const app = new App(config).register(new PostgresDrizzleProvider(config.database
 ```
 
 The provider owns pool disposal. Pass `{ schema }` or a typed `{ createDatabase: (pool) => drizzle(pool, { schema }) }` constructor option to attach the application schema. Ordinary repositories only need the scoped `databaseManager` registration.
+
+## Pool budgets, failures and recovery
+
+The configuration uses native `pg` option names. The provider validates configuration even when constructed directly, forwards native fields to `new Pool()`, and removes only `queryObservability` and `resourcePolicy`. Additional native driver options, including type parsers and connection hooks, pass through. Known resource fields are validated; advanced driver options retain their native validation and behavior. Credentials remain application-owned, and Kestrel does not read environment variables.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `max` / `min` | `10` / `0` | Maximum connections and native idle-retention floor; `min` does not prewarm the pool. |
+| `connectionTimeoutMillis` | `5000` | Native connection/acquisition timeout; must be positive. Native queue and connection phases can have separate timers. |
+| `idleTimeoutMillis` | `30000` | Idle pool connection lifetime; `0` disables idle eviction. |
+| `statement_timeout` | `30000` | Server-side statement cancellation. |
+| `lock_timeout` | `5000` | Server-side timeout for each lock acquisition. |
+| `idle_in_transaction_session_timeout` | `10000` | Server-side termination of sessions idle in a transaction. |
+| `options` | `"-c transaction_timeout=60000"` | Native PostgreSQL startup options; the default terminates transactions exceeding 60 seconds. |
+| `query_timeout` | `35000` | Native client-side query wait limit; this alone is not SQL cancellation. |
+| `resourcePolicy.maxWaitingRequests` | `100` | Extra acquisition requests admitted beyond the connection capacity; `0` rejects overflow immediately. |
+| `resourcePolicy.shutdownTimeoutMs` | `10000` | Grace period before owned connections are forcibly disconnected. |
+
+Durations are milliseconds except native `maxLifetimeSeconds`. Numeric environment strings are accepted. Limits must be integers within the supported timer range. Server timeout fields and `query_timeout` accept an explicit `0` to disable that limit. Keep `lock_timeout` below `statement_timeout`, and the total transaction budget above the statement and idle-transaction budgets when those finer limits should apply first. Replacing `options` replaces the entire startup string: include `-c transaction_timeout=...` alongside any other required options. Startup options can also override server settings; applications own such overrides.
+
+For verified TLS with a private CA, use `ssl: { ca: certificatePem, rejectUnauthorized: true }`. Client certificates (`cert`, `key`, optional `passphrase`), `servername`, and other Node TLS options remain available. TLS objects default to certificate verification; `ssl: false` is an explicit choice for trusted local development. Load certificate material in application composition, not inside the provider.
+
+Size the deployment budget using the sum of `max` across all pools, processes and replicas, including overlapping deployments, and reserve capacity for administration and maintenance. Workers and HTTP requests using one provider share its capacity and queue; the queue is bounded but does not reserve connections or provide workload fairness. Use separately composed applications/processes for independent workload budgets. Migrations, bulk operations and long-running maintenance need an explicit profile with appropriate timeouts; they must not silently inherit unbounded production behavior. Pools constructed directly by application tooling are outside the provider lifecycle.
+
+### Inspect and report pool state
+
+`databaseClient.snapshot()` returns local state without connecting: `unknown`, `healthy`, `degraded`, `closing` or `closed`, plus `total`, `idle`, `active`, native `waiting`, in-flight `acquiring`, acquisition attempt/failure counters, the latest acquisition duration and the latest sanitized failure. `active` counts checked-out or connecting connections, not SQL statements currently running. Admission counts both acquired leases and in-flight acquisitions, including requests not yet assigned an idle connection.
+
+`await databaseClient.checkHealth()` executes `select 1` with the configured native budgets. A successful check establishes `healthy` only if no newer failure occurred. Failures propagate to the caller; pool/connection errors degrade local state, while admission overflow is reported separately and does not itself mean PostgreSQL is unavailable. Acquiring a connection alone does not establish recovery. Applications choose how and when to call this check and integrate its result with readiness; no polling loop or HTTP endpoint starts automatically. Disabling native deadlines also weakens the health-check deadline.
+
+Pass an independent diagnostic sink as a provider option:
+
+```ts
+const provider = new PostgresDrizzleProvider(config.database, {
+  schema,
+  // Use a bounded sink independent of this database to avoid recursive failure reporting.
+  onPoolEvent: (event) => applicationLogger.info({ databasePool: event }),
+});
+```
+
+Events report acquisition duration/outcome, pool errors and shutdown outcomes. They contain timestamps, fixed failure categories and sanitized error codes; they omit messages, stacks, SQL, parameters and credentials. The error boundary is installed even without a sink or an active execution observer. Sink exceptions and rejected promises cannot change database outcomes; asynchronous sinks are not awaited or drained by the provider. The application must bound their buffering and dispose their resources. Query observations remain controlled separately by `queryObservability`.
+
+### Transactions and shutdown guarantees
+
+Drizzle remains responsible for `BEGIN`, `COMMIT`, rollback, transaction options and nested savepoints. The complete typed Drizzle facade remains available through `databaseClient.database` and the `database` registration. The scoped manager continues to join ambient transactions and introduces no alternate SQL transaction engine. Kestrel never retries writes or rewrites Drizzle query/transaction errors; a connection loss during `COMMIT` can leave the outcome unknown. Drizzle may surface a rollback error after an earlier transaction failure, so do not interpret the last error as proof that nothing committed.
+
+Server statement/lock timeouts cancel SQL. Transaction and idle-transaction timeouts terminate the PostgreSQL session; Kestrel evicts a terminated checked-out connection even if its owner has not released it yet. None of these mechanisms can interrupt an arbitrary JavaScript transaction callback suspended on unrelated work. A native client `query_timeout` limits waiting and does not by itself guarantee server cancellation or safe reuse of a manually held client. Such clients remain application-managed and should be released with an error when their state is uncertain.
+
+Call `databaseClient.close()` (or let application disposal call it), not `pool.end()`, to apply Kestrel's shutdown policy. Closure is idempotent and immediately refuses admission with `PostgresPoolPolicyError` code `closing`. Pending callers are rejected, idle connections close, and checked-out work gets a grace period. At the deadline, owned checked-out transports are destroyed, connections are evicted, and close rejects with `shutdown_timeout`; late owner releases after eviction are harmless. Ordinary duplicate releases retain native pg errors. A forced disconnect does not prove rollback or undo external side effects.
+
+Native acquisitions already in progress cannot be cancelled through the public pool API. Their callers are rejected immediately, but their native queue/connect callbacks can survive until `connectionTimeoutMillis`; late connections are evicted. `closed` means the provider has finished its bounded close operation, not that every native callback has already run. Shutdown does not wait for arbitrary application callbacks or asynchronous diagnostic sinks. The global application shutdown deadline and cooperative execution cancellation are separate runtime concerns.
+
+See the [implementation and deferred evolutions](../implementation/database.md#pool-resource-policy) for ownership and regression coverage.
 
 ## Install library schemas
 

@@ -45,6 +45,14 @@ export function createDatabaseConfig({
       }),
       default: envVar("DB_DATABASE"),
     }),
+    // Each process/replica owns this capacity; native pg option names remain unchanged.
+    max: envVar("DB_POOL_MAX", { fallback: 10 }),
+    connectionTimeoutMillis: 5_000,
+    statement_timeout: 30_000,
+    lock_timeout: 5_000,
+    idle_in_transaction_session_timeout: 10_000,
+    options: "-c transaction_timeout=60000",
+    resourcePolicy: { maxWaitingRequests: 100, shutdownTimeoutMs: 10_000 },
     ssl: fromEnv({
       ...envs(["local", "test"], envVar("DB_SSL", {
         fallback: false,

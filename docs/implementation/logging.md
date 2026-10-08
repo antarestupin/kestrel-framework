@@ -146,3 +146,5 @@ Because local structured logs do not reach stdout, the HTTP bootstrap explicitly
 `LoggerProvider(config, adapter)` accepts `pinoLogger()`, `postgresLogger(connection, settings)` or `defineLoggerAdapter(...)`. The facade remains Pino-compatible. The finalized boot plan is passed to the definition, allowing minimal mode to avoid development storage. Disposal occurs during final container teardown so feature shutdown can still log.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+The PostgreSQL logger accepts the database provider's boolean or native TLS object in `ssl`, including a private CA or client certificate. Pino sends these options to a worker thread, so use structured-clone-compatible TLS values (for example PEM strings); function-valued TLS hooks and native secure-context objects cannot cross that boundary. The transport still owns a separate pool and does not inherit the database provider's resource policy.

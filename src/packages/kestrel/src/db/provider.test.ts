@@ -10,7 +10,7 @@ import { postgresDrizzleConfigBase } from "./configuration.js";
 import { PostgresDrizzleManager } from "./database_manager.js";
 import { type PostgresDrizzleClient, PostgresDrizzleProvider } from "./provider.js";
 
-const databaseConfig: PostgresDrizzleConfig = {
+const databaseConfig: PostgresDrizzleConfig = postgresDrizzleConfigBase.schema.parse({
   host: "localhost",
   port: 5_432,
   user: "postgres",
@@ -21,7 +21,7 @@ const databaseConfig: PostgresDrizzleConfig = {
     parameters: "omit",
     origin: "caller",
   },
-};
+});
 
 class ExtendedDatabaseProvider extends PostgresDrizzleProvider<{ name: string }> {
   public extensionRegistered = false;
@@ -82,6 +82,34 @@ describe("PostgresDrizzleProvider", () => {
     expect(client.pool.options.password).toBe(databaseConfig.password);
 
     await app.dispose();
+  });
+
+  it("forwards native settings and installs a boundary before facade construction", async () => {
+    const events = vi.fn();
+    const getTypeParser = () => (value: string) => value;
+    const config = postgresDrizzleConfigBase.schema.parse({
+      ...databaseConfig, max: 3, connectionTimeoutMillis: 200,
+      types: { getTypeParser }, ssl: { ca: "private CA" },
+    });
+    const app = new App({}).register(new PostgresDrizzleProvider(config, {
+      onPoolEvent: events,
+      createDatabase: (pool) => {
+        // The actual provider must contain idle-client errors even before instrumentation.
+        pool.emit("error", Object.assign(new Error("secret connection details"), { code: "ECONNRESET" }));
+        return drizzle(pool);
+      },
+    }));
+    try {
+      const client = app.container.resolve(dep<PostgresDrizzleClient>("databaseClient"));
+      expect(client.snapshot().state).toBe("degraded");
+      expect(client.pool.options).toMatchObject({
+        max: 3, connectionTimeoutMillis: 200, types: { getTypeParser },
+        ssl: { ca: "private CA", rejectUnauthorized: true },
+      });
+      expect(client.pool.options).not.toHaveProperty("resourcePolicy");
+      expect(client.pool.options).not.toHaveProperty("queryObservability");
+      expect(JSON.stringify(events.mock.calls)).not.toContain("secret");
+    } finally { await app.dispose(); }
   });
 
   it("closes an instantiated database client on disposal", async () => {

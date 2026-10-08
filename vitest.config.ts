@@ -8,6 +8,7 @@ const integration = [
   "src/packages/kestrel/src/cache/adapters/redis/adapter.test.ts",
   "src/packages/kestrel/src/database/seeder/database_seeder.test.ts",
   "src/packages/kestrel/src/db/history/history.integration.test.ts",
+  "src/packages/kestrel/src/db/pool_runtime.integration.test.ts",
   "src/packages/kestrel/src/db/query_instrumentation.test.ts",
   "src/packages/kestrel/src/db/repository.test.ts",
   "src/packages/kestrel/src/lock/adapters/postgres/adapter.test.ts",

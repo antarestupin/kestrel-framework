@@ -79,3 +79,11 @@ export {
 } from "./schema_contributions/index.js";
 
 export type { PostgresDrizzleProviderOptions } from "./provider.js";
+
+export {
+  PostgresPoolPolicyError,
+  type PostgresPoolState,
+  type PostgresPoolFailure,
+  type PostgresPoolEvent,
+  type PostgresPoolSnapshot,
+} from "./pool_runtime.js";
