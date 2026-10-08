@@ -109,3 +109,7 @@ export {
 } from "./icon_definition.js";
 
 export type { ValidationMode, ValidationOptions } from "../definitions/index.js";
+
+export * from "./adapter_definition.js";
+
+export { viteAtlasClient } from "./adapters/client/definition.js";

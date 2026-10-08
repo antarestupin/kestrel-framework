@@ -9,3 +9,5 @@ export {
   type PostgresScheduledTaskRun,
   type PostgresScheduledTaskState,
 } from "./schema.js";
+
+export * from "./definition.js";

@@ -13,13 +13,13 @@ import { z } from "zod";
 import { defineAction } from "@kestreljs/framework/actions";
 import { App } from "@kestreljs/framework/app";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
-import { loggerConfigBase, loggerDependency, LoggerProvider } from "@kestreljs/framework/log";
+import { loggerConfigBase, loggerDependency, LoggerProvider, pinoLogger } from "@kestreljs/framework/log";
 
 const configuration = createConfigurationApi({ environments: ["production"], defaultEnvironment: "production" });
 const config = configuration.resolveConfig({ logger: configure(loggerConfigBase, { level: "info" }) }, {
   environment: "production", env: {},
 });
-const app = new App(config).register(new LoggerProvider(config.logger));
+const app = new App(config).register(new LoggerProvider(config.logger, pinoLogger()));
 const greet = defineAction({
   name: "greeting.greet", input: z.object({ name: z.string() }), output: z.string(),
   dependencies: { logger: loggerDependency },
@@ -54,10 +54,16 @@ const summarize = defineAction({
 
 Diagnostic values must be JSON-compatible, bounded and safe for their selected destinations. They are not a place for passwords, bearer tokens or unrestricted personal data.
 
-For PostgreSQL development storage and Studio log browsing, supply an application-specific backend through the provider hooks and install the disposable log table; see [development storage](../implementation/logging.md#development-storage). The [native logger plan](../implementation/native_logging_plan.md) describes a proposed replacement, not the current API.
+For PostgreSQL development storage and Studio log browsing, pass `postgresLogger(connectionDependency, databaseSettings)` directly to `LoggerProvider` and install the disposable log table; see [development storage](../implementation/logging.md#development-storage). The [native logger plan](../implementation/native_logging_plan.md) describes a proposed replacement, not the current API.
 
 ## Use cases still to document
 
 - Wire PostgreSQL development log storage to Studio.
 - Select completion or dynamic context and suppress automatic logs for one execution.
 - Use an application logger outside execution scopes and own standalone logger cleanup.
+
+## Explicit provider adapters
+
+`LoggerProvider(config, adapter)` accepts `pinoLogger()`, `postgresLogger(connection, settings)` or `defineLoggerAdapter(...)`. The facade remains Pino-compatible. The finalized boot plan is passed to the definition, allowing minimal mode to avoid development storage. Disposal occurs during final container teardown so feature shutdown can still log.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

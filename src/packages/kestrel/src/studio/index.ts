@@ -41,3 +41,7 @@ export {
   Studio,
   type StudioOptions,
 } from "./studio.js";
+
+export * from "./adapter_definition.js";
+
+export { viteStudioClient } from "./adapters/client/definition.js";

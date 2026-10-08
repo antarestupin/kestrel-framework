@@ -12,9 +12,9 @@ import {
   type AuthenticationProof,
 } from "./proof.js";
 import type {
-  AccountStore,
+  AccountStorageAdapter,
   SessionAccountResolver,
-  SessionStore,
+  SessionStorageAdapter,
   StoredSession,
 } from "./stores.js";
 import type {
@@ -38,8 +38,8 @@ export interface AuthenticationManagerDependencies<
   Subject extends AuthenticationSubject,
   Claims,
 > {
-  readonly accountStore: AccountStore;
-  readonly sessionStore: SessionStore<Claims>;
+  readonly accountStore: AccountStorageAdapter;
+  readonly sessionStore: SessionStorageAdapter<Claims>;
   readonly subjectProvider: SubjectProvider<Subject>;
 }
 
@@ -256,8 +256,8 @@ export class AuthenticationManager<
 }
 
 function isSessionAccountResolver<Claims>(
-  store: SessionStore<Claims>,
-): store is SessionStore<Claims> & SessionAccountResolver<Claims> {
+  store: SessionStorageAdapter<Claims>,
+): store is SessionStorageAdapter<Claims> & SessionAccountResolver<Claims> {
   return "findSessionAndAccountByTokenDigest" in store
     && typeof store.findSessionAndAccountByTokenDigest === "function";
 }

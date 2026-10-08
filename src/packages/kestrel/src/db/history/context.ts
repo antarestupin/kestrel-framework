@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 
-import type { DatabaseManager } from "../database_manager.js";
+import type { PostgresDrizzleManager } from "../database_manager.js";
 
 export interface HistoryContext {
   readonly actor?: string;
@@ -17,7 +17,7 @@ interface StoredHistoryContext extends Record<string, unknown> {
  * Nested calls restore their parent's metadata before returning.
  */
 export function runWithHistoryContext<Result>(
-  databaseManager: DatabaseManager,
+  databaseManager: PostgresDrizzleManager,
   context: HistoryContext,
   operation: () => Promise<Result>,
 ): Promise<Result> {
@@ -42,7 +42,7 @@ export function runWithHistoryContext<Result>(
 }
 
 async function readHistoryContext(
-  databaseManager: DatabaseManager,
+  databaseManager: PostgresDrizzleManager,
 ): Promise<StoredHistoryContext> {
   const result = await databaseManager.database.execute<StoredHistoryContext>(
     sql`SELECT
@@ -54,7 +54,7 @@ async function readHistoryContext(
 }
 
 async function writeHistoryContext(
-  databaseManager: DatabaseManager,
+  databaseManager: PostgresDrizzleManager,
   context: HistoryContext | StoredHistoryContext,
 ): Promise<void> {
   await databaseManager.database.execute(sql`SELECT

@@ -1,7 +1,6 @@
-import Fastify, {
-  type FastifyInstance,
-  type FastifyReply,
-} from "fastify";
+import { viteAtlasClient } from "./index.js";
+import { defineAtlasClientAdapter } from "./index.js";
+import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -15,11 +14,7 @@ import {
   post,
 } from "../http/index.js";
 import { testHttpAccess } from "../testing/http_access.js";
-import {
-  defineWorker,
-  MemoryWorkerAdapter,
-  WorkerClient,
-} from "../workers/index.js";
+import { defineWorker, MemoryWorkerAdapter, WorkerClient } from "../workers/index.js";
 import {
   ATLAS_ASSET_BASE_PATH,
   AtlasProvider,
@@ -44,15 +39,12 @@ class TestAtlasClientAdapter implements AtlasClientAdapter {
     ): Promise<AtlasClientRender> => {
       server.addHook("onRequest", async (request, reply) => {
         if (request.url.startsWith(ATLAS_ASSET_BASE_PATH)) {
-          return reply
-            .type("application/javascript")
-            .send("export const atlasAsset = true;");
+          return reply.type("application/javascript").send("export const atlasAsset = true;");
         }
       });
 
-      return (reply: FastifyReply) => reply
-        .type("text/html")
-        .send("<main>Atlas test client</main>");
+      return (reply: FastifyReply) =>
+        reply.type("text/html").send("<main>Atlas test client</main>");
     },
   );
 }
@@ -118,23 +110,21 @@ function createTestAtlas(inheritControllerAccess = false): Atlas {
     output: modelSchema,
     handler: ({ id }) => ({ id, name: "Base normalized model" }),
   });
-  const controller = defineActionHttpController(
-    normalize,
-    post("/models/:id/normalize"),
-    {
-      ...(inheritControllerAccess ? {} : { access: testHttpAccess }),
-      middleware: [defineHttpMiddleware("atlas-controller-test", {
+  const controller = defineActionHttpController(normalize, post("/models/:id/normalize"), {
+    ...(inheritControllerAccess ? {} : { access: testHttpAccess }),
+    middleware: [
+      defineHttpMiddleware("atlas-controller-test", {
         handler: async (_context, next) => {
           controllerMiddlewareRun();
           return next();
         },
-      })],
-      handler: async ({ action, input }) => ({
-        ...await action.run(input),
-        name: "Normalized model",
       }),
-    },
-  );
+    ],
+    handler: async ({ action, input }) => ({
+      ...(await action.run(input)),
+      name: "Normalized model",
+    }),
+  });
   const worker = defineWorker({
     name: "model.refresh",
     queue: "model-refresh",
@@ -160,108 +150,127 @@ function createTestAtlas(inheritControllerAccess = false): Atlas {
 
   return defineAtlas({
     basePath: "/management",
-    resources: [defineAtlasResource({
-      id: "model",
-      label: "Models",
-      identity: "id",
-      source,
-      capabilities: {
-        list: source.query(catalog.list),
-        read: source.query(catalog.read),
-        readMany: source.query(catalog.readMany),
-        create: source.action(catalog.create),
-        update: source.action(catalog.update),
-        delete: source.action(catalog.delete),
-      },
-      fields: {
-        name: { searchable: true },
-        ownerId: {
-          filterable: ["equals"],
-          relation: {
-            resource: "model",
-            cardinality: "one",
-            lookup: {
-              query: source.collectionQuery(catalog.list),
-              pageSize: 10,
-              minimumSearchLength: 1,
+    resources: [
+      defineAtlasResource({
+        id: "model",
+        label: "Models",
+        identity: "id",
+        source,
+        capabilities: {
+          list: source.query(catalog.list),
+          read: source.query(catalog.read),
+          readMany: source.query(catalog.readMany),
+          create: source.action(catalog.create),
+          update: source.action(catalog.update),
+          delete: source.action(catalog.delete),
+        },
+        fields: {
+          name: { searchable: true },
+          ownerId: {
+            filterable: ["equals"],
+            relation: {
+              resource: "model",
+              cardinality: "one",
+              lookup: {
+                query: source.collectionQuery(catalog.list),
+                pageSize: 10,
+                minimumSearchLength: 1,
+              },
             },
           },
         },
-      },
-      recordActions: {
-        copy: defineAtlasRecordAction({
-          label: "Copy",
-          action: source.action(catalog.copy)
-            .onSuccess(function* ({ output }) {
-              yield atlasNotification({
-                level: "success",
-                message: "Model copied.",
-              });
-              yield atlasRedirect({
-                resource: "model",
-                recordId: output.id,
-              });
-            })
-            .mapOutput(z.null(), () => null),
-          recordInput: "id",
-        }),
-        normalize: defineAtlasRecordAction({
-          label: "Normalize",
-          action: source.action(controller),
-          recordInput: "id",
-        }),
-        refresh: defineAtlasRecordAction({
-          label: "Refresh asynchronously",
-          action: source.action(worker),
-          recordInput: "id",
-        }),
-      },
-    })],
+        recordActions: {
+          copy: defineAtlasRecordAction({
+            label: "Copy",
+            action: source
+              .action(catalog.copy)
+              .onSuccess(function* ({ output }) {
+                yield atlasNotification({
+                  level: "success",
+                  message: "Model copied.",
+                });
+                yield atlasRedirect({
+                  resource: "model",
+                  recordId: output.id,
+                });
+              })
+              .mapOutput(z.null(), () => null),
+            recordInput: "id",
+          }),
+          normalize: defineAtlasRecordAction({
+            label: "Normalize",
+            action: source.action(controller),
+            recordInput: "id",
+          }),
+          refresh: defineAtlasRecordAction({
+            label: "Refresh asynchronously",
+            action: source.action(worker),
+            recordInput: "id",
+          }),
+        },
+      }),
+    ],
   });
 }
 
 describe("AtlasProvider", () => {
-  it.each([false, true])("preserves the runtime default when delegating to a controller (inherited: %s)", async (inherited) => {
-    const server = Fastify();
-    const app = new App({});
-    const defaultAccess = defineHttpAccessPolicy("test.runtime.required", [
-      defineHttpMiddleware("test.runtime.session", {
-        handler: () => { throw new AuthenticationRequiredError(); },
-      }),
-    ]);
+  it.each([false, true])(
+    "preserves the runtime default when delegating to a controller (inherited: %s)",
+    async (inherited) => {
+      const server = Fastify();
+      const app = new App({});
+      const defaultAccess = defineHttpAccessPolicy("test.runtime.required", [
+        defineHttpMiddleware("test.runtime.session", {
+          handler: () => {
+            throw new AuthenticationRequiredError();
+          },
+        }),
+      ]);
 
-    try {
-      app.register(new AtlasProvider({
-        atlas: createTestAtlas(inherited),
-        client: new TestAtlasClientAdapter(),
-      }));
-      for (const extension of app.httpExtensions.definitions) {
-        await extension.mount({ app, server, defaultAccess });
+      try {
+        app.register(
+          new AtlasProvider(
+            defineAtlasClientAdapter({
+              dependencies: {},
+              capabilities: {},
+              create: () => new TestAtlasClientAdapter(),
+            }),
+            { atlas: createTestAtlas(inherited) },
+          ),
+        );
+        for (const extension of app.httpExtensions.definitions) {
+          await extension.mount({ app, server, defaultAccess });
+        }
+        await app.start();
+
+        // Atlas has its own outer policy; the delegated controller still inherits
+        // the runtime default unless its declaration explicitly overrides it.
+        const response = await server.inject({
+          method: "POST",
+          url: "/management/api/resources/model/record-actions/normalize",
+          payload: { input: { id: "1" } },
+        });
+        expect(response.statusCode).toBe(inherited ? 401 : 200);
+      } finally {
+        await server.close();
+        await app.dispose();
       }
-      await app.start();
-
-      // Atlas has its own outer policy; the delegated controller still inherits
-      // the runtime default unless its declaration explicitly overrides it.
-      const response = await server.inject({
-        method: "POST",
-        url: "/management/api/resources/model/record-actions/normalize",
-        payload: { input: { id: "1" } },
-      });
-      expect(response.statusCode).toBe(inherited ? 401 : 200);
-    } finally {
-      await server.close();
-      await app.dispose();
-    }
-  });
+    },
+  );
 
   it("does not expose HTTP extensions when explicitly disabled", () => {
     const app = new App({});
 
-    app.register(new AtlasProvider({
-      enabled: false,
-      atlas: createTestAtlas(),
-      client: new TestAtlasClientAdapter(),
-    }));
+    app.register(
+      new AtlasProvider(
+        defineAtlasClientAdapter({
+          dependencies: {},
+          capabilities: {},
+          create: () => new TestAtlasClientAdapter(),
+        }),
+        { enabled: false, atlas: createTestAtlas() },
+      ),
+    );
 
     expect(app.httpExtensions.definitions).toHaveLength(0);
   });
@@ -273,15 +282,14 @@ describe("AtlasProvider", () => {
 
     controllerMiddlewareRun.mockClear();
     workerHandler.mockClear();
-    app.container.registerValue(
-      "workerClient",
-      new WorkerClient(new MemoryWorkerAdapter()),
-    );
+    app.container.registerValue("workerClient", new WorkerClient(new MemoryWorkerAdapter()));
 
-    app.register(new AtlasProvider({
-      atlas: createTestAtlas(),
-      client,
-    }));
+    app.register(
+      new AtlasProvider(
+        defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+        { atlas: createTestAtlas() },
+      ),
+    );
     for (const extension of app.httpExtensions.definitions) {
       await extension.mount({ app, server });
     }
@@ -444,30 +452,29 @@ describe("AtlasProvider", () => {
     });
     const client = new TestAtlasClientAdapter();
 
-    app.register(new AtlasProvider({
-      atlas: createTestAtlas(),
-      client,
-      authentication: {
-        passwordSignInUrl: "/authentication/password/sign-in",
-        signOutUrl: "/authentication/sign-out",
-        requiredSession: denyAccess,
-        isAuthenticationRequired: (error) =>
-          error instanceof AuthenticationRequiredError,
-      },
-      access: {
-        unsafe: [unsafeAccess],
-      },
-    }));
+    app.register(
+      new AtlasProvider(
+        defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+        {
+          atlas: createTestAtlas(),
+          authentication: {
+            passwordSignInUrl: "/authentication/password/sign-in",
+            signOutUrl: "/authentication/sign-out",
+            requiredSession: denyAccess,
+            isAuthenticationRequired: (error) => error instanceof AuthenticationRequiredError,
+          },
+          access: {
+            unsafe: [unsafeAccess],
+          },
+        },
+      ),
+    );
     for (const extension of app.httpExtensions.definitions) {
       await extension.mount({ app, server });
     }
     await app.start();
 
-    for (const url of [
-      "/management",
-      "/management/",
-      "/management/model/1",
-    ]) {
+    for (const url of ["/management", "/management/", "/management/model/1"]) {
       const response = await server.inject({ method: "GET", url });
       expect(response.statusCode, url).toBe(302);
       expect(response.headers.location, url).toBe(
@@ -476,10 +483,7 @@ describe("AtlasProvider", () => {
       expect(response.headers["cache-control"], url).toBe("no-store");
     }
 
-    for (const url of [
-      "/management/api/manifest",
-      "/management/api/missing",
-    ]) {
+    for (const url of ["/management/api/manifest", "/management/api/missing"]) {
       const response = await server.inject({ method: "GET", url });
       expect(response.statusCode, url).toBe(401);
     }
@@ -505,13 +509,15 @@ describe("AtlasProvider", () => {
     expect(unknownWriteResponse.statusCode).toBe(401);
     expect(required).toHaveBeenCalledTimes(7);
     expect(unsafe).toHaveBeenCalledTimes(2);
-    expect(client.setup.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
-      authentication: {
-        loginPath: "/management/login",
-        passwordSignInUrl: "/authentication/password/sign-in",
-        signOutUrl: "/authentication/sign-out",
-      },
-    }));
+    expect(client.setup.mock.calls[0]?.[2]).toEqual(
+      expect.objectContaining({
+        authentication: {
+          loginPath: "/management/login",
+          passwordSignInUrl: "/authentication/password/sign-in",
+          signOutUrl: "/authentication/sign-out",
+        },
+      }),
+    );
 
     await server.close();
     await app.dispose();
@@ -519,47 +525,58 @@ describe("AtlasProvider", () => {
 
   it("validates the generic password-login configuration", () => {
     const atlas = createTestAtlas();
-    const requiredSession = defineHttpMiddleware(
-      "atlas-validation-session",
-      { handler: (_context, next) => next() },
-    );
+    const requiredSession = defineHttpMiddleware("atlas-validation-session", {
+      handler: (_context, next) => next(),
+    });
 
-    expect(() => new AtlasProvider({
-      atlas,
-      authentication: {
-        loginPath: "login",
-        passwordSignInUrl: "/authentication/password/sign-in",
-        signOutUrl: "/authentication/sign-out",
-        requiredSession,
-        isAuthenticationRequired: () => true,
-      },
-    })).toThrow("login path");
-    expect(() => new AtlasProvider({
-      atlas,
-      authentication: {
-        passwordSignInUrl: "authentication/password/sign-in",
-        signOutUrl: "/authentication/sign-out",
-        requiredSession,
-        isAuthenticationRequired: () => true,
-      },
-    })).toThrow("sign-in URL");
-    expect(() => new AtlasProvider({
-      atlas,
-      authentication: {
-        passwordSignInUrl: "//attacker.example/sign-in",
-        signOutUrl: "/authentication/sign-out",
-        requiredSession,
-        isAuthenticationRequired: () => true,
-      },
-    })).toThrow("sign-in URL");
-    expect(() => new AtlasProvider({
-      atlas,
-      authentication: {
-        passwordSignInUrl: "/authentication/password/sign-in",
-        signOutUrl: "//attacker.example/sign-out",
-        requiredSession,
-        isAuthenticationRequired: () => true,
-      },
-    })).toThrow("sign-out URL");
+    expect(
+      () =>
+        new AtlasProvider(viteAtlasClient({}), {
+          atlas,
+          authentication: {
+            loginPath: "login",
+            passwordSignInUrl: "/authentication/password/sign-in",
+            signOutUrl: "/authentication/sign-out",
+            requiredSession,
+            isAuthenticationRequired: () => true,
+          },
+        }),
+    ).toThrow("login path");
+    expect(
+      () =>
+        new AtlasProvider(viteAtlasClient({}), {
+          atlas,
+          authentication: {
+            passwordSignInUrl: "authentication/password/sign-in",
+            signOutUrl: "/authentication/sign-out",
+            requiredSession,
+            isAuthenticationRequired: () => true,
+          },
+        }),
+    ).toThrow("sign-in URL");
+    expect(
+      () =>
+        new AtlasProvider(viteAtlasClient({}), {
+          atlas,
+          authentication: {
+            passwordSignInUrl: "//attacker.example/sign-in",
+            signOutUrl: "/authentication/sign-out",
+            requiredSession,
+            isAuthenticationRequired: () => true,
+          },
+        }),
+    ).toThrow("sign-in URL");
+    expect(
+      () =>
+        new AtlasProvider(viteAtlasClient({}), {
+          atlas,
+          authentication: {
+            passwordSignInUrl: "/authentication/password/sign-in",
+            signOutUrl: "//attacker.example/sign-out",
+            requiredSession,
+            isAuthenticationRequired: () => true,
+          },
+        }),
+    ).toThrow("sign-out URL");
   });
 });

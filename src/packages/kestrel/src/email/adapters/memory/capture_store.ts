@@ -3,7 +3,7 @@ import {
   type EmailCapture,
   type EmailCapturePage,
   type EmailCapturePageOptions,
-  type EmailCaptureStore,
+  type EmailCaptureStorageAdapter,
   type NewEmailCapture,
 } from "../../capture.js";
 import { normalizeEmailMessage } from "../../message.js";
@@ -12,7 +12,7 @@ const defaultPageSize = 50;
 const maximumPageSize = 100;
 
 /** Process-local capture storage with the same pagination contract as PostgreSQL. */
-export class MemoryEmailCaptureStore implements EmailCaptureStore {
+export class MemoryEmailCaptureStorageAdapter implements EmailCaptureStorageAdapter {
   private readonly captures = new Map<string, EmailCapture>();
 
   private nextSequence = 1;

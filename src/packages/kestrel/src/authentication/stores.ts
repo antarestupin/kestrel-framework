@@ -16,7 +16,7 @@ export interface SetAuthenticationAccountState {
 }
 
 /** Persistent account capability required by the authentication manager. */
-export interface AccountStore {
+export interface AccountStorageAdapter {
   findById(id: string): Promise<AuthenticationAccount | undefined>;
   findBySubjectId(
     subjectId: string,
@@ -82,7 +82,7 @@ export interface RevokeAccountSessions {
 }
 
 /** Persistent session capability with conditional lifecycle mutations. */
-export interface SessionStore<Claims = unknown> {
+export interface SessionStorageAdapter<Claims = unknown> {
   createSession(
     input: CreateStoredSession<Claims>,
   ): Promise<StoredSession<Claims>>;
@@ -121,7 +121,7 @@ export interface ReplacePasswordHash {
 }
 
 /** Password-specific storage kept out of the generic account contract. */
-export interface PasswordCredentialStore {
+export interface PasswordCredentialStorageAdapter {
   findByNormalizedUsername(
     normalizedUsername: string,
   ): Promise<PasswordCredential | undefined>;
@@ -133,6 +133,6 @@ export interface PasswordCredentialStore {
 
 /** Capabilities implemented together by the bundled adapters. */
 export interface AuthenticationAdapter<Claims = unknown>
-  extends AccountStore,
-    SessionStore<Claims>,
-    PasswordCredentialStore {}
+  extends AccountStorageAdapter,
+    SessionStorageAdapter<Claims>,
+    PasswordCredentialStorageAdapter {}

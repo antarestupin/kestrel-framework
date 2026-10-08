@@ -9,7 +9,7 @@ import {
   or,
 } from "drizzle-orm";
 
-import type { DatabaseManager } from "../../../db/index.js";
+import type { PostgresDrizzleManager } from "../../../db/index.js";
 import type {
   CreateStoredToken,
   StoredToken,
@@ -17,14 +17,14 @@ import type {
   StoredTokenRevocation,
   StoredTokenSubjectMutation,
   TokenPruneOptions,
-  TokenStore,
+  TokenStorageAdapter,
 } from "../../types.js";
 import type { PostgresTokenTable } from "./tables.js";
 
 /** PostgreSQL persistence over the default or an application-supplied table. */
-export class PostgresTokenStore implements TokenStore {
+export class PostgresTokenStorageAdapter implements TokenStorageAdapter {
   public constructor(
-    private readonly databaseManager: DatabaseManager,
+    private readonly databaseManager: PostgresDrizzleManager,
     private readonly table: PostgresTokenTable,
   ) {}
 
@@ -154,7 +154,7 @@ export class PostgresTokenStore implements TokenStore {
     return deleted.length;
   }
 
-  private get database(): DatabaseManager["database"] {
+  private get database(): PostgresDrizzleManager["database"] {
     return this.databaseManager.database;
   }
 }

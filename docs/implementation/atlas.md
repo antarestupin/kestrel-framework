@@ -451,7 +451,7 @@ The Atlas framework remains independent from a particular authentication or auth
 `AtlasProvider.enabled` lets an application omit every Atlas HTTP extension for deployments that do not expose an internal site. The standard application's Atlas-backed backoffice maps this option to the explicit `BACKOFFICE_ENABLED` setting outside local and test environments. Its URI-encoded browser configuration is inert data on the root HTML element rather than an inline executable script, so enabling Atlas does not weaken the production HTTP Content Security Policy.
 
 ```ts
-new AtlasProvider({
+new AtlasProvider(viteAtlasClient({}), {
   atlas: applicationBackoffice,
   authentication: {
     passwordSignInUrl:
@@ -738,3 +738,9 @@ Atlas lives in `src/packages/kestrel/src/atlas`, with its adapters, browser clie
 The public entry point is `@kestreljs/framework/atlas`. Adapter contracts are also exported from `atlas/adapters` and `atlas/adapters/client`; `atlas/client_config` and `atlas/contract` expose browser-safe contracts. The framework build compiles the server declarations and builds `assets/atlas` separately from `assets/studio`. The Vite adapter resolves the installed package root from its relocated module and serves the `/_atlas_assets/` prefix. Applications may instead inject a shared development runtime pointing at the Atlas client source.
 
 Installed-archive verification checks Atlas HTML, configuration and referenced JS/CSS assets outside the workspace. Library tests remain in Kestrel; consuming applications own their resource, permission and persistence integration tests. Optional lazy loading and finer-grained dependency distribution remain future improvements; there is no separate Atlas package or automatic npm publication.
+
+## Explicit provider adapters
+
+`AtlasProvider(adapter, options)` requires an explicit `AtlasClientAdapterDefinition`; `viteAtlasClient(settings)` selects bundled browser delivery. Atlas manifests, access policy and authentication options remain distinct from delivery. Backend initialization waits until HTTP mounting.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

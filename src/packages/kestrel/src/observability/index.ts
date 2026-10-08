@@ -46,10 +46,14 @@ export {
   type ObservationExecutionSummary,
   type ObservationPage,
   type ObservationPageOptions,
-  PostgresObservationStore,
-} from "./db/observation_store.js";
+} from "./source.js";
 export {
   type NewStoredObservation,
   observations,
   type StoredObservation,
 } from "./db/schema.js";
+
+export * from "./adapter_definition.js";
+export * from "./adapters/postgres/index.js";
+
+export type { ObservationRecord } from "./source.js";

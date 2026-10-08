@@ -1,10 +1,12 @@
+import { rolePermissions } from "./index.js";
+import { defineSubjectRoleStorageAdapter } from "./index.js";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { defineAction } from "../actions/index.js";
 import { App } from "../app/index.js";
 import { AuthenticationContext } from "../authentication/index.js";
-import { MemorySubjectRoleStore } from "./adapters/memory/index.js";
+import { MemorySubjectRoleStorageAdapter } from "./adapters/memory/index.js";
 import { definePermission, defineRole } from "./definition.js";
 import { requireAuthorization } from "./middleware.js";
 import { AuthorizationProvider } from "./provider.js";
@@ -15,7 +17,7 @@ import { permission } from "./requirements.js";
 describe("requireAuthorization", () => {
   it("protects an Action independently from its transport", async () => {
     const access = definePermission({ id: "records.write" });
-    const store = new MemorySubjectRoleStore();
+    const store = new MemorySubjectRoleStorageAdapter();
     const writer = defineRole({ key: "writer", name: "Writer", permissions: [access] });
     await store.grantRole("subject-1", writer.key);
     const context = new AuthenticationContext<{}>();
@@ -41,8 +43,7 @@ describe("requireAuthorization", () => {
     const app = new App({});
     app.container.registerValue("authenticationContext", context);
     app.container.registerValue("subjectRoleStore", store);
-    app.register(new RolePermissionResolverProvider([writer]));
-    app.register(new AuthorizationProvider());
+    app.register(new AuthorizationProvider(rolePermissions([writer], defineSubjectRoleStorageAdapter({ dependencies: {}, capabilities: {}, create: () => store }))));
 
     try {
       await expect(app.get(action).run({})).resolves.toEqual({ saved: true });

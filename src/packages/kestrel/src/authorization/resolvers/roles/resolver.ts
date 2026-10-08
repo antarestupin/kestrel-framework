@@ -1,15 +1,15 @@
 import { defineRole } from "../../definition.js";
-import type { PermissionResolver, RoleDefinition, SubjectRoleStore } from "../../types.js";
+import type { PermissionResolver, RoleDefinition, SubjectRoleStorageAdapter } from "../../types.js";
 
 export interface RolePermissionResolverOptions {
   readonly roles: readonly RoleDefinition[];
-  readonly subjectRoleStore: SubjectRoleStore;
+  readonly subjectRoleStore: SubjectRoleStorageAdapter;
 }
 
 /** Resolves live assignments against an immutable, code-defined role catalog. */
 export class RolePermissionResolver implements PermissionResolver {
   private readonly permissionsByRole = new Map<string, readonly string[]>();
-  private readonly subjectRoleStore: SubjectRoleStore;
+  private readonly subjectRoleStore: SubjectRoleStorageAdapter;
 
   public constructor(options: RolePermissionResolverOptions) {
     this.subjectRoleStore = options.subjectRoleStore;

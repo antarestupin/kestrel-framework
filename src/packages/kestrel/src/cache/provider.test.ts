@@ -1,9 +1,6 @@
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { pinoLogger } from "./../log/index.js";
+import { memoryLocks } from "./../lock/index.js";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { uuidV7 } from "../utils/uuid.js";
@@ -18,7 +15,12 @@ import {
   type ObservationEvent,
   type ObservationRecorder,
 } from "../observability/index.js";
-import { memoryCache, redisCache, postgresCache, type PostgresCacheDatabase } from "./adapters/index.js";
+import {
+  memoryCache,
+  redisCache,
+  postgresCache,
+  type PostgresCacheDatabase,
+} from "./adapters/index.js";
 import { defineCacheAdapter } from "./adapter_definition.js";
 import type { CacheConfig } from "./configuration.js";
 import { cacheDependency, tagAwareCacheDependency } from "./dependencies.js";
@@ -47,21 +49,23 @@ const lockConfig: LockConfig = {
   pruneIntervalSeconds: 0,
 };
 
-class MemoryLockProvider<Config> extends LockProvider<Config> {
-  protected override createAdapter(_database: PostgresLockDatabase) {
-    return new MemoryLockAdapter();
-  }
-}
-
 describe("CacheProvider", () => {
   it("composes Redis without database, locks or a pruning task", async () => {
     const client = { sendCommand: vi.fn(async (_arguments: string[]) => "OK"), close: vi.fn() };
     const connection = dep<typeof client>("redis");
     const adapter = redisCache(connection);
-    const app = new App({ name: "test" }).register(new LoggerProvider({
-      level: "silent", developmentStorage: false,
-      executionLog: { enabled: true, contextMode: "completion" },
-    })).register(new CacheProvider({ ...cacheConfig, pruneIntervalSeconds: 60 }, adapter));
+    const app = new App({ name: "test" })
+      .register(
+        new LoggerProvider(
+          {
+            level: "silent",
+            developmentStorage: false,
+            executionLog: { enabled: true, contextMode: "completion" },
+          },
+          pinoLogger(),
+        ),
+      )
+      .register(new CacheProvider({ ...cacheConfig, pruneIntervalSeconds: 60 }, adapter));
     app.container.registerValue(connection.id, client);
 
     try {
@@ -72,8 +76,9 @@ describe("CacheProvider", () => {
       const resource = app.container.resolve(dep<CacheResource>("cacheResource"));
       expect(resource.prune).toBeUndefined();
       expect("invalidateAllTags" in cache).toBe(false);
-      expect(() => app.container.resolve(tagAwareCacheDependency))
-        .toThrow("does not support tag invalidation");
+      expect(() => app.container.resolve(tagAwareCacheDependency)).toThrow(
+        "does not support tag invalidation",
+      );
       await cache.set("key", "value");
       expect(client.sendCommand).toHaveBeenCalledOnce();
     } finally {
@@ -96,9 +101,15 @@ describe("CacheProvider", () => {
 
   it("retains maintenance for an injected prunable adapter", async () => {
     const adapter = memoryCache();
-    const app = new App({ name: "test" }).register(new CacheProvider({
-      ...cacheConfig, pruneIntervalSeconds: 60,
-    }, adapter));
+    const app = new App({ name: "test" }).register(
+      new CacheProvider(
+        {
+          ...cacheConfig,
+          pruneIntervalSeconds: 60,
+        },
+        adapter,
+      ),
+    );
     try {
       expect(app.catalog.scheduledTasks.registrations).toHaveLength(1);
     } finally {
@@ -119,28 +130,33 @@ describe("CacheProvider", () => {
   });
 
   it("contributes maintenance from its injected configuration", async () => {
-    const app = new App({ name: "test" }).register(new CacheProvider({
-      ...cacheConfig,
-      pruneIntervalSeconds: 60,
-    }, postgresCache(dep<PostgresCacheDatabase>("database"))));
+    const app = new App({ name: "test" }).register(
+      new CacheProvider(
+        {
+          ...cacheConfig,
+          pruneIntervalSeconds: 60,
+        },
+        postgresCache(dep<PostgresCacheDatabase>("database")),
+      ),
+    );
 
-    expect(app.catalog.scheduledTasks.registrations).toMatchObject([{
-      task: {
-        id: "maintenance.cache-prune",
-        groups: ["maintenance"],
-        executionLog: false,
-        observe: false,
+    expect(app.catalog.scheduledTasks.registrations).toMatchObject([
+      {
+        task: {
+          id: "maintenance.cache-prune",
+          groups: ["maintenance"],
+          executionLog: false,
+          observe: false,
+        },
+        source: { kind: "provider", provider: "CacheProvider" },
       },
-      source: { kind: "provider", provider: "CacheProvider" },
-    }]);
+    ]);
 
     await app.dispose();
   });
 
   it("does not resolve cache infrastructure in minimal mode", async () => {
-    const app = new App({ name: "test" }).register(
-      new CacheProvider(cacheConfig, memoryCache()),
-    );
+    const app = new App({ name: "test" }).register(new CacheProvider(cacheConfig, memoryCache()));
 
     app.prepareBootPlan([], "minimal");
 
@@ -164,36 +180,40 @@ describe("CacheProvider", () => {
         consecutiveStorageFailures: 0,
       }),
     };
-    const app = new App({ name: "test" })
-      .register(new LoggerProvider({
-        level: "silent",
-        developmentStorage: false,
-        executionLog: { enabled: true, contextMode: "completion" },
-      }));
+    const app = new App({ name: "test" }).register(
+      new LoggerProvider(
+        {
+          level: "silent",
+          developmentStorage: false,
+          executionLog: { enabled: true, contextMode: "completion" },
+        },
+        pinoLogger(),
+      ),
+    );
 
     app.container.registerValue("database", {} as PostgresCacheDatabase);
     app.container.registerValue("observerContext", new AsyncLocalObserverContext());
     app.container.registerValue("observationRecorder", recorder);
     app.container.registerFactory(
       "observer",
-      ({ executionId, observationRecorder }: {
+      ({
+        executionId,
+        observationRecorder,
+      }: {
         executionId: string;
         observationRecorder: ObservationRecorder;
       }) => new ScopedObserver(executionId, observationRecorder),
       { lifetime: "scoped" },
     );
-    app.register(new MemoryLockProvider(lockConfig));
+    app.register(new LockProvider(lockConfig, memoryLocks()));
     app.register(new CacheProvider(cacheConfig, memoryCache()));
 
     const action = defineAction({
       name: "cache-provider.read",
       output: z.string(),
       dependencies: { cache: cacheDependency },
-      handler: (_input, { cache }) => cache.remember(
-        uuidV7(),
-        async () => "loaded",
-        { lock: true },
-      ),
+      handler: (_input, { cache }) =>
+        cache.remember(uuidV7(), async () => "loaded", { lock: true }),
     });
 
     await expect(app.get(action).run(null)).resolves.toBe("loaded");
@@ -213,27 +233,44 @@ describe("CacheProvider", () => {
 });
 
 function createTestApp(): App<{ name: string }> {
-  const app = new App({ name: "test" })
-    .register(new LoggerProvider({
-      level: "silent",
-      developmentStorage: false,
-      executionLog: { enabled: true, contextMode: "completion" },
-    }));
+  const app = new App({ name: "test" }).register(
+    new LoggerProvider(
+      {
+        level: "silent",
+        developmentStorage: false,
+        executionLog: { enabled: true, contextMode: "completion" },
+      },
+      pinoLogger(),
+    ),
+  );
 
   app.container.registerValue("database", {} as PostgresCacheDatabase);
   return app
-    .register(new MemoryLockProvider(lockConfig))
+    .register(new LockProvider(lockConfig, memoryLocks()))
     .register(new CacheProvider(cacheConfig, memoryCache()));
 }
 
 it("rejects false capability declarations and releases the constructed adapter", async () => {
   const dispose = vi.fn();
-  const app = new App({}).register(new CacheProvider(cacheConfig, defineCacheAdapter({
-    dependencies: {}, capabilities: { prune: true, tags: false },
-    create: () => ({ get: async () => undefined, set: async () => {}, delete: async () => false }),
-    dispose,
-  })));
-  try { await expect(app.start()).rejects.toThrow("capabilities"); }
-  finally { await app.dispose(); }
+  const app = new App({}).register(
+    new CacheProvider(
+      cacheConfig,
+      defineCacheAdapter({
+        dependencies: {},
+        capabilities: { prune: true, tags: false },
+        create: () => ({
+          get: async () => undefined,
+          set: async () => {},
+          delete: async () => false,
+        }),
+        dispose,
+      }),
+    ),
+  );
+  try {
+    await expect(app.start()).rejects.toThrow("capabilities");
+  } finally {
+    await app.dispose();
+  }
   expect(dispose).toHaveBeenCalledOnce();
 });

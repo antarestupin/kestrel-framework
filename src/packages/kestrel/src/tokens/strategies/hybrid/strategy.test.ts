@@ -7,7 +7,7 @@ import {
 import { z } from "zod";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { MemoryTokenStore } from "../../adapters/memory/index.js";
+import { MemoryTokenStorageAdapter } from "../../adapters/memory/index.js";
 import { defineToken } from "../../definition.js";
 import { TokenManager } from "../../manager.js";
 import { JwtTokenKeyring } from "../jwt/keyring.js";
@@ -186,7 +186,7 @@ async function createFixture() {
       { id: "current-key", algorithm: "ES256", key: pair.publicKey },
     ],
   });
-  const store = new MemoryTokenStore();
+  const store = new MemoryTokenStorageAdapter();
   const strategy = new HybridTokenStrategy(store, {
     issuer,
     audience,

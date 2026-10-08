@@ -38,7 +38,9 @@ export type {
   TokenGrant,
   TokenPruneOptions,
   TokenResolution,
-  TokenStore,
+  TokenStorageAdapter,
   TokenStrategy,
   TokenStrategyCapabilities,
 } from "./types.js";
+
+export * from "./adapter_definition.js";

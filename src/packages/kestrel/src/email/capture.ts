@@ -48,7 +48,7 @@ export interface NewEmailCapture {
 }
 
 /** Storage contract shared by process-local and persistent capture adapters. */
-export interface EmailCaptureStore {
+export interface EmailCaptureStorageAdapter {
   /** Optional lifecycle preparation used by persistent stores. */
   prepare?(retentionDays: number): Promise<void>;
   capture(capture: NewEmailCapture): Promise<void>;
@@ -62,7 +62,7 @@ export interface EmailCaptureResendResult {
 }
 
 /** Read and control contract consumed by the development Studio extension. */
-export interface EmailCaptureInboxSource extends EmailCaptureStore {
+export interface EmailCaptureInboxSource extends EmailCaptureStorageAdapter {
   resend(id: string): Promise<EmailCaptureResendResult>;
 }
 
@@ -77,7 +77,7 @@ export class EmailCaptureNotFoundError extends Error {
 /** Adds safe replay behavior without coupling stores to an email client. */
 export class EmailCaptureInbox implements EmailCaptureInboxSource {
   public constructor(
-    private readonly store: EmailCaptureStore,
+    private readonly store: EmailCaptureStorageAdapter,
     private readonly send: (message: EmailMessage) => Promise<EmailReceipt>,
   ) {}
 

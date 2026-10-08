@@ -39,7 +39,7 @@ export interface RoleDefinition {
 }
 
 /** Persists assignments only; role definitions belong to the application code. */
-export interface SubjectRoleStore {
+export interface SubjectRoleStorageAdapter {
   listRoleKeys(subjectId: string): Promise<ReadonlySet<string>>;
   grantRole(
     subjectId: string,

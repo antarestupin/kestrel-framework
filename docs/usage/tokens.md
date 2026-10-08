@@ -30,7 +30,7 @@ Use a single-use token for an invitation or verification link that must not be a
 
 ```ts
 import { z } from "zod";
-import { defineToken, MemoryTokenStore, StoredTokenStrategy, TokenManager } from "@kestreljs/framework/tokens";
+import { defineToken, MemoryTokenStorageAdapter, StoredTokenStrategy, TokenManager } from "@kestreljs/framework/tokens";
 
 const invitation = defineToken({
   name: "member.invitation",
@@ -40,7 +40,7 @@ const invitation = defineToken({
   // Use this member identity to replace or revoke related invitations.
   subject: ({ memberId }) => memberId,
 });
-const store = new MemoryTokenStore();
+const store = new MemoryTokenStorageAdapter();
 const tokens = new TokenManager({ stored: new StoredTokenStrategy(store, { tokenBytes: 32 }) }, { maxPayloadBytes: 4_096 });
 const grant = await tokens.issue(invitation, { memberId: "member-1" }, { ttlSeconds: 900 });
 
@@ -57,25 +57,24 @@ Register token services when application actions need a shared manager. Revoke a
 
 ```ts
 import { App } from "@kestreljs/framework/app";
-import { TokenProvider } from "@kestreljs/framework/tokens";
+import { TokenProvider, memoryTokens } from "@kestreljs/framework/tokens";
 
 const app = new App({});
-app.container.registerValue("tokenStore", store);
-app.register(new TokenProvider({ stored: { tokenBytes: 32, maxPayloadBytes: 4_096 } }));
+app.register(new TokenProvider({ stored: { tokenBytes: 32, maxPayloadBytes: 4_096 } }, memoryTokens(store)));
 // This standalone manager and the provider share the registered store.
 await tokens.revokeForSubject(invitation, "member-1");
 ```
 
-Normally resolve settings through `tokensConfigBase` and inject `tokenManagerDependency` into services. Use `PostgresTokenStore` with the scoped database manager for persistence. It can join the protected domain mutation's transaction, so token consumption and the mutation commit or roll back together. `issueMany` batches issuance; schedule bounded `prune` calls through application maintenance.
+Normally resolve settings through `tokensConfigBase` and inject `tokenManagerDependency` into services. Use `PostgresTokenStorageAdapter` with the scoped database manager for persistence. It can join the protected domain mutation's transaction, so token consumption and the mutation commit or roll back together. `issueMany` batches issuance; schedule bounded `prune` calls through application maintenance.
 
 ## Configure signed and hybrid representations
 
 Choose signed tokens when recipients need a verifiable payload, or hybrid tokens when you also need stored revocation or single-use state. The application supplies the keyring and verification policy.
 
 ```ts
-import { HybridTokenStrategy, JwtTokenStrategy, type JwtTokenStrategyOptions, type TokenStore } from "@kestreljs/framework/tokens";
+import { HybridTokenStrategy, JwtTokenStrategy, type JwtTokenStrategyOptions, type TokenStorageAdapter } from "@kestreljs/framework/tokens";
 
-function signedTokens(options: JwtTokenStrategyOptions, store: TokenStore) {
+function signedTokens(options: JwtTokenStrategyOptions, store: TokenStorageAdapter) {
   // options supplies the application's keyring, issuer and audience policy.
   return new TokenManager({
     jwt: new JwtTokenStrategy(options),
@@ -98,3 +97,9 @@ The definition's `strategy` selects its manager entry. Retain old verification k
 - Issue tokens in batches and replace tokens for a subject.
 - Compose PostgreSQL token consumption with a domain transaction.
 - Prune expired tokens and delete tokens belonging to a subject.
+
+## Explicit provider adapters
+
+`TokenProvider(config, adapter, options?)` accepts `postgresTokens(manager, table?)`, `memoryTokens(sharedState)` or an external scoped storage definition. Stateless configurations explicitly pass `undefined` and disable the stored strategy. Storage and token representation remain separate contracts.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

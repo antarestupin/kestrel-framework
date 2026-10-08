@@ -22,6 +22,10 @@ export type {
   PermissionDefinition,
   PermissionResolver,
   RoleDefinition,
-  SubjectRoleStore,
+  SubjectRoleStorageAdapter,
 } from "./types.js";
 export * from "./resolvers/roles/index.js";
+
+export * from "./adapter_definition.js";
+
+export * from "./resolver_definition.js";

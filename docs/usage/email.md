@@ -11,21 +11,19 @@ Capture messages when developing or testing email flows without delivering to re
 ```ts
 import { App } from "@kestreljs/framework/app";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
-import { emailConfigBase, EmailProvider } from "@kestreljs/framework/email";
+import { emailConfigBase, EmailProvider, captureEmail, memoryEmailCapture, captureEmailConfigBase, smtpEmail, smtpEmailConfigBase } from "@kestreljs/framework/email";
 
 const configuration = createConfigurationApi({ environments: ["development"], defaultEnvironment: "development" });
 const config = configuration.resolveConfig({
   email: configure(emailConfigBase, {
     enabled: true,
-    driver: { type: "capture" },
-    // Captured messages exist only for the lifetime of this process.
-    capture: { storage: "memory" },
+    adapter: configure(captureEmailConfigBase, {}),
   }),
 }, { environment: "development", env: {} });
-const app = new App(config).register(new EmailProvider(config.email));
+const app = new App(config).register(new EmailProvider(config.email, captureEmail(memoryEmailCapture(), config.email.adapter)));
 ```
 
-Inject `emailClientDependency` into actions and services. For a persistent development inbox, select `capture.storage: "postgres"`, register the database provider and install the development capture tables. Studio's email extension can display these captures.
+Inject `emailClientDependency` into actions and services. For a persistent development inbox, compose `captureEmail(postgresEmailCapture(connection, storageSettings), captureSettings)`, register the borrowed PostgreSQL infrastructure and install the development capture tables. Studio's email extension can display these captures.
 
 ## Send text, HTML and attachments
 
@@ -63,13 +61,13 @@ Select SMTP when the application is ready to deliver through a mail server. Keep
 ```ts
 const smtpDefinition = configure(emailConfigBase, {
   enabled: true,
-  driver: {
-    type: "smtp", host: "smtp.example.com", port: 587,
+  adapter: configure(smtpEmailConfigBase, {
+    host: "smtp.example.com", port: 587,
     // Read credentials at configuration resolution, not in the sending code.
     auth: { user: configuration.envVar("SMTP_USER"), pass: configuration.envVar("SMTP_PASSWORD") },
-  },
+  }),
 });
-// Resolve this contribution at the application configuration boundary.
+// Resolve this contribution, then pass smtpEmail(app.config.email.adapter) to EmailProvider.
 ```
 
 The provider owns client cleanup. Standalone clients must be closed explicitly. `EmailSendError` exposes a neutral code and retryable hint, but no automatic resend occurs: a transport error can happen after the provider accepted a message. Rendering, bulk personalization and delivery scheduling remain application responsibilities; [workers](./workers.md) can own asynchronous sends.
@@ -80,3 +78,9 @@ The provider owns client cleanup. Standalone clients must be closed explicitly. 
 - Install a PostgreSQL capture inbox, browse it in Studio and resend a captured message.
 - Send to multiple recipients with CC, BCC and reply-to fields.
 - Handle EmailSendError and compose asynchronous delivery with an application worker.
+
+## External adapters and ownership
+
+Delivery implements `EmailTransportAdapter` and is declared with `defineEmailTransportAdapter`; capture persistence implements `EmailCaptureStorageAdapter` and is declared with `defineEmailCaptureStorageAdapter`. The capture recipe composes both definitions. SMTP and SES do not require capture storage. Backend schemas live beside their factories: `smtpEmailConfigBase`, `sesEmailConfigBase`, `captureEmailConfigBase` and `postgresEmailCaptureConfigBase`.
+
+The provider closes its client, then disposes delivery, then disposes capture storage. Injected connections remain borrowed. Minimal boot and disabled email do not create backends. External recipes supply their own initialization and disposal hooks; there is no `custom` driver name or provider subclass dispatch.

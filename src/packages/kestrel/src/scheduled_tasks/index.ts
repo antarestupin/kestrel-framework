@@ -63,3 +63,5 @@ export {
   type ScheduledTaskState,
 } from "./types.js";
 export * from "./adapters/index.js";
+
+export * from "./adapter_definition.js";

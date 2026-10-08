@@ -107,7 +107,7 @@ export class EmailClient {
     if (this.closed) return;
 
     this.closed = true;
-    await this.options.driver.close?.();
+    if (this.options.closeDriver !== false) await this.options.driver.close?.();
   }
 
   private createObservationData(

@@ -9,7 +9,7 @@ import {
 import { App } from "../../../app/index.js";
 import {
   EmailCaptureInbox,
-  MemoryEmailCaptureStore,
+  MemoryEmailCaptureStorageAdapter,
   type EmailCaptureInboxSource,
 } from "../../../email/index.js";
 import { HttpControllerManager } from "../../../http/index.js";
@@ -154,7 +154,7 @@ describe("development email Studio extension", () => {
 });
 
 async function createCaptureSource(): Promise<EmailCaptureInboxSource> {
-  const store = new MemoryEmailCaptureStore();
+  const store = new MemoryEmailCaptureStorageAdapter();
   await store.capture({
     id: captureId,
     observationId,

@@ -15,7 +15,7 @@ Enable an actions explorer when developers need to inspect the application catal
 import type { App } from "@kestreljs/framework/app";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
 import { studioConfigBase } from "@kestreljs/framework/studio/configuration";
-import { StudioProvider } from "@kestreljs/framework/studio";
+import { StudioProvider, viteStudioClient } from "@kestreljs/framework/studio";
 import { defineActionsDocumentationExtension } from "@kestreljs/framework/studio/extensions/actions";
 // hide-end
 
@@ -33,7 +33,7 @@ const config = configuration.resolveConfig({
 
 function installStudio<Config>(app: App<Config>) {
   // Compose after the providers contributing definitions to be displayed.
-  return app.register(new StudioProvider(config.studio, {
+  return app.register(new StudioProvider(config.studio, viteStudioClient({ dev: config.studio.devMode }), {
     extensions: [defineActionsDocumentationExtension(app.catalog.actions.definitions)],
   }));
 }
@@ -103,3 +103,9 @@ Add this extension to the provider's `extensions`. Custom interactive pages addi
 - Enable the controller, worker, scheduled-task, workflow and email explorers.
 - Connect development log and observation stores.
 - Share a Vite development runtime and configure the Studio production build.
+
+## Explicit provider adapters
+
+`StudioProvider(config, adapter, options?)` requires a `StudioClientAdapterDefinition`; `viteStudioClient(settings)` selects bundled delivery. Extensions remain catalog contributions. Disabled Studio and commands without an HTTP mount leave delivery unresolved.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { MemorySubjectRoleStore } from "./store.js";
+import { MemorySubjectRoleStorageAdapter } from "./store.js";
 
-describe("MemorySubjectRoleStore", () => {
+describe("MemorySubjectRoleStorageAdapter", () => {
   it("isolates subjects and role keys with idempotent grants and revocations", async () => {
-    const store = new MemorySubjectRoleStore();
+    const store = new MemorySubjectRoleStorageAdapter();
     await expect(store.listRoleKeys("unknown")).resolves.toEqual(new Set());
     await expect(store.grantRole("external|subject-1", "admin")).resolves.toBe(true);
     await expect(store.grantRole("external|subject-1", "admin")).resolves.toBe(false);
@@ -18,7 +18,7 @@ describe("MemorySubjectRoleStore", () => {
   });
 
   it("does not expose mutable assignment state", async () => {
-    const store = new MemorySubjectRoleStore();
+    const store = new MemorySubjectRoleStorageAdapter();
     await store.grantRole("subject-1", "admin");
     const keys = await store.listRoleKeys("subject-1") as Set<string>;
     keys.clear();

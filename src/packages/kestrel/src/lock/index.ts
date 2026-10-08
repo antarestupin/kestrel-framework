@@ -58,3 +58,8 @@ export {
   type LockWaitOptions,
   type PrunableLockAdapter,
 } from "./types.js";
+
+export * from "./adapter_definition.js";
+
+export { memoryLocks } from "./adapters/memory/index.js";
+export { postgresLocks } from "./adapters/postgres/index.js";

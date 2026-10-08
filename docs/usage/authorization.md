@@ -6,7 +6,7 @@ Define permissions and protect operations with requirements. The authorization m
 
 ## Define roles and register a resolver
 
-Roles and their permissions are authoritative application code. Only subject-role assignments are persisted. Kestrel ships one permission resolver, `RolePermissionResolver`, which combines that catalog with a `SubjectRoleStore`.
+Roles and their permissions are authoritative application code. Only subject-role assignments are persisted. Kestrel ships one permission resolver, `RolePermissionResolver`, which combines that catalog with a `SubjectRoleStorageAdapter`.
 
 ```ts
 import { App } from "@kestreljs/framework/app";
@@ -14,24 +14,25 @@ import {
   AuthorizationProvider,
   definePermission,
   defineRole,
-  MemorySubjectRoleStore,
+  MemorySubjectRoleStorageAdapter,
   permission,
   requireAuthorization,
   requireHttpAuthorization,
-  RolePermissionResolverProvider,
+  rolePermissions,
+  defineSubjectRoleStorageAdapter,
 } from "@kestreljs/framework/authorization";
 
 const manageContacts = definePermission({ id: "contacts.manage" });
 const operator = defineRole({
   key: "operator", name: "Operator", permissions: [manageContacts],
 });
-const subjectRoles = new MemorySubjectRoleStore();
+const subjectRoles = new MemorySubjectRoleStorageAdapter();
 
 function registerAuthorization<Config>(app: App<Config>) {
   // The application must already provide the scoped authenticationContext.
-  app.container.registerValue("subjectRoleStore", subjectRoles);
-  app.register(new RolePermissionResolverProvider<Config>([operator]));
-  app.register(new AuthorizationProvider<Config>());
+  app.register(new AuthorizationProvider<Config>(rolePermissions([operator], defineSubjectRoleStorageAdapter({
+    dependencies: {}, capabilities: {}, create: () => subjectRoles,
+  }))));
 }
 
 // Assign the stable role key directly; no role seed or UUID lookup is required.
@@ -60,17 +61,16 @@ For a fresh installation, run `npm run db:generate`, review the SQL, then run `n
 Replace the memory registration with the PostgreSQL store provider:
 
 ```ts
-import { PostgresSubjectRoleStoreProvider } from "@kestreljs/framework/authorization";
+import { dep } from "@kestreljs/framework/di";
+import { postgresSubjectRoles } from "@kestreljs/framework/authorization";
 
 function registerPostgresAuthorization<Config>(app: App<Config>) {
   // Database and authentication providers supply their existing scoped dependencies.
-  app.register(new PostgresSubjectRoleStoreProvider<Config>());
-  app.register(new RolePermissionResolverProvider<Config>([operator]));
-  app.register(new AuthorizationProvider<Config>());
+  app.register(new AuthorizationProvider<Config>(rolePermissions([operator], postgresSubjectRoles(dep("databaseManager")))));
 }
 ```
 
-`PostgresSubjectRoleStoreProvider` registers only `subjectRoleStore`; it does not register a permission resolver. Resolve `subjectRoleStoreDependency` in the execution scope or inject it into an Action to grant or revoke roles. PostgreSQL grants optionally record the granting subject: `store.grantRole(subjectId, operator.key, actingSubjectId)`.
+`postgresSubjectRoles` returns a scoped assignment-storage definition. For independent grant/revoke services, register that definition with `registerScopedAdapter(app.container, "subjectRoleStore", storage, undefined)` and inject `subjectRoleStoreDependency`. PostgreSQL grants optionally record the granting subject through `grantRole(subjectId, operator.key, actingSubjectId)`.
 
 Changing a role's permissions requires a deployment, with no permission data migration or seed. Changing its key requires migrating assignments. Do not reuse retired role keys while their old assignments remain. During rolling deployments, each version evaluates its own catalog; coordinate policy changes that cannot tolerate this overlap. See the [implementation contract](../implementation/authorization.md).
 
@@ -120,3 +120,9 @@ The storage-neutral `PermissionResolver` contract remains available for applicat
 ## Deferred capabilities
 
 Resource ownership, organization-scoped assignments, role inheritance, runtime role editing, and durable authorization audit history are not implemented. Establishing a principal for authorized execution outside HTTP remains an application responsibility.
+
+## Explicit provider adapters
+
+`AuthorizationProvider(resolver)` accepts an execution-scoped permission resolver recipe. `rolePermissions(roles, storage)` composes code-defined roles with `postgresSubjectRoles(manager, tables?)` or an external assignment adapter. `RolePermissionResolverProvider(roles, storage)` remains available when registering the resolver separately. Standalone assignment operations can register the storage definition with `registerScopedAdapter` and inject `subjectRoleStoreDependency`.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

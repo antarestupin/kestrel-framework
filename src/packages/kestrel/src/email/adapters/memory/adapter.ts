@@ -1,6 +1,6 @@
 import { uuidV7 } from "../../../utils/uuid.js";
 import type {
-  EmailDriver,
+  EmailTransportAdapter,
   EmailMessage,
   EmailReceipt,
 } from "../../types.js";
@@ -12,7 +12,7 @@ export interface MemoryEmailAdapterOptions {
 }
 
 /** Process-local transport that captures detached messages for tests and development. */
-export class MemoryEmailAdapter implements EmailDriver {
+export class MemoryEmailAdapter implements EmailTransportAdapter {
   public readonly name: string;
 
   private readonly messages: EmailMessage[] = [];

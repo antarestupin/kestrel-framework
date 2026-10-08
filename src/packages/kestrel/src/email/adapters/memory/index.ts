@@ -2,4 +2,6 @@ export {
   MemoryEmailAdapter,
   type MemoryEmailAdapterOptions,
 } from "./adapter.js";
-export { MemoryEmailCaptureStore } from "./capture_store.js";
+export { MemoryEmailCaptureStorageAdapter } from "./capture_store.js";
+
+export * from "./definition.js";

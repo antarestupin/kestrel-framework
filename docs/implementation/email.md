@@ -8,7 +8,7 @@ An accepted send means that the configured transport accepted the message for fu
 
 ## Solution concepts and model
 
-`EmailClient` is the application-facing facade. It validates caller input, reserves the observation identity and creates a detached `EmailMessage` snapshot before crossing the `EmailDriver` boundary. A driver translates that stable message into a transport-specific request and returns an `EmailReceipt`. The first adapters are an in-memory testing transport, a development capture transport and a bridge to Email SDK.
+`EmailClient` is the application-facing facade. It validates caller input, reserves the observation identity and creates a detached `EmailMessage` snapshot before crossing the `EmailTransportAdapter` boundary. A driver translates that stable message into a transport-specific request and returns an `EmailReceipt`. The first adapters are an in-memory testing transport, a development capture transport and a bridge to Email SDK.
 
 ```mermaid
 classDiagram
@@ -16,7 +16,7 @@ classDiagram
         +send(input, options) EmailReceipt
         +close() Promise
     }
-    class EmailDriver {
+    class EmailTransportAdapter {
         <<interface>>
         +name string
         +send(message, context) EmailReceipt
@@ -24,7 +24,7 @@ classDiagram
     }
     class MemoryEmailAdapter
     class EmailCaptureAdapter
-    class EmailCaptureStore
+    class EmailCaptureStorageAdapter
     class EmailSdkEmailAdapter
     class EmailInstrumentation {
         <<interface>>
@@ -32,12 +32,12 @@ classDiagram
     }
     class EmailProvider
 
-    EmailClient --> EmailDriver
+    EmailClient --> EmailTransportAdapter
     EmailClient --> EmailInstrumentation
-    EmailDriver <|.. MemoryEmailAdapter
-    EmailDriver <|.. EmailCaptureAdapter
-    EmailDriver <|.. EmailSdkEmailAdapter
-    EmailCaptureAdapter --> EmailCaptureStore
+    EmailTransportAdapter <|.. MemoryEmailAdapter
+    EmailTransportAdapter <|.. EmailCaptureAdapter
+    EmailTransportAdapter <|.. EmailSdkEmailAdapter
+    EmailCaptureAdapter --> EmailCaptureStorageAdapter
     EmailProvider --> EmailClient
 ```
 
@@ -114,72 +114,23 @@ const email = new EmailClient({
 
 SES, Resend, Postmark, SendGrid and other Email SDK transports use the same bridge with another `@opencoredev/email-sdk/*` factory. Mailjet can use its SMTP relay until a dedicated Email SDK or Kestrel adapter is justified. Each SDK adapter advertises its own capabilities and can reject fields that its transport does not implement.
 
-Kestrel owns only the stable `EmailDriver` contract. Email SDK remains an implementation detail, so a future SDK breaking change is isolated to `EmailSdkEmailAdapter`.
+Kestrel owns only the stable `EmailTransportAdapter` contract. Email SDK remains an implementation detail, so a future SDK breaking change is isolated to `EmailSdkEmailAdapter`.
 
 ### Kestrel-integrated usage
 
-`EmailProvider` is the recommended application composition path. It receives the resolved general `EmailConfig`, creates the driver selected by `driver.type`, registers the singleton `emailClientDependency`, owns its disposal and combines explicitly configured instrumentation with observations from the active execution scope. The built-in configured driver types are `capture`, `memory`, `smtp` and `ses`:
+`EmailProvider(config, adapter, options?)` receives shared email policy and an explicit delivery recipe. `smtpEmail(settings)`, `sesEmail(settings)`, `memoryEmail()` and `captureEmail(storage, settings)` implement the same open extension contract. Shared configuration contains `enabled` and `name`; backend schemas validate transport credentials, capture size and retention independently. Application configuration owns deployment selection. See [usage](../usage/email.md).
 
-```ts
-import { EmailProvider } from "@kestreljs/framework/email";
+Capture storage is a separate `EmailCaptureStorageAdapterDefinition`. The capture recipe declares this child definition so the provider can expose the inbox, initialize storage before delivery and dispose delivery before storage. This shutdown ordering also applies when only inbox browsing instantiated storage. `EmailClient` keeps standalone driver ownership by default; provider-created clients set `closeDriver: false` so the definition is the sole backend disposer. Failed preparation remains covered by adapter cleanup.
 
-app.register(new EmailProvider({
-  enabled: true,
-  name: "transactional",
-  driver: {
-    type: "smtp",
-    host: "smtp.example.com",
-    port: 587,
-    auth: {
-      user: "smtp-user",
-      pass: "smtp-password",
-    },
-    requireTLS: true,
-    secure: false,
-    allowInsecureAuth: false,
-    timeoutMs: 15_000,
-  },
-  capture: {
-    storage: "postgres",
-    retentionDays: 7,
-    maxMessageBytes: 10 * 1024 * 1024,
-  },
-}));
-```
-
-Applications normally produce that value through `configure(emailConfigBase, applicationValues)`, so environment selection and secrets remain application concerns. `enabled`, `name` and `driver` describe email as a whole. The `capture` object contains only capture storage, retention and size policy and is used when `driver.type` is `capture`.
-
-The default provider maps SMTP and SES configurations to `EmailSdkEmailAdapter`, while callers continue to depend only on `EmailClient`. `{ type: "custom", name: "mailjet" }` reserves extension dispatch for an application subclass. Such a subclass overrides `createCustomDriver()` and may also override `createDriver()`, `createSmtpDriver()`, `createSesDriver()` or `createCaptureStore()` when it needs different composition without changing the email core.
-
-```ts
-class ApplicationEmailProvider extends EmailProvider<AppConfig> {
-  protected override createCustomDriver(app, name) {
-    if (name === "mailjet") return new MailjetEmailAdapter(app.config.email.mailjet);
-    return super.createCustomDriver(app, name);
-  }
-}
-```
-
-Services and Actions can declare the registered dependency without importing a concrete adapter:
-
-```ts
-import { emailClientDependency } from "@kestreljs/framework/email";
-
-const dependencies = {
-  email: emailClientDependency,
-};
-```
-
-The email library validates resolved configuration but does not read environment variables or interpret application environment names.
 
 ### Local capture inbox
 
-`EmailCaptureAdapter` is a development transport that persists the normalized message instead of contacting recipients. It accepts any `EmailCaptureStore`; `MemoryEmailCaptureStore` is useful in standalone tests and `PostgresEmailCaptureStore` provides a process-independent local inbox. `emailConfigBase` validates its nested capture storage, retention and maximum-message-size settings.
+`EmailCaptureAdapter` is a development transport that persists the normalized message instead of contacting recipients. It accepts any `EmailCaptureStorageAdapter`; `MemoryEmailCaptureStorageAdapter` is useful in standalone tests and `PostgresEmailCaptureStorageAdapter` provides a process-independent local inbox. `captureEmailConfigBase` validates maximum message size, while `postgresEmailCaptureConfigBase` validates retention.
 
-The application currently selects `{ driver: { type: "capture" }, capture: { storage: "postgres" } }` and enables email only in its local configuration. The Kestrel provider then registers `emailCaptureStoreDependency`, `emailCaptureInboxDependency` and the ordinary `emailClientDependency`. On boot, persistent stores can prepare themselves and remove expired captures using the configured retention window. The `dev.email_capture` and `dev.email_capture_attachment` tables are disposable development push-schema objects and are not part of deployable migrations.
+Capture composition registers the capture storage, inbox and ordinary email client dependencies. The PostgreSQL storage definition prepares retention during standard boot and tolerates missing disposable development tables so repair commands remain available.
 
 ```ts
-const store = new MemoryEmailCaptureStore();
+const store = new MemoryEmailCaptureStorageAdapter();
 const email = new EmailClient({
   name: "development",
   driver: new EmailCaptureAdapter({
@@ -202,9 +153,9 @@ email provider -> capture adapter -> capture store
 Studio email extension -> email capture and observation source contracts
 ```
 
-The email core never imports Studio, application code or application configuration. The higher-level Kestrel email provider imports its own adapters and maps resolved configuration to them. The Studio email extension lives below `src/packages/kestrel/src/studio/extensions/email` and depends on injected email and observation source contracts. PostgreSQL storage remains an adapter below the email library, and the Kestrel provider exposes it to Studio through DI while the application selects it by configuration.
+The email core never imports Studio, application code or application configuration. The Kestrel email provider accepts adapter definitions; application composition selects the concrete backend and passes its resolved configuration. The Studio email extension lives below `src/packages/kestrel/src/studio/extensions/email` and depends on injected email and observation source contracts. PostgreSQL storage remains an adapter below the email library, and the Kestrel provider exposes it to Studio through DI.
 
-Drizzle schema entrypoints import `kestrel/email/postgres_schema` instead of the general email barrel. This schema-only facade deliberately avoids provider and transport evaluation because Drizzle Kit loads TypeScript schemas through a CommonJS compatibility path, while Email SDK exposes ESM modules. The disposable attachment table intentionally has no database foreign key: Drizzle Push can otherwise emit that reference before the capture UUID uniqueness constraint on both fresh and partially created local schemas. `PostgresEmailCaptureStore` preserves the same invariant by inserting atomically and deleting attachments before captures during clearing and retention pruning.
+Drizzle schema entrypoints import `kestrel/email/postgres_schema` instead of the general email barrel. This schema-only facade deliberately avoids provider and transport evaluation because Drizzle Kit loads TypeScript schemas through a CommonJS compatibility path, while Email SDK exposes ESM modules. The disposable attachment table intentionally has no database foreign key: Drizzle Push can otherwise emit that reference before the capture UUID uniqueness constraint on both fresh and partially created local schemas. `PostgresEmailCaptureStorageAdapter` preserves the same invariant by inserting atomically and deleting attachments before captures during clearing and retention pruning.
 
 Captures and observations are separate records with a bidirectional logical correlation. `EmailClient` reserves the observation UUID before calling the driver. The capture stores that UUID immediately, while the successful observation stores the returned `captureId`. There is intentionally no database foreign key from capture to observation because observation writes are buffered and may complete later, be disabled or expire under a different retention policy. Studio therefore treats a missing linked observation as a valid pending or expired state.
 
@@ -240,7 +191,7 @@ The retryable flag is descriptive rather than an automatic retry policy. Callers
 sequenceDiagram
     participant Action
     participant Client as EmailClient
-    participant Driver as EmailDriver
+    participant Driver as EmailTransportAdapter
     participant Context as ObserverContext
     participant Observer
 
@@ -282,7 +233,7 @@ Instrumentation errors are isolated from both paths. An observation sink cannot 
 sequenceDiagram
     participant Client as EmailClient
     participant Adapter as EmailCaptureAdapter
-    participant Store as EmailCaptureStore
+    participant Store as EmailCaptureStorageAdapter
     participant Observer
     participant Studio
 
@@ -325,16 +276,16 @@ Standalone users can supply `EmailInstrumentation` for metrics or diagnostics. `
 | `EmailProvider`, `EmailProviderOptions` | Select a configured driver, register and own one Kestrel-integrated client with ambient observations |
 | `emailClientDependency` | Declare the application-owned email client as a dependency |
 | `emailConfigBase`, `EmailConfig` | Validate general email, driver and nested capture configuration |
-| `EmailDriverConfig` | Discriminated configuration for capture, memory, SMTP, SES or subclass dispatch |
+| `EmailTransportAdapterDefinition` | Public delivery recipe with optional capture-storage composition |
 | `EmailCaptureAdapter` | Capture a send locally without contacting recipients |
-| `EmailCaptureStore` | Storage-neutral contract for local captures |
-| `MemoryEmailCaptureStore`, `PostgresEmailCaptureStore` | Process-local and PostgreSQL capture stores |
+| `EmailCaptureStorageAdapter` | Storage-neutral contract for local captures |
+| `MemoryEmailCaptureStorageAdapter`, `PostgresEmailCaptureStorageAdapter` | Process-local and PostgreSQL capture stores |
 | `EmailCaptureInbox`, `emailCaptureInboxDependency` | Read, clear and explicitly replay local captures |
 | `EmailMessageInput` | Flexible caller-facing message contract |
 | `EmailMessage` | Validated and detached driver-facing message contract |
 | `EmailAddress`, `EmailAttachment` | Provider-neutral message value objects |
 | `EmailReceipt` | Confirmation that a transport accepted a message |
-| `EmailDriver` | Contract implemented by transport adapters |
+| `EmailTransportAdapter` | Contract implemented by transport adapters |
 | `EmailDriverError`, `EmailSendError` | Adapter-facing and application-facing normalized errors |
 | `EmailInstrumentation` | Optional synchronous diagnostic sink |
 | `emailSendObservation` | Stable Kestrel observation definition |
@@ -345,10 +296,10 @@ Standalone users can supply `EmailInstrumentation` for metrics or diagnostics. `
 
 ## Adapter contract
 
-An adapter implements `EmailDriver`:
+An adapter implements `EmailTransportAdapter`:
 
 ```ts
-interface EmailDriver {
+interface EmailTransportAdapter {
   readonly name: string;
   send(message: EmailMessage, context: EmailDriverContext): Promise<EmailReceipt>;
   close?(): Promise<void>;
@@ -369,7 +320,7 @@ The following guarantees apply:
 
 Adapter-specific implementation, tests, public exports and support files live together below `src/packages/kestrel/src/email/adapters/<adapter>`.
 
-Capture stores implement `EmailCaptureStore`. `capture()`, `get()`, `list()` and `clear()` have the same semantics for every storage backend. The optional `prepare(retentionDays)` lifecycle hook verifies persistent storage and applies its bounded retention policy when the provider boots. Store list results must omit bodies, headers and attachment contents, while `get()` returns a detached complete message for preview and explicit replay.
+Capture stores implement `EmailCaptureStorageAdapter`. `capture()`, `get()`, `list()` and `clear()` have the same semantics for every storage backend. The optional `prepare(retentionDays)` lifecycle hook verifies persistent storage and applies its bounded retention policy when the provider boots. Store list results must omit bodies, headers and attachment contents, while `get()` returns a detached complete message for preview and explicit replay.
 
 ## Potential evolutions
 

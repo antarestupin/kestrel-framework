@@ -129,7 +129,9 @@ sequenceDiagram
 | Export | Purpose |
 | --- | --- |
 | `ClientProvider` | Contributes one encapsulated browser-client mount to the Kestrel HTTP runtime. |
-| `ClientProviderOptions` | Configures the base path, asset path, excluded JSON namespaces and delivery adapter. |
+| `ClientProviderOptions` | Configures the base path, asset path and excluded JSON namespaces. |
+| `WebClientAdapterDefinition`, `defineWebClientAdapter` | Describe lazy delivery construction and its owned resources. |
+| `viteClient` | Selects Vite delivery, optionally borrowing a shared development entry separately from settings. |
 | `WebClient` | Supplies the normalized mount paths to an adapter. |
 | `WebClientRender` and `WebClientRenderContext` | Describe the request-aware document renderer returned by an adapter. |
 | `WebClientAdapter` | Defines the delivery extension point. |
@@ -166,16 +168,20 @@ interface WebClientAdapter {
 Applications normally compose the library through `ClientProvider` and the bundled Vite adapter:
 
 ```ts
-app.register(new ClientProvider({
-  basePath: "/",
-  assetBasePath: "/_client_assets/",
-  excludedPaths: ["/api"],
-  adapter: new ViteClientAdapter({
+app.register(new ClientProvider(
+  viteClient({
     devMode: config.devMode,
     projectRoot: config.projectRoot,
     distDir: "dist/client",
   }),
-}));
+  { basePath: "/", assetBasePath: "/_client_assets/", excludedPaths: ["/api"] },
+));
 ```
 
 Use `ViteDevelopmentRuntime` when several browser clients should share one development server. Use `WebClientAdapter` directly when delivery is owned by another bundler, an SSR runtime, or a remote rendering boundary. The library is not intended to be called by browser code; it composes server-side delivery for a browser application.
+
+## Explicit provider adapters
+
+`ClientProvider(adapter, options?)` accepts a `WebClientAdapterDefinition`. `viteClient(settings)` supplies the bundled backend. Definitions initialize during HTTP mounting, not application boot; `setup()` installs server-owned shutdown hooks. Borrowed development runtimes retain their own ownership.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

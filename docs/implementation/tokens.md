@@ -8,7 +8,7 @@ The library provides opaque stored tokens, signed stateless JWTs, and hybrid JWT
 
 ## Concepts and model
 
-A `TokenDefinition` declares application semantics: a stable name, a runtime payload schema, single- or multiple-use behavior, a strategy name, and optional subject-based replacement. `TokenManager` validates payloads and lifecycle calls, then routes the definition to a `TokenStrategy`. `StoredTokenStrategy` generates opaque bearer values and delegates durable state to a `TokenStore`. `JwtTokenStrategy` signs self-contained payloads using a rotating `JwtTokenKeyring` and never presents unsupported stateful capabilities. `HybridTokenStrategy` uses the same strict JWT codec while persisting the minimum state needed for revocation, replacement, and atomic consumption.
+A `TokenDefinition` declares application semantics: a stable name, a runtime payload schema, single- or multiple-use behavior, a strategy name, and optional subject-based replacement. `TokenManager` validates payloads and lifecycle calls, then routes the definition to a `TokenStrategy`. `StoredTokenStrategy` generates opaque bearer values and delegates durable state to a `TokenStorageAdapter`. `JwtTokenStrategy` signs self-contained payloads using a rotating `JwtTokenKeyring` and never presents unsupported stateful capabilities. `HybridTokenStrategy` uses the same strict JWT codec while persisting the minimum state needed for revocation, replacement, and atomic consumption.
 
 ```mermaid
 classDiagram
@@ -45,7 +45,7 @@ classDiagram
         +getActive()
         +resolve(kid, algorithm)
     }
-    class TokenStore {
+    class TokenStorageAdapter {
         <<interface>>
         +createMany(tokens)
         +findValid(lookup)
@@ -55,21 +55,21 @@ classDiagram
         +deleteForSubject(input)
         +prune(options)
     }
-    class MemoryTokenStore
-    class PostgresTokenStore
+    class MemoryTokenStorageAdapter
+    class PostgresTokenStorageAdapter
 
     TokenManager --> TokenDefinition
     TokenManager --> TokenStrategy
     TokenStrategy <|.. StoredTokenStrategy
     TokenStrategy <|.. JwtTokenStrategy
     TokenStrategy <|.. HybridTokenStrategy
-    StoredTokenStrategy --> TokenStore
+    StoredTokenStrategy --> TokenStorageAdapter
     JwtTokenStrategy --> JwtTokenCodec
     HybridTokenStrategy --> JwtTokenCodec
-    HybridTokenStrategy --> TokenStore
+    HybridTokenStrategy --> TokenStorageAdapter
     JwtTokenCodec --> JwtTokenKeyring
-    TokenStore <|.. MemoryTokenStore
-    TokenStore <|.. PostgresTokenStore
+    TokenStorageAdapter <|.. MemoryTokenStorageAdapter
+    TokenStorageAdapter <|.. PostgresTokenStorageAdapter
 ```
 
 The definition name is persisted by stored tokens and integrity-protected inside JWTs. It participates in every resolution, so a bearer value issued for one definition cannot be presented as another token kind even when both definitions use the same payload shape and strategy.
@@ -96,7 +96,7 @@ Every issued JWT includes protected `alg`, `kid`, and `typ` headers; standard `i
 
 The hybrid strategy hashes the integrity-protected `jti` with SHA-256 and stores the digest, definition, optional subject, issuance and expiration timestamps, lifecycle timestamps, and a small representation marker. It never stores the raw JWT, raw `jti`, or application payload. Verification authenticates the JWT before deriving a storage lookup, then requires the persisted subject and timestamps to match the signed claims. A valid signature without matching active state fails closed.
 
-Opaque and hybrid strategies can share one `TokenStore` and the default table. Their common pruning scope ensures that one `TokenManager.prune()` call applies its batch limit only once to that store, rather than once per strategy.
+Opaque and hybrid strategies can share one `TokenStorageAdapter` and the default table. Their common pruning scope ensures that one `TokenManager.prune()` call applies its batch limit only once to that store, rather than once per strategy.
 
 Payloads are validated before issuance, serialized as JSON, bounded by `maxPayloadBytes`, decoded, and validated again. This round trip prevents a definition from accepting runtime values whose persisted JSON representation no longer satisfies its schema. Persisted payloads are also validated after resolution; invalid data fails closed.
 
@@ -111,7 +111,7 @@ sequenceDiagram
     participant Caller
     participant Manager as TokenManager
     participant Strategy as StoredTokenStrategy
-    participant Store as TokenStore
+    participant Store as TokenStorageAdapter
 
     Caller->>Manager: issue(definition, payload, TTL)
     Manager->>Manager: Validate schema and JSON bounds
@@ -132,7 +132,7 @@ sequenceDiagram
     participant Caller
     participant Manager as TokenManager
     participant Strategy as StoredTokenStrategy
-    participant Store as TokenStore
+    participant Store as TokenStorageAdapter
 
     Caller->>Manager: consume(definition, bearer value)
     Manager->>Strategy: consume(definition, bearer value)
@@ -179,7 +179,7 @@ sequenceDiagram
     participant Manager as TokenManager
     participant Hybrid as HybridTokenStrategy
     participant JWT as JWT codec
-    participant Store as TokenStore
+    participant Store as TokenStorageAdapter
 
     Caller->>Manager: consume(definition, hybrid JWT)
     Manager->>Hybrid: consume(definition, hybrid JWT)
@@ -212,10 +212,10 @@ Definitions using subject replacement must provide a non-empty subject resolver.
 
 ## Adapter contract
 
-Storage adapters used by opaque and hybrid strategies implement `TokenStore`:
+Storage adapters used by opaque and hybrid strategies implement `TokenStorageAdapter`:
 
 ```ts
-export interface TokenStore {
+export interface TokenStorageAdapter {
   createMany(tokens: readonly CreateStoredToken[]): Promise<void>;
   findValid(input: StoredTokenLookup): Promise<StoredToken | undefined>;
   consume(input: StoredTokenLookup): Promise<StoredToken | undefined>;
@@ -228,7 +228,7 @@ export interface TokenStore {
 
 `createMany()` is atomic across replacement and insertion. `findValid()` never returns expired, consumed, revoked, or wrong-definition rows. `consume()` applies the same predicates and marks the row consumed in one atomic mutation. Revocation only counts active, unexpired rows. Subject deletion removes every matching lifecycle state. Pruning is bounded, orders eligible rows deterministically, and may remove expired rows immediately while retaining consumed and revoked rows until `inactiveBefore`.
 
-The memory and PostgreSQL adapters implement the same contract. PostgreSQL joins an existing `DatabaseManager` transaction, allowing token consumption and the protected application mutation to commit or roll back together.
+The memory and PostgreSQL adapters implement the same contract. PostgreSQL joins an existing `PostgresDrizzleManager` transaction, allowing token consumption and the protected application mutation to commit or roll back together.
 
 ## Stored model
 
@@ -264,12 +264,11 @@ The raw token is never stored. Hybrid rows also omit the application payload and
 
 ### Kestrel-integrated usage
 
-The recommended composition installs the PostgreSQL adapter before the core provider:
+The recommended composition passes the PostgreSQL adapter recipe directly. `managerDependency` is the typed descriptor of the scoped `PostgresDrizzleManager`:
 
 ```ts
 app
-  .register(new PostgresTokenAdapterProvider())
-  .register(new TokenProvider(config.tokens));
+  .register(new TokenProvider(config.tokens, postgresTokens(managerDependency)));
 ```
 
 Application modules declare reusable definitions and resolve `tokenManagerDependency` in their service or action dependencies:
@@ -329,8 +328,7 @@ const jwt = new JwtTokenStrategy({
 });
 
 app
-  .register(new PostgresTokenAdapterProvider())
-  .register(new TokenProvider(config.tokens, {
+  .register(new TokenProvider(config.tokens, postgresTokens(managerDependency), {
     strategies: { jwt },
   }));
 ```
@@ -352,12 +350,11 @@ const passwordResetToken = defineToken({
 });
 ```
 
-The provider creates stateful strategies from the scoped `TokenStore`. A hybrid-only composition can disable the bundled opaque strategy while retaining the store required by the factory:
+The provider creates stateful strategies from the scoped `TokenStorageAdapter`. A hybrid-only composition can disable the bundled opaque strategy while retaining the store required by the factory:
 
 ```ts
 app
-  .register(new PostgresTokenAdapterProvider())
-  .register(new TokenProvider(config.tokens, {
+  .register(new TokenProvider(config.tokens, postgresTokens(managerDependency), {
     stored: false,
     strategyFactories: {
       hybrid: (store) => new HybridTokenStrategy(store, {
@@ -377,7 +374,7 @@ app
 Focused tests and applications without provider composition can construct the layers directly:
 
 ```ts
-const store = new MemoryTokenStore();
+const store = new MemoryTokenStorageAdapter();
 const strategy = new StoredTokenStrategy(store, { tokenBytes: 32 });
 const tokens = new TokenManager(
   { stored: strategy },
@@ -391,7 +388,7 @@ All operations remain asynchronous so changing stores does not alter callers.
 
 `tokenRecords` is the default table in the `tokens` schema and stores every definition together. It is the recommended composition because it centralizes indexing, retention, and migration work.
 
-An application that needs physical isolation, different database permissions, or a dedicated retention boundary can create a compatible table and pass it to `PostgresTokenAdapterProvider`:
+An application that needs physical isolation, different database permissions, or a dedicated retention boundary can create a compatible table and pass it to `postgresTokens`:
 
 ```ts
 const securitySchema = pgSchema("security");
@@ -400,7 +397,13 @@ const passwordResetTokens = createPostgresTokenTable(securitySchema, {
   indexPrefix: "security_password_reset_token",
 });
 
-app.register(new PostgresTokenAdapterProvider(passwordResetTokens));
+app.register(new TokenProvider(config.tokens, postgresTokens(managerDependency, passwordResetTokens)));
 ```
 
-Multiple stored strategies can be composed directly with separate `PostgresTokenStore` instances and routed through distinct definition strategy names when shared and dedicated tables are required in the same application. Every custom table must be exported through the application's deployable schema. Local push-schema exports and `tablesFilter` values must also remain aligned whenever a custom table participates in local push maintenance.
+Multiple stored strategies can be composed directly with separate `PostgresTokenStorageAdapter` instances and routed through distinct definition strategy names when shared and dedicated tables are required in the same application. Every custom table must be exported through the application's deployable schema. Local push-schema exports and `tablesFilter` values must also remain aligned whenever a custom table participates in local push maintenance.
+
+## Explicit provider adapters
+
+`TokenProvider(config, adapter, options?)` accepts `postgresTokens(manager, table?)`, `memoryTokens(sharedState)` or an external scoped storage definition. Stateless configurations explicitly pass `undefined` and disable the stored strategy. Storage and token representation remain separate contracts.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

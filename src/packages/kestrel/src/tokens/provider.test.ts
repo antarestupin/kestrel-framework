@@ -1,8 +1,9 @@
+import { memoryTokens } from "./index.js";
 import { z } from "zod";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { App } from "../app/index.js";
-import { MemoryTokenStore } from "./adapters/memory/index.js";
+import { MemoryTokenStorageAdapter } from "./adapters/memory/index.js";
 import type { TokensConfig } from "./configuration.js";
 import { defineToken } from "./definition.js";
 import { tokenManagerDependency } from "./dependencies.js";
@@ -29,10 +30,12 @@ describe("TokenProvider", () => {
         singleUse: false,
         subjectDeletion: false,
       },
-      issue: async () => [{
-        token: "signed-token",
-        expiresAt: new Date("2026-01-01T00:01:00.000Z"),
-      }],
+      issue: async () => [
+        {
+          token: "signed-token",
+          expiresAt: new Date("2026-01-01T00:01:00.000Z"),
+        },
+      ],
       verify: async () => ({
         payload: { memberId: "member-1" },
         expiresAt: new Date("2026-01-01T00:01:00.000Z"),
@@ -45,18 +48,21 @@ describe("TokenProvider", () => {
     });
 
     app = new App({});
-    app.register(new TokenProvider(config, {
-      stored: false,
-      strategies: { jwt: signed },
-    }));
+    app.register(
+      new TokenProvider(config, undefined, {
+        stored: false,
+        strategies: { jwt: signed },
+      }),
+    );
     const tokens = app.container.resolve(tokenManagerDependency);
 
-    await expect(tokens.verify(definition, "signed-token"))
-      .resolves.toEqual({ memberId: "member-1" });
+    await expect(tokens.verify(definition, "signed-token")).resolves.toEqual({
+      memberId: "member-1",
+    });
   });
 
   it("builds a hybrid strategy from the configured token store", async () => {
-    const store = new MemoryTokenStore();
+    const store = new MemoryTokenStorageAdapter();
     const hybrid = {
       capabilities: {
         pruning: true,
@@ -78,18 +84,21 @@ describe("TokenProvider", () => {
 
     app = new App({});
     app.container.registerValue("tokenStore", store);
-    app.register(new TokenProvider(config, {
-      stored: false,
-      strategyFactories: {
-        hybrid: (configuredStore) => {
-          expect(configuredStore).toBe(store);
-          return hybrid;
+    app.register(
+      new TokenProvider(config, memoryTokens(store), {
+        stored: false,
+        strategyFactories: {
+          hybrid: (configuredStore) => {
+            expect(configuredStore).toBe(store);
+            return hybrid;
+          },
         },
-      },
-    }));
+      }),
+    );
     const tokens = app.container.resolve(tokenManagerDependency);
 
-    await expect(tokens.verify(definition, "hybrid-token"))
-      .resolves.toEqual({ memberId: "member-1" });
+    await expect(tokens.verify(definition, "hybrid-token")).resolves.toEqual({
+      memberId: "member-1",
+    });
   });
 });

@@ -235,3 +235,9 @@ Studio controls persistent tasks only through `ScheduledTaskAdapter`. Run now cr
 ## Deferred evolution
 
 The first implementation intentionally defers rich calendar helpers such as weekdays, configurable catch-up strategies, immediate retry policies, complete execution history, one-shot tasks, priorities, rate limits, per-task slot limits and cooperative cancellation controls. A future inter-process control channel could make memory tasks operable from Studio without adding database pressure. ScheduledTasks, Workers, and workflows now share lower-level abort-aware delay and lease-heartbeat primitives where their semantics match; storage-specific reservation, capacity, and admission policies remain separate rather than being forced into one scheduler algorithm.
+
+## Explicit provider adapters
+
+`ScheduledTaskProvider(config, adapter)` accepts `postgresScheduledTasks(database)` or `memoryScheduledTasks(settings?)`, as well as external definitions. Runtime dependencies use `ScheduledTaskAdapter`, not the PostgreSQL implementation. Locks remain a separate coordination dependency.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

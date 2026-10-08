@@ -4,3 +4,5 @@ export {
   ViteAtlasClientAdapter,
   type ViteAtlasClientAdapterOptions,
 } from "./adapter.js";
+
+export * from "./definition.js";

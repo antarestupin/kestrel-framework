@@ -14,21 +14,21 @@ See [Kestrel utilities](../usage/utilities.md#generate-an-identifier) for timest
 
 ## Concepts and model
 
-`DatabaseProvider` owns one lazy `DatabaseClient`, which combines a node-postgres pool and a Drizzle facade. Every execution resolves a scoped `DatabaseManager`; repositories ask that manager for the current executor, so an ambient transaction is selected without changing repository instances. Database maintenance is declared separately as reset and seed definitions and executed by focused CLI controllers.
+`PostgresDrizzleProvider` owns one lazy `PostgresDrizzleClient`, which combines a node-postgres pool and a Drizzle facade. Every execution resolves a scoped `PostgresDrizzleManager`; repositories ask that manager for the current executor, so an ambient transaction is selected without changing repository instances. Database maintenance is declared separately as reset and seed definitions and executed by focused CLI controllers.
 
 ```mermaid
 classDiagram
-    class DatabaseProvider {
+    class PostgresDrizzleProvider {
         +register(app)
         #createDatabase(pool)
         #createClient(app)
     }
-    class DatabaseClient {
+    class PostgresDrizzleClient {
         +database
         +pool
         +close()
     }
-    class DatabaseManager {
+    class PostgresDrizzleManager {
         +database
         +transaction(operation)
     }
@@ -36,9 +36,9 @@ classDiagram
     class DatabaseMaintenanceDefinition
     class DatabaseSeedDefinition
 
-    DatabaseProvider --> DatabaseClient
-    DatabaseProvider --> DatabaseManager
-    Repository --> DatabaseManager
+    PostgresDrizzleProvider --> PostgresDrizzleClient
+    PostgresDrizzleProvider --> PostgresDrizzleManager
+    Repository --> PostgresDrizzleManager
     DatabaseMaintenanceDefinition o-- DatabaseSeedDefinition
 ```
 
@@ -48,7 +48,7 @@ For application setup and task-oriented examples, see the [Database usage guide]
 
 ## Design and implementation
 
-The provider registers the pool and Drizzle facade lazily as application singletons and registers `DatabaseManager` as scoped. `AsyncLocalStorage` binds a Drizzle transaction to the current asynchronous branch. Nested transactions join the existing boundary, while parallel branches in one execution do not leak transaction state into each other.
+The provider registers the pool and Drizzle facade lazily as application singletons and registers `PostgresDrizzleManager` as scoped. `AsyncLocalStorage` binds a Drizzle transaction to the current asynchronous branch. Nested transactions join the existing boundary, while parallel branches in one execution do not leak transaction state into each other.
 
 Query instrumentation wraps both the physical pool and deferred Drizzle builders so raw, prepared, generated and transactional commands share observation semantics. Repositories own deterministic ordering and persistence mapping; schema composition and migration policy remain application concerns.
 
@@ -60,7 +60,7 @@ Query instrumentation wraps both the physical pool and deferred Drizzle builders
 sequenceDiagram
     participant Runner as Action runner
     participant Middleware as databaseTransaction
-    participant Manager as DatabaseManager
+    participant Manager as PostgresDrizzleManager
     participant Database as Drizzle database
     participant Repository
 
@@ -101,8 +101,8 @@ sequenceDiagram
 
 | API group | Main exports |
 | --- | --- |
-| Runtime composition | `DatabaseProvider`, `DatabaseClient`, `databaseConfigBase`, `DatabaseConfig` |
-| Scoped execution | `DatabaseManager`, `DatabaseExecutor`, `databaseTransaction` |
+| Runtime composition | `PostgresDrizzleProvider`, `PostgresDrizzleClient`, `postgresDrizzleConfigBase`, `PostgresDrizzleConfig` |
+| Scoped execution | `PostgresDrizzleManager`, `PostgresDrizzleExecutor`, `databaseTransaction` |
 | Repository and collections | `Repository`, repository option types, collection query/filter/sort types |
 | Pagination | `paginateQuery()`, `getPaginationQueryWindow()`, `getCursorPaginationCondition()`, `createPaginatedResult()` and pagination model types |
 | Observability | `databaseQueryObservation`, `recordDatabaseQueryInstrumentation()` and query instrumentation/origin types |
@@ -273,7 +273,7 @@ await runWithHistoryContext(databaseManager, {
 });
 ```
 
-The helper starts or joins `DatabaseManager.transaction()`, stores both values with transaction-local PostgreSQL settings, and restores a parent context for successful nested calls. Parameterized `set_config()` calls prevent SQL injection and transaction-local settings prevent connection-pool leakage. Parallel history contexts must not share one database transaction because PostgreSQL settings belong to the transaction rather than to an asynchronous JavaScript branch.
+The helper starts or joins `PostgresDrizzleManager.transaction()`, stores both values with transaction-local PostgreSQL settings, and restores a parent context for successful nested calls. Parameterized `set_config()` calls prevent SQL injection and transaction-local settings prevent connection-pool leakage. Parallel history contexts must not share one database transaction because PostgreSQL settings belong to the transaction rather than to an asynchronous JavaScript branch.
 
 ### Design and implementation
 
@@ -323,9 +323,9 @@ Potential evolutions deliberately kept for later include periodic full checkpoin
 
 ## Extension API
 
-The database runtime does not expose a general database adapter because it deliberately targets node-postgres and Drizzle. Applications specialize `DatabaseProvider` through its protected construction hooks: `createPoolConfig()` maps validated settings, `createDatabase(pool)` attaches an application schema, `createClient(app)` may replace complete client construction, and `registerExtensions(app)` contributes application-specific maintenance or services. An override must preserve lazy ownership, close its pool through `DatabaseClient.close()` and keep query instrumentation semantics when observations are expected.
+The database runtime does not expose a general database adapter because it deliberately targets node-postgres and Drizzle. Applications normally pass a schema or a typed `createDatabase` factory as constructor options. More involved integrations can specialize `PostgresDrizzleProvider` through its protected construction hooks: `createPoolConfig()` maps validated settings, `createDatabase(pool)` attaches an application schema, `createClient(app)` may replace complete client construction, and `registerExtensions(app)` contributes application-specific maintenance or services. An override must preserve lazy ownership, close its pool through `PostgresDrizzleClient.close()` and keep query instrumentation semantics when observations are expected.
 
-Repositories may target any executor satisfying `DatabaseExecutor`'s `select`, `insert`, `update` and `delete` surface. Maintenance definitions are data contracts rather than adapters; implementations must keep destructive reset targets explicit and preserve the dependency order declared by seed steps.
+Repositories may target any executor satisfying `PostgresDrizzleExecutor`'s `select`, `insert`, `update` and `delete` surface. Maintenance definitions are data contracts rather than adapters; implementations must keep destructive reset targets explicit and preserve the dependency order declared by seed steps.
 
 The DB schema can be declared with a helper library as many frameworks do.
 
@@ -392,11 +392,11 @@ Future environment-specific schema entrypoints can be added beside these files w
 
 The application uses Drizzle ORM with the node-postgres driver. Drizzle Kit reads the global schema through `drizzle.config.ts`.
 
-At runtime, the library `DatabaseProvider` receives a resolved `DatabaseConfig`, creates the database client, registers it in the dependency container and closes its connection pool when the application is disposed. It also registers one Kestrel `DatabaseManager` per execution scope. The thin subclass in `src/server/core/providers` overrides protected extension points to attach the complete application Drizzle schema and local maintenance controllers. Repositories depend directly on the manager and resolve their Drizzle executor through it for every query, so the same repository instance automatically uses an ambient transaction when one is active.
+At runtime, the library `PostgresDrizzleProvider` receives a resolved `PostgresDrizzleConfig`, creates the database client, registers it in the dependency container and closes its connection pool when the application is disposed. It also registers one Kestrel `PostgresDrizzleManager` per execution scope. The thin subclass in `src/server/core/providers` overrides protected extension points to attach the complete application Drizzle schema and local maintenance controllers. Repositories depend directly on the manager and resolve their Drizzle executor through it for every query, so the same repository instance automatically uses an ambient transaction when one is active.
 
 ### Query observations
 
-`DatabaseProvider` instruments every physical node-postgres client created by its pool. The hook sits below Drizzle, so `database.query` observations cover generated queries, raw pool queries, named prepared statements and transaction commands such as `BEGIN`, `COMMIT` and `ROLLBACK`. Promise and callback APIs share the same result semantics, including node-postgres' `null` callback error on success. A query is recorded only when an execution-scoped observer is active; database work performed during bootstrap or outside an execution keeps its normal behavior without producing an event.
+`PostgresDrizzleProvider` instruments every physical node-postgres client created by its pool. The hook sits below Drizzle, so `database.query` observations cover generated queries, raw pool queries, named prepared statements and transaction commands such as `BEGIN`, `COMMIT` and `ROLLBACK`. Promise and callback APIs share the same result semantics, including node-postgres' `null` callback error on success. A query is recorded only when an execution-scoped observer is active; database work performed during bootstrap or outside an execution keeps its normal behavior without producing an event.
 
 Each completed query records the SQL with its PostgreSQL placeholders, its outcome and total duration including time spent waiting behind earlier work on the same client. Successful results may add their command and affected row count. Failures add the PostgreSQL error code but not the database error message. Named prepared statements also expose their stable statement name. Diagnostic recording is isolated from the query result: a failing observation sink is ignored and cannot turn a successful query into a failure.
 
@@ -413,7 +413,7 @@ Kestrel defaults parameters to `omit`, while the local application configuration
 
 Potential evolutions deliberately kept for later include duration thresholds or sampling for high-volume systems, OpenTelemetry span export and selective parameter redaction. Selective redaction cannot be inferred reliably from positional `$1` parameters alone, so it will require query metadata rather than guessing from SQL text.
 
-Actions can request an automatic transaction with the `databaseTransaction` middleware. The middleware is owned by the database library rather than the action runner and wraps the handler and output validation in `DatabaseManager.transaction()`. Nested transactional actions join the current transaction, leaving commit and rollback ownership to the outermost callback.
+Actions can request an automatic transaction with the `databaseTransaction` middleware. The middleware is owned by the database library rather than the action runner and wraps the handler and output validation in `PostgresDrizzleManager.transaction()`. Nested transactional actions join the current transaction, leaving commit and rollback ownership to the outermost callback.
 
 ```ts
 const createUser = defineAction({
@@ -464,7 +464,7 @@ The local database can be dropped, recreated and migrated from scratch, with opt
 ./do database reset-seed
 ```
 
-All three maintenance commands are implemented by the generic `kestrel/database/seeder` module, contributed to `app.catalog` by `DatabaseProvider` and restricted to the `local` environment. Feature modules can declare generated steps for interchangeable volume or explicit record steps for curated scenarios. Explicit records have a stable key, exact references to records from earlier steps and access to one shared reference time. Local maintenance supplies the current time so activity remains recent; integration tests inject a fixed time for reproducibility. The complete seed runs in one transaction and rolls back when any record or reference fails.
+All three maintenance commands are implemented by the generic `kestrel/database/seeder` module, contributed to `app.catalog` by `PostgresDrizzleProvider` and restricted to the `local` environment. Feature modules can declare generated steps for interchangeable volume or explicit record steps for curated scenarios. Explicit records have a stable key, exact references to records from earlier steps and access to one shared reference time. Local maintenance supplies the current time so activity remains recent; integration tests inject a fixed time for reproducibility. The complete seed runs in one transaction and rolls back when any record or reference fails.
 
 The application seed composes feature steps in cross-module dependency order and declares the migration folder, local push schema and owned schemas. The current scenario creates 20 local members, 6 editorial spaces, 18 debates and 47 topic-specific comments, including empty, short and active discussions. Only the administrator has a local password credential; the other members are editorial personas rather than authentication fixtures.
 
@@ -510,3 +510,9 @@ Repository collection queries always return `{ items, pageInfo }`. `findAll()` s
 Repository write methods do not add a PostgreSQL `RETURNING` clause and return nothing by default. Callers can opt in with `{ returning: true }`: `create()` then returns the created record, `update()` and `delete()` return the affected record or `null`, and `updateAllWhere()` returns an array. Both update methods apply the same `getUpdateValues()` transformation, preserving repository-specific values such as modification timestamps.
 
 Application database integration tests use the application-configured test database, while Kestrel-owned PostgreSQL integration tests use the separate database selected by `KESTREL_TEST_DATABASE`, defaulting to `kestrel`. Tests use transactions or connection-local temporary tables for isolation. The dev container runs an idempotent post-start script that creates both local databases when either is missing.
+
+## Explicit provider adapters
+
+`PostgresDrizzleProvider` names the actual PostgreSQL/Drizzle boundary. `PostgresDrizzleConfig`, `postgresDrizzleConfigBase`, `PostgresDrizzleClient` and `PostgresDrizzleManager` are explicit public names. Supply `{ schema }` or `{ createDatabase: (pool) => drizzle(pool, { schema }) }` as constructor options. Application subclasses are only needed for additional composition such as maintenance. A TypeORM integration requires its own infrastructure provider and compatible feature adapters.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

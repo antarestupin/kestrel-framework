@@ -64,7 +64,7 @@ export interface EmailSendOptions {
 }
 
 /** Storage- and provider-neutral contract implemented by transport adapters. */
-export interface EmailDriver {
+export interface EmailTransportAdapter {
   readonly name: string;
   send(message: EmailMessage, context: EmailDriverContext): Promise<EmailReceipt>;
   close?(): Promise<void>;
@@ -76,9 +76,11 @@ export interface EmailDriverContext {
 }
 
 export interface EmailClientOptions {
+  /** Providers delegate driver ownership to the adapter definition. */
+  readonly closeDriver?: boolean;
   /** Stable client identity used to group observations. */
   readonly name: string;
-  readonly driver: EmailDriver;
+  readonly driver: EmailTransportAdapter;
   readonly instrumentation?: EmailInstrumentation;
   readonly monotonicNow?: () => number;
   readonly createObservationId?: () => string;

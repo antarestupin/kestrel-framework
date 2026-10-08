@@ -6,11 +6,11 @@ import {
 } from "vitest";
 
 import {
-  DatabaseManager,
-  type DatabaseManagerDependencies,
+  PostgresDrizzleManager,
+  type PostgresDrizzleManagerDependencies,
 } from "./database_manager.js";
 
-describe("DatabaseManager", () => {
+describe("PostgresDrizzleManager", () => {
   it("uses the transaction executor inside the callback", async () => {
     const rootDatabase = createDatabaseStub();
     const transactionDatabase = {};
@@ -20,7 +20,7 @@ describe("DatabaseManager", () => {
       ) => operation(transactionDatabase as never),
     );
     rootDatabase.transaction = transaction;
-    const manager = new DatabaseManager({
+    const manager = new PostgresDrizzleManager({
       database: asTransactionDatabase(rootDatabase),
     });
 
@@ -43,7 +43,7 @@ describe("DatabaseManager", () => {
       ) => operation(transactionDatabase as never),
     );
     rootDatabase.transaction = transaction;
-    const manager = new DatabaseManager({
+    const manager = new PostgresDrizzleManager({
       database: asTransactionDatabase(rootDatabase),
     });
 
@@ -65,7 +65,7 @@ describe("DatabaseManager", () => {
       ) => operation(transactionDatabase as never),
     );
     rootDatabase.transaction = transaction;
-    const manager = new DatabaseManager({
+    const manager = new PostgresDrizzleManager({
       database: asTransactionDatabase(rootDatabase),
     });
 
@@ -93,6 +93,6 @@ function createDatabaseStub(): Record<string, unknown> {
  */
 function asTransactionDatabase(
   database: Record<string, unknown>,
-): DatabaseManagerDependencies["database"] {
-  return database as unknown as DatabaseManagerDependencies["database"];
+): PostgresDrizzleManagerDependencies["database"] {
+  return database as unknown as PostgresDrizzleManagerDependencies["database"];
 }

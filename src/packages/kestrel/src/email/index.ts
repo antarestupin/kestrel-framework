@@ -9,7 +9,7 @@ export {
   type EmailCapturePage,
   type EmailCapturePageOptions,
   type EmailCaptureResendResult,
-  type EmailCaptureStore,
+  type EmailCaptureStorageAdapter,
   type EmailCaptureSummary,
   type NewEmailCapture,
 } from "./capture.js";
@@ -21,11 +21,7 @@ export {
 } from "./dependencies.js";
 export {
   emailConfigBase,
-  emailDriverConfigSchema,
   type EmailConfig,
-  type EmailDriverConfig,
-  type SesEmailDriverConfig,
-  type SmtpEmailDriverConfig,
 } from "./configuration.js";
 export {
   EmailDriverError,
@@ -52,10 +48,14 @@ export type {
   EmailAddressInput,
   EmailAttachment,
   EmailClientOptions,
-  EmailDriver,
+  EmailTransportAdapter,
   EmailDriverContext,
   EmailMessage,
   EmailMessageInput,
   EmailReceipt,
   EmailSendOptions,
 } from "./types.js";
+
+export * from "./adapter_definition.js";
+export * from "./adapters/smtp/index.js";
+export * from "./adapters/ses/index.js";

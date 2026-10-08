@@ -31,7 +31,7 @@ Kestrel-level client assets served from a separate internal asset prefix may rem
 `AtlasProvider` receives generic HTTP access middleware without importing authorization:
 
 ```ts
-new AtlasProvider({
+new AtlasProvider(viteAtlasClient({}), {
   atlas: applicationBackoffice,
   access: {
     required: [

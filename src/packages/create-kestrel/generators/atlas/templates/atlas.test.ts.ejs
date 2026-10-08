@@ -3,7 +3,7 @@ import { App } from "@kestreljs/framework/app";
 import { ApplicationAtlasProvider } from "../server/core/providers/atlas_provider.js";
 import { createConfigurationApi } from "@kestreljs/framework/configuration";
 import { HttpRuntimeProvider, httpRuntimeDependency } from "@kestreljs/framework/http";
-import { LoggerProvider } from "@kestreljs/framework/log";
+import { LoggerProvider, pinoLogger } from "@kestreljs/framework/log";
 import { appConfig } from "../server/core/app_config.js";
 import { createBackofficeConfig } from "../server/core/config/backoffice.js";
 
@@ -17,7 +17,7 @@ it.each(["local", "test", "stage", "prod"])("enables the Atlas starter only loca
 it.each([true, false])("serves Atlas only when enabled: %s", async (enabled) => {
   // Each test owns its runtime; injection needs neither a database nor a network listener.
   const app = new App(appConfig);
-  app.register(new LoggerProvider(appConfig.logger));
+  app.register(new LoggerProvider(appConfig.logger, pinoLogger()));
   app.register(new HttpRuntimeProvider(appConfig.http));
   app.register(new ApplicationAtlasProvider({ enabled }));
   const runtime = app.container.resolve(httpRuntimeDependency);

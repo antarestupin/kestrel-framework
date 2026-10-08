@@ -1,12 +1,7 @@
 import type { Pool } from "pg";
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { PostgresObservationStore } from "./observation_store.js";
+import { PostgresObservationStore } from "./adapter.js";
 
 describe("PostgresObservationStore", () => {
   it("loads complete timelines for executions matching a diagnostic context", async () => {

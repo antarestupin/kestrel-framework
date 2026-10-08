@@ -7,7 +7,7 @@ import {
   defineHttpController,
   get,
 } from "../../../http/index.js";
-import type { DevObservationSource } from "../../../observability/db/observation_store.js";
+import type { DevObservationSource } from "../../../observability/source.js";
 import type { DevLogSource } from "../../../log/db/log_store.js";
 import type { StudioExtension } from "../../extension.js";
 import { joinStudioPath } from "../../studio.js";

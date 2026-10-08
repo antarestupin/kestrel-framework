@@ -206,3 +206,9 @@ The extension reads through an explicit `DevObservationSource`. Its controllers 
 A future diagnostic policy may add configurable redaction, error fingerprints and transport-specific expected-error classification. The current completion diagnostic deliberately preserves the original failure and cause chain so local debugging is lossless, while application code remains responsible for avoiding secrets in error messages.
 
 Future recorder evolutions deliberately kept out of this change include jittered retry delays, a half-open circuit breaker shared across batches, durable spillover storage and first-class metric or health endpoint publication. `getHealth()` is the stable bridge for the last item. A production deployment must still choose storage durability, capacity and failure policy according to the monitoring guarantee it needs; enabling capture alone does not make an in-memory queue durable across process termination.
+
+## Explicit provider adapters
+
+`ObservationProvider(config, adapter)` receives an `ObservationAdapterDefinition`. Its value exposes a writer and, optionally, a query source; capability `query` controls registration of `observationSource`. PostgreSQL retention belongs to `postgresObservationsConfigBase`. A writer-only backend need not support Studio browsing. Buffered writes drain before backend disposal.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

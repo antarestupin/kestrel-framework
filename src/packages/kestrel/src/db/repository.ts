@@ -39,8 +39,8 @@ import {
   paginateQuery,
 } from "./pagination.js";
 import {
-  type DatabaseExecutor,
-  DatabaseManager,
+  type PostgresDrizzleExecutor,
+  PostgresDrizzleManager,
 } from "./database_manager.js";
 
 export interface RepositoryOptions<
@@ -81,14 +81,14 @@ export abstract class Repository<
   Cursor = unknown,
 > {
   protected constructor(
-    private readonly databaseManager: DatabaseManager,
+    private readonly databaseManager: PostgresDrizzleManager,
     protected readonly options: RepositoryOptions<Table, Id, Cursor>,
   ) {}
 
   /**
    * Resolves the executor for every query so ambient transactions are honored.
    */
-  protected get database(): DatabaseExecutor {
+  protected get database(): PostgresDrizzleExecutor {
     return this.databaseManager.database;
   }
 

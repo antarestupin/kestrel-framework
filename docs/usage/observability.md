@@ -34,7 +34,8 @@ Enable the provider when development executions should persist observations for 
 ```ts
 import type { App } from "@kestreljs/framework/app";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
-import { observationConfigBase, ObservationProvider } from "@kestreljs/framework/observability";
+import { dep } from "@kestreljs/framework/di";
+import { observationConfigBase, ObservationProvider, postgresObservations } from "@kestreljs/framework/observability";
 
 const configuration = createConfigurationApi({ environments: ["development"], defaultEnvironment: "development" });
 const config = configuration.resolveConfig({
@@ -43,11 +44,11 @@ const config = configuration.resolveConfig({
 }, { environment: "development", env: {} });
 function enableObservations<Config>(app: App<Config>) {
   // Database and logger providers, plus development observation storage, are prerequisites.
-  return app.register(new ObservationProvider(config.observations));
+  return app.register(new ObservationProvider(config.observations, postgresObservations(dep("databaseClient"), { retentionDays: 7 })));
 }
 ```
 
-The standard provider writes to the disposable development observation table and can be disabled with `enabled: false`. Studio consumes the observation source for execution timelines. Unified telemetry and Beacon remain [design records](../implementation/README.md#design-records-and-future-work) in this checkout.
+The PostgreSQL recipe writes to the disposable development observation table and can be disabled with `enabled: false`. Studio consumes the observation source for execution timelines. Unified telemetry and Beacon remain [design records](../implementation/README.md#design-records-and-future-work) in this checkout.
 
 ## Capture observations without a database
 
@@ -77,3 +78,9 @@ await recorder.close();
 - Install development observation storage and connect Studio execution timelines.
 - Tune buffering and failure policy, then inspect recorder health after a storage failure.
 - Choose diagnostic destinations and disable automatic observations for selected tasks.
+
+## Explicit provider adapters
+
+`ObservationProvider(config, adapter)` receives an `ObservationAdapterDefinition`. Its value exposes a writer and, optionally, a query source; capability `query` controls registration of `observationSource`. PostgreSQL retention belongs to `postgresObservationsConfigBase`. A writer-only backend need not support Studio browsing. Buffered writes drain before backend disposal.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

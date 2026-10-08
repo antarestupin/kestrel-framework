@@ -3,12 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { EmailClient } from "./client.js";
 import { EmailDriverError, EmailSendError } from "./errors.js";
 import type { EmailInstrumentationEvent } from "./observations.js";
-import type { EmailDriver, EmailMessage } from "./types.js";
+import type { EmailTransportAdapter, EmailMessage } from "./types.js";
 
 describe("EmailClient", () => {
   it("normalizes and detaches messages before invoking the driver", async () => {
     let received: EmailMessage | undefined;
-    const driver: EmailDriver = {
+    const driver: EmailTransportAdapter = {
       name: "test",
       send: vi.fn(async (message) => {
         received = message;
@@ -61,7 +61,7 @@ describe("EmailClient", () => {
 
   it("records non-sensitive metadata for accepted and rejected sends", async () => {
     const events: EmailInstrumentationEvent[] = [];
-    const driver: EmailDriver = {
+    const driver: EmailTransportAdapter = {
       name: "smtp",
       send: vi.fn()
         .mockResolvedValueOnce({ status: "accepted", messageId: "message-1" })
@@ -130,7 +130,7 @@ describe("EmailClient", () => {
   });
 
   it("normalizes validation and unknown driver failures", async () => {
-    const driver: EmailDriver = {
+    const driver: EmailTransportAdapter = {
       name: "test",
       send: vi.fn(async () => {
         throw new Error("implementation detail");

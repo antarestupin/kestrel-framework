@@ -9,3 +9,5 @@ export {
   ViteDevelopmentRuntime,
   type ViteDevelopmentRuntimeOptions,
 } from "./development_runtime.js";
+
+export * from "./definition.js";

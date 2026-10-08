@@ -12,12 +12,12 @@ type DatabaseTransaction = Parameters<
   Parameters<TransactionDatabase["transaction"]>[0]
 >[0];
 
-export type DatabaseExecutor = Pick<
+export type PostgresDrizzleExecutor = Pick<
   TransactionDatabase,
   "delete" | "execute" | "insert" | "select" | "update"
 >;
 
-export interface DatabaseManagerDependencies {
+export interface PostgresDrizzleManagerDependencies {
   database: TransactionDatabase;
 }
 
@@ -28,18 +28,18 @@ export interface DatabaseManagerDependencies {
  * prevents parallel action branches in that scope from leaking transactions
  * into each other.
  */
-export class DatabaseManager {
+export class PostgresDrizzleManager {
   private readonly transactions =
     new AsyncLocalStorage<DatabaseTransaction>();
 
   public constructor(
-    private readonly dependencies: DatabaseManagerDependencies,
+    private readonly dependencies: PostgresDrizzleManagerDependencies,
   ) {}
 
   /**
    * Returns the current transaction or the application database when idle.
    */
-  public get database(): DatabaseExecutor {
+  public get database(): PostgresDrizzleExecutor {
     return this.transactions.getStore()
       ?? this.dependencies.database;
   }

@@ -13,7 +13,7 @@ import {
 
 import { EmailDriverError } from "../../errors.js";
 import type {
-  EmailDriver,
+  EmailTransportAdapter,
   EmailMessage,
   EmailReceipt,
 } from "../../types.js";
@@ -23,7 +23,7 @@ export interface EmailSdkEmailAdapterOptions {
 }
 
 /** Bridges the Kestrel contract to Email SDK without leaking its public API. */
-export class EmailSdkEmailAdapter implements EmailDriver {
+export class EmailSdkEmailAdapter implements EmailTransportAdapter {
   public readonly name: string;
 
   private readonly email: SdkClient;

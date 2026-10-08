@@ -1,7 +1,7 @@
-import type { SubjectRoleStore } from "../../types.js";
+import type { SubjectRoleStorageAdapter } from "../../types.js";
 
 /** Process-local assignments for tests and explicit local setups. */
-export class MemorySubjectRoleStore implements SubjectRoleStore {
+export class MemorySubjectRoleStorageAdapter implements SubjectRoleStorageAdapter {
   private readonly roleKeysBySubject = new Map<string, Set<string>>();
 
   public async listRoleKeys(subjectId: string): Promise<ReadonlySet<string>> {

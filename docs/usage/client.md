@@ -12,14 +12,13 @@ The shared `ViteDevelopmentRuntime` loads configuration natively so it can run u
 
 ```ts
 import type { App } from "@kestreljs/framework/app";
-import { ClientProvider, ViteClientAdapter } from "@kestreljs/framework/client";
+import { ClientProvider, viteClient } from "@kestreljs/framework/client";
 
 function mountClient<Config>(app: App<Config>, projectRoot: string, devMode: boolean) {
-  return app.register(new ClientProvider({
-    // Keep API paths outside the SPA fallback and reserve a path for client assets.
-    basePath: "/", assetBasePath: "/_client_assets/", excludedPaths: ["/api"],
-    adapter: new ViteClientAdapter({ projectRoot, devMode, distDir: "dist/client" }),
-  }));
+  return app.register(new ClientProvider(
+    viteClient({ projectRoot, devMode, distDir: "dist/client" }),
+    { basePath: "/", assetBasePath: "/_client_assets/", excludedPaths: ["/api"] },
+  ));
 }
 ```
 
@@ -69,14 +68,13 @@ The generated factory accepts `{ baseUrl, fetch?, headers? }`. Its hierarchy mir
 
 
 ```ts
-import { ViteDevelopmentRuntime } from "@kestreljs/framework/client";
+import { ViteDevelopmentRuntime, viteClient } from "@kestreljs/framework/client";
 
 function createSharedDevelopment(projectRoot: string) {
   const runtime = new ViteDevelopmentRuntime({ root: projectRoot, configFile: "vite.development.config.ts" });
-  return new ViteClientAdapter({
+  // Runtime dependencies and backend settings remain separate factory arguments.
+  return viteClient(runtime.entry({ root: "src/client" }), {
     projectRoot, devMode: true, distDir: "dist/client",
-    // Other compatible adapters can take their own entry from this same runtime.
-    development: runtime.entry({ root: "src/client" }),
   });
 }
 ```
@@ -87,3 +85,9 @@ function createSharedDevelopment(projectRoot: string) {
 - Call a generated client with shared headers or an injected fetch and handle HttpClientError.
 - Generate separate clients for multiple audiences and exclude selected controllers.
 - Build and serve a production client under a non-root base path.
+
+## Explicit provider adapters
+
+`ClientProvider(adapter, options?)` accepts a `WebClientAdapterDefinition`. `viteClient(settings)` supplies the bundled backend; `viteClient(development, settings)` borrows a shared development entry or resolves its typed dependency descriptor. Definitions initialize during HTTP mounting; `setup()` installs server-owned shutdown hooks. Borrowed development runtimes retain their own ownership. Each mount has its own adapter registration.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

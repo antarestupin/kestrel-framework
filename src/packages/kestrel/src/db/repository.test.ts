@@ -35,7 +35,7 @@ import type {
 } from "pg";
 
 import { createPostgresTestPool } from "../testing/postgres.js";
-import { DatabaseManager } from "./database_manager.js";
+import { PostgresDrizzleManager } from "./database_manager.js";
 import { Repository } from "./repository.js";
 import type { RepositoryCollectionOptions } from "./collection.js";
 import type { CursorPagination, CursorPaginationOptions } from "./pagination.js";
@@ -81,7 +81,7 @@ class TestRepository extends Repository<
   RecordCursor
 > {
   public constructor(database: TestDatabase, enableCursor = true) {
-    super(new DatabaseManager({ database }), {
+    super(new PostgresDrizzleManager({ database }), {
       table: records,
       idColumn: records.id,
       ...(enableCursor ? { cursor: cursorOptions } : {}),

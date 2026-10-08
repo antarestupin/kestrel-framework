@@ -8,14 +8,14 @@ import type {
 } from "pg";
 
 import type { ObservationValue } from "../observability/index.js";
-import type { DatabaseConfig } from "./configuration.js";
+import type { PostgresDrizzleConfig } from "./configuration.js";
 import type {
   DatabaseQueryInstrumentation,
   DatabaseQueryObservationData,
   DatabaseQueryOrigin,
 } from "./observations.js";
 
-type QueryObservabilityConfig = DatabaseConfig["queryObservability"];
+type QueryObservabilityConfig = PostgresDrizzleConfig["queryObservability"];
 type QueryFunction = (...arguments_: unknown[]) => unknown;
 
 const instrumentedClients = new WeakSet<ClientBase>();

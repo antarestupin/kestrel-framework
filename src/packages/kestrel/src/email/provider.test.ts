@@ -1,25 +1,19 @@
+import { dep } from "../di/index.js";
+import { MemoryEmailCaptureStorageAdapter, defineEmailCaptureStorageAdapter } from "./index.js";
 import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+  memoryEmail,
+  memoryEmailCapture,
+  captureEmail,
+  defineEmailTransportAdapter,
+} from "./index.js";
+import { describe, expect, it, vi } from "vitest";
 
-import {
-  App,
-  type ProviderCompositionApp,
-} from "../app/index.js";
-import {
-  AsyncLocalObserverContext,
-  type Observer,
-} from "../observability/index.js";
+import { App, type ProviderCompositionApp } from "../app/index.js";
+import { AsyncLocalObserverContext, type Observer } from "../observability/index.js";
 import { emailConfigBase, type EmailConfig } from "./configuration.js";
-import {
-  emailCaptureInboxDependency,
-  emailClientDependency,
-} from "./dependencies.js";
+import { emailCaptureInboxDependency, emailClientDependency } from "./dependencies.js";
 import { EmailProvider } from "./provider.js";
-import type { EmailDriver } from "./types.js";
+import type { EmailTransportAdapter } from "./types.js";
 
 describe("EmailProvider", () => {
   it("records through the observer active for the execution", async () => {
@@ -28,19 +22,28 @@ describe("EmailProvider", () => {
     const app = new App({ name: "test" });
 
     app.container.registerValue("observerContext", observerContext);
-    app.register(new EmailProvider(emailConfig({
-      enabled: true,
-      name: "transactional",
-      driver: { type: "memory" },
-    })));
+    app.register(
+      new EmailProvider(
+        emailConfig({
+          enabled: true,
+          name: "transactional",
+        }),
+        memoryEmail(),
+      ),
+    );
 
     const client = app.container.resolve(emailClientDependency);
-    await observerContext.run(observer, () => client.send({
-      from: "sender@example.com",
-      to: "member@example.com",
-      subject: "Welcome",
-      text: "Hello",
-    }, { operation: "member.welcome" }));
+    await observerContext.run(observer, () =>
+      client.send(
+        {
+          from: "sender@example.com",
+          to: "member@example.com",
+          subject: "Welcome",
+          text: "Hello",
+        },
+        { operation: "member.welcome" },
+      ),
+    );
 
     expect(observer.record).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ name: "email.send" }),
@@ -59,15 +62,12 @@ describe("EmailProvider", () => {
 
   it("registers a capture-backed client and inbox from configuration", async () => {
     const app = new App({ name: "test" }).register(
-      new EmailProvider(emailConfig({
-        enabled: true,
-        driver: { type: "capture" },
-        capture: {
-          storage: "memory",
-          maxMessageBytes: 1_024,
-          retentionDays: 2,
-        },
-      })),
+      new EmailProvider(
+        emailConfig({
+          enabled: true,
+        }),
+        captureEmail(memoryEmailCapture(), { maxMessageBytes: 1024 }),
+      ),
     );
     const client = app.container.resolve(emailClientDependency);
 
@@ -87,90 +87,47 @@ describe("EmailProvider", () => {
     await app.dispose();
   });
 
-  it.each(["smtp", "ses"] as const)(
-    "selects the %s driver from configuration",
-    async (driverType) => {
-      const send = vi.fn(async () => ({ status: "accepted" as const }));
-      class SelectedDriverProvider extends EmailProvider<{ name: string }> {
-        protected override createSmtpDriver(): EmailDriver {
-          return { name: "selected-smtp", send };
-        }
-
-        protected override createSesDriver(): EmailDriver {
-          return { name: "selected-ses", send };
-        }
-      }
-      const driver = driverType === "smtp"
-        ? {
-            type: "smtp" as const,
-            host: "smtp.example.test",
-          }
-        : {
-            type: "ses" as const,
-            accessKeyId: "access-key",
-            secretAccessKey: "secret-key",
-            region: "eu-west-1",
-          };
-      const app = new App({ name: "test" }).register(
-        new SelectedDriverProvider(emailConfig({ enabled: true, driver })),
-      );
-
-      await app.container.resolve(emailClientDependency).send({
-        from: "sender@example.com",
-        to: "member@example.com",
-        subject: "Welcome",
-        text: "Hello",
-      });
-
-      expect(send).toHaveBeenCalledOnce();
-      await app.dispose();
-    },
-  );
-
-  it("supports an application-specific driver through a subclass", async () => {
+  it("owns an external transport exactly once without a provider subclass", async () => {
     const close = vi.fn(async () => undefined);
-    class CustomEmailProvider extends EmailProvider<{ name: string }> {
-      protected override createCustomDriver(
-        _app: ProviderCompositionApp<{ name: string }>,
-        name: string,
-      ): EmailDriver {
-        return {
-          name,
-          send: async () => ({ status: "accepted" }),
-          close,
-        };
-      }
-    }
-    const app = new App({ name: "test" }).register(
-      new CustomEmailProvider(emailConfig({
-        enabled: true,
-        driver: { type: "custom", name: "mailjet" },
-      })),
+    const app = new App({}).register(
+      new EmailProvider(
+        emailConfig({ enabled: true }),
+        defineEmailTransportAdapter({
+          dependencies: {},
+          capabilities: {},
+          create: () => ({
+            name: "external",
+            send: async () => ({ status: "accepted" as const }),
+            close,
+          }),
+          dispose: (value) => value.close(),
+        }),
+      ),
     );
-    const client = app.container.resolve(emailClientDependency);
-
-    await expect(client.send({
-      from: "sender@example.com",
-      to: "member@example.com",
-      subject: "Welcome",
-      text: "Hello",
-    })).resolves.toMatchObject({ status: "accepted" });
-    await app.dispose();
-
+    try {
+      await expect(
+        app.container
+          .resolve(emailClientDependency)
+          .send({
+            from: "sender@example.com",
+            to: "member@example.com",
+            subject: "Welcome",
+            text: "Hello",
+          }),
+      ).resolves.toMatchObject({ status: "accepted" });
+    } finally {
+      await app.dispose();
+    }
     expect(close).toHaveBeenCalledOnce();
   });
 
   it("does not register a client when email is disabled", async () => {
     const app = new App({ name: "test" }).register(
-      new EmailProvider(emailConfig({ enabled: false })),
+      new EmailProvider(emailConfig({ enabled: false }), memoryEmail()),
     );
 
-    expect(
-      app.container.hasRegistration(emailClientDependency.id),
-    ).toBe(false);
-    expect(
-      app.container.hasRegistration(emailCaptureInboxDependency.id),
-    ).toBe(false);
+    expect(app.container.hasRegistration(emailClientDependency.id)).toBe(false);
+    expect(app.container.hasRegistration(emailCaptureInboxDependency.id)).toBe(false);
 
     await app.dispose();
   });
@@ -179,3 +136,47 @@ describe("EmailProvider", () => {
 function emailConfig(input: unknown): EmailConfig {
   return emailConfigBase.schema.parse(input);
 }
+
+it("closes delivery before its owned capture backend, leaving borrowed infrastructure open", async () => {
+  const order: string[] = [];
+  const store = new MemoryEmailCaptureStorageAdapter();
+  const app = new App({}).register(
+    new EmailProvider(emailConfig({ enabled: true }), {
+      ...captureEmail(
+        defineEmailCaptureStorageAdapter({
+          dependencies: {},
+          capabilities: {},
+          create: () => store,
+          dispose: async () => {
+            order.push("storage");
+          },
+        }),
+        { maxMessageBytes: 1024 },
+      ),
+      dispose: async () => {
+        order.push("delivery");
+        await expect(store.list()).resolves.toBeDefined();
+      },
+    }),
+  );
+  try {
+    await app.start();
+  } finally {
+    await app.dispose();
+  }
+  expect(order).toEqual(["delivery", "storage"]);
+});
+
+it("disposes capture storage before its connection even when delivery was never constructed", async () => {
+  const order: string[] = [];
+  const app = new App({});
+  app.container.registerValue("captureConnection", {}, { dispose: async () => { order.push("connection"); } });
+  app.register(new EmailProvider(emailConfig({ enabled: true }), captureEmail(defineEmailCaptureStorageAdapter({
+    dependencies: { connection: dep<object>("captureConnection") }, capabilities: {},
+    create: () => new MemoryEmailCaptureStorageAdapter(),
+    dispose: async () => { order.push("storage"); },
+  }))));
+  try { await app.container.resolve(emailCaptureInboxDependency).list(); }
+  finally { await app.dispose(); }
+  expect(order).toEqual(["storage", "connection"]);
+});

@@ -28,7 +28,7 @@ For application setup and task-oriented examples, see the [Testing usage guide](
 
 ## Design and implementation
 
-The helpers stay below `src/packages/kestrel/src/testing` so Kestrel tests never depend on application bootstrap, application schema or application test support. The PostgreSQL helper reuses `databaseConfigBase` validation, reads only test-runner connection variables and defaults to the isolated `kestrel_test` database. It does not run migrations or own schema setup beyond the pool it returns.
+The helpers stay below `src/packages/kestrel/src/testing` so Kestrel tests never depend on application bootstrap, application schema or application test support. The PostgreSQL helper reuses `postgresDrizzleConfigBase` validation, reads only test-runner connection variables and defaults to the isolated `kestrel_test` database. It does not run migrations or own schema setup beyond the pool it returns.
 
 Tests must remain compatible with Vitest's `--no-isolate` mode. Mutable global state, fake timers, event listeners, dependency overrides and resources must be restored explicitly.
 
@@ -38,7 +38,7 @@ Tests must remain compatible with Vitest's `--no-isolate` mode. Mutable global s
 sequenceDiagram
     participant Test
     participant Helper as createPostgresTestPool
-    participant Schema as databaseConfigBase
+    participant Schema as postgresDrizzleConfigBase
     participant Database as Kestrel test database
 
     Test->>Helper: Create isolated pool

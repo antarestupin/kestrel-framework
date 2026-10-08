@@ -1,17 +1,9 @@
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { defineLoggerAdapter } from "./adapter_definition.js";
+import { describe, expect, it, vi } from "vitest";
 import { Writable } from "node:stream";
 import pino from "pino";
 
-import {
-  App,
-  executionContextDependency,
-  setExecutionLogContext,
-} from "../app/index.js";
+import { App, executionContextDependency, setExecutionLogContext } from "../app/index.js";
 import { dep } from "../di/index.js";
 import {
   applicationLoggerDependency,
@@ -51,12 +43,8 @@ describe("LoggerProvider", () => {
         compositionMs: expect.any(Number),
         totalMs: expect.any(Number),
         providers: {
-          boot: [
-            expect.objectContaining({ provider: "CapturingLoggerProvider" }),
-          ],
-          composition: [
-            expect.objectContaining({ provider: "CapturingLoggerProvider" }),
-          ],
+          boot: [expect.objectContaining({ provider: "CapturingLoggerProvider" })],
+          composition: [expect.objectContaining({ provider: "CapturingLoggerProvider" })],
         },
       },
     });
@@ -100,18 +88,14 @@ describe("LoggerProvider", () => {
 
   it("logs one tagged context summary when an execution completes", async () => {
     const lines: string[] = [];
-    const app = new App({ name: "test" }).register(
-      new CapturingLoggerProvider(lines),
-    );
+    const app = new App({ name: "test" }).register(new CapturingLoggerProvider(lines));
 
     await app.start();
     const execution = await app.createExecutionScope("execution-1");
 
-    execution.container.resolve(executionContextDependency).setDiagnostic(
-      "userId",
-      "user-1",
-      { destinations: ["log"] },
-    );
+    execution.container
+      .resolve(executionContextDependency)
+      .setDiagnostic("userId", "user-1", { destinations: ["log"] });
     execution.context.setDiagnostic("observationOnly", true, {
       destinations: ["observation"],
     });
@@ -127,9 +111,7 @@ describe("LoggerProvider", () => {
 
     await execution.dispose("success");
 
-    const entry = parseLogLines(lines).find(
-      ({ msg }) => msg === "Execution context completed",
-    );
+    const entry = parseLogLines(lines).find(({ msg }) => msg === "Execution context completed");
 
     expect(entry).toMatchObject({
       executionContext: {
@@ -147,9 +129,7 @@ describe("LoggerProvider", () => {
 
   it("can enrich each subsequent scoped log instead of logging a summary", async () => {
     const lines: string[] = [];
-    const app = new App({ name: "test" }).register(
-      new CapturingLoggerProvider(lines, "dynamic"),
-    );
+    const app = new App({ name: "test" }).register(new CapturingLoggerProvider(lines, "dynamic"));
 
     await app.start();
     const execution = await app.createExecutionScope("execution-1");
@@ -164,9 +144,7 @@ describe("LoggerProvider", () => {
     logger.info("Processing user");
     await execution.dispose();
 
-    const entry = parseLogLines(lines).find(
-      ({ msg }) => msg === "Processing user",
-    );
+    const entry = parseLogLines(lines).find(({ msg }) => msg === "Processing user");
 
     expect(entry).toMatchObject({
       executionContext: {
@@ -181,9 +159,7 @@ describe("LoggerProvider", () => {
 
   it("lets an execution scope suppress its completion log", async () => {
     const lines: string[] = [];
-    const app = new App({ name: "test" }).register(
-      new CapturingLoggerProvider(lines),
-    );
+    const app = new App({ name: "test" }).register(new CapturingLoggerProvider(lines));
 
     await app.start();
     const execution = await app.createExecutionScope("execution-1");
@@ -213,16 +189,12 @@ describe("LoggerProvider", () => {
 
   it("applies scoped suppression to dynamic context enrichment", async () => {
     const lines: string[] = [];
-    const app = new App({ name: "test" }).register(
-      new CapturingLoggerProvider(lines, "dynamic"),
-    );
+    const app = new App({ name: "test" }).register(new CapturingLoggerProvider(lines, "dynamic"));
 
     await app.start();
     const execution = await app.createExecutionScope("execution-1");
     const logger = execution.container.resolve(loggerDependency);
-    const setExecutionLogEnabled = execution.container.resolve(
-      setExecutionLogEnabledDependency,
-    );
+    const setExecutionLogEnabled = execution.container.resolve(setExecutionLogEnabledDependency);
 
     setExecutionLogEnabled(false);
     logger.info("Technical work");
@@ -253,25 +225,26 @@ class CapturingLoggerProvider extends LoggerProvider<{ name: string }> {
     enabled = true,
     private readonly level: LoggerConfig["level"] = "info",
   ) {
-    super({
-      level,
-      developmentStorage: false,
-      executionLog: { enabled, contextMode },
-    });
-  }
-
-  protected override createActiveLogger(): OwnedLogger {
-    const destination = new Writable({
-      write: (chunk, _encoding, callback) => {
-        this.lines.push(chunk.toString());
-        callback();
-      },
-    });
-
-    return {
-      logger: pino({ level: this.level }, destination),
-      close: async () => {},
-    };
+    super(
+      { level, developmentStorage: false, executionLog: { enabled, contextMode } },
+      defineLoggerAdapter({
+        dependencies: {},
+        capabilities: {},
+        create: () => ({
+          logger: pino(
+            { level },
+            new Writable({
+              write: (chunk, _encoding, callback) => {
+                lines.push(chunk.toString());
+                callback();
+              },
+            }),
+          ),
+          close: async () => {},
+        }),
+        dispose: (value) => value.close(),
+      }),
+    );
   }
 }
 

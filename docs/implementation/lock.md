@@ -298,3 +298,9 @@ Durations use `performance.now()` through an injectable `monotonicNow` function 
 Instrumentation is strictly diagnostic. Exceptions from the sink, key formatter or injected monotonic clock are contained and never change lock acquisition, ownership or release semantics. Invalid operation input is rejected before instrumentation begins and therefore does not produce an event.
 
 The lock library owns typed `lock.acquisition`, `lock.extension` and `lock.release` observation definitions in `src/packages/kestrel/src/lock/observations.ts`. The instrumentation contract remains independent from observation storage so it can also feed logs or metrics. The application provider bridges its singleton lock manager to the execution-scoped `Observer` through the shared asynchronous observer context. Lock work performed outside a direct, HTTP or CLI execution remains functional and produces no stored observation.
+
+## Explicit provider adapters
+
+`LockProvider(config, adapter)` registers a `LockAdapterDefinition`. `postgresLocks(database)` and `memoryLocks(settings?)` are bundled. The declared `prune` capability must match the constructed interface; non-prunable adapters contribute no maintenance task.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

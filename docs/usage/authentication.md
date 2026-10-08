@@ -27,7 +27,7 @@ Use this composition to add password sign-in and cookie-backed sessions to an HT
 ```ts
 import { z } from "zod";
 import { App, defineCatalog } from "@kestreljs/framework/app";
-import { Argon2idPasswordHasher, AuthenticationProvider, authenticationConfigBase, createAuthenticationActions, createAuthenticationHttpControllers, defineAuthentication, DefaultUsernameNormalizer, MemoryAuthenticationAdapter } from "@kestreljs/framework/authentication";
+import { Argon2idPasswordHasher, AuthenticationProvider, authenticationConfigBase, createAuthenticationActions, createAuthenticationHttpControllers, defineAuthentication, DefaultUsernameNormalizer, MemoryAuthenticationAdapter, memoryAuthentication } from "@kestreljs/framework/authentication";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
 import { defineHttpAccessPolicy } from "@kestreljs/framework/http";
 
@@ -55,17 +55,16 @@ const app = new App(config, {
   }),
 });
 // Memory storage is for tests; production composition supplies persistent stores.
-app.container.registerValue("authenticationAdapter", adapter);
 app.container.registerValue("authenticationSubjectProvider", {
   // Resolve the subject from application-owned data when authentication needs it.
   findById: async (id: string) => subjects.get(id) ?? null,
 });
-app.register(new AuthenticationProvider(config.authentication, definition, hasher));
+app.register(new AuthenticationProvider(config.authentication, memoryAuthentication(adapter), definition, hasher));
 ```
 
 Add `HttpRuntimeProvider` as in [application composition](./app.md). The default routes are POST `/authentication/password/sign-in`, POST `/authentication/sign-out` and GET `/authentication/session`. Sign-in/out enforce trusted origins; successful sign-in sets the configured session cookie.
 
-For PostgreSQL, register `PostgresAuthenticationAdapter` against the scoped `DatabaseManager`, export the authentication schema into migrations and supply the same subject provider. Stores may also be registered separately by capability; see the [store composition contract](../implementation/authentication.md#adapter-composition).
+For PostgreSQL, pass `postgresAuthentication(managerDependency)` to the provider, using the scoped `PostgresDrizzleManager`, export the authentication schema into migrations and supply the same subject provider. Stores may also be registered separately by capability; see the [store composition contract](../implementation/authentication.md#adapter-composition).
 
 ## Provision credentials
 
@@ -113,3 +112,9 @@ Sessions have idle and absolute expiry, and account state is checked when resolv
 - Exercise sign-in, session rotation and logout through HTTP cookies.
 - Add session claims and read the principal in an action or an optionally authenticated route.
 - Disable an account and revoke its active sessions.
+
+## Explicit provider adapters
+
+`AuthenticationProvider(config, adapter, definition, hasher)` registers an execution-scoped adapter. `postgresAuthentication(manager, tables?)` replaces the adapter-only PostgreSQL provider. Independently registered account, session and password-credential adapters still override the corresponding combined-adapter fallbacks. Public storage contracts use the `StorageAdapter` suffix.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

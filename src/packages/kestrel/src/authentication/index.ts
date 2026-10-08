@@ -51,18 +51,18 @@ export { requireAuthentication } from "./middleware.js";
 export { AuthenticationProvider } from "./provider.js";
 export type { AuthenticationProof } from "./proof.js";
 export type {
-  AccountStore,
+  AccountStorageAdapter,
   AuthenticationAdapter,
   CreateAuthenticationAccount,
   CreatePasswordCredential,
   CreateStoredSession,
   PasswordCredential,
-  PasswordCredentialStore,
+  PasswordCredentialStorageAdapter,
   ReplacePasswordHash,
   ResolvedSessionAccount,
   RevokeAccountSessions,
   RevokeStoredSession,
-  SessionStore,
+  SessionStorageAdapter,
   SessionAccountResolver,
   SetAuthenticationAccountState,
   StoredSession,
@@ -76,3 +76,5 @@ export type {
   AuthenticationSubject,
   SubjectProvider,
 } from "./types.js";
+
+export * from "./adapter_definition.js";

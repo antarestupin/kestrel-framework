@@ -15,10 +15,10 @@ export default class RedisGenerator extends Generator {
       'import { createLoggerConfig } from "./config/logger.js";\nimport { createRedisConfig } from "./config/redis.js";');
     replaceSource(this, "src/server/core/app_config.ts", "  logger: createLoggerConfig(configurationApi),",
       "  logger: createLoggerConfig(configurationApi),\n  redis: createRedisConfig(configurationApi),");
-    replaceSource(this, "src/server/core/app.ts", 'import { DatabaseProvider } from "./providers/database_provider.js";',
-      'import { DatabaseProvider } from "./providers/database_provider.js";\nimport { RedisProvider } from "./providers/redis_provider.js";');
-    replaceSource(this, "src/server/core/app.ts", "  .register(new DatabaseProvider(app.config.database, environment))",
-      "  .register(new DatabaseProvider(app.config.database, environment))\n  .register(new RedisProvider(app.config.redis))");
+    replaceSource(this, "src/server/core/app.ts", 'import { PostgresDrizzleProvider } from "./providers/database_provider.js";',
+      'import { PostgresDrizzleProvider } from "./providers/database_provider.js";\nimport { RedisProvider } from "./providers/redis_provider.js";');
+    replaceSource(this, "src/server/core/app.ts", "  .register(new PostgresDrizzleProvider(app.config.database, environment))",
+      "  .register(new PostgresDrizzleProvider(app.config.database, environment))\n  .register(new RedisProvider(app.config.redis))");
     const manifestPath = this.destinationPath("package.json");
     const manifest = this.fs.readJSON(manifestPath);
     manifest.dependencies["@redis/client"] = "^6.2.1";

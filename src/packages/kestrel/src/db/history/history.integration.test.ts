@@ -17,7 +17,7 @@ import {
 } from "vitest";
 
 import { createPostgresTestPool } from "../../testing/postgres.js";
-import { DatabaseManager } from "../database_manager.js";
+import { PostgresDrizzleManager } from "../database_manager.js";
 import { runWithHistoryContext } from "./context.js";
 import {
   defineHistoryTable,
@@ -130,7 +130,7 @@ describe("database history", () => {
 
   it("stores a complete creation followed by sparse changes and deletion", async () => {
     const database = drizzle(pool, { schema });
-    const manager = new DatabaseManager({ database });
+    const manager = new PostgresDrizzleManager({ database });
     const id = "4a6624b8-0dda-4df0-83fb-acebc14ed09c";
     const initialDate = new Date("2026-08-27T10:00:00.000Z");
     const updatedDate = new Date("2026-08-27T11:00:00.000Z");
@@ -231,7 +231,7 @@ describe("database history", () => {
 
   it("restores a parent history context after a nested operation", async () => {
     const database = drizzle(pool, { schema });
-    const manager = new DatabaseManager({ database });
+    const manager = new PostgresDrizzleManager({ database });
     const firstId = "5bb56828-0b7d-41e9-a94e-7c3375bbbd6b";
     const nestedId = "120ee5eb-a75e-451f-826d-1821d36e16fc";
     const lastId = "ca9268f0-109b-49a5-b038-a2f979431921";

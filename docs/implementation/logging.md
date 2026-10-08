@@ -140,3 +140,9 @@ Direct `console` calls do not pass through Pino. They should be reserved for fai
 The dynamic mode currently wraps Pino calls at the scoped logger boundary. If it becomes the dominant policy, execution-context propagation through an asynchronous logging context or a native Pino integration can replace that facade without changing the `ExecutionContext` producer API.
 
 Because local structured logs do not reach stdout, the HTTP bootstrap explicitly prints its resolved `Listening on <address>` readiness message after Fastify has opened the port. Other environments already expose Fastify logs on stdout and do not print this additional line.
+
+## Explicit provider adapters
+
+`LoggerProvider(config, adapter)` accepts `pinoLogger()`, `postgresLogger(connection, settings)` or `defineLoggerAdapter(...)`. The facade remains Pino-compatible. The finalized boot plan is passed to the definition, allowing minimal mode to avoid development storage. Disposal occurs during final container teardown so feature shutdown can still log.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

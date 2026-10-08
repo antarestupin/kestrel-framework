@@ -23,13 +23,13 @@ export {
   type PaginationQueryWindow,
 } from "./pagination.js";
 export {
-  type DatabaseExecutor,
-  DatabaseManager,
-  type DatabaseManagerDependencies,
+  type PostgresDrizzleExecutor,
+  PostgresDrizzleManager,
+  type PostgresDrizzleManagerDependencies,
 } from "./database_manager.js";
 export {
-  type DatabaseClient,
-  DatabaseProvider,
+  type PostgresDrizzleClient,
+  PostgresDrizzleProvider,
 } from "./provider.js";
 export { databaseTransaction } from "./middleware.js";
 export {
@@ -40,8 +40,8 @@ export {
 export { utilsSchema } from "./utils_schema.js";
 export { devSchema } from "./dev_schema.js";
 export {
-  databaseConfigBase,
-  type DatabaseConfig,
+  postgresDrizzleConfigBase,
+  type PostgresDrizzleConfig,
 } from "./configuration.js";
 export {
   databaseQueryObservation,
@@ -77,3 +77,5 @@ export {
   type DatabaseSchemaContribution,
   type DatabaseTableDescriptions,
 } from "./schema_contributions/index.js";
+
+export type { PostgresDrizzleProviderOptions } from "./provider.js";

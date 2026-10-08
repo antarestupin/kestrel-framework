@@ -4,7 +4,7 @@
 
 Use scheduled tasks for recurring maintenance and periodic work. Add definitions to a catalog's `scheduledTasks`, register `ScheduledTaskProvider` with resolved `scheduledTasksConfigBase`, and run the scheduled-task workload.
 
-The default provider needs PostgreSQL, locks and an application logger. Register their providers first and install the scheduled-task tables. Use the memory adapter and scheduler directly for isolated tests.
+The PostgreSQL composition needs PostgreSQL, locks and an application logger. Register their providers first and install the scheduled-task tables. Use the memory adapter and scheduler directly for isolated tests.
 
 ## Install PostgreSQL storage
 
@@ -19,7 +19,7 @@ export {
 } from "@kestreljs/framework/scheduled_tasks";
 ```
 
-Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required. Include the [lock schema](./lock.md#install-postgresql-storage) when using the default provider.
+Run `npm run db:generate`, review the generated SQL, then run `npm run db:migrate` before using PostgreSQL storage. The generator includes the library's database descriptions automatically; no separate custom SQL registration is required. Include the [lock schema](./lock.md#install-postgresql-storage) when using PostgreSQL locks.
 
 ## Run maintenance after a delay
 
@@ -84,3 +84,9 @@ Use `overlap: "skip"` to skip overlapping work, `"wait"` to coalesce until the a
 - Run an isolated scheduler with the memory adapter.
 - Request a manual run and pause or resume a task programmatically.
 - Handle overlap, cooperative cancellation and recovery after a lost lease.
+
+## Explicit provider adapters
+
+`ScheduledTaskProvider(config, adapter)` accepts `postgresScheduledTasks(database)` or `memoryScheduledTasks(settings?)`, as well as external definitions. Runtime dependencies use `ScheduledTaskAdapter`, not the PostgreSQL implementation. Locks remain a separate coordination dependency.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

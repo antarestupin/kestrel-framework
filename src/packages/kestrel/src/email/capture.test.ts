@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { MemoryEmailCaptureStore } from "./adapters/memory/index.js";
+import { MemoryEmailCaptureStorageAdapter } from "./adapters/memory/index.js";
 import {
   EmailCaptureInbox,
   EmailCaptureNotFoundError,
@@ -9,7 +9,7 @@ import { normalizeEmailMessage } from "./message.js";
 
 describe("EmailCaptureInbox", () => {
   it("replays the original normalized message through its configured sender", async () => {
-    const store = new MemoryEmailCaptureStore();
+    const store = new MemoryEmailCaptureStorageAdapter();
     const send = vi.fn(async () => ({
       status: "accepted" as const,
       captureId: "capture-2",
@@ -36,7 +36,7 @@ describe("EmailCaptureInbox", () => {
 
   it("rejects replay of an expired or unknown capture", async () => {
     const inbox = new EmailCaptureInbox(
-      new MemoryEmailCaptureStore(),
+      new MemoryEmailCaptureStorageAdapter(),
       vi.fn(),
     );
 

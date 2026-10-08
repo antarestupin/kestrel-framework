@@ -2,7 +2,7 @@ import { dep } from "../di/index.js";
 import type { AuthorizationManager } from "./manager.js";
 import type {
   PermissionResolver,
-  SubjectRoleStore,
+  SubjectRoleStorageAdapter,
 } from "./types.js";
 
 export const authorizationManagerDependency =
@@ -10,4 +10,4 @@ export const authorizationManagerDependency =
 export const permissionResolverDependency =
   dep<PermissionResolver>("permissionResolver");
 export const subjectRoleStoreDependency =
-  dep<SubjectRoleStore>("subjectRoleStore");
+  dep<SubjectRoleStorageAdapter>("subjectRoleStore");

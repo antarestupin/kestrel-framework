@@ -1,8 +1,7 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { defineLockAdapter, lockConfigBase } from "./index.js";
+import { memoryLocks } from "./index.js";
+import { postgresLocks } from "./index.js";
+import { describe, expect, it } from "vitest";
 
 import { App } from "../app/index.js";
 import { dep } from "../di/index.js";
@@ -22,12 +21,6 @@ const lockConfig: LockConfig = {
   pruneIntervalSeconds: 0,
 };
 
-class MemoryLockProvider<Config> extends LockProvider<Config> {
-  protected override createAdapter(_database: PostgresLockDatabase) {
-    return new MemoryLockAdapter();
-  }
-}
-
 describe("LockProvider", () => {
   it("registers one lazy lock resource from dedicated configuration", async () => {
     const app = createTestApp();
@@ -42,28 +35,33 @@ describe("LockProvider", () => {
   });
 
   it("contributes maintenance from its injected configuration", async () => {
-    const app = new App({ name: "test" }).register(new LockProvider({
-      ...lockConfig,
-      pruneIntervalSeconds: 60,
-    }));
+    const app = new App({ name: "test" }).register(
+      new LockProvider(
+        {
+          ...lockConfig,
+          pruneIntervalSeconds: 60,
+        },
+        postgresLocks(dep("database")),
+      ),
+    );
 
-    expect(app.catalog.scheduledTasks.registrations).toMatchObject([{
-      task: {
-        id: "maintenance.lock-prune",
-        groups: ["maintenance"],
-        executionLog: false,
-        observe: false,
+    expect(app.catalog.scheduledTasks.registrations).toMatchObject([
+      {
+        task: {
+          id: "maintenance.lock-prune",
+          groups: ["maintenance"],
+          executionLog: false,
+          observe: false,
+        },
+        source: { kind: "provider", provider: "LockProvider" },
       },
-      source: { kind: "provider", provider: "LockProvider" },
-    }]);
+    ]);
 
     await app.dispose();
   });
 
   it("does not resolve lock infrastructure in minimal mode", async () => {
-    const app = new App({ name: "test" }).register(
-      new MemoryLockProvider(lockConfig),
-    );
+    const app = new App({ name: "test" }).register(new LockProvider(lockConfig, memoryLocks()));
 
     app.prepareBootPlan([], "minimal");
 
@@ -77,5 +75,32 @@ function createTestApp(): App<{ name: string }> {
   const app = new App({ name: "test" });
 
   app.container.registerValue("database", {} as PostgresLockDatabase);
-  return app.register(new MemoryLockProvider(lockConfig));
+  return app.register(new LockProvider(lockConfig, memoryLocks()));
 }
+
+it("accepts an external backend without pruning or a database dependency", async () => {
+  const app = new App({}).register(
+    new LockProvider(
+      lockConfigBase.schema.parse({ namespace: "test", pruneIntervalSeconds: 60 }),
+      defineLockAdapter({
+        dependencies: {},
+        capabilities: { prune: false },
+        create: () => {
+          const memory = new MemoryLockAdapter();
+          return {
+            tryAcquire: memory.tryAcquire.bind(memory),
+            extend: memory.extend.bind(memory),
+            release: memory.release.bind(memory),
+          };
+        },
+      }),
+    ),
+  );
+  try {
+    expect(app.catalog.scheduledTasks.registrations).toHaveLength(0);
+    await app.start();
+    expect(app.container.resolve(dep<LockResource>("lockResource")).prune).toBeUndefined();
+  } finally {
+    await app.dispose();
+  }
+});

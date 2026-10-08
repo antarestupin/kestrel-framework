@@ -1,8 +1,8 @@
 import { uuidV7 } from "../../../utils/uuid.js";
-import { contentBytes, type EmailCaptureStore } from "../../capture.js";
+import { contentBytes, type EmailCaptureStorageAdapter } from "../../capture.js";
 import { EmailDriverError } from "../../errors.js";
 import type {
-  EmailDriver,
+  EmailTransportAdapter,
   EmailDriverContext,
   EmailMessage,
   EmailReceipt,
@@ -11,7 +11,7 @@ import type {
 const defaultMaximumMessageBytes = 10 * 1_024 * 1_024;
 
 export interface EmailCaptureAdapterOptions {
-  readonly store: EmailCaptureStore;
+  readonly store: EmailCaptureStorageAdapter;
   readonly name?: string;
   readonly createCaptureId?: () => string;
   readonly maxMessageBytes?: number;
@@ -19,7 +19,7 @@ export interface EmailCaptureAdapterOptions {
 }
 
 /** Development transport that captures messages without contacting recipients. */
-export class EmailCaptureAdapter implements EmailDriver {
+export class EmailCaptureAdapter implements EmailTransportAdapter {
   public readonly name: string;
 
   private readonly createCaptureId: () => string;

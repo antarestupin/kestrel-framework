@@ -269,8 +269,8 @@ Named dependencies must be registered by a provider at the application compositi
 Dependency registrations are grouped into provider classes. A transport-independent library provider is generic over the application configuration, receives its own resolved configuration in the constructor and receives the base `App` through its `register` method:
 
 ```ts
-export class DatabaseProvider<Config> implements Provider<Config> {
-  constructor(protected readonly config: DatabaseConfig) {}
+export class PostgresDrizzleProvider<Config> implements Provider<Config> {
+  constructor(protected readonly config: PostgresDrizzleConfig) {}
 
   register(app: App<Config>): void {
     app.container.registerFactory("databaseClient", () => this.createClient(), {
@@ -285,7 +285,7 @@ Providers are added at the application composition boundary:
 
 ```ts
 const app = new App(config)
-  .register(new DatabaseProvider(config.database));
+  .register(new PostgresDrizzleProvider(config.database));
 ```
 
 Library providers expose focused protected construction hooks for complex application adaptations. Application subclasses override those hooks instead of copying the complete registration flow; simple choices remain constructor configuration.

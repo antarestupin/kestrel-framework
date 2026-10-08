@@ -835,7 +835,7 @@ The resolved configuration is passed explicitly during application composition. 
 
 ```ts
 app
-  .register(new DatabaseProvider(app.config.database))
+  .register(new PostgresDrizzleProvider(app.config.database))
   .register(new ThrottlingProvider(app.config.throttling, postgresThrottling(databaseDependency)))
   .register(new WorkerProvider(app.config.workers, applicationWorkerAdapterDefinition, {
     reservationPressure: workerProcessPressurePolicy,

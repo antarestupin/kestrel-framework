@@ -1,3 +1,6 @@
+import { rolePermissions } from "./../authorization/index.js";
+import { defineSubjectRoleStorageAdapter } from "./../authorization/index.js";
+import { defineAtlasClientAdapter } from "./index.js";
 import Fastify, {
   type FastifyInstance,
   type FastifyReply,
@@ -13,7 +16,7 @@ import {
   AtlasProvider,
   defineAtlas,
 } from "./index.js";
-import { MemorySubjectRoleStore } from "../authorization/adapters/memory/index.js";
+import { MemorySubjectRoleStorageAdapter } from "../authorization/adapters/memory/index.js";
 import { definePermission, defineRole } from "../authorization/definition.js";
 import { requireHttpAuthorization } from "../authorization/middleware.js";
 import { AuthorizationProvider } from "../authorization/provider.js";
@@ -51,7 +54,7 @@ async function expectAccess(
   const server = Fastify();
   const app = new App({});
   const context = new AuthenticationContext<{}>();
-  const store = new MemorySubjectRoleStore();
+  const store = new MemorySubjectRoleStorageAdapter();
 
   if (state === "anonymous") {
     context.resolveAnonymous();
@@ -75,15 +78,11 @@ async function expectAccess(
 
   app.container.registerValue("authenticationContext", context);
   app.container.registerValue("subjectRoleStore", store);
-  app.register(new RolePermissionResolverProvider([operatorRole]));
-  app.register(new AuthorizationProvider());
-  app.register(new AtlasProvider({
-    atlas: defineAtlas({ basePath: "/atlas", resources: [] }),
-    client: new TestClient(),
-    access: {
+  app.register(new AuthorizationProvider(rolePermissions([operatorRole], defineSubjectRoleStorageAdapter({ dependencies: {}, capabilities: {}, create: () => store }))));
+  app.register(new AtlasProvider(defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => (new TestClient()) }), {atlas: defineAtlas({ basePath: "/atlas", resources: [] }),
+access: {
       required: [requireHttpAuthorization(permission(atlasAccess))],
-    },
-  }));
+    }}));
 
   try {
     for (const extension of app.httpExtensions.definitions) {

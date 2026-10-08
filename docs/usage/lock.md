@@ -82,3 +82,9 @@ Manual handles do not renew automatically: keep work within the TTL or call `ext
 - Bound and cancel acquisition waits, including exhaustion handling.
 - Renew a manually owned lease and stop work after lease loss.
 - Enforce fencing tokens at the protected destination.
+
+## Explicit provider adapters
+
+`LockProvider(config, adapter)` registers a `LockAdapterDefinition`. `postgresLocks(database)` and `memoryLocks(settings?)` are bundled. The declared `prune` capability must match the constructed interface; non-prunable adapters contribute no maintenance task.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

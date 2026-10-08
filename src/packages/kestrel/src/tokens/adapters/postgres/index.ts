@@ -1,5 +1,4 @@
-export { PostgresTokenStore } from "./adapter.js";
-export { PostgresTokenAdapterProvider } from "./provider.js";
+export { PostgresTokenStorageAdapter } from "./adapter.js";
 export {
   createPostgresTokenTable,
   tokenRecords,
@@ -8,3 +7,5 @@ export {
   type PostgresTokenTableOptions,
 } from "./schema.js";
 export type { PostgresTokenTable } from "./tables.js";
+
+export * from "./definition.js";

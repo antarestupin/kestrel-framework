@@ -1,6 +1,8 @@
+import type { SubjectRoleStorageAdapter } from "../../types.js";
+import { defineSubjectRoleStorageAdapter } from "./../../index.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { MemorySubjectRoleStore } from "../../adapters/memory/index.js";
+import { MemorySubjectRoleStorageAdapter } from "../../adapters/memory/index.js";
 import { definePermission, defineRole } from "../../definition.js";
 import { RolePermissionResolver } from "./resolver.js";
 import { RolePermissionResolverProvider } from "./provider.js";
@@ -12,7 +14,7 @@ const writer = defineRole({ key: "writer", name: "Writer", permissions: [read, w
 
 describe("RolePermissionResolver", () => {
   it("unions code-defined permissions and reloads grants on every resolution", async () => {
-    const subjectRoleStore = new MemorySubjectRoleStore();
+    const subjectRoleStore = new MemorySubjectRoleStorageAdapter();
     const resolver = new RolePermissionResolver({ roles: [reader, writer], subjectRoleStore });
     await expect(resolver.resolvePermissions("subject-1")).resolves.toEqual(new Set());
     await subjectRoleStore.grantRole("subject-1", reader.key);
@@ -27,16 +29,16 @@ describe("RolePermissionResolver", () => {
   });
 
   it("rejects duplicate role keys and invalid definitions before resolution", () => {
-    const subjectRoleStore = new MemorySubjectRoleStore();
+    const subjectRoleStore = new MemorySubjectRoleStorageAdapter();
     expect(() => new RolePermissionResolver({ roles: [reader, reader], subjectRoleStore })).toThrow(TypeError);
-    expect(() => new RolePermissionResolverProvider([reader, reader])).toThrow(TypeError);
+    expect(() => new RolePermissionResolverProvider([reader, reader], defineSubjectRoleStorageAdapter({ dependencies: {}, capabilities: {}, create: () => ({ listRoleKeys: async () => new Set<string>(), grantRole: async () => true, revokeRole: async () => true }) }))).toThrow(TypeError);
     expect(() => new RolePermissionResolver({
       roles: [{ ...reader, permissions: [{ id: "Invalid Permission" }] }], subjectRoleStore,
     })).toThrow(TypeError);
   });
 
   it("snapshots nested definitions and never leaks a mutable effective set", async () => {
-    const subjectRoleStore = new MemorySubjectRoleStore();
+    const subjectRoleStore = new MemorySubjectRoleStorageAdapter();
     const mutablePermission = { id: read.id };
     const mutableRole = { key: "reader", name: "Reader", permissions: [mutablePermission] };
     const roles = [mutableRole];
@@ -54,7 +56,7 @@ describe("RolePermissionResolver", () => {
 
   it("propagates assignment-store failures instead of reporting an ordinary denial", async () => {
     const failure = new Error("assignment store unavailable");
-    const subjectRoleStore = new MemorySubjectRoleStore();
+    const subjectRoleStore = new MemorySubjectRoleStorageAdapter();
     const list = vi.spyOn(subjectRoleStore, "listRoleKeys").mockRejectedValue(failure);
     const resolver = new RolePermissionResolver({ roles: [reader], subjectRoleStore });
     await expect(resolver.resolvePermissions("subject-1")).rejects.toBe(failure);

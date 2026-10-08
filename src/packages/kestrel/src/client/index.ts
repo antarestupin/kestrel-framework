@@ -18,3 +18,7 @@ export {
   ClientProvider,
   type ClientProviderOptions,
 } from "./provider.js";
+
+export * from "./adapter_definition.js";
+
+export { viteClient } from "./adapters/vite/definition.js";

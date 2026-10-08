@@ -65,3 +65,5 @@ Studio uses the installed framework's prebuilt assets alongside the application'
 ## Development environment
 
 The `.devcontainer` directory supplies Node.js, PostgreSQL, Drizzle Studio, and a non-destructive test-database provisioner. It mounts only this application and its optional vendored archive; it needs no sibling repository. The application port is forwarded by the editor, while the separate Drizzle service publishes its own loopback port. `.nvmrc`, `.vscode/settings.json`, `.gitignore`, and `AGENTS.md` provide the matching local tooling conventions. The source and compiled CLI launchers target POSIX shells; a native Windows launcher remains a future addition.
+
+Infrastructure is explicit: `PostgresDrizzleProvider` owns PostgreSQL and Drizzle, `LoggerProvider` receives `pinoLogger()`, and browser providers receive Vite adapter definitions. Feature backend factories keep their dependencies separate from validated settings; shared development runtimes remain application-owned.

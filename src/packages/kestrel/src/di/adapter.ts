@@ -125,3 +125,29 @@ export function registerAdapter<Config, Value, Context, Capabilities>(
   container.registerValue(`${id}Registration`, registration);
   return registration;
 }
+
+/** Scoped services are ready synchronously; async infrastructure belongs to a booted singleton. */
+export type ScopedAdapterDefinition<Value, Context, Capabilities> =
+  Omit<AdapterDefinition<Value, Context, Capabilities>, "initialize"> & { readonly initialize?: never };
+
+/** Defines an execution-local adapter without silently starting asynchronous initialization. */
+export function defineScopedAdapter<Value, Context, Capabilities, const Dependencies extends AdapterDependencies>(
+  options: Omit<AdapterFactoryOptions<Value, Context, Capabilities, Dependencies>, "initialize"> & { readonly initialize?: never },
+): ScopedAdapterDefinition<Value, Context, Capabilities> {
+  return defineAdapter(options) as ScopedAdapterDefinition<Value, Context, Capabilities>;
+}
+
+/** Resolves descriptors from the active DI cradle, preserving transactions and scope isolation. */
+export function registerScopedAdapter<Config, Value, Context, Capabilities>(
+  container: DependencyContainer<Config>,
+  id: string,
+  definition: ScopedAdapterDefinition<Value, Context, Capabilities>,
+  context: Context,
+): void {
+  if (definition.initialize !== undefined) {
+    throw new TypeError("Scoped adapters must be synchronously ready; initialize shared infrastructure during application boot.");
+  }
+  container.registerFactory<Value, Record<string, unknown>>(id, (dependencies) =>
+    definition.create(<T>(dependency: RegisteredDependencyDescriptor<T>) => dependencies[dependency.id] as T, context),
+  { lifetime: "scoped", ...(definition.dispose === undefined ? {} : { dispose: definition.dispose }) });
+}

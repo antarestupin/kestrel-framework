@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 
-import { MemoryTokenStore } from "./adapters/memory/index.js";
+import { MemoryTokenStorageAdapter } from "./adapters/memory/index.js";
 import { defineToken } from "./definition.js";
 import { TokenManager } from "./manager.js";
 import { StoredTokenStrategy } from "./stored_strategy.js";
@@ -207,7 +207,7 @@ function createFixture(
   overrides: { maxPayloadBytes?: number } = {},
 ) {
   let sequence = 0;
-  const store = new MemoryTokenStore();
+  const store = new MemoryTokenStorageAdapter();
   const strategy = new StoredTokenStrategy(store, {
     tokenBytes: 32,
     now: () => new Date("2026-01-01T00:00:00.000Z"),

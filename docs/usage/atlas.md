@@ -74,11 +74,11 @@ Mount the resource interface when it is ready for authenticated operators. The a
 
 ```ts
 import type { App } from "@kestreljs/framework/app";
-import { AtlasProvider } from "@kestreljs/framework/atlas";
+import { AtlasProvider, viteAtlasClient } from "@kestreljs/framework/atlas";
 import type { HttpMiddleware } from "@kestreljs/framework/http";
 
 function installAtlas<Config>(app: App<Config>, requiredSession: HttpMiddleware<any>, requireOperator: HttpMiddleware<any>, trustedOrigin: HttpMiddleware<any>) {
-  return app.register(new AtlasProvider({
+  return app.register(new AtlasProvider(viteAtlasClient({}), {
     atlas,
     // Require operator access throughout, and check the origin for unsafe requests.
     access: { required: [requiredSession, requireOperator], unsafe: [trustedOrigin] },
@@ -116,3 +116,9 @@ Dynamic no-code pages, arbitrary external sources and bulk mutations are future 
 - Derive field metadata from Drizzle and adapt operation inputs and outputs.
 - Expose HTTP controller and worker operations through catalog sources.
 - Wire the login page and session redirects to application authentication.
+
+## Explicit provider adapters
+
+`AtlasProvider(adapter, options)` requires an explicit `AtlasClientAdapterDefinition`; `viteAtlasClient(settings)` selects bundled browser delivery. Atlas manifests, access policy and authentication options remain distinct from delivery. Backend initialization waits until HTTP mounting.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

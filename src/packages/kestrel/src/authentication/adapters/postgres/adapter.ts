@@ -7,7 +7,7 @@ import {
   sql,
 } from "drizzle-orm";
 
-import type { DatabaseManager } from "../../../db/index.js";
+import type { PostgresDrizzleManager } from "../../../db/index.js";
 import type {
   AuthenticationAdapter,
   CreateAuthenticationAccount,
@@ -31,7 +31,7 @@ export class PostgresAuthenticationAdapter<Claims = unknown>
   implements AuthenticationAdapter<Claims>, SessionAccountResolver<Claims>
 {
   public constructor(
-    private readonly databaseManager: DatabaseManager,
+    private readonly databaseManager: PostgresDrizzleManager,
     private readonly tables: PostgresAuthenticationTables,
   ) {}
 
@@ -288,7 +288,7 @@ export class PostgresAuthenticationAdapter<Claims = unknown>
     return replaced.length > 0;
   }
 
-  private get database(): DatabaseManager["database"] {
+  private get database(): PostgresDrizzleManager["database"] {
     return this.databaseManager.database;
   }
 }

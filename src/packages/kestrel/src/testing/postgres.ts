@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 
-import { databaseConfigBase } from "../db/index.js";
+import { postgresDrizzleConfigBase } from "../db/index.js";
 
 /**
  * Creates a PostgreSQL pool for Kestrel integration tests without depending
@@ -9,7 +9,7 @@ import { databaseConfigBase } from "../db/index.js";
 export function createPostgresTestPool(): Pool {
   // The Kestrel schema keeps parsing and validation aligned with the
   // PostgreSQL library while a dedicated database isolates Kestrel tests.
-  const config = databaseConfigBase.schema.parse({
+  const config = postgresDrizzleConfigBase.schema.parse({
     host: process.env.DB_HOST ?? "localhost",
     port: process.env.DB_PORT ?? process.env.KESTREL_POSTGRES_PORT ?? 55432,
     user: process.env.DB_USER ?? "postgres",

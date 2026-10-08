@@ -4,3 +4,5 @@ export {
   ViteStudioClientAdapter,
   type ViteStudioClientAdapterOptions,
 } from "./adapter.js";
+
+export * from "./definition.js";

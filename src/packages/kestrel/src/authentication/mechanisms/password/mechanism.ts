@@ -1,6 +1,6 @@
 import type { AuthenticationConfig } from "../../configuration.js";
 import { createAuthenticationProof } from "../../proof.js";
-import type { PasswordCredentialStore } from "../../stores.js";
+import type { PasswordCredentialStorageAdapter } from "../../stores.js";
 import type {
   PasswordAuthenticationResult,
   PasswordCredentialsInput,
@@ -9,7 +9,7 @@ import type {
 } from "./types.js";
 
 export interface PasswordMechanismDependencies {
-  readonly credentialStore: PasswordCredentialStore;
+  readonly credentialStore: PasswordCredentialStorageAdapter;
   readonly passwordHasher: PasswordHasher;
   readonly usernameNormalizer: UsernameNormalizer;
 }

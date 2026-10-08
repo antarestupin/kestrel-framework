@@ -1,13 +1,6 @@
-import Fastify, {
-  type FastifyInstance,
-  type FastifyReply,
-} from "fastify";
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { defineStudioClientAdapter } from "./index.js";
+import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
+import { describe, expect, it, vi } from "vitest";
 
 import { App } from "../app/index.js";
 import { setExecutionLogEnabledDependency } from "../log/index.js";
@@ -23,24 +16,18 @@ import {
 /** Supplies deterministic Studio assets without starting Vite. */
 class TestStudioClientAdapter implements StudioClientAdapter {
   public readonly setup = vi.fn(
-    async (
-      server: FastifyInstance,
-      _studio: Studio,
-    ): Promise<StudioClientRender> => {
+    async (server: FastifyInstance, _studio: Studio): Promise<StudioClientRender> => {
       // This hook models Vite's encapsulated development middleware.
       server.addHook("onRequest", async (request, reply) => {
         reply.header("x-studio-scope", "active");
 
         if (request.url.startsWith(STUDIO_ASSET_BASE_PATH)) {
-          return reply
-            .type("application/javascript")
-            .send("export const studioAsset = true;");
+          return reply.type("application/javascript").send("export const studioAsset = true;");
         }
       });
 
-      return (reply: FastifyReply) => reply
-        .type("text/html")
-        .send("<main>Studio test client</main>");
+      return (reply: FastifyReply) =>
+        reply.type("text/html").send("<main>Studio test client</main>");
     },
   );
 }
@@ -58,20 +45,27 @@ describe("StudioProvider", () => {
       { lifetime: "scoped" },
     );
 
-    app.register(new StudioProvider({
-      enabled: true,
-      devMode: false,
-      basePath: "/tools",
-    }, {
-      extensions: [
-        defineActionsDocumentationExtension([{
-          name: "example.run",
-          description: "Run the example.",
-          middleware: [],
-        }]),
-      ],
-      client,
-    }));
+    app.register(
+      new StudioProvider(
+        {
+          enabled: true,
+          devMode: false,
+          basePath: "/tools",
+        },
+        defineStudioClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+        {
+          extensions: [
+            defineActionsDocumentationExtension([
+              {
+                name: "example.run",
+                description: "Run the example.",
+                middleware: [],
+              },
+            ]),
+          ],
+        },
+      ),
+    );
 
     for (const extension of app.httpExtensions.definitions) {
       await extension.mount({ app, server });
@@ -105,12 +99,14 @@ describe("StudioProvider", () => {
     expect(manifestResponse.json()).toMatchObject({ basePath: "/tools" });
     expect(actionsResponse.json()).toEqual({
       executionPath: "/tools/api/extensions/actions-documentation/actions/execute",
-      actions: [{
-        name: "example.run",
-        description: "Run the example.",
-        middleware: [],
-        execution: { enabled: false, reason: expect.any(String) },
-      }],
+      actions: [
+        {
+          name: "example.run",
+          description: "Run the example.",
+          middleware: [],
+          execution: { enabled: false, reason: expect.any(String) },
+        },
+      ],
     });
     expect(client.setup).toHaveBeenCalledOnce();
     expect(missingApiResponse.statusCode).toBe(404);
@@ -120,9 +116,7 @@ describe("StudioProvider", () => {
     expect(assetResponse.statusCode).toBe(200);
     expect(assetResponse.body).toContain("studioAsset");
     expect(setExecutionLogEnabled).toHaveBeenCalled();
-    expect(setExecutionLogEnabled.mock.calls.every(
-      ([enabled]) => enabled === false,
-    )).toBe(true);
+    expect(setExecutionLogEnabled.mock.calls.every(([enabled]) => enabled === false)).toBe(true);
 
     await server.close();
     await app.dispose();
@@ -132,11 +126,17 @@ describe("StudioProvider", () => {
     const app = new App({ name: "test" });
     const client = new TestStudioClientAdapter();
 
-    app.register(new StudioProvider({
-      enabled: false,
-      devMode: false,
-      basePath: "/_studio",
-    }, { client }));
+    app.register(
+      new StudioProvider(
+        {
+          enabled: false,
+          devMode: false,
+          basePath: "/_studio",
+        },
+        defineStudioClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+        {},
+      ),
+    );
 
     expect(app.container.hasRegistration("studio")).toBe(false);
     expect(app.httpExtensions.definitions).toEqual([]);

@@ -1,3 +1,4 @@
+import { memoryAuthentication } from "./../index.js";
 import Fastify, { type FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
@@ -221,11 +222,7 @@ async function createHttpAuthentication(): Promise<{
   app.container.registerValue("authenticationSubjectProvider", {
     findById: async (id: string) => ({ id }),
   });
-  app.register(new AuthenticationProvider(
-    config,
-    definition,
-    new TestPasswordHasher(),
-  ));
+  app.register(new AuthenticationProvider(config, memoryAuthentication(adapter), definition, new TestPasswordHasher()));
 
   const manager = new HttpControllerManager(app, server);
   manager.register(controllers.signInWithPassword);

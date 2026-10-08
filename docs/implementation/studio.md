@@ -223,3 +223,9 @@ Observation filters intentionally use exact values so the existing category and 
 The worker catalog and worker detail, scheduled-task catalog and workflow catalog clients load immediately and poll their existing read endpoints every two seconds. Each effect clears its timer when the component unmounts or its load callback changes, including when workflow filters change. Existing component state keeps worker payload drafts and selected workflow filters intact across successful refreshes. The scheduled-task clock continues updating relative times every second independently of server-state refreshes.
 
 Email history, inbox and capture details already poll every two seconds; workflow execution details poll every three seconds. This is HTTP polling rather than server push. As with the existing email and execution lists, workflow catalog refreshes replace the newest page and its pagination cursor. Retaining loaded older pages and introducing server-pushed invalidations are deferred.
+
+## Explicit provider adapters
+
+`StudioProvider(config, adapter, options?)` requires a `StudioClientAdapterDefinition`; `viteStudioClient(settings)` selects bundled delivery. Extensions remain catalog contributions. Disabled Studio and commands without an HTTP mount leave delivery unresolved.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

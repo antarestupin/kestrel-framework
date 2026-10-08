@@ -98,7 +98,7 @@ export interface StoredTokenSubjectMutation {
 }
 
 /** Persistence boundary shared by opaque and hybrid stateful strategies. */
-export interface TokenStore {
+export interface TokenStorageAdapter {
   /** Creates the complete batch atomically after applying replacements. */
   createMany(tokens: readonly CreateStoredToken[]): Promise<void>;
   findValid(input: StoredTokenLookup): Promise<StoredToken | undefined>;

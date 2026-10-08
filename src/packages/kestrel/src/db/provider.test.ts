@@ -1,18 +1,16 @@
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { pgTable, text } from "drizzle-orm/pg-core";
+import type { Pool } from "pg";
 
 import { App } from "../app/index.js";
 import { dep } from "../di/index.js";
-import type { DatabaseConfig } from "./configuration.js";
-import { databaseConfigBase } from "./configuration.js";
-import { DatabaseManager } from "./database_manager.js";
-import { type DatabaseClient, DatabaseProvider } from "./provider.js";
+import type { PostgresDrizzleConfig } from "./configuration.js";
+import { postgresDrizzleConfigBase } from "./configuration.js";
+import { PostgresDrizzleManager } from "./database_manager.js";
+import { type PostgresDrizzleClient, PostgresDrizzleProvider } from "./provider.js";
 
-const databaseConfig: DatabaseConfig = {
+const databaseConfig: PostgresDrizzleConfig = {
   host: "localhost",
   port: 5_432,
   user: "postgres",
@@ -25,7 +23,7 @@ const databaseConfig: DatabaseConfig = {
   },
 };
 
-class ExtendedDatabaseProvider extends DatabaseProvider<{ name: string }> {
+class ExtendedDatabaseProvider extends PostgresDrizzleProvider<{ name: string }> {
   public extensionRegistered = false;
 
   protected override registerExtensions(): void {
@@ -33,9 +31,29 @@ class ExtendedDatabaseProvider extends DatabaseProvider<{ name: string }> {
   }
 }
 
-describe("DatabaseProvider", () => {
+describe("PostgresDrizzleProvider", () => {
+  it("constructs a schema-aware facade lazily without an application subclass", async () => {
+    const sample = pgTable("sample", { id: text("id").primaryKey() });
+    const createDatabase = vi.fn((pool: Pool) => drizzle(pool, { schema: { sample } }));
+    const app = new App({}).register(
+      new PostgresDrizzleProvider(databaseConfig, { createDatabase }),
+    );
+    try {
+      expect(createDatabase).not.toHaveBeenCalled();
+      const client = app.container.resolve(
+        dep<PostgresDrizzleClient<ReturnType<typeof createDatabase>>>("databaseClient"),
+      );
+      expect(createDatabase).toHaveBeenCalledExactlyOnceWith(client.pool);
+      // The custom facade remains available through both infrastructure registrations.
+      expect(client.database.query.sample).toBeDefined();
+      expect(app.container.resolve(dep("database"))).toBe(client.database);
+    } finally {
+      await app.dispose();
+    }
+  });
+
   it("uses security-conscious query observation defaults", () => {
-    const parsed = databaseConfigBase.schema.parse({
+    const parsed = postgresDrizzleConfigBase.schema.parse({
       host: "localhost",
       user: "postgres",
       password: "postgres",
@@ -50,9 +68,7 @@ describe("DatabaseProvider", () => {
 
   it("registers lazy database infrastructure from dedicated configuration", async () => {
     const app = createTestApp();
-    const client = app.container.resolve(
-      dep<DatabaseClient>("databaseClient"),
-    );
+    const client = app.container.resolve(dep<PostgresDrizzleClient>("databaseClient"));
 
     expect(app.container.resolve(dep("database"))).toBe(client.database);
     expect(client.pool.options).toMatchObject({
@@ -70,9 +86,7 @@ describe("DatabaseProvider", () => {
 
   it("closes an instantiated database client on disposal", async () => {
     const app = createTestApp();
-    const client = app.container.resolve(
-      dep<DatabaseClient>("databaseClient"),
-    );
+    const client = app.container.resolve(dep<PostgresDrizzleClient>("databaseClient"));
     const close = vi.spyOn(client, "close");
 
     await app.dispose();
@@ -85,15 +99,13 @@ describe("DatabaseProvider", () => {
     await app.start();
     const firstExecution = await app.createExecutionScope();
     const secondExecution = await app.createExecutionScope();
-    const first = firstExecution.container.resolve(
-      dep<DatabaseManager>("databaseManager"),
-    );
+    const first = firstExecution.container.resolve(dep<PostgresDrizzleManager>("databaseManager"));
 
-    expect(firstExecution.container.resolve(
-      dep<DatabaseManager>("databaseManager"),
-    )).toBe(first);
+    expect(firstExecution.container.resolve(dep<PostgresDrizzleManager>("databaseManager"))).toBe(
+      first,
+    );
     const second = secondExecution.container.resolve(
-      dep<DatabaseManager>("databaseManager"),
+      dep<PostgresDrizzleManager>("databaseManager"),
     );
 
     // Awilix exposes proxy-backed scoped values, so identity is checked
@@ -117,7 +129,5 @@ describe("DatabaseProvider", () => {
 });
 
 function createTestApp(): App<{ name: string }> {
-  return new App({ name: "test" }).register(
-    new DatabaseProvider(databaseConfig),
-  );
+  return new App({ name: "test" }).register(new PostgresDrizzleProvider(databaseConfig));
 }

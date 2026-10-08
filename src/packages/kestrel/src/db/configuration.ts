@@ -11,7 +11,7 @@ const databasePort = z.union([z.number(), z.string()]).pipe(
 );
 
 /** Configuration contract required by the PostgreSQL database library. */
-export const databaseConfigBase = defineConfigBase(z.object({
+export const postgresDrizzleConfigBase = defineConfigBase(z.object({
   host: requiredString,
   port: databasePort.default(5432),
   user: requiredString,
@@ -29,4 +29,4 @@ export const databaseConfigBase = defineConfigBase(z.object({
   }),
 }));
 
-export type DatabaseConfig = ConfigOutput<typeof databaseConfigBase>;
+export type PostgresDrizzleConfig = ConfigOutput<typeof postgresDrizzleConfigBase>;

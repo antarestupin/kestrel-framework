@@ -1,14 +1,14 @@
 import { and, eq } from "drizzle-orm";
 
-import type { DatabaseManager } from "../../../db/index.js";
-import type { SubjectRoleStore } from "../../types.js";
+import type { PostgresDrizzleManager } from "../../../db/index.js";
+import type { SubjectRoleStorageAdapter } from "../../types.js";
 import { authorizationTables } from "./schema.js";
 import type { PostgresAuthorizationTables } from "./tables.js";
 
 /** Stores role assignments without persisting or resolving role definitions. */
-export class PostgresSubjectRoleStore implements SubjectRoleStore {
+export class PostgresSubjectRoleStorageAdapter implements SubjectRoleStorageAdapter {
   public constructor(
-    private readonly databaseManager: DatabaseManager,
+    private readonly databaseManager: PostgresDrizzleManager,
     private readonly tables: PostgresAuthorizationTables = authorizationTables,
   ) {}
 
@@ -49,7 +49,7 @@ export class PostgresSubjectRoleStore implements SubjectRoleStore {
     return deleted.length > 0;
   }
 
-  private get database(): DatabaseManager["database"] {
+  private get database(): PostgresDrizzleManager["database"] {
     return this.databaseManager.database;
   }
 }

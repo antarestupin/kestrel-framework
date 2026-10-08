@@ -31,3 +31,5 @@ export {
   type AdapterFactoryOptions,
   type AdapterRegistration,
 } from "./adapter.js";
+
+export { defineScopedAdapter, registerScopedAdapter, type ScopedAdapterDefinition } from "./adapter.js";

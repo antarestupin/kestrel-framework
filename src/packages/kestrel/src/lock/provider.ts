@@ -1,74 +1,73 @@
-import type {
-  Provider,
-  ProviderBootApp,
-  ProviderCompositionApp,
-} from "../app/index.js";
+import type { Provider, ProviderBootApp, ProviderCompositionApp } from "../app/index.js";
 import { dep } from "../di/index.js";
-import {
-  applicationLoggerDependency,
-  loggerDependency,
-} from "../log/index.js";
+import { applicationLoggerDependency, loggerDependency } from "../log/index.js";
 import { observerContextDependency } from "../observability/index.js";
 import { defineScheduledTask, every } from "../scheduled_tasks/index.js";
-import { PostgresLockAdapter, type PostgresLockDatabase } from "./adapters/index.js";
+import { registerProviderAdapter } from "../app/adapter.js";
+import type { LockAdapterDefinition } from "./adapter_definition.js";
+import type { LockAdapter } from "./types.js";
+import type { AdapterRegistration } from "../di/index.js";
 import type { LockConfig } from "./configuration.js";
 import { LockManager } from "./lock_manager.js";
 import { recordLockInstrumentation } from "./observations.js";
-import type {
-  Locks,
-  PrunableLockAdapter,
-} from "./types.js";
+import type { Locks, PrunableLockAdapter } from "./types.js";
 
 export interface LockResource {
   readonly locks: Locks;
-  prune(): Promise<number>;
-}
-
-interface LockResourceDependencies {
-  database: PostgresLockDatabase;
+  prune?(): Promise<number>;
 }
 
 /** Declares distributed lock infrastructure owned by the lock library. */
 export class LockProvider<Config> implements Provider<Config> {
-  public constructor(protected readonly config: LockConfig) {}
+  public constructor(
+    protected readonly config: LockConfig,
+    private readonly adapter: LockAdapterDefinition,
+  ) {}
 
   public register(app: ProviderCompositionApp<Config>): void {
-    app.container.registerFactory(
-      "lockResource",
-      ({ database }: LockResourceDependencies) =>
-        this.createResource(app, database),
-      { lifetime: "singleton" },
-    );
+    const adapter = registerProviderAdapter(app, "lockAdapter", this.adapter, this.config, {
+      validate: (value) => {
+        if (
+          this.adapter.capabilities.prune !==
+          ("prune" in value && typeof value.prune === "function")
+        ) {
+          throw new TypeError("Lock adapter pruning capability does not match its implementation.");
+        }
+      },
+    });
+    app.container.registerFactory("lockResource", () => this.createResource(app, adapter.get()), {
+      lifetime: "singleton",
+    });
     app.container.registerFactory<Locks, { lockResource: LockResource }>(
       "locks",
       ({ lockResource }) => lockResource.locks,
       { lifetime: "singleton" },
     );
 
-    if (this.config.pruneIntervalSeconds > 0) {
-      app.catalog.contribute({
-        lock: { scheduledTasks: { prune: this.createPruneTask() } },
-      }, { kind: "provider", provider: this.constructor.name });
+    if (this.config.pruneIntervalSeconds > 0 && this.adapter.capabilities.prune) {
+      app.catalog.contribute(
+        {
+          lock: { scheduledTasks: { prune: this.createPruneTask() } },
+        },
+        { kind: "provider", provider: this.constructor.name },
+      );
     }
   }
 
-  public boot(app: ProviderBootApp<Config>): void {
+  public async boot(app: ProviderBootApp<Config>): Promise<void> {
     if (app.bootPlan.runningMode !== "minimal") {
+      await app.container
+        .resolve(dep<AdapterRegistration<LockAdapter>>("lockAdapterRegistration"))
+        .boot();
       app.container.resolve(dep<LockResource>("lockResource"));
     }
-  }
-
-  /** Creates the PostgreSQL storage adapter used by the standard provider. */
-  protected createAdapter(database: PostgresLockDatabase): PrunableLockAdapter {
-    return new PostgresLockAdapter(database);
   }
 
   /** Creates the lock facade and its one-shot maintenance operation. */
   protected createResource(
     app: ProviderCompositionApp<Config>,
-    database: PostgresLockDatabase,
+    adapter: LockAdapter,
   ): LockResource {
-    const adapter = this.createAdapter(database);
     const observerContext = app.container.hasRegistration("observerContext")
       ? app.container.resolve(observerContextDependency)
       : undefined;
@@ -96,7 +95,12 @@ export class LockProvider<Config> implements Provider<Config> {
 
     return {
       locks,
-      prune: () => adapter.prune({ limit: this.config.pruneBatchSize }),
+      ...(this.adapter.capabilities.prune
+        ? {
+            prune: () =>
+              (adapter as PrunableLockAdapter).prune({ limit: this.config.pruneBatchSize }),
+          }
+        : {}),
     };
   }
 
@@ -116,7 +120,7 @@ export class LockProvider<Config> implements Provider<Config> {
         logger: loggerDependency,
       },
       handler: async ({ lockResource, logger }) => {
-        const removed = await lockResource.prune();
+        const removed = await lockResource.prune!();
 
         if (removed > 0) {
           logger.debug({ removed }, "Pruned expired lock leases");

@@ -77,7 +77,7 @@ Split larger definitions into focused factories receiving the same specialized c
 
 ## Configure providers and their backends
 
-Cache, throttling, workers and workflows require an explicit adapter definition. Providers own the feature facade, runtime integration and maintenance; adapter definitions describe construction, declared dependencies, capabilities and optional resource lifecycle hooks. Built-in and third-party backends use the same contract. See [provider lifecycle](../implementation/app.md#adapter-definitions-and-resource-ownership).
+Providers with interchangeable implementations require an explicit adapter definition, including storage, email transport, permission resolution, logging and browser delivery. Providers own the feature facade, runtime integration and maintenance; adapter definitions describe construction, declared dependencies, capabilities and optional resource lifecycle hooks. Built-in and third-party backends use the same contract. See [provider lifecycle](../implementation/app.md#adapter-definitions-and-resource-ownership).
 
 New providers with interchangeable backends follow the same [provider adapter convention](../implementation/app.md#provider-adapter-convention): pass the adapter directly after the common feature configuration, or first when there is no common configuration. Any remaining provider options follow it; backend dependency descriptors and backend settings remain separate factory arguments.
 
@@ -136,3 +136,26 @@ Declare `prune` and `tags` for cache, `prune` for throttling, `{}` for workers, 
 All four providers require an adapter definition as a direct constructor argument: `CacheProvider(config, adapter)`, `ThrottlingProvider(config, adapter, options?)`, `WorkerProvider(config, adapter, options?)` and `WorkflowProvider(adapter, options?)`. Optional provider settings remain separate from backend selection. Replace implicit PostgreSQL defaults with `postgresCache`, `postgresThrottling`, `postgresWorkers` or `postgresWorkflows`, passing an explicit typed database descriptor. Replace `new CacheProvider(config, instance)` and worker instance options with a definition; wrapping an existing instance in `create: () => instance` borrows it unless a disposal hook explicitly transfers ownership. Replace adapter-only provider subclasses with `define*Adapter` factories. Existing standalone adapter constructors remain available.
 
 Move `cache.maxEntries` into the PostgreSQL or memory adapter contribution. Move throttling storage concurrency and wait settings into its PostgreSQL adapter contribution; configure `maxPendingReservations` separately from the facade's `maxPendingAcquisitions`. For worker-backed workflows, select an outbox adapter explicitly with `postgresWorkflows(database, { activityDispatchMode: "outbox" })` and set `activityTransport: "worker"` on the provider.
+
+### Additional provider composition
+
+The following factories are public recipes, not eagerly created resources. Each `database` descriptor must have the concrete type required by its backend; `manager` refers to the execution-scoped `PostgresDrizzleManager`, and `connection` refers to an infrastructure object exposing a PostgreSQL pool.
+
+| Service | Composition |
+| --- | --- |
+| Locks | `new LockProvider(config.lock, postgresLocks(database))` |
+| Scheduled tasks | `new ScheduledTaskProvider(config.scheduledTasks, postgresScheduledTasks(database))` |
+| Email delivery | `new EmailProvider(config.email, smtpEmail(config.email.adapter))` |
+| Captured email | `new EmailProvider(config.email, captureEmail(postgresEmailCapture(connection, config.email.storage), config.email.adapter))` |
+| Observations | `new ObservationProvider(config.observations, postgresObservations(connection, config.observations.adapter))` |
+| Authentication | `new AuthenticationProvider(config.authentication, postgresAuthentication(manager), definition, hasher)` |
+| Tokens | `new TokenProvider(config.tokens, postgresTokens(manager), options)` |
+| Authorization | `new AuthorizationProvider(rolePermissions(roles, postgresSubjectRoles(manager)))` |
+| Logger | `new LoggerProvider(config.logger, pinoLogger())` |
+| Browser client | `new ClientProvider(viteClient(config.client.adapter), options)` |
+| Atlas | `new AtlasProvider(viteAtlasClient(config.atlas.adapter), { atlas, ...options })` |
+| Studio | `new StudioProvider(config.studio, viteStudioClient(config.studio.adapter), options)` |
+
+For token configurations without a storage strategy, pass `undefined` as the adapter and `{ stored: false, strategies }` as options. Backend settings remain application contributions; a provider's common schema does not enumerate backend names. Application code may select a factory by deployment environment after configuration has been resolved.
+
+`PostgresDrizzleProvider(config.database, { schema })` explicitly installs PostgreSQL and Drizzle infrastructure. Its optional `createDatabase(pool)` factory supports more specific facade construction. Other database engines or ORMs require their own providers and compatible feature adapters; sharing the same SQL engine does not make ORM interfaces interchangeable.

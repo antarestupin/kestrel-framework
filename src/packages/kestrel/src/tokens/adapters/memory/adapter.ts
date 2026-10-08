@@ -5,11 +5,11 @@ import type {
   StoredTokenRevocation,
   StoredTokenSubjectMutation,
   TokenPruneOptions,
-  TokenStore,
+  TokenStorageAdapter,
 } from "../../types.js";
 
 /** Process-local token storage with the same lifecycle semantics as PostgreSQL. */
-export class MemoryTokenStore implements TokenStore {
+export class MemoryTokenStorageAdapter implements TokenStorageAdapter {
   private readonly tokens = new Map<string, StoredToken>();
 
   public async createMany(tokens: readonly CreateStoredToken[]): Promise<void> {

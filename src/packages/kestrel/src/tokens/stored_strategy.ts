@@ -12,7 +12,7 @@ import type {
   TokenGrant,
   TokenPruneOptions,
   TokenResolution,
-  TokenStore,
+  TokenStorageAdapter,
   TokenStrategy,
 } from "./types.js";
 
@@ -44,7 +44,7 @@ export class StoredTokenStrategy implements TokenStrategy {
   private readonly digest: (token: string) => Uint8Array;
 
   public constructor(
-    private readonly store: TokenStore,
+    private readonly store: TokenStorageAdapter,
     private readonly options: StoredTokenStrategyOptions,
   ) {
     if (!Number.isInteger(options.tokenBytes) || options.tokenBytes < 32) {

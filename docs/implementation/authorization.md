@@ -14,7 +14,7 @@ Authorization evaluates requirements for the immutable principal established by 
 | Enforcement | `requireAuthorization`, `requireHttpAuthorization`, `AuthorizationDeniedError` |
 | Core composition | `AuthorizationProvider`, `authorizationManagerDependency`, `permissionResolverDependency` |
 | Code-defined RBAC | `RolePermissionResolver`, `RolePermissionResolverOptions`, `RolePermissionResolverProvider` |
-| Assignment storage | `SubjectRoleStore`, `subjectRoleStoreDependency`, `MemorySubjectRoleStore`, `PostgresSubjectRoleStore`, `PostgresSubjectRoleStoreProvider` |
+| Assignment storage | `SubjectRoleStorageAdapter`, `subjectRoleStoreDependency`, `MemorySubjectRoleStorageAdapter`, `PostgresSubjectRoleStorageAdapter`, `postgresSubjectRoles` |
 | PostgreSQL schema | `authorizationSqlSchema`, `authorizationSubjectRoles`, `authorizationTables`, `PostgresAuthorizationTables`, `PostgresAuthorizationSubjectRoleTable` |
 
 ## Architecture
@@ -26,7 +26,7 @@ flowchart LR
     Manager --> Resolver[PermissionResolver]
     Resolver --> Roles[RolePermissionResolver]
     Catalog[Code-defined roles and permissions] --> Roles
-    Roles --> Store[SubjectRoleStore]
+    Roles --> Store[SubjectRoleStorageAdapter]
     Store --> Memory[Memory assignments]
     Store --> Postgres[PostgreSQL assignments]
 ```
@@ -50,7 +50,7 @@ Role keys are persistent identifiers. Renaming a key requires an explicit assign
 ## Assignment-store contract
 
 ```ts
-export interface SubjectRoleStore {
+export interface SubjectRoleStorageAdapter {
   listRoleKeys(subjectId: string): Promise<ReadonlySet<string>>;
   grantRole(
     subjectId: string,
@@ -63,7 +63,7 @@ export interface SubjectRoleStore {
 
 The store returns a current snapshot of assigned keys for one subject, or an empty set when no assignments exist. Grant and revoke return whether the association changed and are idempotent. Stores accept opaque application subject identifiers and do not verify application user existence or catalog membership. Application management actions must authorize the actor and validate user-supplied role keys against their catalog before granting them. Revocation of stale keys remains possible after a role is removed from the catalog.
 
-`MemorySubjectRoleStore` retains only assignment sets and returns copies. Its optional granting-subject argument is accepted for contract compatibility but grant metadata is not retained. It owns no external resources.
+`MemorySubjectRoleStorageAdapter` retains only assignment sets and returns copies. Its optional granting-subject argument is accepted for contract compatibility but grant metadata is not retained. It owns no external resources.
 
 ## PostgreSQL assignment store
 
@@ -78,9 +78,9 @@ The bundled schema contains only `authorization.subject_role`:
 
 The composite primary key is `(subject_id, role_key)`, with a separate index on `role_key`. There are no foreign keys to application users or role definitions. Application deletion and retirement workflows own cleanup.
 
-`PostgresSubjectRoleStore.listRoleKeys` reads assignments in one query, without policy joins. Grants use `ON CONFLICT DO NOTHING`, preserving the original timestamp and actor on duplicate grants. Revocation deletes only the requested subject-key pair. Both mutations use `RETURNING` to report whether a row changed.
+`PostgresSubjectRoleStorageAdapter.listRoleKeys` reads assignments in one query, without policy joins. Grants use `ON CONFLICT DO NOTHING`, preserving the original timestamp and actor on duplicate grants. Revocation deletes only the requested subject-key pair. Both mutations use `RETURNING` to report whether a row changed.
 
-The constructor takes a `DatabaseManager` and optional `PostgresAuthorizationTables`, defaulting to the bundled schema. The optional mapping contains only `subjectRoles`. `PostgresSubjectRoleStoreProvider` registers a scoped `subjectRoleStore` using that mapping and the execution's database manager. It never registers `permissionResolver`.
+The constructor takes a `PostgresDrizzleManager` and optional `PostgresAuthorizationTables`, defaulting to the bundled schema. The optional mapping contains only `subjectRoles`. `postgresSubjectRoles(managerDependency, tables?)` declares execution-local assignment storage. Compose it with `rolePermissions` for permission resolution, or register it independently with `registerScopedAdapter` for assignment services.
 
 Applications statically export the namespace and assignment table in their aggregate migration schema. Development schema-push filters must include the exported schema and table. Kestrel does not maintain application migration histories or mutate deployed schemas automatically.
 
@@ -124,3 +124,9 @@ Tests cover role and permission validation, immutable catalogs, duplicate role k
 ## Deferred evolutions
 
 Database-defined policies and runtime role editing are intentionally not supplied. External integrations remain possible through `PermissionResolver`. Organization-scoped grants, resource ownership, role inheritance, explicit deny rules, direct subject permissions, contextual conditions, durable audit history, and capability hints require separate semantics and tests before introduction. There is no global mutable policy registry or cross-request permission cache.
+
+## Explicit provider adapters
+
+`AuthorizationProvider(resolver)` accepts an execution-scoped permission resolver recipe. `rolePermissions(roles, storage)` composes code-defined roles with `postgresSubjectRoles(manager, tables?)` or an external assignment adapter. `RolePermissionResolverProvider(roles, storage)` remains available when registering the resolver separately. Standalone assignment operations can register the storage definition with `registerScopedAdapter` and inject `subjectRoleStoreDependency`.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

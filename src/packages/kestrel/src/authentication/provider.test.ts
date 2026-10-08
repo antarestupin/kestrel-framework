@@ -1,3 +1,4 @@
+import { memoryAuthentication } from "./index.js";
 import { z } from "zod";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -59,11 +60,14 @@ describe("AuthenticationProvider", () => {
     app.container.registerValue("authenticationSubjectProvider", {
       findById: async (id: string) => ({ id }),
     });
-    app.register(new AuthenticationProvider(
-      config,
-      definition,
-      new TestPasswordHasher(),
-    ));
+    app.register(
+      new AuthenticationProvider(
+        config,
+        memoryAuthentication(stores),
+        definition,
+        new TestPasswordHasher(),
+      ),
+    );
 
     const grant = await app.get(authentication.actions.signInWithPassword).run({
       username: "SEPARATESTORES",

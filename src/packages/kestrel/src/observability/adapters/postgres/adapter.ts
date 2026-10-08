@@ -1,89 +1,38 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  inArray,
-  lt,
-  sql,
-} from "drizzle-orm";
-import {
-  drizzle,
-  type NodePgDatabase,
-} from "drizzle-orm/node-postgres";
+import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Pool } from "pg";
 
 import {
   executionCompletedObservation,
   executionStartedObservation,
   type ExecutionTransport,
-} from "../../app/observations.js";
-import type { ObservationData } from "../definitions.js";
-import type {
-  ObservationEvent,
-  ObservationOutcome,
-} from "../observer.js";
-import type { ObservationWriter } from "../recorder.js";
-import {
-  observations,
-  type StoredObservation,
-} from "./schema.js";
+} from "../../../app/observations.js";
+import type { ObservationData } from "../../definitions.js";
+import type { ObservationEvent, ObservationOutcome } from "../../observer.js";
+import type { ObservationWriter } from "../../recorder.js";
+import { observations, type StoredObservation } from "../../db/schema.js";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 
-export interface ObservationExecutionSummary {
-  executionId: string;
-  operation: string;
-  transport: ExecutionTransport;
-  startedAt: Date;
-  completedAt: Date | null;
-  outcome: ObservationOutcome | null;
-  durationMs: number | null;
-}
-
-export interface ObservationExecutionPageOptions {
-  before?: number;
-  limit?: number;
-}
-
-export interface ObservationExecutionPage {
-  items: readonly ObservationExecutionSummary[];
-  nextBefore: number | null;
-}
-
-export interface ObservationPageOptions {
-  before?: number;
-  category?: string;
-  executionId?: string;
-  limit?: number;
-  name?: string;
-  outcome?: ObservationOutcome;
-}
-
-export interface ObservationPage {
-  items: readonly StoredObservation[];
-  nextBefore: number | null;
-}
-
-export interface DevObservationSource {
-  clear(): Promise<void>;
-  getObservation(id: string): Promise<StoredObservation | undefined>;
-  listEvents(executionId: string): Promise<readonly StoredObservation[]>;
-  listEventsByContext(
-    contextKey: string,
-    contextValue: string,
-  ): Promise<readonly StoredObservation[]>;
-  listObservations(options?: ObservationPageOptions): Promise<ObservationPage>;
-  listExecutions(
-    options?: ObservationExecutionPageOptions,
-  ): Promise<ObservationExecutionPage>;
-}
+import type {
+  DevObservationSource,
+  ObservationExecutionSummary,
+  ObservationExecutionPageOptions,
+  ObservationExecutionPage,
+  ObservationPageOptions,
+  ObservationPage,
+} from "../../source.js";
+export type {
+  DevObservationSource,
+  ObservationExecutionSummary,
+  ObservationExecutionPageOptions,
+  ObservationExecutionPage,
+  ObservationPageOptions,
+} from "../../source.js";
 
 /** Reads and writes local observations without polluting the deployed schema. */
-export class PostgresObservationStore
-  implements ObservationWriter, DevObservationSource
-{
+export class PostgresObservationStore implements ObservationWriter, DevObservationSource {
   private readonly database: NodePgDatabase<{
     observations: typeof observations;
   }>;
@@ -115,12 +64,8 @@ export class PostgresObservationStore
         category: event.category,
         schemaVersion: event.schemaVersion,
         data: event.data,
-        ...(event.outcome === undefined
-          ? {}
-          : { outcome: event.outcome }),
-        ...(event.durationMs === undefined
-          ? {}
-          : { durationMs: event.durationMs }),
+        ...(event.outcome === undefined ? {} : { outcome: event.outcome }),
+        ...(event.durationMs === undefined ? {} : { durationMs: event.durationMs }),
       })),
     );
   }
@@ -139,9 +84,7 @@ export class PostgresObservationStore
     return observation;
   }
 
-  public async listEvents(
-    executionId: string,
-  ): Promise<readonly StoredObservation[]> {
+  public async listEvents(executionId: string): Promise<readonly StoredObservation[]> {
     return this.database
       .select()
       .from(observations)
@@ -161,9 +104,7 @@ export class PostgresObservationStore
     const correlatedExecutionIds = this.database
       .select({ executionId: observations.executionId })
       .from(observations)
-      .where(
-        sql`${observations.data}->'context'->>${contextKey} = ${contextValue}`,
-      );
+      .where(sql`${observations.data}->'context'->>${contextKey} = ${contextValue}`);
 
     return this.database
       .select()
@@ -173,33 +114,22 @@ export class PostgresObservationStore
   }
 
   /** Lists observations newest first with exact, index-friendly filters. */
-  public async listObservations(
-    options: ObservationPageOptions = {},
-  ): Promise<ObservationPage> {
-    const limit = Math.min(
-      Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1),
-      MAX_PAGE_SIZE,
-    );
+  public async listObservations(options: ObservationPageOptions = {}): Promise<ObservationPage> {
+    const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
     const items = await this.database
       .select()
       .from(observations)
-      .where(and(
-        options.before === undefined
-          ? undefined
-          : lt(observations.sequence, options.before),
-        options.category === undefined
-          ? undefined
-          : eq(observations.category, options.category),
-        options.executionId === undefined
-          ? undefined
-          : eq(observations.executionId, options.executionId),
-        options.name === undefined
-          ? undefined
-          : eq(observations.name, options.name),
-        options.outcome === undefined
-          ? undefined
-          : eq(observations.outcome, options.outcome),
-      ))
+      .where(
+        and(
+          options.before === undefined ? undefined : lt(observations.sequence, options.before),
+          options.category === undefined ? undefined : eq(observations.category, options.category),
+          options.executionId === undefined
+            ? undefined
+            : eq(observations.executionId, options.executionId),
+          options.name === undefined ? undefined : eq(observations.name, options.name),
+          options.outcome === undefined ? undefined : eq(observations.outcome, options.outcome),
+        ),
+      )
       .orderBy(desc(observations.sequence))
       .limit(limit + 1);
     const hasNextPage = items.length > limit;
@@ -207,46 +137,42 @@ export class PostgresObservationStore
 
     return {
       items: visibleItems,
-      nextBefore: hasNextPage
-        ? (visibleItems.at(-1)?.sequence ?? null)
-        : null,
+      nextBefore: hasNextPage ? (visibleItems.at(-1)?.sequence ?? null) : null,
     };
   }
 
   public async listExecutions(
     options: ObservationExecutionPageOptions = {},
   ): Promise<ObservationExecutionPage> {
-    const limit = Math.min(
-      Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1),
-      MAX_PAGE_SIZE,
-    );
+    const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
     const starts = await this.database
       .select()
       .from(observations)
-      .where(and(
-        eq(observations.name, executionStartedObservation.name),
-        options.before === undefined
-          ? undefined
-          : lt(observations.sequence, options.before),
-      ))
+      .where(
+        and(
+          eq(observations.name, executionStartedObservation.name),
+          options.before === undefined ? undefined : lt(observations.sequence, options.before),
+        ),
+      )
       .orderBy(desc(observations.sequence))
       .limit(limit + 1);
     const hasNextPage = starts.length > limit;
     const visibleStarts = hasNextPage ? starts.slice(0, limit) : starts;
     const executionIds = visibleStarts.map((event) => event.executionId);
-    const completions = executionIds.length === 0
-      ? []
-      : await this.database
-          .select()
-          .from(observations)
-          .where(and(
-            eq(observations.name, executionCompletedObservation.name),
-            inArray(observations.executionId, executionIds),
-          ))
-          .orderBy(desc(observations.sequence));
-    const completionByExecution = new Map(
-      completions.map((event) => [event.executionId, event]),
-    );
+    const completions =
+      executionIds.length === 0
+        ? []
+        : await this.database
+            .select()
+            .from(observations)
+            .where(
+              and(
+                eq(observations.name, executionCompletedObservation.name),
+                inArray(observations.executionId, executionIds),
+              ),
+            )
+            .orderBy(desc(observations.sequence));
+    const completionByExecution = new Map(completions.map((event) => [event.executionId, event]));
 
     return {
       items: visibleStarts.map((start) => {
@@ -263,9 +189,7 @@ export class PostgresObservationStore
           durationMs: completion?.durationMs ?? null,
         };
       }),
-      nextBefore: hasNextPage
-        ? (visibleStarts.at(-1)?.sequence ?? null)
-        : null,
+      nextBefore: hasNextPage ? (visibleStarts.at(-1)?.sequence ?? null) : null,
     };
   }
 }
@@ -284,8 +208,5 @@ function readExecutionData(data: ObservationData): {
 }
 
 function isExecutionTransport(value: unknown): value is ExecutionTransport {
-  return value === "cli"
-    || value === "direct"
-    || value === "http"
-    || value === "worker";
+  return value === "cli" || value === "direct" || value === "http" || value === "worker";
 }

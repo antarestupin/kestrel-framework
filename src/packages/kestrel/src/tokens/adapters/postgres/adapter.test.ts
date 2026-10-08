@@ -18,10 +18,10 @@ import {
   it,
 } from "vitest";
 
-import { DatabaseManager } from "../../../db/index.js";
+import { PostgresDrizzleManager } from "../../../db/index.js";
 import { createPostgresTestPool } from "../../../testing/postgres.js";
 import type { CreateStoredToken } from "../../types.js";
-import { PostgresTokenStore } from "./adapter.js";
+import { PostgresTokenStorageAdapter } from "./adapter.js";
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
@@ -44,7 +44,7 @@ const now = new Date("2026-01-01T00:00:00.000Z");
 
 let pool: Pool;
 let client: PoolClient;
-let store: PostgresTokenStore;
+let store: PostgresTokenStorageAdapter;
 
 beforeAll(async () => {
   pool = createPostgresTestPool();
@@ -67,9 +67,9 @@ beforeAll(async () => {
       WHERE subject_exclusive AND consumed_at IS NULL AND revoked_at IS NULL
   `);
   const database = drizzle(client);
-  store = new PostgresTokenStore(
-    new DatabaseManager({
-      database: database as ConstructorParameters<typeof DatabaseManager>[0]["database"],
+  store = new PostgresTokenStorageAdapter(
+    new PostgresDrizzleManager({
+      database: database as ConstructorParameters<typeof PostgresDrizzleManager>[0]["database"],
     }),
     testTokens,
   );
@@ -84,7 +84,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-describe("PostgresTokenStore", () => {
+describe("PostgresTokenStorageAdapter", () => {
   it("persists lifecycle-only marker payloads for hybrid tokens", async () => {
     await store.createMany([createToken(
       "00000000-0000-4000-8000-000000000001",

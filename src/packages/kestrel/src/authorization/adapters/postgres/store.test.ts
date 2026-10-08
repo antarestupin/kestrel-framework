@@ -10,9 +10,9 @@ import {
   it,
 } from "vitest";
 
-import { DatabaseManager } from "../../../db/index.js";
+import { PostgresDrizzleManager } from "../../../db/index.js";
 import { createPostgresTestPool } from "../../../testing/postgres.js";
-import { PostgresSubjectRoleStore } from "./store.js";
+import { PostgresSubjectRoleStorageAdapter } from "./store.js";
 import { definePermission, defineRole } from "../../definition.js";
 import { RolePermissionResolver } from "../../resolvers/roles/index.js";
 import type { PostgresAuthorizationTables } from "./tables.js";
@@ -27,7 +27,7 @@ const testSubjectRoles = pgTable("authorization_subject_role_test", {
 
 let pool: Pool;
 let client: PoolClient;
-let adapter: PostgresSubjectRoleStore;
+let adapter: PostgresSubjectRoleStorageAdapter;
 
 beforeAll(async () => {
   pool = createPostgresTestPool();
@@ -42,9 +42,9 @@ beforeAll(async () => {
     ) ON COMMIT PRESERVE ROWS
   `);
   const database = drizzle(client);
-  adapter = new PostgresSubjectRoleStore(
-    new DatabaseManager({
-      database: database as ConstructorParameters<typeof DatabaseManager>[0]["database"],
+  adapter = new PostgresSubjectRoleStorageAdapter(
+    new PostgresDrizzleManager({
+      database: database as ConstructorParameters<typeof PostgresDrizzleManager>[0]["database"],
     }),
     {
       subjectRoles: testSubjectRoles,
@@ -61,7 +61,7 @@ afterAll(async () => {
   await pool?.end();
 });
 
-describe("PostgresSubjectRoleStore", () => {
+describe("PostgresSubjectRoleStorageAdapter", () => {
   it("persists concurrent idempotent grants, metadata, and isolated revocations", async () => {
     const outcomes = await Promise.all([
       adapter.grantRole("external|subject-1", "admin", "operator-1"),

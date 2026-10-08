@@ -64,10 +64,10 @@ For application setup and task-oriented examples, see the [Authentication usage 
 
 Authentication uses narrow capabilities so deployments can compose different stores:
 
-- `AccountStore` creates and resolves authentication accounts, changes state and atomically increments the security version used to invalidate sessions.
-- `SessionStore` creates, resolves, conditionally touches and revokes opaque server-side sessions. Touch must reject expired or stale state rather than resurrecting it.
+- `AccountStorageAdapter` creates and resolves authentication accounts, changes state and atomically increments the security version used to invalidate sessions.
+- `SessionStorageAdapter` creates, resolves, conditionally touches and revokes opaque server-side sessions. Touch must reject expired or stale state rather than resurrecting it.
 - `SessionAccountResolver` is an optional single-snapshot optimization for colocated session and account storage; its result must be consistent enough to validate state and security version together.
-- `PasswordCredentialStore` resolves normalized usernames, creates credentials and conditionally replaces a hash only when `previousHash` still matches.
+- `PasswordCredentialStorageAdapter` resolves normalized usernames, creates credentials and conditionally replaces a hash only when `previousHash` still matches.
 - `AuthenticationAdapter` combines those capabilities for the bundled memory and PostgreSQL implementations, but the manager depends on focused ports.
 - `SubjectProvider` is application-owned and resolves the current subject by the stable id stored on the account. Returning no subject makes authentication resolution fail closed.
 - `PasswordHasher` hashes, verifies and identifies hashes needing upgrade. It must use a password-specific algorithm and avoid exposing comparison details through public errors.
@@ -277,7 +277,7 @@ Authorization must not inspect password credentials, cookies, raw session tokens
 The base contracts are asynchronous even for the memory adapter.
 
 ```ts
-export interface AccountStore {
+export interface AccountStorageAdapter {
   findById(id: string): Promise<AuthenticationAccount | undefined>;
   findBySubjectId(subjectId: string): Promise<AuthenticationAccount | undefined>;
   createAccount(input: CreateAuthenticationAccount): Promise<AuthenticationAccount>;
@@ -285,7 +285,7 @@ export interface AccountStore {
   incrementSecurityVersion(accountId: string): Promise<number | undefined>;
 }
 
-export interface SessionStore {
+export interface SessionStorageAdapter {
   create(input: CreateStoredSession): Promise<StoredSession>;
   findByTokenDigest(tokenDigest: Uint8Array): Promise<StoredSession | undefined>;
   touch(input: TouchStoredSession): Promise<StoredSession | undefined>;
@@ -295,7 +295,7 @@ export interface SessionStore {
   listForAccount(input: ListAccountSessions): Promise<readonly StoredSession[]>;
 }
 
-export interface PasswordCredentialStore {
+export interface PasswordCredentialStorageAdapter {
   findByNormalizedUsername(
     normalizedUsername: string,
   ): Promise<PasswordCredential | undefined>;
@@ -340,7 +340,7 @@ The PostgreSQL adapter provides conventional tables in a dedicated schema named 
 
 `account.subject_id` is unique text without an application foreign key. This preserves the core `string` subject contract and prevents the Kestrel schema from importing or assuming an application member table, UUID identifiers, or user deletion policy. Subject existence is enforced by the application subject provider and provisioning workflow.
 
-The adapter still accepts an optional typed table mapping for applications that deliberately own a different physical schema. The bundled tables are the default used by `PostgresAuthenticationAdapterProvider` when no mapping is supplied.
+The adapter still accepts an optional typed table mapping for applications that deliberately own a different physical schema. The bundled tables are the default used by `postgresAuthentication` when no mapping is supplied.
 
 The initial logical schema is:
 
@@ -932,3 +932,9 @@ These evolutions must add explicit capabilities rather than changing the meaning
 - [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
 - [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
 - [NIST SP 800-63B Authentication and Authenticator Management](https://pages.nist.gov/800-63-4/sp800-63b.html)
+
+## Explicit provider adapters
+
+`AuthenticationProvider(config, adapter, definition, hasher)` registers an execution-scoped adapter. `postgresAuthentication(manager, tables?)` replaces the adapter-only PostgreSQL provider. Independently registered account, session and password-credential adapters still override the corresponding combined-adapter fallbacks. Public storage contracts use the `StorageAdapter` suffix.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

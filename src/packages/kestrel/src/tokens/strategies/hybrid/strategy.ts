@@ -11,7 +11,7 @@ import type {
   TokenGrant,
   TokenPruneOptions,
   TokenResolution,
-  TokenStore,
+  TokenStorageAdapter,
   TokenStrategy,
 } from "../../types.js";
 import {
@@ -49,7 +49,7 @@ export class HybridTokenStrategy implements TokenStrategy {
   private readonly now: () => Date;
 
   public constructor(
-    private readonly store: TokenStore,
+    private readonly store: TokenStorageAdapter,
     options: HybridTokenStrategyOptions,
   ) {
     this.now = options.now ?? (() => new Date());

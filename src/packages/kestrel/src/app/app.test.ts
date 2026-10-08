@@ -468,7 +468,7 @@ describe("App", () => {
       },
     );
 
-    // Registration order matches DatabaseProvider then ObservationProvider.
+    // Registration order matches PostgresDrizzleProvider then ObservationProvider.
     app.container.registerValue(
       "databaseResource",
       {},

@@ -1,58 +1,41 @@
 import type { Logger } from "pino";
 import { z } from "zod";
 
-import type { Provider, ProviderCompositionApp } from "../app/index.js";
-import {
-  defineCliController,
-  repeatableOption,
-} from "../cli/index.js";
+import type { Provider, ProviderCompositionApp, ProviderBootApp } from "../app/index.js";
+import { defineCliController, repeatableOption } from "../cli/index.js";
 import { loggerDependency } from "../log/index.js";
 import type { Locks } from "../lock/index.js";
 import type { ScheduledTasksConfig } from "./configuration.js";
-import {
-  scheduledTaskAdapterDependency,
-  scheduledTaskRuntimeDependency,
-} from "./dependencies.js";
+import { scheduledTaskAdapterDependency, scheduledTaskRuntimeDependency } from "./dependencies.js";
 import { every } from "./schedule.js";
 import { defineScheduledTask } from "./task.js";
-import {
-  PostgresScheduledTaskAdapter,
-  type PostgresScheduledTaskDatabase,
-} from "./adapters/index.js";
 import { ScheduledTaskRuntime } from "./runtime.js";
-
-interface ScheduledTaskAdapterDependencies {
-  database: PostgresScheduledTaskDatabase;
-}
+import type { ScheduledTaskAdapter } from "./types.js";
+import type { ScheduledTaskAdapterDefinition } from "./adapter_definition.js";
+import { registerProviderAdapter } from "../app/adapter.js";
+import { dep, type AdapterRegistration } from "../di/index.js";
 
 interface ScheduledTaskRuntimeDependencies {
   applicationLogger: Logger;
   locks: Locks;
-  scheduledTaskAdapter: PostgresScheduledTaskAdapter;
+  scheduledTaskAdapter: ScheduledTaskAdapter;
 }
 
 const runScheduledTasksInput = z.object({
-  groups: z.array(z.string().min(1)).default([])
-    .describe("Run tasks from this group; repeatable."),
-  taskIds: z.array(z.string().min(1)).default([])
-    .describe("Run this task id; repeatable."),
+  groups: z.array(z.string().min(1)).default([]).describe("Run tasks from this group; repeatable."),
+  taskIds: z.array(z.string().min(1)).default([]).describe("Run this task id; repeatable."),
 });
 
 /** Adds durable scheduled-task occurrence state to an application. */
 export class ScheduledTaskProvider<Config> implements Provider<Config> {
-  public constructor(protected readonly config: ScheduledTasksConfig) {}
+  public constructor(
+    protected readonly config: ScheduledTasksConfig,
+    private readonly adapter: ScheduledTaskAdapterDefinition,
+  ) {}
 
   public register(app: ProviderCompositionApp<Config>): void {
-    app.container.registerFactory(
-      "scheduledTaskAdapter",
-      ({ database }: ScheduledTaskAdapterDependencies) =>
-        this.createAdapter(database),
-      { lifetime: "singleton" },
-    );
-    app.container.registerFactory<
-      ScheduledTaskRuntime<Config>,
-      ScheduledTaskRuntimeDependencies
-    >(
+    registerProviderAdapter(app, "scheduledTaskAdapter", this.adapter, this.config);
+    app.container.registerFactory<ScheduledTaskRuntime<Config>, ScheduledTaskRuntimeDependencies>(
       "scheduledTaskRuntime",
       ({ applicationLogger, locks, scheduledTaskAdapter }) =>
         new ScheduledTaskRuntime(
@@ -64,47 +47,54 @@ export class ScheduledTaskProvider<Config> implements Provider<Config> {
         ),
       { lifetime: "singleton" },
     );
-    app.catalog.contribute({
-      scheduledTaskRuntime: {
-        controllers: {
-          cli: {
-            runScheduledTasks: defineCliController({
-              command: "run scheduled-tasks",
-              description: "Run recurring scheduled tasks.",
-              input: runScheduledTasksInput,
-              bindings: {
-                groups: repeatableOption("group"),
-                taskIds: repeatableOption("task"),
-              },
-              dependencies: { runtime: scheduledTaskRuntimeDependency },
-              runtime: "scheduled-tasks",
-              workloads: ["scheduled-tasks"],
-              observe: false,
-              handler: async ({ input, deps }) => {
-                await deps.runtime.run(input);
-              },
-            }),
+    app.catalog.contribute(
+      {
+        scheduledTaskRuntime: {
+          controllers: {
+            cli: {
+              runScheduledTasks: defineCliController({
+                command: "run scheduled-tasks",
+                description: "Run recurring scheduled tasks.",
+                input: runScheduledTasksInput,
+                bindings: {
+                  groups: repeatableOption("group"),
+                  taskIds: repeatableOption("task"),
+                },
+                dependencies: { runtime: scheduledTaskRuntimeDependency },
+                runtime: "scheduled-tasks",
+                workloads: ["scheduled-tasks"],
+                observe: false,
+                handler: async ({ input, deps }) => {
+                  await deps.runtime.run(input);
+                },
+              }),
+            },
           },
         },
       },
-    }, { kind: "provider", provider: this.constructor.name });
+      { kind: "provider", provider: this.constructor.name },
+    );
 
     if (this.config.expiredRunPruneIntervalSeconds > 0) {
-      app.catalog.contribute({
-        maintenance: {
-          scheduledTasks: {
-            pruneExpiredRuns: this.createExpiredRunPruneTask(),
+      app.catalog.contribute(
+        {
+          maintenance: {
+            scheduledTasks: {
+              pruneExpiredRuns: this.createExpiredRunPruneTask(),
+            },
           },
         },
-      }, { kind: "provider", provider: this.constructor.name });
+        { kind: "provider", provider: this.constructor.name },
+      );
     }
   }
 
-  /** Creates the persistent occurrence-state adapter. */
-  protected createAdapter(
-    database: PostgresScheduledTaskDatabase,
-  ): PostgresScheduledTaskAdapter {
-    return new PostgresScheduledTaskAdapter(database);
+  /** Initializes the selected backend only for a standard application boot. */
+  public async boot(app: ProviderBootApp<Config>): Promise<void> {
+    if (app.bootPlan.runningMode === "minimal") return;
+    await app.container
+      .resolve(dep<AdapterRegistration<ScheduledTaskAdapter>>("scheduledTaskAdapterRegistration"))
+      .boot();
   }
 
   /** Defines expired-run maintenance owned by the scheduled-task library. */

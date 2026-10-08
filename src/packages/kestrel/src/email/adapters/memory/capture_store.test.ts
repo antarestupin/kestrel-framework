@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { normalizeEmailMessage } from "../../message.js";
-import { MemoryEmailCaptureStore } from "./capture_store.js";
+import { MemoryEmailCaptureStorageAdapter } from "./capture_store.js";
 
-describe("MemoryEmailCaptureStore", () => {
+describe("MemoryEmailCaptureStorageAdapter", () => {
   it("paginates summaries without exposing bodies or attachment contents", async () => {
-    const store = new MemoryEmailCaptureStore();
+    const store = new MemoryEmailCaptureStorageAdapter();
 
     for (const index of [1, 2]) {
       await store.capture({
@@ -42,7 +42,7 @@ describe("MemoryEmailCaptureStore", () => {
   });
 
   it("returns detached message copies and clears the inbox", async () => {
-    const store = new MemoryEmailCaptureStore();
+    const store = new MemoryEmailCaptureStorageAdapter();
     await store.capture({
       id: "capture-1",
       observationId: "observation-1",

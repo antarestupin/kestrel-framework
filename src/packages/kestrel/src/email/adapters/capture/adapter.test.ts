@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { MemoryEmailCaptureStore } from "../memory/index.js";
+import { MemoryEmailCaptureStorageAdapter } from "../memory/index.js";
 import { EmailClient } from "../../client.js";
 import type { EmailSendError } from "../../errors.js";
 import { EmailCaptureAdapter } from "./adapter.js";
 
 describe("EmailCaptureAdapter", () => {
   it("links a persistent capture to the reserved send observation", async () => {
-    const store = new MemoryEmailCaptureStore();
+    const store = new MemoryEmailCaptureStorageAdapter();
     const client = new EmailClient({
       name: "development",
       driver: new EmailCaptureAdapter({
@@ -43,7 +43,7 @@ describe("EmailCaptureAdapter", () => {
     const client = new EmailClient({
       name: "development",
       driver: new EmailCaptureAdapter({
-        store: new MemoryEmailCaptureStore(),
+        store: new MemoryEmailCaptureStorageAdapter(),
         maxMessageBytes: 100,
       }),
     });

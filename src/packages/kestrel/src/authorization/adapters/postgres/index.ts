@@ -1,5 +1,4 @@
-export { PostgresSubjectRoleStore } from "./store.js";
-export { PostgresSubjectRoleStoreProvider } from "./provider.js";
+export { PostgresSubjectRoleStorageAdapter } from "./store.js";
 export {
   authorizationSqlSchema,
   authorizationSubjectRoles,
@@ -9,3 +8,5 @@ export type {
   PostgresAuthorizationSubjectRoleTable,
   PostgresAuthorizationTables,
 } from "./tables.js";
+
+export * from "./definition.js";

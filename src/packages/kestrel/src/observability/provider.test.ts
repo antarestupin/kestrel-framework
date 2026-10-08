@@ -1,16 +1,13 @@
+import { defineObservationAdapter } from "./adapter_definition.js";
+import { postgresObservations } from "./adapters/postgres/index.js";
 import type { Pool } from "pg";
 import type { Logger } from "pino";
-import {
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { App } from "../app/index.js";
 import { dep } from "../di/index.js";
 import type { ObservationConfig } from "./configuration.js";
-import { PostgresObservationStore } from "./db/observation_store.js";
+import { PostgresObservationStore } from "./adapters/postgres/adapter.js";
 import {
   DelegatingObservationRecorder,
   type ObservationEvent,
@@ -22,7 +19,6 @@ import { ObservationProvider } from "./provider.js";
 
 const config: ObservationConfig = {
   enabled: true,
-  retentionDays: 7,
   overflowPolicy: "drop-new",
   failurePolicy: "best-effort",
   buffer: {
@@ -42,22 +38,34 @@ class TestObservationProvider<Config> extends ObservationProvider<Config> {
     providerConfig: ObservationConfig,
     private readonly store: PostgresObservationStore,
   ) {
-    super(providerConfig);
-  }
-
-  protected override createStore(_pool: Pool): PostgresObservationStore {
-    return this.store;
+    super(
+      providerConfig,
+      defineObservationAdapter({
+        dependencies: {},
+        capabilities: { query: true },
+        create: () => ({ writer: store, source: store, available: true as boolean }),
+        initialize: async (backend) => {
+          try {
+            await store.prepare(7);
+          } catch (error) {
+            if ((error as { code?: string }).code !== "42P01") throw error;
+            backend.available = false;
+          }
+        },
+      }),
+    );
   }
 }
 
 describe("ObservationProvider", () => {
   it("registers observation infrastructure without preparing storage", async () => {
     const app = new App({ name: "test" }).register(
-      new ObservationProvider(config),
+      new ObservationProvider(
+        config,
+        postgresObservations(dep("databaseClient"), { retentionDays: 7 }),
+      ),
     );
-    const recorder = app.container.resolve(
-      dep<ObservationRecorder>("observationRecorder"),
-    );
+    const recorder = app.container.resolve(dep<ObservationRecorder>("observationRecorder"));
 
     expect(recorder).toBeInstanceOf(DelegatingObservationRecorder);
     expect(app.container.hasRegistration("observationSource")).toBe(true);
@@ -66,7 +74,10 @@ describe("ObservationProvider", () => {
 
   it("skips persistent storage in minimal mode", async () => {
     const app = new App({ name: "test" }).register(
-      new ObservationProvider(config),
+      new ObservationProvider(
+        config,
+        postgresObservations(dep("databaseClient"), { retentionDays: 7 }),
+      ),
     );
 
     app.prepareBootPlan([], "minimal");
@@ -110,12 +121,8 @@ describe("ObservationProvider", () => {
     app.register(new TestObservationProvider(config, store));
     await app.start();
 
-    observerContext = app.container.resolve(dep<ObserverContext>(
-      "observerContext",
-    ));
-    const recorder = app.container.resolve(
-      dep<ObservationRecorder>("observationRecorder"),
-    );
+    observerContext = app.container.resolve(dep<ObserverContext>("observerContext"));
+    const recorder = app.container.resolve(dep<ObservationRecorder>("observationRecorder"));
     const observer = { record: vi.fn() } as unknown as Observer;
 
     await observerContext.run(observer, async () => {
@@ -140,28 +147,34 @@ describe("ObservationProvider", () => {
     app.container.registerValue("applicationLogger", {
       warn,
     } as unknown as Logger);
-    app.register(new TestObservationProvider({
-      ...config,
-      buffer: { ...config.buffer, batchSize: 1 },
-      retry: { ...config.retry, maxAttempts: 1 },
-    }, store));
+    app.register(
+      new TestObservationProvider(
+        {
+          ...config,
+          buffer: { ...config.buffer, batchSize: 1 },
+          retry: { ...config.retry, maxAttempts: 1 },
+        },
+        store,
+      ),
+    );
     await app.start();
 
-    const recorder = app.container.resolve(
-      dep<ObservationRecorder>("observationRecorder"),
-    );
+    const recorder = app.container.resolve(dep<ObservationRecorder>("observationRecorder"));
     recorder.enqueue(createObservationEvent());
     await recorder.flush();
 
-    expect(warn).toHaveBeenCalledWith({
-      err: failure,
-      observationRecorder: {
-        attempt: 1,
-        batchSize: 1,
-        policy: "best-effort",
-        terminal: true,
+    expect(warn).toHaveBeenCalledWith(
+      {
+        err: failure,
+        observationRecorder: {
+          attempt: 1,
+          batchSize: 1,
+          policy: "best-effort",
+          terminal: true,
+        },
       },
-    }, "Observation storage write failed");
+      "Observation storage write failed",
+    );
     expect(recorder.getHealth()).toMatchObject({
       status: "degraded",
       droppedByStorageFailure: 1,
@@ -182,34 +195,40 @@ describe("ObservationProvider", () => {
     app.container.registerValue("applicationLogger", {
       warn,
     } as unknown as Logger);
-    app.register(new TestObservationProvider({
-      ...config,
-      buffer: {
-        ...config.buffer,
-        batchSize: 1,
-        maxQueueSize: 1,
-      },
-    }, store));
+    app.register(
+      new TestObservationProvider(
+        {
+          ...config,
+          buffer: {
+            ...config.buffer,
+            batchSize: 1,
+            maxQueueSize: 1,
+          },
+        },
+        store,
+      ),
+    );
     await app.start();
 
-    const recorder = app.container.resolve(
-      dep<ObservationRecorder>("observationRecorder"),
-    );
+    const recorder = app.container.resolve(dep<ObservationRecorder>("observationRecorder"));
     recorder.enqueue(createObservationEvent());
     await vi.waitFor(() => expect(store.append).toHaveBeenCalledOnce());
     recorder.enqueue({ ...createObservationEvent(), id: "event-2" });
 
-    expect(warn).toHaveBeenCalledWith({
-      observationRecorder: {
-        status: "degraded",
-        pendingCount: 1,
-        droppedCount: 1,
-        droppedByOverflow: 1,
-        droppedByStorageFailure: 0,
-        consecutiveStorageFailures: 0,
-        oldestPendingAgeMs: expect.any(Number),
+    expect(warn).toHaveBeenCalledWith(
+      {
+        observationRecorder: {
+          status: "degraded",
+          pendingCount: 1,
+          droppedCount: 1,
+          droppedByOverflow: 1,
+          droppedByStorageFailure: 0,
+          consecutiveStorageFailures: 0,
+          oldestPendingAgeMs: expect.any(Number),
+        },
       },
-    }, "Observation recorder queue is full");
+      "Observation recorder queue is full",
+    );
 
     write.resolve();
     await app.dispose();
@@ -228,3 +247,37 @@ function createObservationEvent(): ObservationEvent {
     data: {},
   };
 }
+
+it("flushes a writer-only external backend before disposal without requiring a query source", async () => {
+  const order: string[] = [];
+  const app = new App({}).register(
+    new ObservationProvider(
+      config,
+      defineObservationAdapter({
+        dependencies: {},
+        capabilities: { query: false },
+        create: () => ({
+          writer: {
+            append: async () => {
+              order.push("write");
+            },
+          },
+        }),
+        dispose: async () => {
+          order.push("dispose");
+        },
+      }),
+    ),
+  );
+  app.container.registerValue("applicationLogger", { warn: vi.fn() });
+  try {
+    expect(app.container.hasRegistration("observationSource")).toBe(false);
+    await app.start();
+    app.container
+      .resolve(dep<ObservationRecorder>("observationRecorder"))
+      .enqueue(createObservationEvent());
+  } finally {
+    await app.dispose();
+  }
+  expect(order).toEqual(["write", "dispose"]);
+});

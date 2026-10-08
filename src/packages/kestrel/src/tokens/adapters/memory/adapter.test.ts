@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { CreateStoredToken } from "../../types.js";
-import { MemoryTokenStore } from "./adapter.js";
+import { MemoryTokenStorageAdapter } from "./adapter.js";
 
 const now = new Date("2026-01-01T00:00:00.000Z");
 
-describe("MemoryTokenStore", () => {
+describe("MemoryTokenStorageAdapter", () => {
   it("preserves an issued batch when validation fails", async () => {
-    const store = new MemoryTokenStore();
+    const store = new MemoryTokenStorageAdapter();
     await store.createMany([createToken("first", 1)]);
 
     await expect(store.createMany([
@@ -28,7 +28,7 @@ describe("MemoryTokenStore", () => {
   });
 
   it("prunes only a bounded eligible batch", async () => {
-    const store = new MemoryTokenStore();
+    const store = new MemoryTokenStorageAdapter();
     await store.createMany([
       createToken("expired", 1, {
         expiresAt: new Date(now.getTime() - 1),

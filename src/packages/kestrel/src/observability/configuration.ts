@@ -15,7 +15,6 @@ const nonNegativeNumber = z.union([z.number(), z.string()]).pipe(
 /** Configuration contract required by the observation provider. */
 export const observationConfigBase = defineConfigBase(z.object({
   enabled: z.boolean().default(false),
-  retentionDays: positiveInteger.default(7),
   overflowPolicy: z.literal("drop-new").default("drop-new"),
   failurePolicy: z.enum(["best-effort", "fail-fast"]).default("best-effort"),
   buffer: z.object({

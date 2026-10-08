@@ -19,7 +19,7 @@ import {
   it,
 } from "vitest";
 
-import { DatabaseManager } from "../../../db/index.js";
+import { PostgresDrizzleManager } from "../../../db/index.js";
 import { createPostgresTestPool } from "../../../testing/postgres.js";
 import { PostgresAuthenticationAdapter } from "./adapter.js";
 import type { PostgresAuthenticationTables } from "./tables.js";
@@ -131,8 +131,8 @@ beforeAll(async () => {
     ) ON COMMIT PRESERVE ROWS
   `);
   const database = drizzle(client);
-  const databaseManager = new DatabaseManager({
-    database: database as ConstructorParameters<typeof DatabaseManager>[0]["database"],
+  const databaseManager = new PostgresDrizzleManager({
+    database: database as ConstructorParameters<typeof PostgresDrizzleManager>[0]["database"],
   });
   adapter = new PostgresAuthenticationAdapter(
     databaseManager,

@@ -1,8 +1,6 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { dep } from "./../di/index.js";
+import { postgresScheduledTasks } from "./index.js";
+import { describe, expect, it } from "vitest";
 
 import { App } from "../app/index.js";
 import type { ScheduledTasksConfig } from "./configuration.js";
@@ -22,7 +20,7 @@ const config: ScheduledTasksConfig = {
 describe("ScheduledTaskProvider", () => {
   it("registers persistent occurrence state lazily", async () => {
     const app = new App({ name: "test" }).register(
-      new ScheduledTaskProvider(config),
+      new ScheduledTaskProvider(config, postgresScheduledTasks(dep("database"))),
     );
 
     expect(app.container.hasRegistration(scheduledTaskAdapterDependency.id)).toBe(true);
@@ -31,21 +29,26 @@ describe("ScheduledTaskProvider", () => {
 
   it("contributes maintenance from its injected configuration", async () => {
     const app = new App({ name: "test" }).register(
-      new ScheduledTaskProvider({
-        ...config,
-        expiredRunPruneIntervalSeconds: 60,
-      }),
+      new ScheduledTaskProvider(
+        {
+          ...config,
+          expiredRunPruneIntervalSeconds: 60,
+        },
+        postgresScheduledTasks(dep("database")),
+      ),
     );
 
-    expect(app.catalog.scheduledTasks.registrations).toMatchObject([{
-      task: {
-        id: "maintenance.scheduled-task-runs-prune",
-        groups: ["maintenance"],
-        executionLog: false,
-        observe: false,
+    expect(app.catalog.scheduledTasks.registrations).toMatchObject([
+      {
+        task: {
+          id: "maintenance.scheduled-task-runs-prune",
+          groups: ["maintenance"],
+          executionLog: false,
+          observe: false,
+        },
+        source: { kind: "provider", provider: "ScheduledTaskProvider" },
       },
-      source: { kind: "provider", provider: "ScheduledTaskProvider" },
-    }]);
+    ]);
 
     await app.dispose();
   });

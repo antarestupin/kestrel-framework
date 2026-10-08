@@ -1,5 +1,4 @@
 export { PostgresAuthenticationAdapter } from "./adapter.js";
-export { PostgresAuthenticationAdapterProvider } from "./provider.js";
 export {
   authenticationAccounts,
   authenticationPasswordCredentials,
@@ -13,3 +12,5 @@ export type {
   PostgresAuthenticationTables,
   PostgresPasswordCredentialTable,
 } from "./tables.js";
+
+export * from "./definition.js";

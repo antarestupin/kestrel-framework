@@ -4,7 +4,7 @@ import { integer, pgTable, text, type PgColumn } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 
 import type { CollectionQuery, RepositoryCollectionOptions } from "./collection.js";
-import { DatabaseManager } from "./database_manager.js";
+import { PostgresDrizzleManager } from "./database_manager.js";
 import type { Pagination } from "./pagination.js";
 import { Repository } from "./repository.js";
 
@@ -27,7 +27,7 @@ class DefaultRepository extends Repository<
   Partial<typeof records.$inferInsert>,
   number
 > {
-  public constructor(databaseManager: DatabaseManager) {
+  public constructor(databaseManager: PostgresDrizzleManager) {
     super(databaseManager, { table: records, idColumn: records.id, cursor });
   }
 
@@ -60,7 +60,7 @@ function setup(configured = false) {
   // Keep real Drizzle SQL compilation while replacing only the database transport.
   const query = vi.fn().mockResolvedValue({ rows: [] });
   const database = drizzle({ client: { query } as never });
-  const manager = new DatabaseManager({ database });
+  const manager = new PostgresDrizzleManager({ database });
   const repository = configured
     ? new ConfiguredRepository(manager)
     : new DefaultRepository(manager);

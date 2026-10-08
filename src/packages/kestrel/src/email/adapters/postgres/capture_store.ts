@@ -15,7 +15,7 @@ import {
   type EmailCapture,
   type EmailCapturePage,
   type EmailCapturePageOptions,
-  type EmailCaptureStore,
+  type EmailCaptureStorageAdapter,
   type EmailCaptureSummary,
   type NewEmailCapture,
 } from "../../capture.js";
@@ -36,7 +36,7 @@ type CaptureDatabase = NodePgDatabase<{
 }>;
 
 /** Persistent development inbox shared by every local application process. */
-export class PostgresEmailCaptureStore implements EmailCaptureStore {
+export class PostgresEmailCaptureStorageAdapter implements EmailCaptureStorageAdapter {
   private readonly database: CaptureDatabase;
 
   public constructor(private readonly pool: Pool) {

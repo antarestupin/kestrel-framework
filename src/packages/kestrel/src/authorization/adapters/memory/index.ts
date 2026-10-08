@@ -1,1 +1,1 @@
-export { MemorySubjectRoleStore } from "./store.js";
+export { MemorySubjectRoleStorageAdapter } from "./store.js";

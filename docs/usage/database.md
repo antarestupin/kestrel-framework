@@ -2,7 +2,7 @@
 
 [Usage index](./README.md) · [Implementation, schema tooling and history](../implementation/database.md)
 
-Use `db` for PostgreSQL/Drizzle repositories and scoped transactions. The `database` directory owns migration and seed tooling. Register `DatabaseProvider` before any provider using PostgreSQL and apply the application's migrations before running it.
+Use `db` for PostgreSQL/Drizzle repositories and scoped transactions. The `database` directory owns migration and seed tooling. Register `PostgresDrizzleProvider` before any provider using PostgreSQL and apply the application's migrations before running it.
 
 ## Configure PostgreSQL
 
@@ -11,14 +11,14 @@ Register database infrastructure when actions or other libraries need persistent
 ```ts
 import { App } from "@kestreljs/framework/app";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
-import { databaseConfigBase, DatabaseProvider } from "@kestreljs/framework/db";
+import { postgresDrizzleConfigBase, PostgresDrizzleProvider } from "@kestreljs/framework/db";
 
 const configuration = createConfigurationApi({
   environments: ["development", "production"],
   defaultEnvironment: "development",
 });
 const config = configuration.resolveConfig({
-  database: configure(databaseConfigBase, {
+  database: configure(postgresDrizzleConfigBase, {
     host: configuration.envVar("DB_HOST"),
     user: configuration.envVar("DB_USER"),
     password: configuration.envVar("DB_PASSWORD"),
@@ -27,10 +27,10 @@ const config = configuration.resolveConfig({
     ssl: configuration.fromEnv({ development: false, default: true }),
   }),
 }, { environment: configuration.resolveEnvironment(process.env.ENVIRONMENT), env: process.env });
-const app = new App(config).register(new DatabaseProvider(config.database));
+const app = new App(config).register(new PostgresDrizzleProvider(config.database));
 ```
 
-The provider owns pool disposal. A custom provider may attach the complete application schema through its `createDatabase` hook; ordinary repositories only need the scoped `databaseManager` registration.
+The provider owns pool disposal. Pass `{ schema }` or a typed `{ createDatabase: (pool) => drizzle(pool, { schema }) }` constructor option to attach the application schema. Ordinary repositories only need the scoped `databaseManager` registration.
 
 ## Install library schemas
 
@@ -92,7 +92,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { defineModelCreateAction } from "@kestreljs/framework/actions";
-import { DatabaseManager, Repository, type RepositoryCollectionOptions } from "@kestreljs/framework/db";
+import { PostgresDrizzleManager, Repository, type RepositoryCollectionOptions } from "@kestreljs/framework/db";
 
 export const contacts = pgTable("contact", {
   id: uuid("id").primaryKey().default(sql`uuidv7()`),
@@ -101,7 +101,7 @@ export const contacts = pgTable("contact", {
 type ContactInsert = typeof contacts.$inferInsert;
 class ContactRepository extends Repository<typeof contacts, string, ContactInsert, Partial<ContactInsert>> {
   // Dependency injection supplies the database manager for this execution scope.
-  constructor({ databaseManager }: { databaseManager: DatabaseManager }) {
+  constructor({ databaseManager }: { databaseManager: PostgresDrizzleManager }) {
     super(databaseManager, {
       table: contacts,
       idColumn: contacts.id,
@@ -161,7 +161,7 @@ const createPair = defineAction({
 });
 ```
 
-Thrown failures, including output validation failures, roll back the transaction. Code that needs an explicit boundary can call `DatabaseManager.transaction(callback)`.
+Thrown failures, including output validation failures, roll back the transaction. Code that needs an explicit boundary can call `PostgresDrizzleManager.transaction(callback)`.
 
 ## Track row history
 
@@ -185,3 +185,9 @@ For descriptions, custom SQL contributions, migration generation, seeding and lo
 - Implement repository reads, updates, deletes and batch operations.
 - Record actor and reason metadata with runWithHistoryContext, including nested transactions.
 - Add custom filtering and sorting to a collection repository.
+
+## Explicit provider adapters
+
+`PostgresDrizzleProvider` names the actual PostgreSQL/Drizzle boundary. `PostgresDrizzleConfig`, `postgresDrizzleConfigBase`, `PostgresDrizzleClient` and `PostgresDrizzleManager` are explicit public names. Supply `{ schema }` or `{ createDatabase: (pool) => drizzle(pool, { schema }) }` as constructor options. Application subclasses are only needed for additional composition such as maintenance. A TypeORM integration requires its own infrastructure provider and compatible feature adapters.
+
+See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

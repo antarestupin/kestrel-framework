@@ -1,7 +1,7 @@
 // Defines PostgreSQL connection settings, TLS defaults, and environment-variable mappings.
 // Configure DB_* values for deployments; tests select the separate DB_TEST_DATABASE.
 
-import { databaseConfigBase } from "@kestreljs/framework/db/configuration";
+import { postgresDrizzleConfigBase } from "@kestreljs/framework/db/configuration";
 import { configure } from "@kestreljs/framework/configuration";
 import type { AppConfigurationApi } from "../app_config.js";
 
@@ -11,7 +11,7 @@ export function createDatabaseConfig({
   envVar,
   fromEnv,
 }: AppConfigurationApi) {
-  return configure(databaseConfigBase, {
+  return configure(postgresDrizzleConfigBase, {
     host: fromEnv({
       ...envs(["local", "test"], envVar("DB_HOST", {
         fallback: "127.0.0.1",

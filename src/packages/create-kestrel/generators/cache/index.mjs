@@ -13,12 +13,12 @@ export default class CacheGenerator extends Generator {
       'import { createLoggerConfig } from "./config/logger.js";\nimport { createCacheConfig } from "./config/cache.js";');
     replaceSource(this, "src/server/core/app_config.ts", "  logger: createLoggerConfig(configurationApi),",
       "  logger: createLoggerConfig(configurationApi),\n  cache: createCacheConfig(),");
-    replaceSource(this, "src/server/core/app.ts", 'import { DatabaseProvider } from "./providers/database_provider.js";',
-      (redis ? 'import { DatabaseProvider } from "./providers/database_provider.js";\n'
-        : 'import { DatabaseProvider, databaseDependency } from "./providers/database_provider.js";\n')
+    replaceSource(this, "src/server/core/app.ts", 'import { PostgresDrizzleProvider } from "./providers/database_provider.js";',
+      (redis ? 'import { PostgresDrizzleProvider } from "./providers/database_provider.js";\n'
+        : 'import { PostgresDrizzleProvider, databaseDependency } from "./providers/database_provider.js";\n')
       + (redis ? 'import { CacheProvider, redisCache } from "@kestreljs/framework/cache";\nimport { redisDependency } from "./providers/redis_provider.js";' : 'import { CacheProvider, postgresCache } from "@kestreljs/framework/cache";'));
-    replaceSource(this, "src/server/core/app.ts", "  .register(new DatabaseProvider(app.config.database, environment))",
-      "  .register(new DatabaseProvider(app.config.database, environment))\n"
+    replaceSource(this, "src/server/core/app.ts", "  .register(new PostgresDrizzleProvider(app.config.database, environment))",
+      "  .register(new PostgresDrizzleProvider(app.config.database, environment))\n"
       + (redis ? '  .register(new CacheProvider(app.config.cache, redisCache(redisDependency, app.config.cache.adapter)))' : '  .register(new CacheProvider(app.config.cache, postgresCache(databaseDependency, app.config.cache.adapter)))'));
 
     if (redis) {
