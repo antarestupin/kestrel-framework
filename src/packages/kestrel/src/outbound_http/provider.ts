@@ -3,6 +3,7 @@ import type {
   ProviderCompositionApp,
 } from "../app/index.js";
 import { observerContextDependency } from "../observability/index.js";
+import { outboundHttpConfigBase, type OutboundHttpConfig } from "./configuration.js";
 import { OutboundHttpClient } from "./client.js";
 import {
   recordOutboundHttpInstrumentation,
@@ -14,6 +15,13 @@ import type {
 
 /** Registers a singleton factory with automatic execution observations. */
 export class OutboundHttpProvider<Config> implements Provider<Config> {
+  private readonly defaults: OutboundHttpConfig;
+
+  /** Validate and snapshot defaults once; each client may override individual budgets. */
+  public constructor(config: Partial<OutboundHttpConfig> = {}) {
+    this.defaults = outboundHttpConfigBase.schema.parse(config);
+  }
+
   public register(app: ProviderCompositionApp<Config>): void {
     app.container.registerFactory(
       "outboundHttpClientFactory",
@@ -49,8 +57,13 @@ export class OutboundHttpProvider<Config> implements Provider<Config> {
           options.instrumentation,
         );
 
+        const timeoutMs = options.timeoutMs ?? this.defaults.timeoutMs;
         return new OutboundHttpClient({
           ...options,
+          // Undefined inherits; overriding one budget must retain the others.
+          ...(timeoutMs === undefined ? {} : { timeoutMs }),
+          maxResponseBytes: options.maxResponseBytes ?? this.defaults.maxResponseBytes,
+          maxErrorBodyBytes: options.maxErrorBodyBytes ?? this.defaults.maxErrorBodyBytes,
           ...(instrumentation === undefined ? {} : { instrumentation }),
         });
       },

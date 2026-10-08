@@ -45,6 +45,7 @@ export function retryRequests(
       if (!methods.has(context.request.method)) return next();
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        context.request.signal.throwIfAborted();
         let response: Response;
 
         try {
@@ -54,7 +55,7 @@ export function retryRequests(
             attempt,
           });
         } catch (error: unknown) {
-          if (attempt === maxAttempts || !isRetryableError(error)) throw error;
+          if (context.request.signal.aborted || attempt === maxAttempts || !isRetryableError(error)) throw error;
 
           await sleep(
             jitteredDelay(initialDelayMs, maxDelayMs, attempt, jitterRatio, random),

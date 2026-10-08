@@ -47,27 +47,33 @@ export function runOutboundHttpMiddleware(
   middleware: readonly OutboundHttpMiddleware[],
   context: OutboundHttpMiddlewareContext,
   terminal: (context: OutboundHttpMiddlewareContext) => Promise<Response>,
+  protectResponse: (response: Response) => Response = (response) => response,
+  check: () => void = () => {},
 ): Promise<Response> {
-  const dispatch = (
+  const dispatch = async (
     index: number,
     current: OutboundHttpMiddlewareContext,
   ): Promise<Response> => {
+    check();
     const definition = middleware[index];
 
     if (definition === undefined) {
-      return terminal(current);
+      return protectResponse(await terminal(current));
     }
 
-    return definition.handler(current, (options: OutboundHttpNextOptions = {}) =>
+    return protectResponse(await definition.handler(current, (options: OutboundHttpNextOptions = {}) =>
       dispatch(index + 1, {
         ...current,
         ...(options.request === undefined
           ? {}
-          : { request: options.request }),
+          : { request: new Request(options.request, {
+              // Request replacement must not detach downstream work from its owner.
+              signal: AbortSignal.any([current.request.signal, options.request.signal]),
+            }) }),
         ...(options.attempt === undefined
           ? {}
           : { attempt: options.attempt }),
-      }));
+      })));
   };
 
   return dispatch(0, context);

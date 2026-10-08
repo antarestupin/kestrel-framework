@@ -33,6 +33,7 @@ export function bytes(): OutboundHttpResponseDecoder<Uint8Array<ArrayBuffer>> {
 export function nativeResponse(): OutboundHttpResponseDecoder<Response> {
   return {
     description: "native",
+    lifetime: "stream",
     decode: async (response) => response,
   };
 }

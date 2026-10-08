@@ -1,7 +1,11 @@
+import { defaultMaxErrorBodyBytes, defaultMaxResponseBytes } from "./defaults.js";
+import { OutboundHttpBodies, validateResponseLimit } from "./body.js";
+import { OutboundHttpDeadline } from "./deadline.js";
 import {
   OutboundHttpAbortedError,
   OutboundHttpDecodeError,
   OutboundHttpResponseError,
+  OutboundHttpResponseTooLargeError,
   OutboundHttpTimeoutError,
   OutboundHttpTransportError,
 } from "./errors.js";
@@ -31,15 +35,6 @@ interface RequestExecutionState {
   attempts: number;
 }
 
-interface Deadline {
-  readonly signal: AbortSignal;
-  readonly timeoutError?: OutboundHttpTimeoutError;
-  run<Value>(operation: Promise<Value>): Promise<Value>;
-  close(): void;
-}
-
-const maximumErrorBodyBytes = 64 * 1_024;
-
 /** Server-only HTTP facade built on the native fetch contracts. */
 export class OutboundHttpClient {
   private readonly name: string;
@@ -51,6 +46,9 @@ export class OutboundHttpClient {
   private readonly monotonicNow: () => number;
 
   public constructor(private readonly options: OutboundHttpClientOptions) {
+    validateTimeout(options.timeoutMs);
+    validateResponseLimit(options.maxResponseBytes ?? defaultMaxResponseBytes);
+    validateResponseLimit(options.maxErrorBodyBytes ?? defaultMaxErrorBodyBytes);
     this.name = normalizeName(options.name);
     this.baseUrl = options.baseUrl === undefined
       ? undefined
@@ -68,14 +66,28 @@ export class OutboundHttpClient {
     input: OutboundHttpInput,
     options: OutboundHttpFetchOptions = {},
   ): Promise<Response> {
+    return this.execute(input, options);
+  }
+
+  /** Own the logical deadline until decoding ends or streaming ownership transfers. */
+  private async execute<Output = Response>(
+    input: OutboundHttpInput,
+    options: OutboundHttpFetchOptions,
+    structured = false,
+    decoder?: OutboundHttpResponseDecoder<Output>,
+  ): Promise<Output> {
     const {
       middleware: requestMiddleware = [],
       operation: configuredOperation,
       route: configuredRoute,
-      timeoutMs,
+      timeoutMs = this.options.timeoutMs,
+      maxResponseBytes = this.options.maxResponseBytes ?? defaultMaxResponseBytes,
+      maxErrorBodyBytes = this.options.maxErrorBodyBytes ?? defaultMaxErrorBodyBytes,
       ...requestInit
     } = options;
     validateTimeout(timeoutMs);
+    validateResponseLimit(maxResponseBytes);
+    validateResponseLimit(maxErrorBodyBytes);
     const url = this.resolveUrl(input);
     // Raw URLs may contain identifiers, so only an explicit template is safe.
     const route = normalizeRoute(configuredRoute ?? "request");
@@ -87,12 +99,17 @@ export class OutboundHttpClient {
     );
     const baseSignal = requestInit.signal
       ?? (input instanceof Request ? input.signal : undefined);
-    const deadline = createDeadline(operation, timeoutMs, baseSignal);
+    const deadline = new OutboundHttpDeadline(operation, timeoutMs, baseSignal);
+    const bodies = new OutboundHttpBodies(
+      operation, deadline, maxResponseBytes, structured ? maxErrorBodyBytes : undefined,
+    );
+    let retainedResponse: Response | undefined;
+    let responseStatus: number | undefined;
     const state: RequestExecutionState = { attempts: 0 };
     const startedAt = this.measureTime();
 
     try {
-      const request = await deadline.run(this.createRequest(input, url, {
+      const request = await deadline.run(() => this.createRequest(input, url, {
         ...requestInit,
         method,
         signal: deadline.signal,
@@ -102,7 +119,7 @@ export class OutboundHttpClient {
         ...requestMiddleware,
       ]);
       const response = await deadline.run(
-        runOutboundHttpMiddleware(
+        () => runOutboundHttpMiddleware(
           middleware,
           {
             client: this.name,
@@ -110,10 +127,30 @@ export class OutboundHttpClient {
             route,
             request,
             attempt: 1,
+            maxResponseBytes,
           },
-          (context) => this.executeAttempt(context, state, deadline),
+          (context) => this.executeAttempt(context, state, deadline, bodies),
+          // Every middleware boundary also protects synthetic and cached responses.
+          (response) => bodies.protect(response),
+          () => deadline.check(),
         ),
       );
+
+      responseStatus = response.status;
+      let output: Output;
+      if (structured && !response.ok) {
+        throw new OutboundHttpResponseError(
+          operation, response.status, response.statusText,
+          await deadline.run(() => readErrorBody(response, bodies)),
+        );
+      }
+      if (decoder === undefined) {
+        output = response as Output;
+      } else {
+        output = await deadline.run(() => this.decode(operation, decoder, response, deadline));
+      }
+      bodies.check();
+      if (decoder === undefined || decoder.lifetime === "stream") retainedResponse = response;
 
       this.record({
         type: "request",
@@ -130,11 +167,10 @@ export class OutboundHttpClient {
         },
       });
 
-      return response;
+      return output;
     } catch (error: unknown) {
       const normalizedError = normalizePipelineError(
         error,
-        operation,
         deadline,
       );
       const result = classifyError(normalizedError);
@@ -150,11 +186,13 @@ export class OutboundHttpClient {
           route,
           result,
           attempts: state.attempts,
+          ...(responseStatus === undefined ? {} : { status: responseStatus }),
         },
       });
 
       throw normalizedError;
     } finally {
+      bodies.close(retainedResponse);
       deadline.close();
     }
   }
@@ -200,7 +238,7 @@ export class OutboundHttpClient {
       }
     }
 
-    const response = await this.fetch(url, {
+    return this.execute(url, {
       ...requestInit,
       method,
       headers,
@@ -209,22 +247,7 @@ export class OutboundHttpClient {
       route: pathTemplate,
       ...(middleware === undefined ? {} : { middleware }),
       ...(timeoutMs === undefined ? {} : { timeoutMs }),
-    });
-
-    if (!response.ok) {
-      throw new OutboundHttpResponseError(
-        operation,
-        response.status,
-        response.statusText,
-        await readErrorBody(response),
-      );
-    }
-
-    if (decoder === undefined) {
-      return response as Output;
-    }
-
-    return this.decode(operation, decoder, response);
+    }, true, decoder);
   }
 
   public get<Output = Response>(
@@ -298,13 +321,20 @@ export class OutboundHttpClient {
       attempt: number;
     },
     state: RequestExecutionState,
-    deadline: Deadline,
+    deadline: OutboundHttpDeadline,
+    bodies: OutboundHttpBodies,
   ): Promise<Response> {
     state.attempts += 1;
     const startedAt = this.measureTime();
 
     try {
-      const response = await this.fetchImplementation(context.request);
+      deadline.check();
+      // Preserve the execution signal even when middleware replaces the Request.
+      const request = new Request(context.request, {
+        signal: AbortSignal.any([context.request.signal, deadline.signal]),
+      });
+      const response = await deadline.run(async () =>
+        bodies.protect(await this.fetchImplementation(request)));
 
       this.record({
         type: "attempt",
@@ -352,10 +382,14 @@ export class OutboundHttpClient {
     operation: string,
     decoder: OutboundHttpResponseDecoder<Output>,
     response: Response,
+    deadline: OutboundHttpDeadline,
   ): Promise<Output> {
     try {
-      return await decoder.decode(response);
+      return await decoder.decode(response, { signal: deadline.signal });
     } catch (error: unknown) {
+      if (error instanceof OutboundHttpResponseTooLargeError
+        || error instanceof OutboundHttpTimeoutError
+        || error instanceof OutboundHttpAbortedError) throw error;
       throw new OutboundHttpDecodeError(operation, decoder.description, {
         cause: error,
       });
@@ -414,52 +448,13 @@ export function createOutboundFetch(
   return (input, requestOptions) => client.fetch(input, requestOptions);
 }
 
-function createDeadline(
-  operation: string,
-  timeoutMs: number | undefined,
-  signal: AbortSignal | null | undefined,
-): Deadline {
-  if (timeoutMs === undefined) {
-    return {
-      signal: signal ?? new AbortController().signal,
-      run: (operation) => operation,
-      close: () => {},
-    };
-  }
-
-  const controller = new AbortController();
-  const timeoutError = new OutboundHttpTimeoutError(operation, timeoutMs);
-  const expiration = Promise.withResolvers<never>();
-  const timeout = setTimeout(() => {
-    controller.abort(timeoutError);
-    expiration.reject(timeoutError);
-  }, timeoutMs);
-  timeout.unref();
-
-  return {
-    signal: signal === undefined || signal === null
-      ? controller.signal
-      : AbortSignal.any([signal, controller.signal]),
-    timeoutError,
-    run: (operationPromise) => Promise.race([
-      operationPromise,
-      expiration.promise,
-    ]),
-    close: () => clearTimeout(timeout),
-  };
-}
-
 function normalizeFetchError(
   error: unknown,
   operation: string,
   signal: AbortSignal,
-  deadline: Deadline,
+  deadline: OutboundHttpDeadline,
 ): Error {
-  if (deadline.timeoutError !== undefined
-    && signal.aborted
-    && signal.reason === deadline.timeoutError) {
-    return deadline.timeoutError;
-  }
+  if (deadline.signal.aborted) return deadline.error();
 
   if (error instanceof OutboundHttpTimeoutError) return error;
 
@@ -477,24 +472,11 @@ function normalizeFetchError(
 
 function normalizePipelineError(
   error: unknown,
-  operation: string,
-  deadline: Deadline,
+  deadline: OutboundHttpDeadline,
 ): unknown {
   if (!deadline.signal.aborted) return error;
 
-  if (deadline.timeoutError !== undefined
-    && deadline.signal.reason === deadline.timeoutError) {
-    return deadline.timeoutError;
-  }
-
-  if (error instanceof OutboundHttpTimeoutError
-    || error instanceof OutboundHttpAbortedError) {
-    return error;
-  }
-
-  return new OutboundHttpAbortedError(operation, {
-    cause: deadline.signal.reason,
-  });
+  return deadline.error();
 }
 
 function classifyError(error: unknown): OutboundHttpResult {
@@ -579,72 +561,19 @@ function serializeScalar(value: boolean | Date | number | string): string {
   return value instanceof Date ? value.toISOString() : String(value);
 }
 
-async function readErrorBody(response: Response): Promise<unknown> {
-  const { bytes, truncated } = await readBoundedBody(
-    response,
-    maximumErrorBodyBytes,
-  );
-  const text = new TextDecoder().decode(bytes);
+async function readErrorBody(response: Response, bodies: OutboundHttpBodies): Promise<unknown> {
+  const text = await response.text();
+  const truncated = bodies.truncated(response);
   const contentType = response.headers.get("content-type") ?? "";
-  let body: unknown = text;
-
-  if (!truncated && text !== "" && (
-    contentType.includes("application/json")
-    || contentType.includes("+json")
-  )) {
+  if (truncated) return { truncated: true, text };
+  if (text !== "" && (contentType.includes("application/json") || contentType.includes("+json"))) {
     try {
-      body = JSON.parse(text) as unknown;
+      return JSON.parse(text) as unknown;
     } catch {
-      body = text;
+      // Malformed HTTP error bodies retain the original diagnostic text.
     }
   }
-
-  return truncated ? { truncated: true, text } : body;
-}
-
-async function readBoundedBody(
-  response: Response,
-  maximumBytes: number,
-): Promise<{ bytes: Uint8Array; truncated: boolean }> {
-  if (response.body === null) {
-    return { bytes: new Uint8Array(), truncated: false };
-  }
-
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  let truncated = false;
-
-  while (true) {
-    const result = await reader.read();
-
-    if (result.done) break;
-
-    const remaining = maximumBytes - size;
-
-    if (result.value.byteLength > remaining) {
-      if (remaining > 0) chunks.push(result.value.slice(0, remaining));
-      truncated = true;
-      await reader.cancel();
-      break;
-    }
-
-    chunks.push(result.value);
-    size += result.value.byteLength;
-  }
-
-  const bytes = new Uint8Array(chunks.reduce(
-    (total, chunk) => total + chunk.byteLength,
-    0,
-  ));
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  return { bytes, truncated };
+  return text;
 }
 
 function applyHeaders(target: Headers, source: HeadersInit | undefined): void {

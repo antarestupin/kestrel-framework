@@ -1,3 +1,4 @@
+export { outboundHttpConfigBase, type OutboundHttpConfig } from "./configuration.js";
 export {
   createOutboundFetch,
   createOutboundHttpClient,
@@ -8,6 +9,7 @@ export {
   OutboundHttpAbortedError,
   OutboundHttpDecodeError,
   OutboundHttpResponseError,
+  OutboundHttpResponseTooLargeError,
   OutboundHttpTimeoutError,
   OutboundHttpTransportError,
 } from "./errors.js";
@@ -50,6 +52,7 @@ export {
   type OutboundHttpBodyRequestOptions,
   type OutboundHttpClientFactory,
   type OutboundHttpClientOptions,
+  type OutboundHttpDecodeContext,
   type OutboundHttpFetch,
   type OutboundHttpFetchOptions,
   type OutboundHttpHeaders,
@@ -65,4 +68,5 @@ export {
   type OutboundHttpRequestDefinition,
   type OutboundHttpRequestOptions,
   type OutboundHttpResponseDecoder,
+  type OutboundHttpResponseLimits,
 } from "./types.js";

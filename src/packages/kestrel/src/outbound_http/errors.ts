@@ -60,3 +60,15 @@ export class OutboundHttpDecodeError extends Error {
     super(`Outbound HTTP operation "${operation}" returned an invalid ${decoder} response.`, options);
   }
 }
+
+/** Raised before retaining a response body beyond its configured byte budget. */
+export class OutboundHttpResponseTooLargeError extends Error {
+  public readonly name = "OutboundHttpResponseTooLargeError";
+
+  public constructor(
+    public readonly operation: string,
+    public readonly maxResponseBytes: number,
+  ) {
+    super(`Outbound HTTP operation "${operation}" exceeded its ${maxResponseBytes} byte response limit.`);
+  }
+}

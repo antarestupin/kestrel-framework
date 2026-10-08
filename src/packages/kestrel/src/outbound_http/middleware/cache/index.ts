@@ -5,6 +5,7 @@ import {
   type TagAwareCache,
   type TagAwareCacheRememberOptions,
 } from "../../../cache/index.js";
+import { OutboundHttpResponseTooLargeError } from "../../errors.js";
 import { defineOutboundHttpMiddleware } from "../../middleware.js";
 import {
   outboundHttpMiddlewarePriorities,
@@ -55,7 +56,10 @@ interface CachedHttpResponse {
 }
 
 class UncacheableResponse extends Error {
-  public constructor(public readonly response: CachedHttpResponse) {
+  public constructor(
+    public readonly response: Response,
+    public readonly owner: Request,
+  ) {
     super("The outbound HTTP response is not cacheable.");
   }
 }
@@ -113,14 +117,16 @@ function createCacheMiddleware(options: RuntimeCacheOptions): OutboundHttpMiddle
 
       try {
         const loader = async (): Promise<CachedHttpResponse> => {
+          context.request.signal.throwIfAborted();
           const response = await next();
+          // Error diagnostics are truncated by the client, never buffered by cache.
+          if (!response.ok) throw new UncacheableResponse(response, context.request);
           const serialized = await serializeResponse(
             response,
             policy.headers ?? defaultHeaders,
           );
 
-          if (!response.ok) throw new UncacheableResponse(serialized);
-
+          context.request.signal.throwIfAborted();
           return serialized;
         };
         const writeOptions: CacheRememberOptions = {
@@ -134,10 +140,11 @@ function createCacheMiddleware(options: RuntimeCacheOptions): OutboundHttpMiddle
             })
           : await cache.remember(key, loader, writeOptions);
 
-        return restoreResponse(cached);
+        return restoreResponse(cached, context);
       } catch (error: unknown) {
         if (error instanceof UncacheableResponse) {
-          return restoreResponse(error.response);
+          // A coalesced waiter cannot consume the load owner's one-shot error stream.
+          return error.owner === context.request ? error.response : next();
         }
 
         throw error;
@@ -167,12 +174,27 @@ async function serializeResponse(
   };
 }
 
-function restoreResponse(cached: CachedHttpResponse): Response {
+function restoreResponse(
+  cached: CachedHttpResponse,
+  context: OutboundHttpMiddlewareContext,
+): Response {
   if (cached.schemaVersion !== 1) {
     throw new TypeError("Unsupported cached outbound HTTP response schema.");
   }
 
-  return new Response(Buffer.from(cached.bodyBase64, "base64"), {
+  context.request.signal.throwIfAborted();
+  // Canonical base64 allows an exact size check before allocating decoded bytes.
+  const encoded = cached.bodyBase64;
+  const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+  const byteLength = encoded.length / 4 * 3 - padding;
+  if (byteLength > context.maxResponseBytes) {
+    throw new OutboundHttpResponseTooLargeError(context.operation, context.maxResponseBytes);
+  }
+  if (encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) {
+    throw new TypeError("Invalid cached outbound HTTP response body.");
+  }
+
+  return new Response(Buffer.from(encoded, "base64"), {
     status: cached.status,
     statusText: cached.statusText,
     headers: cached.headers,

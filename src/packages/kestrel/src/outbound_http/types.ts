@@ -24,6 +24,8 @@ export interface OutboundHttpMiddlewareContext {
   readonly request: Request;
   /** One-based attempt identity supplied by retrying middleware. */
   readonly attempt: number;
+  /** Effective response budget shared by middleware and decoders. */
+  readonly maxResponseBytes: number;
 }
 
 export interface OutboundHttpNextOptions {
@@ -50,17 +52,27 @@ export interface DefineOutboundHttpMiddlewareOptions {
   readonly handler: OutboundHttpMiddleware["handler"];
 }
 
+/** Byte budgets shared by client defaults and individual calls. */
+export interface OutboundHttpResponseLimits {
+  /** Maximum consumed response bytes; defaults to 8 MiB. */
+  readonly maxResponseBytes?: number;
+  /** Maximum retained HTTP error bytes; defaults to 64 KiB. */
+  readonly maxErrorBodyBytes?: number;
+}
+
 /** Fetch options understood by the outbound execution layer. */
-export interface OutboundHttpFetchOptions extends RequestInit {
+export interface OutboundHttpFetchOptions extends RequestInit, OutboundHttpResponseLimits {
   readonly middleware?: readonly OutboundHttpMiddleware[];
   readonly operation?: string;
   /** Stable route template used by observations instead of the concrete URL. */
   readonly route?: string;
-  /** Total logical request deadline, including middleware and retries. */
+  /** Deadline through response handoff, including middleware and retries. */
   readonly timeoutMs?: number;
 }
 
-export interface OutboundHttpClientOptions {
+export interface OutboundHttpClientOptions extends OutboundHttpResponseLimits {
+  /** Default logical deadline; calls may override it. */
+  readonly timeoutMs?: number;
   readonly name: string;
   readonly baseUrl?: string | URL;
   readonly fetch?: typeof globalThis.fetch;
@@ -94,18 +106,26 @@ export type OutboundHttpQuery = Readonly<Record<
   OutboundHttpQueryValue | readonly OutboundHttpQueryValue[]
 >>;
 
+export interface OutboundHttpDecodeContext {
+  /** Cooperatively cancel asynchronous validation and application decoding. */
+  readonly signal: AbortSignal;
+}
+
 export interface OutboundHttpResponseDecoder<Output> {
+  /** Explicitly transfers an unread body to the caller after decoding. */
+  readonly lifetime?: "stream";
   readonly description: string;
-  decode(response: Response): Promise<Output>;
+  decode(response: Response, context: OutboundHttpDecodeContext): Promise<Output>;
 }
 
 export interface OutboundHttpRequestOptions<Output = Response>
-  extends Omit<RequestInit, "body" | "method"> {
+  extends Omit<RequestInit, "body" | "method">, OutboundHttpResponseLimits {
   readonly operation?: string;
   readonly path?: OutboundHttpPathParameters;
   readonly query?: OutboundHttpQuery;
   readonly middleware?: readonly OutboundHttpMiddleware[];
   readonly response?: OutboundHttpResponseDecoder<Output>;
+  /** Deadline through decoding, or response handoff for streaming calls. */
   readonly timeoutMs?: number;
 }
 
