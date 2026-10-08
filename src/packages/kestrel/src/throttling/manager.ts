@@ -496,7 +496,7 @@ export class ThrottlingManager implements Throttling {
         .filter((promise): promise is Promise<void> => promise !== undefined),
       this.deferredReconciliations.close(),
     ])
-      .then(() => this.adapter.close?.())
+      .then(() => this.options.closeAdapter === false ? undefined : this.adapter.close?.())
       .then(() => undefined);
 
     return this.closePromise;

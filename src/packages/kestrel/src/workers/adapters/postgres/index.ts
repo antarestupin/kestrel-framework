@@ -11,3 +11,4 @@ export {
   type PostgresWorkerJob,
   type PostgresWorkerQueueControl,
 } from "./schema.js";
+export { postgresWorkers } from "./definition.js";

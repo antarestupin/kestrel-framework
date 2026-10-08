@@ -1,22 +1,14 @@
+import { registerProviderAdapter } from "../app/adapter.js";
 import type {
   Provider,
   ProviderBootApp,
   ProviderCompositionApp,
 } from "../app/index.js";
-import { dep } from "../di/index.js";
-import {
-  applicationLoggerDependency,
-  loggerDependency,
-} from "../log/index.js";
+import { dep, type AdapterRegistration } from "../di/index.js";
+import { loggerDependency } from "../log/index.js";
 import { observerContextDependency } from "../observability/index.js";
 import { defineScheduledTask, every } from "../scheduled_tasks/index.js";
-import {
-  BackendFailureRateLimitAdapter,
-  DenialCachingRateLimitAdapter,
-  LeasedRateLimitAdapter,
-  PostgresRateLimitAdapter,
-  type PostgresRateLimitDatabase,
-} from "./adapters/index.js";
+import type { ThrottlingAdapterDefinition } from "./adapter_definition.js";
 import type { ThrottlingConfig } from "./configuration.js";
 import { ThrottlingManager } from "./manager.js";
 import {
@@ -25,6 +17,7 @@ import {
 } from "./observations.js";
 import type {
   PrunableRateLimitAdapter,
+  RateLimitAdapter,
   Throttling,
 } from "./types.js";
 import {
@@ -35,11 +28,7 @@ import {
 
 export interface ThrottlingResource {
   readonly throttling: Throttling;
-  prune(): Promise<number>;
-}
-
-interface ThrottlingResourceDependencies {
-  database: PostgresRateLimitDatabase;
+  prune?(): Promise<number>;
 }
 
 export interface ThrottlingProviderOptions {
@@ -47,23 +36,34 @@ export interface ThrottlingProviderOptions {
   readonly resourcePressureSources?: readonly LocalResourcePressureSource[];
 }
 
-/** Adds exact and leased PostgreSQL throttling with bounded maintenance. */
+/** Adds admission control with explicitly selected backend capabilities. */
 export class ThrottlingProvider<Config> implements Provider<Config> {
+  /** Keeps backend selection explicit and separate from provider tuning. */
   public constructor(
     protected readonly config: ThrottlingConfig,
+    private readonly adapter: ThrottlingAdapterDefinition,
     protected readonly options: ThrottlingProviderOptions = {},
   ) {}
 
   public register(app: ProviderCompositionApp<Config>): void {
-    app.container.registerFactory(
-      "throttlingResource",
-      ({ database }: ThrottlingResourceDependencies) =>
-        this.createResource(app, database),
-      {
-        lifetime: "singleton",
-        dispose: (resource) => resource.throttling.close(),
+    const instrumentation = this.createInstrumentation(app);
+    let resource: ThrottlingResource | undefined;
+    const adapter = registerProviderAdapter(app, "throttlingAdapter", this.adapter, {
+      config: this.config,
+      instrumentation,
+    }, {
+      validate: (value) => {
+        if (this.adapter.capabilities.prune !== isPrunableAdapter(value)) {
+          throw new TypeError("Throttling adapter pruning capability does not match its implementation.");
+        }
       },
-    );
+      // Drain permits before disposing the backend that they still depend on.
+      beforeDispose: () => resource?.throttling.close(),
+    });
+    app.container.registerFactory("throttlingResource", () => {
+      resource = this.createResource(app, adapter.get(), instrumentation);
+      return resource;
+    }, { lifetime: "singleton" });
     app.container.registerFactory<
       Throttling,
       { throttlingResource: ThrottlingResource }
@@ -73,77 +73,49 @@ export class ThrottlingProvider<Config> implements Provider<Config> {
       { lifetime: "singleton" },
     );
 
-    if (this.config.pruneIntervalSeconds > 0) {
+    if (this.config.pruneIntervalSeconds > 0 && this.adapter.capabilities.prune) {
       app.catalog.contribute({
         throttling: { scheduledTasks: { prune: this.createPruneTask() } },
       }, { kind: "provider", provider: this.constructor.name });
     }
   }
 
-  public boot(app: ProviderBootApp<Config>): void {
+  public async boot(app: ProviderBootApp<Config>): Promise<void> {
     if (app.bootPlan.runningMode !== "minimal") {
+      await app.container.resolve(dep<AdapterRegistration<RateLimitAdapter>>("throttlingAdapterRegistration")).boot();
       app.container.resolve(dep<ThrottlingResource>("throttlingResource"));
     }
   }
 
-  /** Composes local leasing around the authoritative failure boundary. */
-  protected createAdapter(
-    database: PostgresRateLimitDatabase,
-    instrumentation?: ThrottlingInstrumentation,
-  ): PrunableRateLimitAdapter {
-    const authoritative = new DenialCachingRateLimitAdapter(
-      new PostgresRateLimitAdapter(database, {
-        maxConcurrentReservations: this.config.maxConcurrentReservations,
-        maxPendingReservations: this.config.maxPendingAcquisitions,
-        storageWaitTimeoutMs: this.config.storageWaitTimeoutMs,
-      }),
-    );
-
-    return new LeasedRateLimitAdapter(
-      new BackendFailureRateLimitAdapter(
-        authoritative,
-        this.config.backendFailurePolicy,
-      ),
-      instrumentation === undefined ? {} : { instrumentation },
-    );
+  /** Resolves ambient observations only when the adapter is first requested. */
+  protected createInstrumentation(app: ProviderCompositionApp<Config>): ThrottlingInstrumentation {
+    return { record: (event) => {
+      const observerContext = app.container.hasRegistration("observerContext")
+        ? app.container.resolve(observerContextDependency) : undefined;
+      const observer = observerContext?.get();
+      if (observer !== undefined) recordThrottlingInstrumentation(observer, event);
+    } };
   }
 
-  /** Creates the public facade and a one-shot safe prune operation. */
+  /** Creates the facade without transferring backend ownership to the manager. */
   protected createResource(
-    app: ProviderCompositionApp<Config>,
-    database: PostgresRateLimitDatabase,
+    _app: ProviderCompositionApp<Config>,
+    adapter: RateLimitAdapter,
+    instrumentation: ThrottlingInstrumentation,
   ): ThrottlingResource {
-    const observerContext = app.container.hasRegistration("observerContext")
-      ? app.container.resolve(observerContextDependency)
-      : undefined;
-    const instrumentation: ThrottlingInstrumentation | undefined =
-      observerContext === undefined
-        ? undefined
-        : {
-            record: (event) => {
-              const observer = observerContext.get();
-
-              if (observer !== undefined) {
-                recordThrottlingInstrumentation(observer, event);
-              }
-            },
-          };
-    const adapter = this.createAdapter(database, instrumentation);
     const resourcePressureMonitor = this.createResourcePressureMonitor();
     const throttling = new ThrottlingManager(adapter, {
       namespace: this.config.namespace,
       maxPendingAcquisitions: this.config.maxPendingAcquisitions,
       resourcePressureMonitor,
-      ...(observerContext === undefined
-        ? {}
-        : {
-            instrumentation: instrumentation!,
-          }),
+      instrumentation,
+      closeAdapter: false,
     });
 
     return {
       throttling,
-      prune: () => adapter.prune({ limit: this.config.pruneBatchSize }),
+      ...(isPrunableAdapter(adapter)
+        ? { prune: () => adapter.prune({ limit: this.config.pruneBatchSize }) } : {}),
     };
   }
 
@@ -174,6 +146,7 @@ export class ThrottlingProvider<Config> implements Provider<Config> {
         throttlingResource: dep<ThrottlingResource>("throttlingResource"),
       },
       handler: async ({ logger, throttlingResource }) => {
+        if (throttlingResource.prune === undefined) throw new TypeError("The throttling adapter does not support pruning.");
         const removed = await throttlingResource.prune();
 
         if (removed > 0) {
@@ -182,4 +155,9 @@ export class ThrottlingProvider<Config> implements Provider<Config> {
       },
     });
   }
+}
+
+/** Storage-native expiration does not require a framework pruning task. */
+function isPrunableAdapter(adapter: RateLimitAdapter): adapter is PrunableRateLimitAdapter {
+  return "prune" in adapter && typeof adapter.prune === "function";
 }

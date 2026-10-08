@@ -283,3 +283,34 @@ The database and logger providers in `src/server/core/providers` are thin subcla
 ## Deferred provider evolution
 
 The protected factory surface is intentionally small. If repeated application subclasses need the same combination of overrides, a future strategy object or explicit provider option can replace that inheritance point without changing application composition. The current runtime handoff can be split into narrower HTTP, worker and scheduled-task ports if their lifecycle needs diverge; the phase-specific provider contexts allow that evolution without widening ordinary providers. Named dependency identifiers are currently shared by convention; typed provider dependency bundles can be introduced later if independently packaged libraries need collision-resistant registration or several instances of the same provider. A broader installable-module abstraction may eventually combine configuration, providers and one subcatalog, but catalogs deliberately remain focused on organizing definitions until that additional lifecycle is needed.
+
+## Adapter definitions and resource ownership
+
+[Usage and nested configuration](../usage/configuration.md#configure-providers-and-their-backends)
+
+The DI layer exports `AdapterDefinition`, `AdapterFactoryOptions`, `defineAdapter` and `registerAdapter` without importing application or feature code. Feature-specific `define*Adapter` helpers constrain the returned storage interface, creation context and capability metadata. Concrete helpers, backend configuration schemas and exports live beside their owning adapter.
+
+### Provider adapter convention
+
+Apply this convention when introducing or redesigning any provider with interchangeable backends. Cache, throttling, workers and workflows are the current implementations; this is not limited to storage backends. Existing providers outside this group can migrate separately when their backend API is revised.
+
+- Accept a required adapter definition directly: `(config, adapter, options?)` when the feature has common configuration, or `(adapter, options?)` otherwise. Omit `options` entirely when no additional provider settings exist. Never wrap the adapter in an options object just to select a backend.
+- Keep composition concise enough for a one-line provider registration in ordinary cases. Backend selection must not require an application-specific provider subclass or an adapter-only provider.
+- Separate injected dependencies from backend settings in adapter factories, for example `postgresCache(databaseDependency, app.config.cache.adapter)`. Use typed dependency descriptors rather than eagerly resolved connections. For several dependencies, a typed dependency map may occupy the first argument; do not mix configuration values into it. Omit the settings argument when the backend has no settings.
+- Keep common feature policy in the feature schema and backend-specific settings in the backend's own schema. Applications may compose both in one configuration file with a nested `adapter` contribution. Validate at the configuration boundary, then pass resolved settings by reference without spreading, copying or reparsing them merely for wiring. Combining backend settings with feature context during actual adapter construction remains valid. Shared connection credentials belong to infrastructure configuration.
+- Expose a public feature-specific adapter definition contract and `define*Adapter` helper built on the shared DI contract. Built-in and external packages must use that same extension point, without provider changes, a closed backend-name union or a central driver switch. Keep backend implementations and their schemas, factories, tests and exports together.
+- Use `registerProviderAdapter` for lazy per-application construction, initialization and disposal. Declare capabilities without constructing resources, validate them when the adapter is created, and leave backends unresolved during minimal boot unless explicitly requested. Providers own feature integration; adapter definitions own their constructed resources and must not close borrowed infrastructure connections.
+
+Current signatures are `CacheProvider(config, adapter)`, `ThrottlingProvider(config, adapter, options?)`, `WorkerProvider(config, adapter, options?)` and `WorkflowProvider(adapter, options?)`. Remaining provider options contain orchestration settings such as worker reservation pressure or workflow activity transport. See the [application composition example](../usage/configuration.md#configure-providers-and-their-backends) for nested configuration and external backends.
+
+### Lifecycle guarantees
+
+`registerProviderAdapter` attaches the DI registration to application shutdown. Definitions are immutable recipes; each registration owns a separate lazy lifecycle holder. The holder caches synchronous construction, validates actual capabilities, memoizes asynchronous initialization and retains ownership if validation or initialization fails. Disposal waits for in-flight initialization, drains any feature consumer through `beforeDispose`, and invokes the adapter's disposal hook once. A factory that throws before returning a resource must clean up its own partial construction.
+
+Every provider registers before standard boot initializes its adapter. Infrastructure requiring asynchronous boot must precede dependent feature providers in boot order. Minimal boot does not construct or initialize adapters. Explicit dependency resolution still constructs an adapter in minimal mode and does not implicitly await initialization; consumers requiring initialized resources should run after `app.start()`.
+
+The app drains active executions before `shutdownStarted`. Adapter cleanup runs at that boundary while borrowed connections remain available; container disposal is an idempotent fallback. Disposing an unused definition never creates its adapter or dependencies. A plain DI container uses its ordinary disposal semantics; use the app integration when adapter cleanup needs live infrastructure. Infrastructure providers must retain borrowed resources through the shutdown boundary and release them during container disposal.
+
+The throttling manager drains without closing the backend when managed by a provider. The definition owns backend disposal, so PostgreSQL leases are returned once and custom adapters can transfer or retain ownership explicitly. Standalone managers keep their existing default of closing the adapter.
+
+Deferred evolutions: additional feature providers can adopt this contract independently; automatic backend discovery, configuration-selected global driver registries, and asynchronous DI resolution are intentionally absent. Dependency-driven topological boot ordering and multi-instance feature registrations remain separate changes.

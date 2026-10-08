@@ -1,11 +1,10 @@
+import { registerProviderAdapter } from "../app/adapter.js";
 import type { Logger } from "pino";
 
-import type { Provider, ProviderCompositionApp } from "../app/index.js";
+import type { Provider, ProviderBootApp, ProviderCompositionApp } from "../app/index.js";
 import { defineCliController } from "../cli/index.js";
-import {
-  PostgresWorkflowAdapter,
-  type PostgresWorkflowDatabase,
-} from "./adapters/index.js";
+import { dep, type AdapterRegistration } from "../di/index.js";
+import type { WorkflowAdapterDefinition } from "./adapter_definition.js";
 import { WorkflowClient } from "./client.js";
 import { WorkflowOperations } from "./operations.js";
 import {
@@ -33,10 +32,6 @@ import {
   type WorkflowInstrumentation,
 } from "./observations.js";
 
-interface WorkflowAdapterDependencies {
-  database: PostgresWorkflowDatabase;
-}
-
 interface WorkflowClientDependencies {
   workflowAdapter: WorkflowAdapter;
 }
@@ -53,7 +48,9 @@ export interface WorkflowProviderOptions extends WorkflowSchedulerOptions {
 
 /** Adds durable workflow storage, clients, scheduling, and CLI composition. */
 export class WorkflowProvider<Config> implements Provider<Config> {
+  /** Keeps backend selection explicit and separate from provider tuning. */
   public constructor(
+    private readonly adapter: WorkflowAdapterDefinition,
     protected readonly options: WorkflowProviderOptions = {},
   ) {}
 
@@ -63,14 +60,17 @@ export class WorkflowProvider<Config> implements Provider<Config> {
       ? createWorkflowActivityWorker(app.runtime)
       : undefined;
     const instrumentation = this.createInstrumentation(app);
-    app.container.registerFactory(
-      "workflowAdapter",
-      ({ database }: WorkflowAdapterDependencies) =>
-        new PostgresWorkflowAdapter(database, {
-          activityDispatchMode: workerBacked ? "outbox" : "embedded",
-        }),
-      { lifetime: "singleton" },
-    );
+    const activityDispatchMode = workerBacked ? "outbox" : "embedded";
+    if (this.adapter.capabilities.activityDispatchMode !== activityDispatchMode) {
+      throw new TypeError(`Workflow activity transport requires an adapter with "${activityDispatchMode}" dispatch.`);
+    }
+    registerProviderAdapter(app, "workflowAdapter", this.adapter, { activityDispatchMode }, {
+      validate: (adapter) => {
+        if (adapter.activityDispatchMode !== activityDispatchMode) {
+          throw new TypeError("Workflow adapter dispatch capability does not match its implementation.");
+        }
+      },
+    });
     app.container.registerFactory(
       "workflowClient",
       ({ workflowAdapter }: WorkflowClientDependencies) =>
@@ -136,8 +136,13 @@ export class WorkflowProvider<Config> implements Provider<Config> {
         },
       },
     }, { kind: "provider", provider: this.constructor.name });
+  }
 
-    if (workerBacked) {
+  /** Backend construction and worker routing wait until all providers are registered. */
+  public async boot(app: ProviderBootApp<Config>): Promise<void> {
+    if (app.bootPlan.runningMode === "minimal") return;
+    await app.container.resolve(dep<AdapterRegistration<WorkflowAdapter>>("workflowAdapterRegistration")).boot();
+    if (this.options.activityTransport === "worker") {
       if (!app.container.hasRegistration("workerCorrelatedCompletionSink")) {
         throw new Error(
           "Worker-backed workflow activities require WorkerProvider.",

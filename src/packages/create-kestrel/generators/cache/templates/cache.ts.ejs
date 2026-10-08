@@ -2,12 +2,14 @@
 // Adjust cache limits here; enable scheduled pruning only after installing a task runtime.
 
 import { configure } from "@kestreljs/framework/configuration";
-import { cacheConfigBase } from "@kestreljs/framework/cache";
+import { cacheConfigBase, <%= cache === "redis" ? "redisCacheConfigBase" : "postgresCacheConfigBase" %> } from "@kestreljs/framework/cache";
 
 /** Isolate this application's cache keys; add a pruning schedule when installing a task runtime. */
 export function createCacheConfig() {
   return configure(cacheConfigBase, {
     namespace: <%- JSON.stringify(applicationName) %>,
     pruneIntervalSeconds: 0,
+    // Backend-specific settings are validated separately from cache policy.
+    adapter: configure(<%= cache === "redis" ? "redisCacheConfigBase" : "postgresCacheConfigBase" %>, {}),
   });
 }

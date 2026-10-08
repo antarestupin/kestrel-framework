@@ -1,3 +1,4 @@
+import { registerProviderAdapter } from "../app/adapter.js";
 import type { Logger } from "pino";
 
 import type {
@@ -5,7 +6,7 @@ import type {
   ProviderBootApp,
   ProviderCompositionApp,
 } from "../app/index.js";
-import { dep } from "../di/index.js";
+import { dep, type AdapterRegistration } from "../di/index.js";
 import {
   applicationLoggerDependency,
   loggerDependency,
@@ -13,7 +14,7 @@ import {
 import { locksDependency, type Locks } from "../lock/index.js";
 import { observerContextDependency } from "../observability/index.js";
 import { defineScheduledTask, every } from "../scheduled_tasks/index.js";
-import { PostgresCacheAdapter, type PostgresCacheDatabase } from "./adapters/index.js";
+import type { CacheAdapterDefinition } from "./adapter_definition.js";
 import { CachePool, TagAwareCachePool, isTagAwareAdapter, isTagAwareCache } from "./cache_pool.js";
 import type { CacheConfig } from "./configuration.js";
 import { recordCacheInstrumentation } from "./observations.js";
@@ -32,21 +33,26 @@ export interface CacheResource {
 
 /** Declares the shared cache infrastructure owned by the cache library. */
 export class CacheProvider<Config> implements Provider<Config> {
-  /** An injected adapter is borrowed; its connection lifecycle stays with its owner. */
+  /** Keeps backend selection explicit and separate from provider tuning. */
   public constructor(
     protected readonly config: CacheConfig,
-    private readonly adapter?: CacheAdapter,
+    private readonly adapter: CacheAdapterDefinition,
   ) {}
 
   public register(app: ProviderCompositionApp<Config>): void {
+    const adapter = registerProviderAdapter(app, "cacheAdapter", this.adapter, this.config, {
+      validate: (value) => {
+        const { prune, tags } = this.adapter.capabilities;
+        if (prune !== isPrunableAdapter(value) || tags !== isTagAwareAdapter(value)) {
+          throw new TypeError("Cache adapter capabilities do not match its implementation.");
+        }
+      },
+    });
     app.container.registerFactory(
       "cacheResource",
       () => this.createResource(
         app,
-        // Custom backends never resolve the default PostgreSQL dependency.
-        this.adapter ?? this.createAdapter(app.container.resolve(
-          dep<PostgresCacheDatabase>("database"),
-        )),
+        adapter.get(),
         app.container.hasRegistration("locks")
           ? app.container.resolve(locksDependency)
           : undefined,
@@ -71,28 +77,20 @@ export class CacheProvider<Config> implements Provider<Config> {
       { lifetime: "singleton" },
     );
 
-    // The default adapter is prunable; injected adapters declare it structurally.
+    // Capability metadata contributes maintenance without constructing the backend.
     if (this.config.pruneIntervalSeconds > 0
-      && (this.adapter === undefined || isPrunableAdapter(this.adapter))) {
+      && this.adapter.capabilities.prune) {
       app.catalog.contribute({
         cache: { scheduledTasks: { prune: this.createPruneTask() } },
       }, { kind: "provider", provider: this.constructor.name });
     }
   }
 
-  public boot(app: ProviderBootApp<Config>): void {
+  public async boot(app: ProviderBootApp<Config>): Promise<void> {
     if (app.bootPlan.runningMode !== "minimal") {
+      await app.container.resolve(dep<AdapterRegistration<CacheAdapter>>("cacheAdapterRegistration")).boot();
       app.container.resolve(dep<CacheResource>("cacheResource"));
     }
-  }
-
-  /** Creates the PostgreSQL storage adapter used by the standard provider. */
-  protected createAdapter(database: PostgresCacheDatabase): PrunableCacheAdapter {
-    return new PostgresCacheAdapter(database, {
-      maxEntries: this.config.maxEntries,
-      maxEntrySizeBytes: this.config.maxEntrySizeBytes,
-      defaultPruneLimit: this.config.pruneBatchSize,
-    });
   }
 
   /** Creates the cache facade and its one-shot maintenance operation. */

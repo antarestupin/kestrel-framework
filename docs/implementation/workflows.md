@@ -231,13 +231,13 @@ Set `activityTransport: "worker"` on `WorkflowProvider` to use the Worker-backed
 
 ```ts
 app
-  .register(new WorkerProvider(app.config.workers, {
-    adapter: applicationWorkerAdapter,
-  }))
-  .register(new WorkflowProvider({ activityTransport: "worker" }));
+  .register(new WorkerProvider(app.config.workers, applicationWorkerAdapterDefinition))
+  .register(new WorkflowProvider(postgresWorkflows(databaseDependency, { activityDispatchMode: "outbox" }), {
+    activityTransport: "worker",
+  }));
 ```
 
-`applicationWorkerAdapter` may be PostgreSQL, SQS, or any other `WorkerAdapter`; it does not need access to workflow tables. Publication and delivery remain at least once. Stable identity reduces duplicate publication where the queue supports it, while idempotent completion prevents duplicate history events. An Action can still execute more than once after a lease loss or network ambiguity, so externally effectful Actions must honor the activity idempotency key or an equivalent business key.
+`applicationWorkerAdapterDefinition` may construct PostgreSQL, SQS, or any other `WorkerAdapter`; it does not need access to workflow tables. Publication and delivery remain at least once. Stable identity reduces duplicate publication where the queue supports it, while idempotent completion prevents duplicate history events. An Action can still execute more than once after a lease loss or network ambiguity, so externally effectful Actions must honor the activity idempotency key or an equivalent business key.
 
 ## Signals
 
@@ -603,6 +603,11 @@ Forking or redriving from an arbitrary durable command is not implemented. Doing
 
 Workflow handlers must not directly access application dependencies, databases, network clients, environment-dependent state, native timers, `Date.now()`, `Math.random()`, or arbitrary promises. Pure deterministic computation is safe. All waiting, effects, and nondeterminism must cross a workflow-context primitive.
 
-Patch markers, archive retention/compaction, heartbeat-based long activities, payload ingress quotas, and fork/redrive remain future phases. `WorkflowProvider` also still constructs its PostgreSQL workflow adapter internally; making adapters explicit within every owning provider is intentionally deferred to one consistent provider-configuration change. The first shared lower-level scheduling primitives cover abort-aware polling delays and non-overlapping lease heartbeats; feature-specific reservation, admission, and transition rules intentionally remain in their owning schedulers until more semantics are genuinely shared.
+Patch markers, archive retention/compaction, heartbeat-based long activities, payload ingress quotas, and fork/redrive remain future phases. `WorkflowProvider` accepts explicit adapter definitions and validates their activity dispatch mode before runtime admission. The first shared lower-level scheduling primitives cover abort-aware polling delays and non-overlapping lease heartbeats; feature-specific reservation, admission, and transition rules intentionally remain in their owning schedulers until more semantics are genuinely shared.
 
 See [the design specification](./workflows_specs.md) for storage guarantees, versioning rationale, process integration, future Studio tooling, and the remaining implementation plan.
+
+
+## Adapter definition lifecycle
+
+This feature uses the [shared adapter definition lifecycle](./app.md#adapter-definitions-and-resource-ownership). Backend helpers and configuration schemas live with each adapter. See [application composition and migration](../usage/configuration.md#configure-providers-and-their-backends).

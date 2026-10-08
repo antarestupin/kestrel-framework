@@ -13,3 +13,5 @@ export {
   type PostgresWorkerJob,
   type PostgresWorkerQueueControl,
 } from "./postgres/index.js";
+export { postgresWorkers } from "./postgres/index.js";
+export { memoryWorkers } from "./memory/index.js";

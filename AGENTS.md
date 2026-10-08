@@ -7,6 +7,7 @@
 - Use unit tests and fastify.inject(), without starting HTTP servers.
 - Keep tests compatible with --no-isolate and dispose all owned resources.
 - Keep adapter implementation, tests, exports, and supporting files together.
+- For providers with interchangeable backends, follow the [provider adapter convention](docs/implementation/app.md#provider-adapter-convention): accept an explicit adapter definition directly as a constructor argument, keep dependency descriptors separate from backend settings in adapter factories, and use the shared lazy adapter lifecycle. Do not introduce adapter-only provider subclasses, adapter-only options wrappers, or closed backend registries; built-in and external adapters must use the same public contract.
 - Check security advisories and audit a temporary script-disabled lockfile before installing unfamiliar dependencies.
 - Keep lower-level library dependencies acyclic; move common contracts downward or inject composition dependencies.
 - Framework code and tests must not import application code. Keep browser entry points free of server runtime dependencies.

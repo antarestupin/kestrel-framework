@@ -85,3 +85,6 @@ export {
 } from "./adapters/index.js";
 
 export type { ValidationMode, InputValidationOptions } from "../definitions/index.js";
+export { defineWorkerAdapter, type WorkerAdapterDefinition, type WorkerAdapterCapabilities } from "./adapter_definition.js";
+export { postgresWorkers } from "./adapters/postgres/index.js";
+export { memoryWorkers } from "./adapters/memory/index.js";

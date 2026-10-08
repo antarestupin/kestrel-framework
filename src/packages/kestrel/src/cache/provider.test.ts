@@ -18,7 +18,8 @@ import {
   type ObservationEvent,
   type ObservationRecorder,
 } from "../observability/index.js";
-import { MemoryCacheAdapter, RedisCacheAdapter, type PostgresCacheDatabase } from "./adapters/index.js";
+import { memoryCache, redisCache, postgresCache, type PostgresCacheDatabase } from "./adapters/index.js";
+import { defineCacheAdapter } from "./adapter_definition.js";
 import type { CacheConfig } from "./configuration.js";
 import { cacheDependency, tagAwareCacheDependency } from "./dependencies.js";
 import { CacheProvider, type CacheResource } from "./provider.js";
@@ -31,7 +32,6 @@ const cacheConfig: CacheConfig = {
   defaultTtlSeconds: 60,
   maxTtlSeconds: 3_600,
   maxEntrySizeBytes: 1_024,
-  maxEntries: 100,
   pruneBatchSize: 10,
   pruneIntervalSeconds: 0,
 };
@@ -47,16 +47,6 @@ const lockConfig: LockConfig = {
   pruneIntervalSeconds: 0,
 };
 
-class MemoryCacheProvider<Config> extends CacheProvider<Config> {
-  protected override createAdapter(_database: PostgresCacheDatabase) {
-    return new MemoryCacheAdapter({
-      maxEntries: this.config.maxEntries,
-      maxSizeBytes: 10_000,
-      maxEntrySizeBytes: this.config.maxEntrySizeBytes,
-    });
-  }
-}
-
 class MemoryLockProvider<Config> extends LockProvider<Config> {
   protected override createAdapter(_database: PostgresLockDatabase) {
     return new MemoryLockAdapter();
@@ -66,11 +56,13 @@ class MemoryLockProvider<Config> extends LockProvider<Config> {
 describe("CacheProvider", () => {
   it("composes Redis without database, locks or a pruning task", async () => {
     const client = { sendCommand: vi.fn(async (_arguments: string[]) => "OK"), close: vi.fn() };
-    const adapter = new RedisCacheAdapter(client, { maxEntrySizeBytes: 1_024 });
+    const connection = dep<typeof client>("redis");
+    const adapter = redisCache(connection);
     const app = new App({ name: "test" }).register(new LoggerProvider({
       level: "silent", developmentStorage: false,
       executionLog: { enabled: true, contextMode: "completion" },
     })).register(new CacheProvider({ ...cacheConfig, pruneIntervalSeconds: 60 }, adapter));
+    app.container.registerValue(connection.id, client);
 
     try {
       // Even a positive maintenance interval must not manufacture Redis pruning.
@@ -103,9 +95,7 @@ describe("CacheProvider", () => {
   });
 
   it("retains maintenance for an injected prunable adapter", async () => {
-    const adapter = new MemoryCacheAdapter({
-      maxEntries: 100, maxSizeBytes: 10_000, maxEntrySizeBytes: 1_024,
-    });
+    const adapter = memoryCache();
     const app = new App({ name: "test" }).register(new CacheProvider({
       ...cacheConfig, pruneIntervalSeconds: 60,
     }, adapter));
@@ -132,7 +122,7 @@ describe("CacheProvider", () => {
     const app = new App({ name: "test" }).register(new CacheProvider({
       ...cacheConfig,
       pruneIntervalSeconds: 60,
-    }));
+    }, postgresCache(dep<PostgresCacheDatabase>("database"))));
 
     expect(app.catalog.scheduledTasks.registrations).toMatchObject([{
       task: {
@@ -149,7 +139,7 @@ describe("CacheProvider", () => {
 
   it("does not resolve cache infrastructure in minimal mode", async () => {
     const app = new App({ name: "test" }).register(
-      new MemoryCacheProvider(cacheConfig),
+      new CacheProvider(cacheConfig, memoryCache()),
     );
 
     app.prepareBootPlan([], "minimal");
@@ -193,7 +183,7 @@ describe("CacheProvider", () => {
       { lifetime: "scoped" },
     );
     app.register(new MemoryLockProvider(lockConfig));
-    app.register(new MemoryCacheProvider(cacheConfig));
+    app.register(new CacheProvider(cacheConfig, memoryCache()));
 
     const action = defineAction({
       name: "cache-provider.read",
@@ -233,5 +223,17 @@ function createTestApp(): App<{ name: string }> {
   app.container.registerValue("database", {} as PostgresCacheDatabase);
   return app
     .register(new MemoryLockProvider(lockConfig))
-    .register(new MemoryCacheProvider(cacheConfig));
+    .register(new CacheProvider(cacheConfig, memoryCache()));
 }
+
+it("rejects false capability declarations and releases the constructed adapter", async () => {
+  const dispose = vi.fn();
+  const app = new App({}).register(new CacheProvider(cacheConfig, defineCacheAdapter({
+    dependencies: {}, capabilities: { prune: true, tags: false },
+    create: () => ({ get: async () => undefined, set: async () => {}, delete: async () => false }),
+    dispose,
+  })));
+  try { await expect(app.start()).rejects.toThrow("capabilities"); }
+  finally { await app.dispose(); }
+  expect(dispose).toHaveBeenCalledOnce();
+});

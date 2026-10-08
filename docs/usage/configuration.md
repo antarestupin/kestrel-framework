@@ -74,3 +74,65 @@ Split larger definitions into focused factories receiving the same specialized c
 - Split configuration into typed factories sharing one configuration API.
 - Combine environment selections, fallbacks and explicit variable bindings.
 - Diagnose missing values, validation errors and conflicting overrides from concrete examples.
+
+## Configure providers and their backends
+
+Cache, throttling, workers and workflows require an explicit adapter definition. Providers own the feature facade, runtime integration and maintenance; adapter definitions describe construction, declared dependencies, capabilities and optional resource lifecycle hooks. Built-in and third-party backends use the same contract. See [provider lifecycle](../implementation/app.md#adapter-definitions-and-resource-ownership).
+
+New providers with interchangeable backends follow the same [provider adapter convention](../implementation/app.md#provider-adapter-convention): pass the adapter directly after the common feature configuration, or first when there is no common configuration. Any remaining provider options follow it; backend dependency descriptors and backend settings remain separate factory arguments.
+
+Keep validated values in the application configuration and dependency wiring in `app.ts` or an imported composition module. A feature configuration can include a nested adapter contribution without extending the framework's common schema:
+
+```ts
+// config/cache.ts: one contribution contains feature and storage settings.
+import { configure } from "@kestreljs/framework/configuration";
+import { cacheConfigBase, redisCacheConfigBase } from "@kestreljs/framework/cache";
+
+export function createCacheConfig() {
+  return configure(cacheConfigBase, {
+    namespace: "my-app",
+    defaultTtlSeconds: 3600,
+    adapter: configure(redisCacheConfigBase, { keyPrefix: "cache:" }),
+  });
+}
+```
+
+Add `cache: createCacheConfig()` to the existing application configuration definition. With the `APP_CONFIG` override prefix, `APP_CONFIG__CACHE__ADAPTER__KEY_PREFIX` overrides the nested prefix. Connection credentials and timeouts belong to `config/redis.ts`, because several features may share that connection.
+
+```ts
+// app.ts: the Redis infrastructure provider owns the borrowed connection.
+import { CacheProvider, redisCache } from "@kestreljs/framework/cache";
+import { redisDependency } from "./providers/redis_provider.js";
+
+app.register(new CacheProvider(app.config.cache, redisCache(redisDependency, app.config.cache.adapter)));
+```
+
+`postgresCacheConfigBase` owns `maxEntries`; `memoryCacheConfigBase` owns `maxEntries` and `maxSizeBytes`; `redisCacheConfigBase` owns `keyPrefix`. Entry-size limits remain shared cache policy and are passed to the adapter by the provider. `postgresThrottlingConfigBase` owns `maxConcurrentReservations`, `maxPendingReservations` and `storageWaitTimeoutMs`. `postgresWorkflowsConfigBase` owns `terminalPollIntervalMs`. Connection-backed helpers take the typed connection descriptor first and resolved backend settings second, retaining the supplied configuration reference without reparsing it. Validate application settings through `configure()` and `resolveConfig()` (or the backend schema for standalone callers). Omitting the second argument uses backend defaults; PostgreSQL workers take only the connection descriptor. Cache construction combines backend settings with common entry-size and pruning policy when the adapter is resolved. There is no empty backend configuration to maintain for PostgreSQL workers.
+
+### External backends
+
+An external package can export a factory returning `CacheAdapterDefinition`, `ThrottlingAdapterDefinition`, `WorkerAdapterDefinition` or `WorkflowAdapterDefinition`. It does not subclass a provider, register a global driver name, or import application code. For example, the following application-local definition adapts an already registered cache implementation:
+
+```ts
+import { defineCacheAdapter, type CacheAdapter } from "@kestreljs/framework/cache";
+import { dep } from "@kestreljs/framework/di";
+
+// A third-party infrastructure module may export this descriptor instead.
+const externalCacheDependency = dep<CacheAdapter>("externalCache");
+const externalCache = defineCacheAdapter({
+  dependencies: { storage: externalCacheDependency },
+  capabilities: { prune: false, tags: false },
+  create: ({ storage }) => storage,
+  // Borrowed instances have no dispose hook: their original owner releases them.
+});
+```
+
+For newly constructed resources, `create(dependencies, context)` runs synchronously once per app; use `initialize(adapter)` for asynchronous setup and `dispose(adapter)` for owned resource cleanup. Each feature supplies its context: cache and workers supply their resolved feature config, throttling supplies `{ config, instrumentation }`, and workflows supply `{ activityDispatchMode }`. A factory must not read environment variables, create connections while declaring a definition, or close injected shared connections. The dependency map uses typed `dep<T>()` descriptors. A definition may be reused across apps; construct state inside `create` for isolation.
+
+Declare `prune` and `tags` for cache, `prune` for throttling, `{}` for workers, and `activityDispatchMode` for workflows. Metadata is available during composition and is checked against the constructed backend. Custom throttling definitions own any backend-specific coordination and failure-policy decorators; the PostgreSQL helper composes denial caching, backend failure policy and leases using the supplied context. Runtime atomic reservation and leasing contracts remain mandatory for the policies using them.
+
+### Migration
+
+All four providers require an adapter definition as a direct constructor argument: `CacheProvider(config, adapter)`, `ThrottlingProvider(config, adapter, options?)`, `WorkerProvider(config, adapter, options?)` and `WorkflowProvider(adapter, options?)`. Optional provider settings remain separate from backend selection. Replace implicit PostgreSQL defaults with `postgresCache`, `postgresThrottling`, `postgresWorkers` or `postgresWorkflows`, passing an explicit typed database descriptor. Replace `new CacheProvider(config, instance)` and worker instance options with a definition; wrapping an existing instance in `create: () => instance` borrows it unless a disposal hook explicitly transfers ownership. Replace adapter-only provider subclasses with `define*Adapter` factories. Existing standalone adapter constructors remain available.
+
+Move `cache.maxEntries` into the PostgreSQL or memory adapter contribution. Move throttling storage concurrency and wait settings into its PostgreSQL adapter contribution; configure `maxPendingReservations` separately from the facade's `maxPendingAcquisitions`. For worker-backed workflows, select an outbox adapter explicitly with `postgresWorkflows(database, { activityDispatchMode: "outbox" })` and set `activityTransport: "worker"` on the provider.

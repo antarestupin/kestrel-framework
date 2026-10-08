@@ -4,7 +4,7 @@
 
 Kestrel provides a transport-independent cache library in `src/packages/kestrel/src/cache`. The cache is an optimization: application behavior must remain correct when an entry is absent, expires, is evicted, or cannot be written.
 
-The library ships memory, PostgreSQL and Redis adapters. PostgreSQL remains the default provider backend, while Redis implements only the base storage contract and relies on native expiration and server-managed capacity.
+The library ships memory, PostgreSQL and Redis adapters. Providers select their backend explicitly; Redis implements only the base storage contract and relies on native expiration and server-managed capacity.
 
 ## Concepts and model
 
@@ -339,7 +339,7 @@ The adapter enforces `maxEntrySizeBytes`. Redis capacity is configured operation
 
 The `create-kestrel` Redis generator configures the shared development instance with `maxmemory-policy noeviction`. `RedisProvider` owns the default connection independently of cache, allowing future locking and rate-limiting consumers to share it. Evicting a live coordination key would invalidate those consumers' guarantees, so memory pressure rejects writes requiring more memory instead. TTL expiration still runs normally. Cache write failures remain fail-open: a computed value can be returned even when it cannot be stored. The generated service is ephemeral development infrastructure; this eviction choice does not provide persistence or failover guarantees.
 
-A possible evolution is an explicit dedicated-cache infrastructure profile using Redis's native approximate LRU (`allkeys-lru`). Applications can already register another `RedisProvider` under a custom dependency descriptor and pass that descriptor to `RedisCacheProvider`; the dedicated Redis instance and its eviction configuration must currently be supplied by the application. Automating that instance's generation is deferred. A second connection, key prefix or logical database on the same instance does not isolate eviction. `volatile-lru` is also unsuitable for the shared instance because expiring locks and rate-limit counters would remain eligible for eviction.
+A possible evolution is an explicit dedicated-cache infrastructure profile using Redis's native approximate LRU (`allkeys-lru`). Applications can already register another `RedisProvider` under a custom dependency descriptor and pass that descriptor to `redisCache(connection)`; the dedicated Redis instance and its eviction configuration must currently be supplied by the application. Automating that instance's generation is deferred. A second connection, key prefix or logical database on the same instance does not isolate eviction. `volatile-lru` is also unsuitable for the shared instance because expiring locks and rate-limit counters would remain eligible for eviction.
 
 #### Standalone and Kestrel-integrated usage
 
@@ -349,18 +349,16 @@ The recommended integrated path injects an adapter into `CacheProvider`. The app
 import {
   CachePool,
   CacheProvider,
+  redisCache,
   RedisCacheAdapter,
   type CacheConfig,
   type RedisCacheClient,
 } from "./src/packages/kestrel/src/cache/index.js";
+import type { RegisteredDependencyDescriptor } from "@kestreljs/framework/di";
 
 // The application owns connecting, error listeners, timeouts and shutdown.
-function createRedisCacheProvider<Config>(client: RedisCacheClient, config: CacheConfig) {
-  const adapter = new RedisCacheAdapter(client, {
-    maxEntrySizeBytes: config.maxEntrySizeBytes,
-    keyPrefix: "service-cache:",
-  });
-  return new CacheProvider<Config>(config, adapter);
+function createRedisCacheProvider<Config>(connection: RegisteredDependencyDescriptor<RedisCacheClient>, config: CacheConfig) {
+  return new CacheProvider<Config>(config, redisCache(connection, { keyPrefix: "service-cache:" }));
 }
 
 // Standalone use shares the same storage contract and cache policies.
@@ -407,7 +405,7 @@ Layered writes also need a declared failure and ordering policy. These semantics
 
 ## Application integration
 
-`CacheProvider` lives in `src/packages/kestrel/src/cache`, receives a resolved `CacheConfig` and an optional borrowed `CacheAdapter`, and registers lazy singleton factories during composition. Without an injected adapter it creates PostgreSQL storage lazily. It constructs `TagAwareCachePool` for tag-capable adapters and `CachePool` otherwise. `CacheResource.prune` is optional, and `maintenance.cache-prune` is contributed only for prunable backends with a positive interval. The resource owns no timer. Its boot hook resolves the resource in standard mode; minimal mode leaves it lazy. Applications can inject an adapter directly or subclass the default PostgreSQL adapter factory and resource/maintenance factories.
+`CacheProvider` receives a resolved `CacheConfig` and a required `CacheAdapterDefinition` as its second constructor argument. It registers lazy singleton factories during composition and contributes maintenance from declared capabilities without resolving storage. Standard boot constructs, validates and initializes the backend; minimal mode leaves it unresolved. It constructs `TagAwareCachePool` for tag-capable adapters and `CachePool` otherwise. Adapter definitions replace adapter-only subclasses. See [shared lifecycle](./app.md#adapter-definitions-and-resource-ownership) and [nested configuration](../usage/configuration.md#configure-providers-and-their-backends).
 
 Kestrel exports a typed dependency descriptor from `src/packages/kestrel/src/cache/index.ts`:
 
@@ -434,3 +432,8 @@ Implementation should proceed in small independently tested stages:
 8. Run type checking, unit tests and the production build, then update the roadmap status and this specification if implementation decisions changed.
 
 Follow-up stages may add tag generations, batch APIs, stale-while-revalidate, probabilistic early recomputation and layered caching. Each should be introduced from a demonstrated application need rather than bundled into the initial cache.
+
+
+## Adapter definition lifecycle
+
+This feature uses the [shared adapter definition lifecycle](./app.md#adapter-definitions-and-resource-ownership). Backend helpers and configuration schemas live with each adapter. See [application composition and migration](../usage/configuration.md#configure-providers-and-their-backends).

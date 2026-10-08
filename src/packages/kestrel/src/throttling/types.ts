@@ -230,6 +230,8 @@ export interface Throttling {
 }
 
 export interface ThrottlingManagerOptions {
+  /** Set false when a provider owns backend disposal after the manager drains. */
+  readonly closeAdapter?: boolean;
   readonly namespace: string;
   readonly maxPendingAcquisitions?: number;
   readonly instrumentation?: ThrottlingInstrumentation;

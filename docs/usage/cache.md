@@ -2,6 +2,8 @@
 
 [Usage index](./README.md) · [Implementation and adapter contracts](../implementation/cache.md)
 
+Provider composition and backend settings follow the [shared adapter configuration contract](./configuration.md#configure-providers-and-their-backends).
+
 Use the cache for recomputable JSON-compatible data. Memory, PostgreSQL and Redis share the basic facade; memory and PostgreSQL additionally support tags.
 
 ## Configure a cache and load on a miss
@@ -12,16 +14,14 @@ Cache an expensive read when its result can be reused briefly and recomputed if 
 import { z } from "zod";
 import { defineAction } from "@kestreljs/framework/actions";
 import { App } from "@kestreljs/framework/app";
-import { cacheConfigBase, cacheDependency, CacheProvider, MemoryCacheAdapter } from "@kestreljs/framework/cache";
+import { cacheConfigBase, cacheDependency, CacheProvider, memoryCache } from "@kestreljs/framework/cache";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
 
 const configuration = createConfigurationApi({ environments: ["test"], defaultEnvironment: "test" });
 const config = configuration.resolveConfig({
   cache: configure(cacheConfigBase, { namespace: "example", defaultTtlSeconds: 60 }),
 }, { environment: "test", env: {} });
-const adapter = new MemoryCacheAdapter({
-  maxEntries: 1_000, maxSizeBytes: 4_194_304, maxEntrySizeBytes: 65_536,
-});
+const adapter = memoryCache({ maxEntries: 1_000, maxSizeBytes: 4_194_304 });
 const app = new App(config).register(new CacheProvider(config.cache, adapter));
 
 const readGreeting = defineAction({
@@ -38,7 +38,7 @@ const readGreeting = defineAction({
 });
 ```
 
-Run the action in the composed application. Omit the adapter for the provider's PostgreSQL default, after registering a database provider and installing the cache schema. Memory is process-local; use shared storage across processes. Ordinary `remember` calls coalesce concurrent loads inside one pool.
+Run the action in the composed application. Select PostgreSQL explicitly with `postgresCache(database)`, after registering a database provider and installing the cache schema. Memory is process-local; use shared storage across processes. Ordinary `remember` calls coalesce concurrent loads inside one pool.
 
 ## Install PostgreSQL storage
 
@@ -80,19 +80,16 @@ Inject `tagAwareCacheDependency` when tags are required; resolution fails if the
 Use shared cache storage when several processes should reuse the same results. Add shared locking when concurrent cache misses must also coordinate their loaders.
 
 ```ts
-import { RedisCacheAdapter, type RedisCacheClient, type CacheConfig } from "@kestreljs/framework/cache";
+import { CacheProvider, redisCache, type RedisCacheClient } from "@kestreljs/framework/cache";
+import { dep } from "@kestreljs/framework/di";
 
-function redisProvider(client: RedisCacheClient, config: CacheConfig) {
-  // The caller supplies a connected client and owns its errors and shutdown.
-  return new CacheProvider(config, new RedisCacheAdapter(client, {
-    keyPrefix: "example-cache:", maxEntrySizeBytes: config.maxEntrySizeBytes,
-  }));
-}
+// The infrastructure provider owns connecting, error handling and shutdown.
+app.register(new CacheProvider(config.cache, redisCache(dep<RedisCacheClient>("redis"), { keyPrefix: "example-cache:" })));
 ```
 
 Redis has native expiry but no tag, reset or prune capability. Configure connection/command timeouts on the borrowed client. For shared single-flight loading, register `LockProvider` and use `remember(key, loader, { lock: true })` or explicit lock options.
 
-Applications generated with `--cache redis` share one lazy connection through `redisDependency`, owned by `RedisProvider`; Redis Insight is included automatically for development. The generated instance uses `noeviction` so it can also host coordination keys: TTLs still expire, while writes requiring more memory can be rejected. For native LRU, supply a dedicated cache instance and select its connection through the optional dependency descriptor accepted by `RedisCacheProvider`. See the [Redis adapter implementation](../implementation/cache.md#redis-adapter) for ownership and deferred infrastructure generation.
+Applications generated with `--cache redis` share one lazy connection through `redisDependency`, owned by `RedisProvider`; Redis Insight is included automatically for development. The generated instance uses `noeviction` so it can also host coordination keys: TTLs still expire, while writes requiring more memory can be rejected. For native LRU, supply a dedicated cache instance and select its connection through the `connection` dependency descriptor accepted by `redisCache()`. See the [Redis adapter implementation](../implementation/cache.md#redis-adapter) for ownership and deferred infrastructure generation.
 
 Cache storage failures normally degrade to misses or skipped writes. Loader errors propagate; cache locks follow the lock library's failure policy. Do not use cache success as a correctness guarantee. TTL and entry-size limits are enforced; capacity and pruning settings depend on the adapter.
 

@@ -151,3 +151,7 @@ export {
   type AdmissionReason,
   type ThrottlingBackendFailurePolicy,
 } from "./types.js";
+export { defineThrottlingAdapter, type ThrottlingAdapterDefinition, type ThrottlingAdapterCapabilities, type ThrottlingAdapterContext } from "./adapter_definition.js";
+export { postgresThrottlingConfigBase, type PostgresThrottlingConfig } from "./adapters/postgres/index.js";
+export { postgresThrottling } from "./adapters/postgres/index.js";
+export { memoryThrottling } from "./adapters/memory/index.js";

@@ -59,3 +59,10 @@ export {
   type TagAwareCacheWriteOptions,
   type TagAwareCacheRememberOptions,
 } from "./types.js";
+export { defineCacheAdapter, type CacheAdapterDefinition, type CacheAdapterCapabilities } from "./adapter_definition.js";
+export { redisCacheConfigBase, type RedisCacheConfig } from "./adapters/redis/index.js";
+export { postgresCacheConfigBase, type PostgresCacheConfig } from "./adapters/postgres/index.js";
+export { memoryCacheConfigBase, type MemoryCacheConfig } from "./adapters/memory/index.js";
+export { postgresCache } from "./adapters/postgres/index.js";
+export { redisCache } from "./adapters/redis/index.js";
+export { memoryCache } from "./adapters/memory/index.js";

@@ -21,7 +21,6 @@ export const cacheConfigBase = defineConfigBase(z.object({
   defaultTtlSeconds: positiveInteger.default(3_600),
   maxTtlSeconds: positiveInteger.default(86_400),
   maxEntrySizeBytes: positiveInteger.default(1_048_576),
-  maxEntries: positiveInteger.default(100_000),
   pruneBatchSize: positiveInteger.default(1_000),
   pruneIntervalSeconds: nonNegativeInteger.default(60),
 }));

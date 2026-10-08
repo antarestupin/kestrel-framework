@@ -186,7 +186,11 @@ it.each(["postgres", "redis"])("composes %s cache with its required infrastructu
     expect(journal.entries.map((entry: { tag: string }) => entry.tag)).toEqual(cache === "postgres"
       ? ["0000_initial_note", "0001_postgres_cache"] : ["0000_initial_note"]);
     const app = await readFile(join(target, "src/server/core/app.ts"), "utf8");
-    expect(app).toContain(cache === "redis" ? "new RedisCacheProvider(app.config.cache)" : "new CacheProvider(app.config.cache)");
+    expect(app).toContain("new CacheProvider(app.config.cache, ");
+    expect(app).toContain(cache === "redis" ? "redisCache(redisDependency, app.config.cache.adapter)" : "postgresCache(databaseDependency, app.config.cache.adapter)");
+    const cacheConfig = await readFile(join(target, "src/server/core/config/cache.ts"), "utf8");
+    expect(cacheConfig).toContain(`adapter: configure(${cache}CacheConfigBase, {})`);
+    await expect(access(join(target, "src/server/core/providers/redis_cache_provider.ts"))).rejects.toMatchObject({ code: "ENOENT" });
     const schema = await readFile(join(target, "src/server/core/db/schema/app_schema.ts"), "utf8");
     expect(schema.includes("cacheEntries")).toBe(cache === "postgres");
     const env = await readFile(join(target, ".env.example"), "utf8");
@@ -208,7 +212,9 @@ it.each(["postgres", "redis"])("composes %s cache with its required infrastructu
       expect(manifest.dependencies["@redis/client"]).toBeDefined();
       expect(infrastructure.services.redis.command).toEqual(expect.arrayContaining(["--maxmemory-policy", "noeviction"]));
       expect(app.match(/new RedisProvider\(/g)).toHaveLength(1);
-      expect(app.indexOf("new RedisProvider")).toBeLessThan(app.indexOf("new RedisCacheProvider"));
+      // All providers register before cache storage is resolved at boot.
+      expect(app).toContain("redisCache(redisDependency, app.config.cache.adapter)");
+      await access(join(target, "src/server/core/cache.test.ts"));
       await access(join(target, "src/server/core/providers/redis_provider.test.ts"));
       expect(infrastructure.services.app.environment.REDIS_URL).toBe("redis://redis:6379/0");
       expect(infrastructure.services.app.depends_on.redis.condition).toBe("service_healthy");

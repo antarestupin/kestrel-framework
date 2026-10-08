@@ -2,6 +2,8 @@
 
 [Usage index](./README.md) · [Implementation, scheduling and adapter contracts](../implementation/workers.md)
 
+Provider composition and backend settings follow the [shared adapter configuration contract](./configuration.md#configure-providers-and-their-backends).
+
 Use workers for queued, retryable jobs. Publish against a typed worker definition and run the worker workload separately or through the shared background runtime.
 
 ## Install PostgreSQL storage
@@ -28,7 +30,7 @@ Queue an operation when it can run asynchronously and needs retry handling. This
 import { z } from "zod";
 import { App, defineCatalog } from "@kestreljs/framework/app";
 import { configure, createConfigurationApi } from "@kestreljs/framework/configuration";
-import { defineWorker, MemoryWorkerAdapter, WorkerClient, WorkerProvider, workersConfigBase } from "@kestreljs/framework/workers";
+import { defineWorker, memoryWorkers, MemoryWorkerAdapter, WorkerClient, WorkerProvider, workersConfigBase } from "@kestreljs/framework/workers";
 
 const printGreeting = defineWorker({
   name: "greeting.print", queue: "greetings",
@@ -47,16 +49,16 @@ const config = configuration.resolveConfig({ workers: configure(workersConfigBas
 const adapter = new MemoryWorkerAdapter();
 const app = new App(config, {
   catalog: defineCatalog({ greeting: { workers: { printGreeting } } }),
-}).register(new WorkerProvider(config.workers, { adapter }));
+}).register(new WorkerProvider(config.workers, memoryWorkers()));
 
-// Standalone publication uses the same adapter and validation as the DI client.
+// Standalone publication uses an independently owned memory adapter.
 const workers = new WorkerClient(adapter);
 // Deduplicate equivalent publication while this identity remains active.
 await workers.enqueue(printGreeting, { name: "Sam" }, { identity: "greeting:member-1" });
 await workers.enqueueMany(printGreeting, [{ name: "Alex" }, { name: "Jo" }]);
 ```
 
-In application services inject `workerClientDependency`. Omit the adapter for the provider's PostgreSQL default, after installing its schema and database provider. Runtime execution also needs the application's logger. Memory publication and consumption must occur in the same process.
+In application services inject `workerClientDependency`. Select PostgreSQL explicitly with `postgresWorkers(database)`, after installing its schema and database provider. Runtime execution also needs the application's logger. Memory publication and consumption must occur in the same process.
 
 `availableAt` schedules future availability. An `identity` deduplicates equivalent publications while the job remains active; it is not an exactly-once guarantee. `enqueueMany` validates every payload before writing and does not accept one shared identity for several jobs.
 

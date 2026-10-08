@@ -662,7 +662,7 @@ const workerProcessPressurePolicy = defineAdmissionPolicy({
   limits: [workerProcessPressure],
 });
 
-app.register(new WorkerProvider(workersConfig, {
+app.register(new WorkerProvider(workersConfig, postgresWorkers(databaseDependency), {
   reservationPressure: workerProcessPressurePolicy,
 }));
 
@@ -836,11 +836,9 @@ The resolved configuration is passed explicitly during application composition. 
 ```ts
 app
   .register(new DatabaseProvider(app.config.database))
-  .register(new ThrottlingProvider(app.config.throttling))
-  .register(new WorkerProvider(app.config.workers, {
+  .register(new ThrottlingProvider(app.config.throttling, postgresThrottling(databaseDependency)))
+  .register(new WorkerProvider(app.config.workers, applicationWorkerAdapterDefinition, {
     reservationPressure: workerProcessPressurePolicy,
-    // Optional: route jobs through an SQS-backed WorkerAdapter.
-    adapter: applicationWorkerAdapter,
   }));
 ```
 
@@ -924,3 +922,8 @@ The publication, acknowledgement-ordering and deferral improvements above are im
 - Evaluate integrating PostgreSQL readiness and queue pause checks into reservation, and extending collective lease maintenance to workflow and scheduled-task schedulers.
 
 Measure SQL commands per job, actual batch sizes, handler-to-persistence latency, active leases and handler-slot utilization before choosing buffer sizes or refill thresholds. Larger buffers trade lower storage traffic for longer acknowledgement or deferral latency.
+
+
+## Adapter definition lifecycle
+
+This feature uses the [shared adapter definition lifecycle](./app.md#adapter-definitions-and-resource-ownership). Backend helpers and configuration schemas live with each adapter. See [application composition and migration](../usage/configuration.md#configure-providers-and-their-backends).

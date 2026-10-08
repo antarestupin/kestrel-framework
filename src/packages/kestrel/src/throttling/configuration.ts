@@ -44,8 +44,6 @@ export const throttlingConfigBase = defineConfigBase(z.object({
   // The application owns this deployed-data namespace.
   namespace: z.string().min(1),
   maxPendingAcquisitions: nonNegativeInteger.default(1_000),
-  maxConcurrentReservations: positiveInteger.default(8),
-  storageWaitTimeoutMs: positiveNumber.default(1_000),
   backendFailurePolicy: backendFailurePolicy.default({ strategy: "reject" }),
   pruneBatchSize: positiveInteger.default(1_000),
   pruneIntervalSeconds: nonNegativeInteger.default(60),

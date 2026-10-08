@@ -1,12 +1,11 @@
 // Verify that cache composition borrows the selected connection without taking ownership.
 import { expect, it, vi } from "vitest";
 import { App } from "@kestreljs/framework/app";
-import { cacheDependency } from "@kestreljs/framework/cache";
+import { cacheDependency, CacheProvider, redisCache } from "@kestreljs/framework/cache";
 import { LoggerProvider } from "@kestreljs/framework/log";
-import { appConfig } from "../app_config.js";
+import { appConfig } from "./app_config.js";
 import { dep } from "@kestreljs/framework/di";
-import { RedisCacheProvider } from "./redis_cache_provider.js";
-import { redisDependency, type RedisClient } from "./redis_provider.js";
+import { redisDependency, type RedisClient } from "./providers/redis_provider.js";
 
 it.each([false, true])("borrows the selected Redis connection (custom=%s)", async (custom) => {
   const app = new App(appConfig).register(new LoggerProvider(appConfig.logger));
@@ -15,7 +14,7 @@ it.each([false, true])("borrows the selected Redis connection (custom=%s)", asyn
   const dedicatedDependency = dep<RedisClient>("cacheRedis");
   app.container.registerValue(redisDependency.id, shared);
   app.container.registerValue(dedicatedDependency.id, dedicated);
-  app.register(new RedisCacheProvider(appConfig.cache, custom ? dedicatedDependency : undefined));
+  app.register(new CacheProvider(appConfig.cache, redisCache(custom ? dedicatedDependency : redisDependency, appConfig.cache.adapter)));
   try {
     const cache = app.container.resolve(cacheDependency);
     await cache.get("example");

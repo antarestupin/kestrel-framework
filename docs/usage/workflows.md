@@ -2,6 +2,8 @@
 
 [Usage index](./README.md) · [Implementation, replay and operations](../implementation/workflows.md)
 
+Provider composition and backend settings follow the [shared adapter configuration contract](./configuration.md#configure-providers-and-their-backends).
+
 Use workflows for orchestration that must survive waits and process restarts. Put effects in actions; keep workflow handlers deterministic and express waits through the durable context.
 
 ## Install PostgreSQL storage
@@ -57,7 +59,7 @@ export const catalog = defineCatalog({
 });
 ```
 
-Register `WorkflowProvider` after the PostgreSQL and logger providers, install its schema, and run `./do run workflows` or the [background runtime](./background.md). Embedded action execution is the default. `activityTransport: "worker"` requires a worker provider and a running workers workload as well.
+Register `WorkflowProvider(postgresWorkflows(database))` after the PostgreSQL and logger providers, install its schema, and run `./do run workflows` or the [background runtime](./background.md). Embedded action execution is the default. `activityTransport: "worker"` requires `activityDispatchMode: "outbox"` in the adapter definition, a worker provider and a running workers workload as well.
 
 ## Start, signal and read the result
 

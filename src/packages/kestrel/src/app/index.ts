@@ -63,3 +63,4 @@ export {
   type AppCatalogDeclaration,
   type SelectCatalogCategory,
 } from "./catalog.js";
+export { registerProviderAdapter } from "./adapter.js";

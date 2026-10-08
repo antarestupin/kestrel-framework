@@ -1,24 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { App } from "../app/index.js";
 import { dep } from "../di/index.js";
-import { MemoryRateLimitAdapter } from "./adapters/index.js";
+import { MemoryRateLimitAdapter, postgresThrottling } from "./adapters/index.js";
 import type { ThrottlingConfig } from "./configuration.js";
+import { defineThrottlingAdapter } from "./adapter_definition.js";
 import { throttlingDependency } from "./dependencies.js";
 import {
   ThrottlingProvider,
   type ThrottlingResource,
 } from "./provider.js";
-import type {
-  PrunableRateLimitAdapter,
-  RateLimitPruneOptions,
-} from "./types.js";
-
 const throttlingConfig: ThrottlingConfig = {
   namespace: "test",
   maxPendingAcquisitions: 100,
-  maxConcurrentReservations: 2,
-  storageWaitTimeoutMs: 100,
   backendFailurePolicy: { strategy: "reject" },
   pruneBatchSize: 10,
   pruneIntervalSeconds: 0,
@@ -30,15 +24,15 @@ const throttlingConfig: ThrottlingConfig = {
   },
 };
 
-class MemoryThrottlingProvider<Config> extends ThrottlingProvider<Config> {
-  protected override createAdapter(): PrunableRateLimitAdapter {
-    const memory = new MemoryRateLimitAdapter();
-
-    return {
-      reserve: (request) => memory.reserve(request),
-      prune: async (_options: RateLimitPruneOptions) => 0,
-    };
-  }
+function testAdapter() {
+  return defineThrottlingAdapter({
+    dependencies: {},
+    capabilities: { prune: true },
+    create: () => {
+      const memory = new MemoryRateLimitAdapter();
+      return { reserve: memory.reserve.bind(memory), prune: async () => 0 };
+    },
+  });
 }
 
 describe("ThrottlingProvider", () => {
@@ -60,7 +54,7 @@ describe("ThrottlingProvider", () => {
     const app = new App({ name: "test" }).register(new ThrottlingProvider({
       ...throttlingConfig,
       pruneIntervalSeconds: 60,
-    }));
+    }, postgresThrottling(dep("database"))));
 
     expect(app.catalog.scheduledTasks.registrations).toMatchObject([{
       task: {
@@ -90,5 +84,25 @@ function createTestApp(): App<{ name: string }> {
   const app = new App({ name: "test" });
 
   app.container.registerValue("database", {});
-  return app.register(new MemoryThrottlingProvider(throttlingConfig));
+  return app.register(new ThrottlingProvider(throttlingConfig, testAdapter()));
 }
+
+it("supports a non-prunable external backend and closes it once after draining", async () => {
+  const close = vi.fn(async () => {});
+  const adapter = defineThrottlingAdapter({
+    dependencies: {}, capabilities: { prune: false },
+    create: () => Object.assign(new MemoryRateLimitAdapter(), { close }),
+    dispose: (value) => value.close(),
+  });
+  const app = new App({}).register(new ThrottlingProvider({
+    ...throttlingConfig, pruneIntervalSeconds: 60,
+  }, adapter));
+  try {
+    expect(app.catalog.scheduledTasks.registrations).toEqual([]);
+    await app.start();
+    const throttling = app.container.resolve(throttlingDependency);
+    await throttling.close();
+    expect(close).not.toHaveBeenCalled();
+  } finally { await app.dispose(); }
+  expect(close).toHaveBeenCalledOnce();
+});

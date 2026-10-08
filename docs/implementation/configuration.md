@@ -290,3 +290,8 @@ The conventional target catalog is currently internal to resolution. A future in
 Configuration factories currently use a type-only reference to `app_config.ts` so unsupported environment names fail where a fragment is authored. A future declaration API could instead carry environment names as phantom source metadata and validate them during final assembly. That would make fragments completely independent from the final configuration assembly, but the additional Kestrel type machinery is deferred until configuration fragments need to be shared between applications.
 
 Drizzle Kit uses the side-effect-free `drizzle.database.ts` tooling boundary because its CommonJS configuration loader cannot load the complete application composition graph. This helper validates credentials with the Kestrel database schema and mirrors the application's database environment policy. A future configuration artifact format could let external tools consume selected resolved sections directly without either loading the bootstrap or maintaining this explicit tooling adapter.
+
+
+## Backend-specific configuration
+
+Feature providers receive common validated settings separately from adapter definitions. Application contributions can nest another `configure()` result under `adapter`; the existing resolver preserves its schema, inferred output and conventional environment overrides. Cache, throttling and workflow backend schemas live beside their concrete adapters. No connection instance or factory is placed in resolved configuration. See [usage and migration](../usage/configuration.md#configure-providers-and-their-backends) and [resource lifecycle](./app.md#adapter-definitions-and-resource-ownership).

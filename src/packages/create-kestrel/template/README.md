@@ -10,7 +10,7 @@ The starter home page lives in `src/client/src/main.tsx`, with responsive styles
 
 ## Application commands
 
-`./do` runs the Kestrel CLI against the default application exported by `src/server/core/app.ts`. It resolves the project from its own location, so invocation also works from another directory. Application providers are lazy: help and client generation do not open HTTP listeners or database connections. Composition is declared directly in `src/server/core/app.ts`. HTTP tests own that application for their suite; CLI tests use separate processes so disposal does not leak across tests running with `--no-isolate`.
+`./do` runs the Kestrel CLI against the default application exported by `src/server/core/app.ts`. It resolves the project from its own location, so invocation also works from another directory. Application providers are lazy: help and client generation do not open HTTP listeners or database connections. Composition is declared directly in `src/server/core/app.ts`. Feature providers select explicit adapter definitions; shared connections are borrowed through typed dependency descriptors such as `databaseDependency` from the database provider. Backend settings belong in the nested `adapter` contribution of each feature configuration. HTTP tests own that application for their suite; CLI tests use separate processes so disposal does not leak across tests running with `--no-isolate`.
 
 | Command | Purpose |
 | --- | --- |

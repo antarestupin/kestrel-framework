@@ -616,7 +616,7 @@ const executorPressure = localResourcePressure({
   },
 });
 
-app.register(new ThrottlingProvider(throttlingConfig, {
+app.register(new ThrottlingProvider(throttlingConfig, postgresThrottling(databaseDependency), {
   resourcePressureSources: [
     new ExecutorQueuePressureSource(executor),
   ],
@@ -1170,7 +1170,7 @@ PostgreSQL atomic increments are not the main difficulty: a conditional upsert c
 
 PostgreSQL calculations should use database time to avoid clock skew. Expired leases and obsolete windows are pruned in bounded batches by a contributed maintenance task rather than an internal timer.
 
-The exact PostgreSQL adapter runs behind a configurable process-local concurrency gate and bounds both the number of pending storage reservations and the time spent waiting for that gate. The provider derives this second queue bound from `maxPendingAcquisitions`, so an initial wave of immediate acquisitions cannot allocate an unbounded storage queue before reaching the manager's ordinary waiting path. The storage-neutral denial-cache decorator serializes matching probes and caches authoritative deadlines using a monotonic local duration, so requests queued behind a rejected reservation become local denials. Successful exact admissions are never coalesced: each consumes capacity through an authoritative atomic mutation. Short statement and lock timeouts are currently inherited from PostgreSQL connection policy; adapter-specific cancellable query deadlines remain a potential evolution if the shared database pool exposes cancellation safely.
+The exact PostgreSQL adapter runs behind a configurable process-local concurrency gate and bounds both the number of pending storage reservations and the time spent waiting for that gate. The PostgreSQL adapter definition configures this second queue bound with `maxPendingReservations`, so an initial wave of immediate acquisitions cannot allocate an unbounded storage queue before reaching the manager's ordinary waiting path. The storage-neutral denial-cache decorator serializes matching probes and caches authoritative deadlines using a monotonic local duration, so requests queued behind a rejected reservation become local denials. Successful exact admissions are never coalesced: each consumes capacity through an authoritative atomic mutation. Short statement and lock timeouts are currently inherited from PostgreSQL connection policy; adapter-specific cancellable query deadlines remain a potential evolution if the shared database pool exposes cancellation safely.
 
 The persisted bucket records its definition, remaining fractional tokens, last refill time, safe full time and last atomic decision. An update only matches an identical definition; reusing a namespaced key with different rate settings raises a typed conflict instead of silently changing quota semantics. Database time calculates refill, while the returned retry delay is projected onto the process clock so application clock skew cannot cause an early retry. Rows are prunable only after `fullAt`, when deleting the row is semantically identical to retaining a full bucket.
 
@@ -1244,7 +1244,7 @@ The expected dependency descriptor is:
 export const throttlingDependency = dep<Throttling>("throttling");
 ```
 
-The provider owns standard adapter construction, namespace configuration, default coordination, backend failure policy and maintenance contribution. Definitions may override coordination only where the provider and adapter advertise the required capability.
+The provider owns namespace configuration and capability-driven maintenance. The selected adapter definition owns storage construction and backend coordination; `postgresThrottling()` composes denial caching, backend failure policy and leases. Definitions may override coordination only where the provider and adapter advertise the required capability.
 
 The standard resolved configuration is deliberately provider-level rather than repeated on simple definitions:
 
@@ -1252,8 +1252,6 @@ The standard resolved configuration is deliberately provider-level rather than r
 const config = {
   namespace: "my-app",
   maxPendingAcquisitions: 1_000,
-  maxConcurrentReservations: 8,
-  storageWaitTimeoutMs: 1_000,
   backendFailurePolicy: { strategy: "reject" },
   pruneBatchSize: 1_000,
   pruneIntervalSeconds: 60,
@@ -1265,7 +1263,7 @@ const config = {
   },
 } satisfies ThrottlingConfig;
 
-app.register(new ThrottlingProvider(config));
+app.register(new ThrottlingProvider(config, postgresThrottling(databaseDependency, { maxConcurrentReservations: 8, maxPendingReservations: 1_000, storageWaitTimeoutMs: 1_000 })));
 ```
 
 An availability-oriented deployment can replace `reject` with `{ strategy: "emergency-local", capacity: 2, periodMs: 60_000 }`. This is a per-process emergency allowance applied independently to every requested rate dimension, so the maximum distributed over-admission grows with the number of live processes. The option must therefore remain small and explicit, while remaining large enough for the maximum estimated cost of any operation allowed during degradation. An acquisition that can never fit raises the same typed cost-exceeds-burst error; advisory inspection reports it as limited.
@@ -1485,3 +1483,8 @@ The following capabilities are deliberately kept for later phases:
 - generalized admission planning shared by workers and scheduled tasks.
 
 These evolutions should extend the same definition, permit and instrumentation contracts without making the simple rate-limit API more complex.
+
+
+## Adapter definition lifecycle
+
+This feature uses the [shared adapter definition lifecycle](./app.md#adapter-definitions-and-resource-ownership). Backend helpers and configuration schemas live with each adapter. See [application composition and migration](../usage/configuration.md#configure-providers-and-their-backends).

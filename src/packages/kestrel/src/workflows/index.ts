@@ -210,3 +210,7 @@ export { WorkflowRuntime } from "./runtime.js";
 
 export type { ValidationMode, ValidationOptions, InputValidationOptions } from "../definitions/index.js";
 export { workflowExecutionCursorCodec } from "./execution_cursor.js";
+export { defineWorkflowAdapter, type WorkflowAdapterDefinition, type WorkflowAdapterCapabilities, type WorkflowAdapterContext } from "./adapter_definition.js";
+export { postgresWorkflowsConfigBase, type PostgresWorkflowsConfig } from "./adapters/postgres/index.js";
+export { postgresWorkflows } from "./adapters/postgres/index.js";
+export { memoryWorkflows } from "./adapters/memory/index.js";

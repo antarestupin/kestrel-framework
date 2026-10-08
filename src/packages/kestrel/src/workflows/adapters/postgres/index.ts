@@ -18,3 +18,5 @@ export {
   type PostgresWorkflowSignal,
   type PostgresWorkflowTask,
 } from "./schema.js";
+export { postgresWorkflowsConfigBase, type PostgresWorkflowsConfig } from "./configuration.js";
+export { postgresWorkflows } from "./definition.js";

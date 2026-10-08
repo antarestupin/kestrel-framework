@@ -1,11 +1,10 @@
+import { registerProviderAdapter } from "../app/adapter.js";
 import type { Logger } from "pino";
 
-import type { Provider, ProviderCompositionApp } from "../app/index.js";
+import type { Provider, ProviderBootApp, ProviderCompositionApp } from "../app/index.js";
 import { defineCliController } from "../cli/index.js";
-import {
-  PostgresWorkerAdapter,
-  type PostgresWorkerDatabase,
-} from "./adapters/index.js";
+import { dep, type AdapterRegistration } from "../di/index.js";
+import type { WorkerAdapterDefinition } from "./adapter_definition.js";
 import type { WorkerAdapter } from "./types.js";
 import { WorkerClient } from "./client.js";
 import type { WorkersConfig } from "./configuration.js";
@@ -22,10 +21,6 @@ import {
 } from "./dependencies.js";
 import { WorkerRuntime } from "./runtime.js";
 
-interface WorkerAdapterDependencies {
-  database: PostgresWorkerDatabase;
-}
-
 interface WorkerClientDependencies {
   workerAdapter: WorkerAdapter;
 }
@@ -38,32 +33,23 @@ interface WorkerRuntimeDependencies {
 export interface WorkerProviderOptions {
   /** Job-independent local pressure inspected before queue reservation. */
   readonly reservationPressure?: AdmissionPolicyDefinition;
-  /** Replaces PostgreSQL with an application-owned queue adapter such as SQS. */
-  readonly adapter?: WorkerAdapter;
   /** Result owners keyed by their adapter-neutral correlation namespace. */
   readonly completionSinks?: Readonly<
     Record<string, WorkerCorrelatedCompletionSink>
   >;
 }
 
-/** Adds the shared queue API and its PostgreSQL storage adapter. */
+/** Adds the shared queue API and the selected storage adapter. */
 export class WorkerProvider<Config> implements Provider<Config> {
+  /** Keeps backend selection explicit and separate from provider tuning. */
   public constructor(
     protected readonly config: WorkersConfig,
+    private readonly adapter: WorkerAdapterDefinition,
     protected readonly options: WorkerProviderOptions = {},
   ) {}
 
   public register(app: ProviderCompositionApp<Config>): void {
-    if (this.options.adapter === undefined) {
-      app.container.registerFactory(
-        "workerAdapter",
-        ({ database }: WorkerAdapterDependencies) =>
-          this.createAdapter(database),
-        { lifetime: "singleton" },
-      );
-    } else {
-      app.container.registerValue("workerAdapter", this.options.adapter);
-    }
+    registerProviderAdapter(app, "workerAdapter", this.adapter, this.config);
     app.container.registerValue(
       "workerCorrelatedCompletionSink",
       new WorkerCorrelatedCompletionRouter(this.options.completionSinks),
@@ -112,9 +98,10 @@ export class WorkerProvider<Config> implements Provider<Config> {
     }, { kind: "provider", provider: this.constructor.name });
   }
 
-  /** Creates the persistent queue adapter. */
-  protected createAdapter(database: PostgresWorkerDatabase): WorkerAdapter {
-    return new PostgresWorkerAdapter(database);
+  /** Initialize the selected backend after infrastructure providers have registered. */
+  public async boot(app: ProviderBootApp<Config>): Promise<void> {
+    if (app.bootPlan.runningMode === "minimal") return;
+    await app.container.resolve(dep<AdapterRegistration<WorkerAdapter>>("workerAdapterRegistration")).boot();
   }
 
   /** Creates the public queue client from the configured adapter. */

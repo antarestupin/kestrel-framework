@@ -22,3 +22,12 @@ export {
   type ResolvedDependencies,
   type ResolvedDependency,
 } from "./dependencies.js";
+export {
+  defineAdapter,
+  registerAdapter,
+  type AdapterDefinition,
+  type AdapterDependencies,
+  type AdapterDependencyResolver,
+  type AdapterFactoryOptions,
+  type AdapterRegistration,
+} from "./adapter.js";

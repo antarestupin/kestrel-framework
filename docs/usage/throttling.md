@@ -2,7 +2,9 @@
 
 [Usage index](./README.md) · [Implementation and coordination contracts](../implementation/throttling.md)
 
-Use throttling to bound dependency requests, concurrency or resource pressure. In Kestrel, resolve `throttlingConfigBase`, register `ThrottlingProvider` after PostgreSQL infrastructure, and inject `throttlingDependency`. The provider defaults to exact shared PostgreSQL rate coordination.
+Provider composition and backend settings follow the [shared adapter configuration contract](./configuration.md#configure-providers-and-their-backends).
+
+Use throttling to bound dependency requests, concurrency or resource pressure. In Kestrel, resolve `throttlingConfigBase`, register `ThrottlingProvider` after PostgreSQL infrastructure, and inject `throttlingDependency`. Select exact shared PostgreSQL coordination with `postgresThrottling(database)`, or supply a compatible external definition.
 
 ## Install PostgreSQL storage
 
