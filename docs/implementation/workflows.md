@@ -611,3 +611,13 @@ See [the design specification](./workflows_specs.md) for storage guarantees, ver
 ## Adapter definition lifecycle
 
 This feature uses the [shared adapter definition lifecycle](./app.md#adapter-definitions-and-resource-ownership). Backend helpers and configuration schemas live with each adapter. See [application composition and migration](../usage/configuration.md#configure-providers-and-their-backends).
+
+## Polling supervision and abandoned work
+
+`PollingSupervisor` is a lower-level scheduling utility and imports no app or workflow code. Workflow schedulers and outbox dispatchers own separate supervisors with the same policy. Classification precedence is explicit application callback, adapter callback, terminal fallback. PostgreSQL classification follows known codes through wrapped causes and requires every constituent of a batch error to be transient. Successful empty cycles count as infrastructure progress; they do not assert business throughput. Failure duration uses a monotonic clock, while public timestamps use wall time.
+
+A terminal rejection aborts sibling polling and rejects the runtime completion Promise. Drain awaits every polling task independently of this fail-fast notification. A reservation batch settles all admitted tasks before surfacing failures, keeping application dependency ownership intact. Error reporting is contained so a throwing logger cannot replace the infrastructure cause. Worker and scheduled-task loops retain their ordinary cycle-error recovery and expose their retained polling lifetime to composite owners.
+
+Cancellation stops future lease extensions, but an in-flight extension or activity may finish later. The scheduler does not claim exactly-once effects or convert process shutdown into durable workflow cancellation. The redelivery regression runs an activity beyond ownership, re-reserves it with a new token, rejects the former owner's late completion and uses an execution/command key in a target-owned deduplication store to preserve one effect. Production targets must atomically persist the idempotency key with their effect; an in-memory test store is illustrative only. Existing memory and PostgreSQL adapter conformance tests cover stale reservation generations.
+
+Deferred evolutions include explicit cycle watchdogs with adapter cancellation, centralized readiness projection and operational progress metrics. A persistent failure budget currently bounds sequences of failed cycles, not a non-settling storage call; application shutdown still bounds waiting for that call.

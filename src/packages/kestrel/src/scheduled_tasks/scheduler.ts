@@ -80,7 +80,11 @@ export class ScheduledTaskScheduler<Config> {
 
   private handlerAbortController = new AbortController();
 
+  private pollingLifetime: Promise<void> | undefined;
+
   private loopPromise: Promise<void> | undefined;
+
+  private stopRequested = false;
 
   private initializePromise: Promise<void> | undefined;
 
@@ -101,6 +105,15 @@ export class ScheduledTaskScheduler<Config> {
     this.resolvedTasks = resolveTasks(tasks, adapters, locks, options);
   }
 
+  private get executionSignal(): AbortSignal {
+    const applicationSignal = this.app.shutdown?.signal;
+    return applicationSignal === undefined ? this.handlerAbortController.signal
+      : AbortSignal.any([this.handlerAbortController.signal, applicationSignal]);
+  }
+
+  /** Current polling lifetime; ordinary cycle failures retain existing recovery. */
+  public get completion(): Promise<void> | undefined { return this.pollingLifetime; }
+
   /** Reconciles definitions and starts admission polling until stopped. */
   public async start(): Promise<void> {
     if (this.loopPromise !== undefined) {
@@ -108,6 +121,7 @@ export class ScheduledTaskScheduler<Config> {
     }
 
     await this.initialize();
+    if (this.stopRequested) return;
     this.handlerAbortController = new AbortController();
     this.loopAbortController = new AbortController();
     this.loopPromise = this.runLoop(this.loopAbortController.signal)
@@ -115,14 +129,17 @@ export class ScheduledTaskScheduler<Config> {
         this.loopPromise = undefined;
         this.loopAbortController = undefined;
       });
+    this.pollingLifetime = this.loopPromise;
+    void this.loopPromise.catch(() => undefined);
   }
 
   /** Stops admission, aborts cooperative handlers and drains active runs. */
   public async stop(): Promise<void> {
+    this.stopRequested = true;
     this.loopAbortController?.abort();
     this.handlerAbortController.abort();
-    await this.loopPromise;
-    await Promise.allSettled([...this.activeInvocations]);
+    try { await this.loopPromise; }
+    finally { await Promise.allSettled([...this.activeInvocations]); }
   }
 
   /** Admits one cycle and waits for the runs started by that cycle. */
@@ -380,7 +397,7 @@ export class ScheduledTaskScheduler<Config> {
             resolved.task.dependencies,
           );
           await resolved.task.handler(dependencies, {
-            signal: this.handlerAbortController.signal,
+            signal: this.executionSignal,
             scheduledAt: reservation.scheduledAt,
             trigger: reservation.trigger,
             deferNextRun: deferral.deferNextRun,
@@ -468,7 +485,10 @@ export class ScheduledTaskScheduler<Config> {
   ): { close(): Promise<void> } {
     let activeExtension: Promise<unknown> | undefined;
     let extensionError: unknown;
+    const signal = this.executionSignal;
+    const stop = () => clearInterval(interval);
     const interval = setInterval(() => {
+      if (signal.aborted) { stop(); return; }
       if (activeExtension !== undefined) {
         return;
       }
@@ -487,10 +507,13 @@ export class ScheduledTaskScheduler<Config> {
       });
     }, Math.max(1, Math.floor(this.options.leaseMs / 2)));
     interval.unref();
+    signal.addEventListener("abort", stop, { once: true });
+    if (signal.aborted) stop();
 
     return {
       close: async () => {
         clearInterval(interval);
+        signal.removeEventListener("abort", stop);
         await activeExtension;
         if (extensionError !== undefined) {
           throw extensionError;

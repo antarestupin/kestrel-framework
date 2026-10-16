@@ -102,7 +102,7 @@ Start a worker workload when published jobs should be consumed, then size its co
 ./do run background --workload workers
 ```
 
-Forward `context.signal` to cancellable dependencies. Configure `slots`, `reservationLimit`, lease duration and `shutdownBehavior` through `workersConfigBase`. The default shutdown waits for handlers; release/expiry modes require cooperative cancellation and replay-safe effects.
+Forward `context.signal` to cancellable dependencies. Configure `slots`, `reservationLimit`, lease duration and `shutdownBehavior` through `workersConfigBase`. The default shutdown waits for handlers; release/expiry modes require cooperative cancellation and replay-safe effects. The runtime still drains the polling lifetime under the [shared application deadline](./app.md#bound-application-shutdown), including storage calls made before scope creation, so borrowed dependencies are not closed while those calls are pending. The lower-level scheduler retains its non-waiting release/expiry API.
 
 For dependency limits, add `throttling: { requirements: job => ({ admission, estimatedCost }), buffering: { strategy: "defer" } }`. [Throttling](./throttling.md) explains policies; [the worker buffering reference](../implementation/workers.md#choosing-a-buffering-strategy) covers bounded hold and release alternatives.
 

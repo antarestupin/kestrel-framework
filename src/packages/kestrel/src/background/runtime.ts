@@ -1,5 +1,5 @@
 import type { RuntimeApp } from "../app/index.js";
-import { waitForShutdownSignal } from "../app/process.js";
+import { runSupervisedRuntime } from "../app/process.js";
 
 export type BackgroundWorkload =
   | "scheduled-tasks"
@@ -9,10 +9,11 @@ export type BackgroundWorkload =
 export interface BackgroundWorkloadRuntime {
   start(): Promise<void> | void;
   stop(): Promise<void>;
+  readonly completion?: Promise<void> | undefined;
 }
 
 export interface BackgroundRuntimeOptions {
-  waitForShutdown?: () => Promise<void>;
+  waitForShutdown?: (signal: AbortSignal) => Promise<void>;
 }
 
 /** Hosts any selected combination of Kestrel background schedulers. */
@@ -44,33 +45,31 @@ export class BackgroundRuntime<Config> {
 
     const started: BackgroundWorkloadRuntime[] = [];
 
-    try {
-      for (const workload of selected) {
-        const runtime = this.runtimes[workload]!;
-        await runtime.start();
-        started.push(runtime);
-      }
-
-      await (this.options.waitForShutdown ?? waitForShutdownSignal)();
-    } finally {
-      const results = await Promise.allSettled(
-        [...started].reverse().map((runtime) => runtime.stop()),
-      );
-      const appStop = await Promise.allSettled([this.app.stop()]);
-      const failures = [...results, ...appStop]
-        .filter((result): result is PromiseRejectedResult =>
-          result.status === "rejected")
-        .map((result) => result.reason);
-
-      if (failures.length > 0) {
-        throw new AggregateError(failures, "Background workload shutdown failed.");
-      }
-    }
+    await runSupervisedRuntime(this.app, {
+      start: async (signal) => {
+        for (const workload of selected) {
+          if (signal?.aborted) return;
+          const runtime = this.runtimes[workload]!;
+          // Include partially started runtimes in cleanup after startup failure.
+          started.push(runtime);
+          const starting = Promise.resolve().then(() => runtime.start());
+          const completions = started.flatMap((running) => running.completion === undefined ? [] : [running.completion]);
+          await Promise.race([starting, ...completions.map((completion) => completion.then(() => {
+            throw new Error("Background polling terminated during startup.");
+          }))]);
+        }
+      },
+      get completion() {
+        const completions = started.flatMap((runtime) => runtime.completion === undefined ? [] : [runtime.completion]);
+        return completions.length === 0 ? undefined : Promise.race(completions);
+      },
+      stop: async () => {
+        const results = await Promise.allSettled([...started].reverse().map((runtime) => runtime.stop()));
+        const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+        if (failures.length > 0) throw new AggregateError(failures, "Background workload shutdown failed.");
+      },
+    }, this.options.waitForShutdown);
   }
 }
 
-export const backgroundWorkloads = [
-  "workers",
-  "scheduled-tasks",
-  "workflows",
-] as const satisfies readonly BackgroundWorkload[];
+export const backgroundWorkloads = ["workers", "scheduled-tasks", "workflows"] as const satisfies readonly BackgroundWorkload[];

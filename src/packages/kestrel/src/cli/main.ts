@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-import { realpathSync } from "node:fs";
+import { realpathSync, writeSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { waitForShutdownSignal } from "../app/process.js";
+import type { ApplicationShutdownTimeoutError } from "../app/index.js";
 import { loadApp, runCli } from "./runner.js";
 
 /** Executes the generic CLI against an application module supplied by the project. */
 export async function main(
   arguments_: readonly string[] = process.argv.slice(2),
+  onShutdownTimeout?: (error: ApplicationShutdownTimeoutError) => void,
 ): Promise<number> {
   const [modulePath, ...commandArguments] = arguments_;
 
@@ -14,7 +17,21 @@ export async function main(
     throw new TypeError("An application module path is required.");
   }
 
-  return runCli(await loadApp(modulePath), commandArguments);
+  const app = await loadApp(modulePath);
+  const signalWait = new AbortController();
+  const unsubscribe = onShutdownTimeout === undefined ? undefined : app.shutdown.onTimeout(onShutdownTimeout);
+  if (onShutdownTimeout !== undefined) {
+    // Commands without a transport runtime still participate in graceful shutdown.
+    void waitForShutdownSignal(signalWait.signal).then(() => {
+      if (!signalWait.signal.aborted) void app.stop().catch(() => undefined);
+    });
+  }
+  try {
+    return await runCli(app, commandArguments);
+  } finally {
+    signalWait.abort();
+    unsubscribe?.();
+  }
 }
 
 const entrypoint = process.argv[1];
@@ -23,7 +40,12 @@ const isEntrypoint = entrypoint !== undefined
   && import.meta.url === pathToFileURL(realpathSync(entrypoint)).href;
 
 if (isEntrypoint) {
-  main()
+  main(process.argv.slice(2), (error) => {
+    // The executable owns process termination. Never await application logging
+    // after the deadline, and do not force exits from the embedded library API.
+    try { writeSync(2, `${error.message} Forced process termination.\n`); }
+    finally { process.exit(1); }
+  })
     .then((exitCode) => {
       process.exitCode = exitCode;
     })

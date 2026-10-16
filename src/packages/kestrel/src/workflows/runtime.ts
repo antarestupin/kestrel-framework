@@ -12,8 +12,8 @@ import {
   type RuntimeApp,
 } from "../app/index.js";
 import { observerDependency, type Observer } from "../observability/index.js";
-import { waitForShutdownSignal } from "../app/process.js";
-import { abortableDelay } from "../scheduling/index.js";
+import { runSupervisedRuntime } from "../app/process.js";
+import { PollingSupervisor } from "../scheduling/index.js";
 import type { WorkflowAdapter } from "./adapter.js";
 import type { AnyWorker, WorkerClient } from "../workers/index.js";
 import { ActionWorkflowActivityTransport } from "./activity_transport.js";
@@ -45,7 +45,13 @@ export class WorkflowRuntime<Config> {
 
   private runPromise: Promise<void> | undefined;
 
+  private stopPromise: Promise<void> | undefined;
+
+  private pollingTasks: Promise<void>[] = [];
+
   private startPromise: Promise<void> | undefined;
+
+  private readonly dispatcherPolling: PollingSupervisor;
 
   private readonly dispatcher: WorkflowActivityOutboxDispatcher | undefined;
 
@@ -57,6 +63,11 @@ export class WorkflowRuntime<Config> {
     activityWorker?: AnyWorker,
     workerClient?: WorkerClient,
   ) {
+    app.shutdown?.registerDrain(() => this.stop());
+    this.dispatcherPolling = new PollingSupervisor({
+      ...options.polling,
+      isRecoverable: options.polling?.isRecoverable ?? ((error) => adapter.isRecoverablePollingError?.(error) ?? false),
+    });
     const transport = new ActionWorkflowActivityTransport(
       app.catalog.actions.definitions,
       {
@@ -78,6 +89,8 @@ export class WorkflowRuntime<Config> {
       transport,
       {
         ...options,
+        executionSignal: app.shutdown?.signal,
+        reportPollingError: (error) => this.logger.error({ err: error }, "Workflow polling cycle failed"),
         ...(adapter.activityDispatchMode === "outbox"
           ? { taskKinds: ["workflow", "timer"] as const }
           : {}),
@@ -107,26 +120,31 @@ export class WorkflowRuntime<Config> {
 
   /** Starts polling without owning process-signal coordination. */
   public start(): Promise<void> {
+    if (this.controller.signal.aborted) return Promise.reject(new Error("Workflow runtime has stopped."));
+    if (this.scheduler.polling.state.status === "failed") return Promise.reject(this.scheduler.polling.state.error);
     this.startPromise ??= this.startPolling();
     return this.startPromise;
   }
 
-  public async run(): Promise<void> {
-    try {
-      await this.start();
-      await waitForShutdownSignal();
-    } finally {
-      try {
-        await this.stop();
-      } finally {
-        await this.app.stop();
-      }
-    }
+  public get completion(): Promise<void> | undefined { return this.runPromise; }
+
+  public get state() {
+    return { scheduler: this.scheduler.polling.state, dispatcher: this.dispatcherPolling.state };
   }
 
-  public async stop(): Promise<void> {
+  public async run(): Promise<void> {
+    await runSupervisedRuntime(this.app, this);
+  }
+
+  public stop(): Promise<void> {
     this.controller.abort();
-    await this.runPromise;
+    this.stopPromise ??= this.app.shutdown.wait("workflow drain", async () => {
+      await this.startPromise?.catch(() => undefined);
+      const results = await Promise.allSettled(this.pollingTasks);
+      const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+      if (failures.length > 0) throw new AggregateError(failures, "Workflow polling failed.");
+    });
+    return this.stopPromise;
   }
 
   private async startPolling(): Promise<void> {
@@ -134,16 +152,16 @@ export class WorkflowRuntime<Config> {
     // replay every active pinned version. Other selected workloads are not
     // implicitly started or stopped by this runtime.
     await this.versions.assertCompatible();
-    this.runPromise = Promise.all([
+    this.pollingTasks = [
       this.scheduler.run(this.controller.signal),
       this.runDispatcher(this.controller.signal),
-    ]).then(() => undefined);
-    void this.runPromise.catch((error) => {
-      this.logger.error(
-        { err: error },
-        "Workflow scheduler stopped unexpectedly",
-      );
+    ];
+    this.runPromise = Promise.all(this.pollingTasks).then(() => undefined).catch((error) => {
+      // A terminal failure stops sibling polling and remains observable by owners.
+      this.controller.abort();
+      throw error;
     });
+    void this.runPromise.catch(() => undefined);
   }
 
   private async runInExecutionScope<Result>(
@@ -224,19 +242,8 @@ export class WorkflowRuntime<Config> {
   private async runDispatcher(signal: AbortSignal): Promise<void> {
     if (this.dispatcher === undefined) return;
 
-    while (!signal.aborted) {
-      let published = 0;
-
-      try {
-        published = await this.dispatcher.runOnce();
-      } catch (error) {
-        this.logger.error(
-          { err: error },
-          "Workflow activity outbox publication failed",
-        );
-      }
-
-      if (published === 0) await abortableDelay(100, signal);
-    }
+    await this.dispatcherPolling.run(signal,
+      async () => (await this.dispatcher!.runOnce()) > 0, 100,
+      (error) => this.logger.error({ err: error }, "Workflow activity outbox publication failed"));
   }
 }

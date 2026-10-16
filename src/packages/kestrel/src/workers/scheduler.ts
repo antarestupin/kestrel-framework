@@ -169,6 +169,8 @@ export class WorkerScheduler<Config> {
 
   private handlerAbortController = new AbortController();
 
+  private pollingLifetime: Promise<void> | undefined;
+
   private loopPromise: Promise<void> | undefined;
 
   private activeCycle: Promise<number> | undefined;
@@ -241,6 +243,15 @@ export class WorkerScheduler<Config> {
     }
   }
 
+  private get executionSignal(): AbortSignal {
+    const applicationSignal = this.app.shutdown?.signal;
+    return applicationSignal === undefined ? this.handlerAbortController.signal
+      : AbortSignal.any([this.handlerAbortController.signal, applicationSignal]);
+  }
+
+  /** Current polling lifetime; ordinary cycle failures retain existing recovery. */
+  public get completion(): Promise<void> | undefined { return this.pollingLifetime; }
+
   /** Starts polling until stop is requested. */
   public start(): void {
     if (this.loopPromise !== undefined) {
@@ -254,6 +265,8 @@ export class WorkerScheduler<Config> {
         this.loopPromise = undefined;
         this.loopAbortController = undefined;
       });
+    this.pollingLifetime = this.loopPromise;
+    void this.loopPromise.catch(() => undefined);
   }
 
   /**
@@ -445,9 +458,10 @@ export class WorkerScheduler<Config> {
     jobs: readonly ReservedJob[],
   ): { close(): Promise<void> } {
     return startLeaseHeartbeat({
+      signal: this.executionSignal,
       intervalMs: Math.max(1, Math.floor(this.options.leaseMs / 2)),
       extend: async () => {
-        if (this.handlerAbortController.signal.aborted) return;
+        if (this.executionSignal.aborted) return;
         const ownedJobs = jobs.filter((job) => this.leasedJobs.has(job.id));
         if (ownedJobs.length === 0) return;
         await this.adapter.extendLease(ownedJobs.map((job) => ({
@@ -613,7 +627,7 @@ export class WorkerScheduler<Config> {
         ...(feedback === undefined ? {} : { feedback }),
       });
 
-      if (this.handlerAbortController.signal.aborted) return [];
+      if (this.executionSignal.aborted) return [];
       throw error;
     }
 
@@ -632,7 +646,7 @@ export class WorkerScheduler<Config> {
     requirement: CombinedRequirement,
   ): Promise<ThrottlingPermit | undefined> {
     const throttling = this.throttling!;
-    const signal = this.handlerAbortController.signal;
+    const signal = this.executionSignal;
     let firstError: unknown;
 
     try {
@@ -732,7 +746,7 @@ export class WorkerScheduler<Config> {
     availableAt: Date,
     result: "deferred" | "released",
   ): Promise<void> {
-    if (this.handlerAbortController.signal.aborted) return;
+    if (this.executionSignal.aborted) return;
     const requests: DeferJobRequest[] = invocation.jobs.map((job) => ({
       ...toReservationRef(job),
       availableAt,
@@ -787,7 +801,7 @@ export class WorkerScheduler<Config> {
             reportActualCost,
             reportFeedback,
           ),
-      this.handlerAbortController.signal,
+      this.executionSignal,
     );
   }
 
@@ -805,7 +819,7 @@ export class WorkerScheduler<Config> {
           error,
         })),
       ),
-      this.handlerAbortController.signal,
+      this.executionSignal,
     );
   }
 
@@ -831,7 +845,7 @@ export class WorkerScheduler<Config> {
             job,
             dependencies,
             {
-              signal: this.handlerAbortController.signal,
+              signal: this.executionSignal,
               execution,
               setResult: (value: unknown) => {
                 if (hasResult) {
@@ -903,7 +917,7 @@ export class WorkerScheduler<Config> {
               jobs,
               dependencies,
               {
-                signal: this.handlerAbortController.signal,
+                signal: this.executionSignal,
                 execution,
                 setResult: () => {
                   throw new TypeError(

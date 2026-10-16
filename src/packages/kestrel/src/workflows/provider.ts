@@ -12,7 +12,7 @@ import {
   workflowRuntimeDependency,
 } from "./dependencies.js";
 import { WorkflowRuntime } from "./runtime.js";
-import type { WorkflowSchedulerOptions } from "./scheduler.js";
+import type { WorkflowRuntimeOptions } from "./runtime.js";
 import {
   workerClientDependency,
   workerCorrelatedCompletionSinkDependency,
@@ -41,7 +41,7 @@ interface WorkflowRuntimeDependencies {
   workflowAdapter: WorkflowAdapter;
 }
 
-export interface WorkflowProviderOptions extends WorkflowSchedulerOptions {
+export interface WorkflowProviderOptions extends WorkflowRuntimeOptions {
   activityTransport?: "embedded" | "worker";
   outbox?: WorkflowActivityOutboxDispatcherOptions;
 }

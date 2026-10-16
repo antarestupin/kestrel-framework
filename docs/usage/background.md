@@ -52,3 +52,9 @@ Continue with [workers](./workers.md), [scheduled tasks](./scheduled_tasks.md) o
 
 - Compose workers, scheduled tasks and workflows with their database, logger and lock prerequisites.
 - Exercise combined startup failure and graceful shutdown with active workloads.
+
+## Runtime failures and bounded draining
+
+The composite owner watches selected workloads' `completion` Promises as well as process signals. Terminal polling failure closes application admission and requests every started workload to stop, including a partially started workload. Ordinary Worker and scheduled-task cycle errors retain their existing recovery. Custom workloads may expose `completion` to participate in supervision; start/stop-only workloads retain signal-driven ownership.
+
+All draining uses the [application shutdown deadline](./app.md#bound-application-shutdown). Cleanup failures are aggregated with the original runtime cause. Process-signal listeners are removed when an owner stops waiting because of failure. The CLI returns a nonzero result for terminal failure and forcibly terminates its process when the shutdown deadline expires. Readiness consumers can project workflow runtime state; this change does not install a health endpoint.

@@ -85,3 +85,7 @@ The host calls each selected runtime at most once per `run()` invocation. Implem
 ## Potential evolutions
 
 Named custom workload registration could replace the fixed union if independently packaged schedulers need the same host. That change would require collision-safe identities, CLI discovery metadata and an explicit startup order rather than widening the current list ad hoc.
+
+## Failure ownership
+
+The app-layer `runSupervisedRuntime` coordinates runtime initialization, cancellable process-signal waiting, polling completion and bounded drain without depending on a concrete workload library. Background composition includes a workload in its cleanup set before awaiting its startup, observes already-started workload lifetimes while starting later workloads, and stops siblings concurrently in reverse selection order. Retained completion Promises remain observable even after scheduler loop bookkeeping is cleared. Library APIs preserve errors and never call `process.exit`; only the executable entry point installs that terminal policy. See [shared shutdown mechanics](./app.md#shared-shutdown-deadline).

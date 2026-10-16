@@ -90,3 +90,13 @@ See [configuration](./configuration.md), [HTTP](./http.md), and [background work
 - Compose an application-owned provider with startup and resource cleanup.
 - Subscribe to application lifecycle events.
 - Own an execution scope explicitly, including context and deferred work.
+
+## Bound application shutdown
+
+Pass `shutdown: { timeoutMs: 30_000, drainMs: 20_000 }` to `new App(config, options)` to allocate one shutdown budget. Both values are milliseconds; `timeoutMs` must be positive and `drainMs` must be between zero and the total. These are also the defaults. The first application or transport stop starts the deadline; later `stop()` and `dispose()` calls do not renew it. Always call `dispose()` after runtime completion, including errors.
+
+Stopping rejects new application executions and requests registered transport drains. Existing scopes retain their borrowed dependencies until they finish. At `drainMs`, `execution.signal` and the injectable `executionSignalDependency` abort. Forward that signal to outbound HTTP and other cooperative operations; arbitrary JavaScript and already-started storage work cannot be forcibly cancelled by a Promise deadline. Workers and scheduled tasks combine it with their existing handler signal; workflow activity transports receive it too. Existing workload stop policies may request cancellation earlier.
+
+Transport drain, lifecycle listeners, active scopes, observation flushing and container disposal share the remaining total budget. Expiration rejects with `ApplicationShutdownTimeoutError`, possibly inside an `AggregateError`, and leaves `app.state` as `shutdownTimedOut`. The timeout exposes its active phase and total budget. The library stops awaiting non-cooperative work and does not report successful disposal. It does not start releasing shared dependencies while executions or transport drains remain unfinished; resources already undergoing disposal may finish later. An embedded owner must contain or terminate work that survives the deadline.
+
+The executable CLI installs its terminal policy before running commands: on expiration it attempts a minimal stderr diagnostic and exits with code 1, even when application handlers or sinks remain pending. Embedded `runCli()` and runtime APIs never force process exit. Configure the deployment supervisor's termination grace above the application budget; a blocked JavaScript event loop still requires external process supervision. See [shutdown implementation](../implementation/app.md#shared-shutdown-deadline).

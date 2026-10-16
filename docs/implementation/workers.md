@@ -867,7 +867,7 @@ Start the dedicated scheduler with:
 ./do run workers
 ```
 
-The scheduler responds to `SIGINT` and `SIGTERM`. `wait` is the safe default because it stops new polling and lets the current cycle persist every outcome. The non-waiting modes abort the cooperative handler signal, flush successes already produced and then either release all remaining reservations immediately or leave them to expire.
+The runtime owner responds to `SIGINT` and `SIGTERM`. `wait` is the safe default because it stops new polling and lets the current cycle persist every outcome. The non-waiting modes abort the cooperative handler signal, flush successes already produced and then either release all remaining reservations immediately or leave them to expire. `WorkerRuntime.stop()` additionally awaits the retained polling lifetime under the application deadline, even when `WorkerScheduler.stop()` returns early; this preserves borrowed dependencies during pre-scope storage calls. Application cancellation is combined with the scheduler signal and stops ownership renewal.
 
 ```mermaid
 sequenceDiagram

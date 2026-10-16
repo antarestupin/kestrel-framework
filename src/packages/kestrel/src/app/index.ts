@@ -64,3 +64,5 @@ export {
   type SelectCatalogCategory,
 } from "./catalog.js";
 export { registerProviderAdapter } from "./adapter.js";
+
+export { ApplicationShutdown, ApplicationShutdownTimeoutError, defaultShutdownOptions, executionSignalDependency, type ShutdownOptions } from "./shutdown.js";

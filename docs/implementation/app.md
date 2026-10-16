@@ -324,3 +324,33 @@ Scoped definitions use `defineScopedAdapter` and cannot declare `initialize`; th
 Web delivery providers register lazy definitions during composition but initialize them only when their HTTP extension mounts. Their existing `setup(server, context)` methods retain Fastify mounting and pre-close hooks. Borrowed Vite runtimes keep their own ownership. Adapter disposal is a container fallback after HTTP shutdown, not a replacement for closing HMR connections before Fastify drains them.
 
 Logger activation uses the finalized boot plan and retains a delegating facade before boot. Logging also activates for minimal commands; custom logger definitions receive that boot plan and must leave optional infrastructure unopened in minimal mode. The PostgreSQL logger uses its console fallback without resolving the pool in that mode. Its definition is disposed during final container teardown so feature shutdown can still log. Observation recorders flush before backend disposal. Capture email delivery is disposed before its capture storage. None of these activation timings changes the constructor convention.
+
+## Shared shutdown deadline
+
+`ApplicationShutdown` belongs to the app layer and receives configuration through `AppOptions.shutdown`; it does not read environment variables. A monotonic deadline starts at the first stop. Runtimes register their drain callbacks before admitting work. `App.stop()` changes admission state, requests all registered drains and bounds stopping listeners. Runtime owners await their own drains, while `App.dispose()` also awaits registered transport drains before scopes and shared infrastructure. Runtime failure causes and cleanup failures are retained together.
+
+```mermaid
+sequenceDiagram
+  participant Owner as Runtime owner
+  participant App
+  participant Runtime as Transports
+  participant Scope as Active scopes
+  participant Resources as Shared dependencies
+  Owner->>App: stop with one deadline
+  App->>Runtime: request drain
+  Runtime->>Scope: finish admitted work
+  Note over Scope,Resources: Borrowed dependencies remain available
+  App->>Scope: abort signal at drain budget
+  alt work settles within total budget
+    App->>Resources: shutdown listeners, flush, dispose
+  else deadline expires
+    App-->>Owner: shutdown timeout and incomplete state
+    Note over Owner: CLI exits, embedded owner chooses containment
+  end
+```
+
+Each bounded wait observes late rejection without pretending to cancel its underlying Promise. A transport's failed polling lifetime is separate from its drain, so a failed sibling cannot cause shared dependencies to close while another sibling still runs. Workflow reservation batches settle all admitted tasks before surfacing batch failures. Expiration stops subsequent disposal phases; already-started cleanup can still finish. The CLI's deadline callback is independent of deferred tasks, execution error handlers and application diagnostic storage, allowing terminal policy to run even before a blocked command unwinds.
+
+Execution scopes expose the application cancellation signal through `ActionExecution.signal` and `executionSignalDependency`. This is cooperative shutdown cancellation, not a business transaction rollback or a guarantee that an external side effect did not happen. Ownership heartbeats stop renewing after cancellation. Lease fencing and target-side idempotency remain necessary when another process acquires abandoned work.
+
+Deferred evolutions: workload-specific shutdown allocations within the same global deadline, richer per-phase pending-resource snapshots, readiness endpoint composition (KR9), and process/worker isolation for preempting uncooperative code. The current timer-based policy cannot interrupt synchronous JavaScript or cancel storage operations lacking a cancellation contract.

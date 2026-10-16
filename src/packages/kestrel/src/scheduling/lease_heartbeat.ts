@@ -1,5 +1,7 @@
 export interface LeaseHeartbeatOptions {
   intervalMs: number;
+  /** Stop renewing ownership when application work is cancelled. */
+  signal?: AbortSignal | undefined;
   extend(): Promise<unknown>;
   onFailure?(error: unknown): void;
 }
@@ -16,7 +18,9 @@ export function startLeaseHeartbeat(
   let active: Promise<unknown> | undefined;
   let failure: unknown;
   let failed = false;
+  const stop = () => clearInterval(interval);
   const interval = setInterval(() => {
+    if (options.signal?.aborted) { stop(); return; }
     if (active !== undefined) return;
     active = options.extend().catch((error: unknown) => {
       failed = true;
@@ -33,10 +37,13 @@ export function startLeaseHeartbeat(
     });
   }, options.intervalMs);
   interval.unref();
+  options.signal?.addEventListener("abort", stop, { once: true });
+  if (options.signal?.aborted) stop();
 
   return {
     close: async () => {
       clearInterval(interval);
+      options.signal?.removeEventListener("abort", stop);
       await active;
       if (failed) throw failure;
     },

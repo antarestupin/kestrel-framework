@@ -251,6 +251,8 @@ export type CompleteExternalWorkflowActivityRequest = {
 
 /** Storage boundary used by workflow clients before runtime scheduling exists. */
 export interface WorkflowAdapter {
+  /** Classifies infrastructure failures only; does not authorize replaying writes. */
+  isRecoverablePollingError?(error: unknown): boolean;
   readonly activityDispatchMode: WorkflowActivityDispatchMode;
   start(
     request: StartWorkflowExecutionRequest,

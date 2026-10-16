@@ -127,3 +127,13 @@ Operational endpoints use `workflowOperationsDependency` behind application auth
 - Evolve workflow versions and validate replay fixtures.
 - Start batches and serialize executions by business key.
 - Expose authorized pause, resume, retry, recovery and termination controls.
+
+## Supervise workflow polling
+
+`WorkflowProvider(adapter, { polling: { initialBackoffMs: 100, maxBackoffMs: 5_000, maxFailureDurationMs: 60_000 } })` supervises both task polling and optional activity-outbox dispatch. Standalone `WorkflowScheduler` accepts the same `polling` options. Backoff uses exponential growth with jitter between half and the current capped delay, and stops immediately on shutdown. A successful cycle, including an empty cycle, resets the consecutive failure budget. The failure-duration budget bounds repeated failures and retry waits; it does not impose a deadline on an individual cycle or replace storage deadlines.
+
+Unknown errors are terminal by default. PostgreSQL classifies known connection, transaction-contention, capacity and server-restart errors as transient, including wrapped causes; authentication and schema errors remain terminal. External adapters may implement `isRecoverablePollingError(error)`, or applications may supply `polling.isRecoverable`. This authorizes a later infrastructure cycle, not replaying an ambiguous write or retrying business effects automatically.
+
+`runtime.state` exposes scheduler and dispatcher status (`idle`, `running`, `backoff`, `stopped`, `failed`), successful cycles, last successful cycle time, consecutive failures, next retry time and the most recent failure. Dispatcher state stays idle when dispatch is disabled. `runtime.completion` is available after startup and rejects on terminal polling failure; `start()` is only the startup boundary. A stopped or failed runtime cannot be restarted by reusing its previous successful startup Promise. Use a fresh runtime/application instance instead.
+
+Prefer `runtime.run()` or `BackgroundRuntime.run()` for process ownership. These owners observe terminal failures, stop application admission, drain siblings under the [shared application deadline](./app.md#bound-application-shutdown), and propagate failure. When using `start()` directly, supervise `completion` yourself. No readiness endpoint is installed automatically. See [polling implementation](../implementation/workflows.md#polling-supervision-and-abandoned-work).

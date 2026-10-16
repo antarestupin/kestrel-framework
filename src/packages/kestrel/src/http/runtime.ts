@@ -74,6 +74,7 @@ export class HttpRuntime<Config> {
 
     options.profile?.install(this.server);
     this.composeServer();
+    app.shutdown.registerDrain(() => this.stop());
   }
 
   /** Opens the configured network listener after Fastify becomes ready. */
@@ -100,7 +101,8 @@ export class HttpRuntime<Config> {
 
   /** Stops request admission and closes the Fastify runtime once. */
   public stop(): Promise<void> {
-    this.stopPromise ??= this.server.close();
+    this.app.shutdown.begin();
+    this.stopPromise ??= this.app.shutdown.wait("HTTP drain", () => this.server.close());
 
     return this.stopPromise;
   }

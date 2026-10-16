@@ -1,7 +1,8 @@
 import { uuidV7 } from "../utils/uuid.js";
 import { parseSchema } from "../definitions/index.js";
 import {
-  abortableDelay,
+  PollingSupervisor,
+  type PollingOptions,
   startLeaseHeartbeat,
 } from "../scheduling/index.js";
 
@@ -39,6 +40,9 @@ import type { WorkflowInstrumentation } from "./observations.js";
 
 export interface WorkflowSchedulerOptions {
   batchSize?: number;
+  polling?: PollingOptions;
+  reportPollingError?: (error: unknown) => void;
+  executionSignal?: AbortSignal | undefined;
   idlePollMs?: number;
   leaseMs?: number;
   payloadCodec?: WorkflowPayloadCodec;
@@ -70,6 +74,8 @@ export interface WorkflowSchedulerCycleResult {
 
 /** Reserves short workflow or embedded-activity tasks and commits their result. */
 export class WorkflowScheduler {
+  public readonly polling: PollingSupervisor;
+
   private readonly definitions: ReadonlyMap<string, AnyWorkflow>;
 
   private readonly batchSize: number;
@@ -102,8 +108,12 @@ export class WorkflowScheduler {
     definitions: readonly AnyWorkflow[],
     private readonly adapter: WorkflowAdapter,
     private readonly activityTransport: WorkflowActivityTransport,
-    options: WorkflowSchedulerOptions = {},
+    private readonly options: WorkflowSchedulerOptions = {},
   ) {
+    this.polling = new PollingSupervisor({
+      ...options.polling,
+      isRecoverable: options.polling?.isRecoverable ?? ((error) => adapter.isRecoverablePollingError?.(error) ?? false),
+    });
     this.definitions = new Map(definitions.map((definition) => [
       definition.name,
       definition,
@@ -151,7 +161,7 @@ export class WorkflowScheduler {
     let completed = 0;
     let stale = 0;
 
-    await Promise.all(tasks.map(async (task) => {
+    const results = await Promise.allSettled(tasks.map(async (task) => {
       const committed = await this.processReservedTask(task, activations);
 
       if (committed) {
@@ -161,6 +171,9 @@ export class WorkflowScheduler {
       }
     }));
 
+    const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, "Workflow reservation batch failed.");
     return { reserved: tasks.length, completed, stale };
   }
 
@@ -234,13 +247,8 @@ export class WorkflowScheduler {
 
   /** Polls until the supplied signal requests graceful shutdown. */
   public async run(signal: AbortSignal): Promise<void> {
-    while (!signal.aborted) {
-      const cycle = await this.runOnce();
-
-      if (cycle.reserved === 0) {
-        await abortableDelay(this.idlePollMs, signal);
-      }
-    }
+    await this.polling.run(signal, async () => (await this.runOnce()).reserved > 0,
+      this.idlePollMs, this.options.reportPollingError);
   }
 
   private async activateWorkflow(
@@ -471,6 +479,7 @@ export class WorkflowScheduler {
         this.activityTransport,
         activity,
         activity.startToCloseTimeoutMs,
+        this.options.executionSignal,
       );
       return this.completions.enqueue({
         ...toReservation(task),
@@ -607,6 +616,7 @@ export class WorkflowScheduler {
     const reservation = toReservation(task);
     const heartbeat = startLeaseHeartbeat({
       intervalMs: Math.max(1, Math.floor(this.leaseMs / 2)),
+      signal: this.options.executionSignal,
       extend: () => this.adapter.extendTaskLeases([{
         ...reservation,
         leaseMs: this.leaseMs,
@@ -651,18 +661,19 @@ async function executeWithTimeout(
   transport: WorkflowActivityTransport,
   activity: ReturnType<typeof toWorkflowActivityExecution>,
   timeoutMs: number | undefined,
+  signal?: AbortSignal,
 ): Promise<WorkflowPayload | undefined> {
   const controller = new AbortController();
 
   if (timeoutMs === undefined) {
-    return transport.execute(activity, controller.signal);
+    return transport.execute(activity, signal === undefined ? controller.signal : AbortSignal.any([controller.signal, signal]));
   }
 
   let timeout: ReturnType<typeof setTimeout> | undefined;
 
   try {
     return await Promise.race([
-      transport.execute(activity, controller.signal),
+      transport.execute(activity, signal === undefined ? controller.signal : AbortSignal.any([controller.signal, signal])),
       new Promise<never>((_resolve, reject) => {
         timeout = setTimeout(() => {
           controller.abort();

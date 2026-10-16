@@ -32,6 +32,8 @@ import {
  */
 export interface ActionExecution {
   readonly id: string;
+  /** Cooperative cancellation shared with application shutdown. */
+  readonly signal: AbortSignal;
   readonly context: ExecutionContext;
   readonly errorHandler: ErrorHandler;
   /** Work that must settle before this execution releases scoped resources. */
@@ -80,6 +82,7 @@ export class ExecutionScope<Config> implements ActionExecution {
     public readonly tasks: DeferredTasks = new DeferredTasks(),
     public readonly eventBus: EventBus | undefined = undefined,
     public readonly context: ExecutionContext = new ExecutionContext(),
+    public readonly signal: AbortSignal = new AbortController().signal,
   ) {
     let resolveDisposed = (): void => undefined;
     this.whenDisposed = new Promise<void>((resolve) => {

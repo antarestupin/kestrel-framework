@@ -5,6 +5,7 @@ import {
   vi,
 } from "vitest";
 
+import { ApplicationShutdown } from "../app/index.js";
 import { readRequestedWorkloads } from "./provider.js";
 import {
   BackgroundRuntime,
@@ -14,24 +15,24 @@ import {
 describe("BackgroundRuntime", () => {
   it("starts only selected workloads and stops them in reverse order", async () => {
     const calls: string[] = [];
-    const app = { stop: vi.fn(async () => { calls.push("app:stop"); }) };
+    const app = { shutdown: new ApplicationShutdown(), stop: vi.fn(async () => { calls.push("app:stop"); }) };
     const workers = runtime("workers", calls);
     const workflows = runtime("workflows", calls);
     const background = new BackgroundRuntime(
       app as never,
       { workers, workflows },
-      { waitForShutdown: async () => { calls.push("signal"); } },
+      { waitForShutdown: async () => { await vi.waitFor(() => expect(calls).toContain("workflows:start")); calls.push("signal"); } },
     );
 
-    await background.run(["workers", "workflows"]);
+    try { await background.run(["workers", "workflows"]); } finally { app.shutdown.finish(); }
 
     expect(calls).toEqual([
       "workers:start",
       "workflows:start",
       "signal",
+      "app:stop",
       "workflows:stop",
       "workers:stop",
-      "app:stop",
     ]);
   });
 

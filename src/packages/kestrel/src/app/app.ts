@@ -1,3 +1,4 @@
+import { ApplicationShutdown, type ShutdownOptions } from "./shutdown.js";
 import { uuidV7 } from "../utils/uuid.js";
 import {
   type Action,
@@ -93,6 +94,7 @@ export type AppState =
   | "running"
   | "stopping"
   | "shuttingDown"
+  | "shutdownTimedOut"
   | "disposed"
   | "failed";
 
@@ -116,6 +118,7 @@ export interface AppOptions<
   readonly container?: DependencyContainer<Config>;
   readonly eventBus?: EventBusOptions;
   readonly executionContext?: ExecutionContextOptions;
+  readonly shutdown?: ShutdownOptions;
 }
 
 /** Runtime capabilities providers may hand to transport infrastructure. */
@@ -129,6 +132,7 @@ export type RuntimeApp<Config> = Pick<
   | "start"
   | "state"
   | "stop"
+  | "shutdown"
 >;
 
 /** Capabilities available while a provider contributes application structure. */
@@ -179,6 +183,8 @@ export class App<
 
   public readonly tasks: DeferredTasks;
 
+  public readonly shutdown: ApplicationShutdown;
+
   /** Typed declaration and consolidated runtime definition indexes. */
   public readonly catalog: AppCatalog<Catalog>;
 
@@ -203,6 +209,7 @@ export class App<
     public readonly config: Config,
     options: AppOptions<Config, Catalog> = {},
   ) {
+    this.shutdown = new ApplicationShutdown(options.shutdown);
     // Snapshot primitive limits so later caller mutation cannot affect scopes.
     this.executionContextOptions = Object.freeze({
       ...options.executionContext,
@@ -224,6 +231,10 @@ export class App<
         runtime: "command",
       },
     };
+    this.shutdown.onTimeout(() => {
+      // Reflect incomplete shutdown even when an embedded owner only calls stop().
+      this.lifecycle.currentState = "shutdownTimedOut";
+    });
     this.catalog = new AppCatalog(
       options.catalog ?? {} as Catalog,
       () => this.lifecycle.currentState === "composing",
@@ -374,6 +385,7 @@ export class App<
     // error handler, which may use it for correlation.
     container.registerValue("executionId", executionId);
     container.registerValue("executionContext", context);
+    container.registerValue("executionSignal", this.shutdown.signal);
     container.registerValue("deferredTasks", tasks);
     container.registerValue("eventBus", eventBus);
     const errorHandler = container.resolve(errorHandlerDependency);
@@ -384,6 +396,7 @@ export class App<
       tasks,
       eventBus,
       context,
+      this.shutdown.signal,
     );
 
     // Context values let scoped dependencies correlate work without knowing
@@ -433,9 +446,11 @@ export class App<
       this.lifecycle.currentState = "bootstrapping";
       this.eventBus.dispatch(bootstrapStartedEvent, {});
       await this.tasks.wait();
+      if (this.shutdown.error !== undefined) throw this.shutdown.error;
 
       // Provider order is the explicit infrastructure dependency order.
       for (const provider of this.lifecycle.providers) {
+        if (this.shutdown.error !== undefined) throw this.shutdown.error;
         if (provider.boot !== undefined) {
           const startedAt = performance.now();
 
@@ -455,10 +470,12 @@ export class App<
 
       this.eventBus.dispatch(bootstrapCompletedEvent, {});
       await this.tasks.wait();
+      if (this.shutdown.error !== undefined) throw this.shutdown.error;
 
       this.lifecycle.currentState = "ready";
       this.eventBus.dispatch(runtimeStartedEvent, {});
       await this.tasks.wait();
+      if (this.shutdown.error !== undefined) throw this.shutdown.error;
       this.lifecycle.currentState = "running";
 
       const bootstrapDurationMs = this.getDuration(bootStartedAt);
@@ -477,8 +494,9 @@ export class App<
         },
       });
       await this.tasks.wait();
+      if (this.shutdown.error !== undefined) throw this.shutdown.error;
     } catch (error: unknown) {
-      this.lifecycle.currentState = "failed";
+      if (this.shutdown.error === undefined) this.lifecycle.currentState = "failed";
       throw error;
     }
   }
@@ -514,6 +532,7 @@ export class App<
 
   /** Stops admission of new executions before transport-specific draining. */
   public stop(): Promise<void> {
+    this.shutdown.begin();
     if (this.lifecycle.stopPromise !== undefined) {
       return this.lifecycle.stopPromise;
     }
@@ -523,9 +542,10 @@ export class App<
     }
 
     this.lifecycle.currentState = "stopping";
+    this.shutdown.requestDrain();
     this.lifecycle.stopPromise = (async () => {
       this.eventBus.dispatch(runtimeStoppingEvent, {});
-      await this.tasks.wait();
+      await this.shutdown.wait("runtime stopping listeners", () => this.tasks.wait());
     })();
 
     return this.lifecycle.stopPromise;
@@ -545,6 +565,8 @@ export class App<
   /** Drains application work before shared resources are released. */
   private async finishAndDispose(): Promise<void> {
     const errors: unknown[] = [];
+    this.shutdown.begin();
+    const wait = <T>(phase: string, run: () => Promise<T>) => this.shutdown.wait(phase, run);
 
     try {
       if (
@@ -555,7 +577,7 @@ export class App<
         )
       ) {
         try {
-          await this.lifecycle.startPromise;
+          await wait("startup completion", () => this.lifecycle.startPromise!);
         } catch (error: unknown) {
           errors.push(error);
         }
@@ -567,24 +589,29 @@ export class App<
         errors.push(error);
       }
 
+      try {
+        await wait("transport drain", () => this.shutdown.drained());
+      } catch (error) {
+        errors.push(error);
+      }
       this.lifecycle.currentState = "shuttingDown";
       // Runtime owners finish their scopes; the application only waits for
       // them here so shared dependencies remain alive throughout cleanup.
-      await Promise.all(
-        [...this.lifecycle.activeExecutions]
-          .map((execution) => execution.whenDisposed),
-      );
-      await this.runShutdownBoundary(shutdownStartedEvent, errors);
+      await wait("active executions", () => Promise.all(
+        [...this.lifecycle.activeExecutions].map((execution) => execution.whenDisposed),
+      ));
+      await wait("shutdown listeners", () => this.runShutdownBoundary(shutdownStartedEvent, errors));
 
       if (this.container.hasRegistration("observationRecorder")) {
         // Flush while shared infrastructure such as the database is available.
         try {
-          await this.container.resolve(observationRecorderDependency).flush();
+          await wait("observation flush", () => this.container.resolve(observationRecorderDependency).flush());
         } catch (error: unknown) {
           errors.push(error);
         }
       }
 
+      if (this.shutdown.error !== undefined) throw this.shutdown.error;
       try {
         this.eventBus.dispatch(shutdownCompletedEvent, {});
       } catch (error: unknown) {
@@ -594,20 +621,22 @@ export class App<
       try {
         // This final boundary waits for completion listeners and seals task
         // registration before shared application resources are destroyed.
-        await this.tasks.close();
+        await wait("completion listeners", () => this.tasks.close());
       } catch (error: unknown) {
         errors.push(error);
       }
-    } finally {
       this.eventBus.close();
-
-      try {
-        await this.container.dispose();
-      } catch (error: unknown) {
-        errors.push(error);
-      }
-
+      // Shared resources are released only after every execution has drained.
+      await wait("owned resource disposal", () => this.container.dispose());
       this.lifecycle.currentState = "disposed";
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      if (this.shutdown.error !== undefined) {
+        this.lifecycle.currentState = "shutdownTimedOut";
+        if (!errors.includes(this.shutdown.error)) errors.push(this.shutdown.error);
+      }
+      this.shutdown.finish();
     }
 
     if (errors.length === 1) {

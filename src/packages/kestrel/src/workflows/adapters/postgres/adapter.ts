@@ -1,3 +1,4 @@
+import { isRecoverablePostgresPollingError } from "./polling_error.js";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 
@@ -180,6 +181,11 @@ interface NormalizedStartBatch {
 
 /** PostgreSQL workflow journal with token-owned atomic transitions. */
 export class PostgresWorkflowAdapter implements WorkflowAdapter {
+  /** Retry infrastructure cycles only; reservation tokens fence late commits. */
+  public isRecoverablePollingError(error: unknown): boolean {
+    return isRecoverablePostgresPollingError(error);
+  }
+
   public readonly activityDispatchMode: WorkflowActivityDispatchMode;
 
   private readonly terminalPollIntervalMs: number;
