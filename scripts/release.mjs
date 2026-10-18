@@ -1,24 +1,28 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, stat } from "node:fs/promises";
+import { cp } from "node:fs/promises";
 import { resolve } from "node:path";
 import { audit } from "./release/security.mjs";
-import { checkCandidate, pack, reportInventory, sourceIdentity, verifyHashes } from "./release/candidate.mjs";
+import { checkCandidate, createCandidateDirectory, pack, reportInventory, sourceIdentity, verifyHashes } from "./release/candidate.mjs";
 import { npm, readJson, root, run, writeJson } from "./release/common.mjs";
 
 const [command, path, selection = "all"] = process.argv.slice(2);
-const directory = resolve(path ?? "artifacts/candidate");
-const manifestPath = resolve(directory, "candidate.json");
+let directory = resolve(path ?? "artifacts/candidate");
 if (["validate", "verify"].includes(command)) {
   const version = (await npm(["--version"], { capture: true })).stdout.trim();
   assert.equal(version, "11.9.0", "Release validation requires npm 11.9.0 at every Node checkpoint");
 }
 
+// Preserve the first-run CI path while allowing repeated local validation without cleanup.
+if (command === "validate") {
+  directory = await createCandidateDirectory(directory, { unique: path === undefined });
+  console.info(`Validating release candidate at ${directory}`);
+  console.info(`Additional runtime verification: npm run release:verify -- "${directory}"`);
+}
+const manifestPath = resolve(directory, "candidate.json");
+
 if (command === "pack") {
   await pack(directory);
 } else if (command === "validate") {
-  // Refuse to overwrite evidence from another run, including an unsuccessful run.
-  await assert.rejects(stat(directory), { code: "ENOENT" });
-  await mkdir(resolve(directory, "reports"), { recursive: true });
   const source = await sourceIdentity();
   const manifest = { format: 1, status: "validating", source, createdAt: new Date().toISOString(), node: process.version,
     npm: (await npm(["--version"], { capture: true })).stdout.trim(), archives: [], verifications: [] };

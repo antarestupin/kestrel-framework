@@ -1,10 +1,47 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, stat, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { candidateFile, digest, writeJson } from "./common.mjs";
-import { checkCandidate, verifyHashes } from "./candidate.mjs";
+import { checkCandidate, createCandidateDirectory, verifyHashes } from "./candidate.mjs";
+
+test("creates fresh candidates and preserves evidence when a path is reused", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "kestrel-validation-test-"));
+  try {
+    const candidate = join(directory, "nested", "candidate");
+    await createCandidateDirectory(candidate);
+    assert((await stat(join(candidate, "reports"))).isDirectory());
+    // A failed run must remain available for diagnosis after a retry.
+    const evidence = '{"status":"failed"}\n';
+    await writeFile(join(candidate, "candidate.json"), evidence);
+    await assert.rejects(createCandidateDirectory(candidate), /already exists: .*Run npm run release:validate without a path/);
+    assert.equal(await readFile(join(candidate, "candidate.json"), "utf8"), evidence);
+
+    const occupied = join(directory, "occupied");
+    await writeFile(occupied, "existing file");
+    await assert.rejects(createCandidateDirectory(occupied), /already exists/);
+    assert.equal(await readFile(occupied, "utf8"), "existing file");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("automatic selection skips occupied paths and claims distinct directories concurrently", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "kestrel-automatic-candidate-test-"));
+  try {
+    const candidate = join(directory, "candidate");
+    assert.equal(await createCandidateDirectory(candidate, { unique: true }), candidate);
+    // Occupied files count as collisions too and must never be overwritten.
+    await writeFile(`${candidate}-2`, "retained evidence");
+    const selected = await Promise.all([
+      createCandidateDirectory(candidate, { unique: true }),
+      createCandidateDirectory(candidate, { unique: true }),
+    ]);
+    assert.deepEqual(selected.sort(), [`${candidate}-3`, `${candidate}-4`]);
+    for (const path of selected) assert((await stat(join(path, "reports"))).isDirectory());
+    assert.equal(await readFile(`${candidate}-2`, "utf8"), "retained evidence");
+    await assert.rejects(createCandidateDirectory(candidate), /already exists/);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
 
 test("rejects replaced and missing archives before publication", async () => {
   const directory = await mkdtemp(join(tmpdir(), "kestrel-candidate-test-"));

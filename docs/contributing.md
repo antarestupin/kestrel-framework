@@ -108,10 +108,11 @@ npm run release:validate
 nvm use 24.11.0
 npm install --global npm@11.9.0 --ignore-scripts --no-audit --no-fund
 npm ci --ignore-scripts --no-audit --no-fund
-npm run release:verify
+# Use the candidate directory printed by validation.
+npm run release:verify -- <candidate-directory>
 ```
 
-Start validation on a recent Node 24 version other than 24.11.0 with npm 11.9.0 at both checkpoints. CI performs both runtime checkpoints automatically, also running source tests on the minimum runtime. `release:validate -- artifacts/candidate-2` selects a different output directory; `release:verify -- artifacts/candidate-2` verifies it. Existing directories are never overwritten by validation. A failed run remains available for diagnosis; use a new directory after fixing the problem. Tests assume the normal framework PostgreSQL/Redis infrastructure is available.
+Start validation on a recent Node 24 version other than 24.11.0 with npm 11.9.0 at both checkpoints. CI performs both runtime checkpoints automatically, also running source tests on the minimum runtime. Without a path, `npm run release:validate` atomically selects the first unused directory among `artifacts/candidate`, `artifacts/candidate-2`, and subsequent numbered paths. It prints the selected directory and the command for additional runtime verification before running the gates. An explicit path such as `npm run release:validate -- artifacts/my-candidate` must be unused; an occupied path produces an error suggesting automatic selection. Existing evidence, including failed runs, is never overwritten. Verification and publication still default to `artifacts/candidate`; pass the printed path explicitly when another directory was selected. Tests assume the normal framework PostgreSQL/Redis infrastructure is available.
 
 `candidate.json` records the source commit and dirty state, a digest of source inputs, tool versions, archive hashes, runtime verification results, and report hashes. A local dirty checkout may be validated for review; publication requires a candidate built from a clean commit and verified on both Node checkpoints. Download the complete CI candidate artifact into `artifacts/candidate` before publishing; preserve its directory structure. Check the successful `release-validation` result and the source commit before authorizing publication. Local checksums detect replacement, but do not authenticate a candidate received from an untrusted source.
 

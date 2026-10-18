@@ -1,10 +1,28 @@
 import assert from "node:assert/strict";
 import { mkdir, readdir, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { candidateFile, digest, npm, readJson, root, run, writeJson } from "./common.mjs";
 
 export const packages = ["kestrel", "create-kestrel"];
+
+/** Claim a fresh directory atomically, optionally skipping paths retained by earlier runs. */
+export async function createCandidateDirectory(directory, { unique = false } = {}) {
+  await mkdir(dirname(directory), { recursive: true });
+  for (let attempt = 1; ; attempt += 1) {
+    const candidate = attempt === 1 ? directory : `${directory}-${attempt}`;
+    try {
+      await mkdir(candidate);
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      // Only automatic selection may change the requested path; explicit paths stay strict.
+      if (unique) continue;
+      throw new Error(`Release candidate path already exists: ${directory}. Existing validation evidence was preserved. Run npm run release:validate without a path to select a fresh directory automatically.`, { cause: error });
+    }
+    await mkdir(resolve(candidate, "reports"));
+    return candidate;
+  }
+}
 
 /** Capture tracked and untracked non-ignored inputs so edits cannot reuse earlier validation. */
 export async function sourceIdentity() {

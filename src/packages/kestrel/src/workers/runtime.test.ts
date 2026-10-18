@@ -1,4 +1,5 @@
 import { expect, it, vi } from "vitest";
+import { z } from "zod";
 import { App, defineCatalog } from "../app/index.js";
 import { MemoryWorkerAdapter } from "./adapters/memory/index.js";
 import { workersConfigBase } from "./configuration.js";
@@ -6,7 +7,8 @@ import { WorkerRuntime } from "./runtime.js";
 import { defineWorker } from "./worker.js";
 
 it("retains borrowed infrastructure until pre-scope storage settles even with release shutdown", async () => {
-  const worker = defineWorker({ name: "drain.storage", queue: "drain", handler: () => undefined });
+  // This shutdown fixture does not consume a job payload.
+  const worker = defineWorker({ name: "drain.storage", queue: "drain", input: z.object({}), handler: () => undefined });
   const app = new App({}, { catalog: defineCatalog({ runtime: { workers: { worker } } }) });
   const close = vi.fn();
   app.container.registerValue("resource", {}, { dispose: close });
