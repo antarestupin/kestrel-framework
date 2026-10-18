@@ -8,6 +8,58 @@ Atlas is included in `@kestreljs/framework` under the `@kestreljs/framework/atla
 
 New projects include Atlas by default, both interactively and with `--yes` or redirected input; answer no or pass `--no-atlas` to omit it. The generated starter mounts an empty Atlas at `/admin` only in the local environment, with application-owned resource and exposure configuration. See [installation choices](./installation.md#choose-whether-to-include-atlas).
 
+## Install Atlas with application access checks
+
+**Atlas does not restrict access when `authentication` and `access` are omitted.** Atlas declares its own HTTP access policies, so the HTTP runtime's general `defaultAccess` policy does not automatically protect it. Configure the boundary before exposing business resources or enabling Atlas in a deployment.
+
+The initial administration model gives every authorized operator access to the exposed resources. Install [authentication](./authentication.md) and [authorization](./authorization.md), including their providers and application-owned subject/role resolution, then register Atlas before starting the HTTP runtime. Configure trusted browser origins, deployment cookie settings and an authentication attempt guard before exposing password sign-in; the default attempt guard allows attempts.
+
+This composition assumes three application-owned modules: an Atlas definition, authentication controllers created with `createAuthenticationHttpControllers`, and a registered `admin.access` permission granted through an administrator role. Adapt their import paths to your application; the empty generated starter does not scaffold authentication.
+
+```ts
+import type { App } from "@kestreljs/framework/app";
+import { AtlasProvider, viteAtlasClient } from "@kestreljs/framework/atlas";
+import { AuthenticationRequiredError } from "@kestreljs/framework/authentication";
+import { permission, requireHttpAuthorization } from "@kestreljs/framework/authorization";
+import { applicationBackoffice } from "../../../admin/index.js";
+import { applicationAuthenticationHttp } from "../../authentication/actions/authentication_catalog.js";
+import { adminAccessPermission } from "../authorization/permissions.js";
+
+export function installAtlas<Config>(app: App<Config>, enabled: boolean) {
+  return app.register(new AtlasProvider(viteAtlasClient({}), {
+    enabled,
+    atlas: applicationBackoffice,
+    authentication: {
+      // The application owns sign-in/out, cookies and credential throttling.
+      passwordSignInUrl: applicationAuthenticationHttp.signInWithPassword.route.url,
+      signOutUrl: applicationAuthenticationHttp.signOut.route.url,
+      requiredSession: applicationAuthenticationHttp.middleware.requiredSession,
+      isAuthenticationRequired: (error) => error instanceof AuthenticationRequiredError,
+    },
+    access: {
+      // A valid session alone does not grant administration privileges.
+      required: [requireHttpAuthorization(permission(adminAccessPermission))],
+      // Cookie-authenticated mutations must also pass the origin check.
+      unsafe: [applicationAuthenticationHttp.middleware.trustedOrigin],
+    },
+  }));
+}
+```
+
+`authentication.requiredSession` runs before `access.required` on protected pages, the manifest, APIs and operations, including delegated controllers. Unsafe requests also cross `access.unsafe`. Anonymous page navigation redirects to the public login page; anonymous API calls return `401`, authenticated callers without the permission return `403`, and missing or untrusted mutation origins return `403`. Packaged client assets and the login document remain public and do not grant data access. See [login navigation](../implementation/atlas.md#login-navigation) for the full behavior.
+
+If another system owns login navigation, omit `authentication` and put both the required-session middleware and the operator-permission middleware in `access.required`; retain `access.unsafe` for cookie-authenticated mutations. Do not replace authorization with a session check alone.
+
+The Atlas boundary does not protect direct Action calls or other transports. Put required business authorization in authoritative Action middleware, source mappings and repositories as appropriate. Hidden fields and read-only controls are presentation metadata, not server authorization. Applications needing per-record, field or tenant restrictions must enforce them there before exposing the corresponding resources.
+
+### Keep the public starter local
+
+The generated empty starter intentionally omits authentication for local exploration. Keep its `local`-only configuration until the protected composition above is installed. `APP_CONFIG__BACKOFFICE__ENABLED=true` only enables mounting: it does not add authentication or authorization, and no executable check rejects an unprotected deployment. Mounting with only `{ atlas: applicationBackoffice }` is an intentional public configuration suitable for an isolated demonstration, not the recommended administration installation.
+
+### Verify the deployment composition
+
+Use `fastify.inject()` with the application's actual provider and catalogs to verify anonymous API rejection, authenticated non-operator rejection, authorized access, and mutation rejection with missing or untrusted Origin headers. Exercise a real gateway operation as well as unmatched routes, and verify that a rejected mutation never executes its business handler. Keep separate Action tests for restrictions that must hold for direct or alternate-transport calls. The middleware implementation and role assignments remain application responsibilities.
+
 ## Describe an application resource
 
 Use a resource when operators need to browse and edit application records through Atlas. This example uses a tiny in-memory repository for clarity; provide the same operations with repository-backed [model action helpers](./database.md#create-a-repository-backed-action) in an application.
@@ -68,26 +120,6 @@ const atlas = defineAtlas({ title: "Administration", basePath: "/admin", resourc
 
 Only compiled exposures are callable through the gateway. `readMany` supports batched relation hydration. Enable searchable/filterable/sortable field metadata only when the source implements those operations; the demonstration above supplies pagination only.
 
-## Mount Atlas behind application access checks
-
-Mount the resource interface when it is ready for authenticated operators. The application supplies session, permission and origin checks for the administration boundary.
-
-```ts
-import type { App } from "@kestreljs/framework/app";
-import { AtlasProvider, viteAtlasClient } from "@kestreljs/framework/atlas";
-import type { HttpMiddleware } from "@kestreljs/framework/http";
-
-function installAtlas<Config>(app: App<Config>, requiredSession: HttpMiddleware<any>, requireOperator: HttpMiddleware<any>, trustedOrigin: HttpMiddleware<any>) {
-  return app.register(new AtlasProvider(viteAtlasClient({}), {
-    atlas,
-    // Require operator access throughout, and check the origin for unsafe requests.
-    access: { required: [requiredSession, requireOperator], unsafe: [trustedOrigin] },
-  }));
-}
-```
-
-Supply middleware from [authentication](./authentication.md) and [authorization](./authorization.md), register the HTTP runtime. Guard business actions separately when other transports expose them. Configure `authentication` on the provider for its login page and redirects; see the [login integration](../implementation/atlas.md#login-navigation).
-
 ## Add a record action and success feedback
 
 Add a record action when operators need a task beyond the standard CRUD controls. This example reads a selected contact and displays a notification after the operation succeeds.
@@ -115,7 +147,6 @@ Dynamic no-code pages, arbitrary external sources and bulk mutations are future 
 - Add resource views with implemented search, filter and sort operations.
 - Derive field metadata from Drizzle and adapt operation inputs and outputs.
 - Expose HTTP controller and worker operations through catalog sources.
-- Wire the login page and session redirects to application authentication.
 
 ## Explicit provider adapters
 

@@ -448,6 +448,8 @@ Unknown exposure ids, unsupported collection fields and invalid mapped values fa
 
 The Atlas framework remains independent from a particular authentication or authorization implementation. `AtlasProvider.access` accepts reusable HTTP middleware for the complete configured boundary, while its optional `authentication` object describes the small browser-login bridge required by the Kestrel-owned client.
 
+The supported initial installation recipe is [application-owned session, operator permission and mutation-origin checks](../usage/atlas.md#install-atlas-with-application-access-checks), qualified with negative composition tests. Both `authentication` and `access` remain optional: omission mounts a public boundary, and Atlas's explicit HTTP policies override rather than inherit the general runtime `defaultAccess`. Neither `enabled` nor the presence of permission definitions validates that middleware has been supplied. This documented recipe reduces composition errors but does not enforce secure configuration at startup.
+
 `AtlasProvider.enabled` lets an application omit every Atlas HTTP extension for deployments that do not expose an internal site. The standard application's Atlas-backed backoffice maps this option to the explicit `BACKOFFICE_ENABLED` setting outside local and test environments. Its URI-encoded browser configuration is inert data on the root HTML element rather than an inline executable script, so enabling Atlas does not weaken the production HTTP Content Security Policy.
 
 ```ts
@@ -523,6 +525,8 @@ See [Authorization](./authorization.md) for the implemented policy, code-defined
 
 Future security work includes:
 
+- an explicit protected/public exposure contract with startup validation, to prevent accidental omission of application access middleware;
+- aggregate password-work admission, separate from per-identity/IP throttling and stored-hash parameter limits;
 - granular server-side authorization for individual pages, resources, operations, records and fields;
 - separate permission to edit no-code configuration;
 - tenant and organization isolation;
