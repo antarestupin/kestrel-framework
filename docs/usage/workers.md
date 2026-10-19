@@ -62,7 +62,35 @@ In application services inject `workerClientDependency`. Select PostgreSQL expli
 
 `availableAt` schedules future availability. An `identity` deduplicates equivalent publications while the job remains active; it is not an exactly-once guarantee. `enqueueMany` validates every payload before writing and does not accept one shared identity for several jobs.
 
+After schema validation, payloads and optional `correlation` metadata are snapshotted through native JSON serialization with both built-in adapters. Dates become ISO strings, object properties containing `undefined`, functions or symbols are omitted, equivalent array entries become `null`, and non-finite numbers become `null`. Custom `toJSON()` methods are honored. Cycles, unsupported `BigInt` values and root values with no JSON representation reject with `WorkerPayloadSerializationError` before any job in the batch is published. JSON `null` is a supported payload. Changing the original object after publication or a reserved payload during execution cannot change the stored job used by later attempts.
+
+Use schemas that accept the stored JSON representation when the scheduler validates the payload again: for example, keep dates as ISO strings or use an appropriate coercion. Memory and PostgreSQL deduplication compare the normalized JSON content rather than the original JavaScript types. PostgreSQL JSONB restrictions still apply, including its rejection of the Unicode null character. These Worker conversions do not change the stricter default Workflow payload codec. See the [serialization contract](../implementation/workers.md#durable-json-payloads).
+
 Prefer `enqueueMany` when publishing several inputs together. PostgreSQL inserts up to 1,000 ordinary jobs per statement and keeps larger publications atomic across chunks. Returned IDs follow input order. When using `correlation` with a configured completion sink, the scheduler waits for durable result delivery before buffering the corresponding acknowledgement; a failed handoff leaves the job available for replay after its lease expires.
+
+## Limit publication sizes
+
+All publication budgets are optional and independent. Omit `publication`, use `{}`, or omit an individual property to leave the corresponding limit unlimited. Configured limits must be positive safe integers.
+
+```ts
+import { configure } from "@kestreljs/framework/configuration";
+import { workersConfigBase } from "@kestreljs/framework/workers";
+
+// Any subset is valid; these values are application choices, not defaults.
+const workersConfiguration = configure(workersConfigBase, {
+  publication: {
+    maxJobBytes: 1_048_576,
+    maxBatchBytes: 8_388_608,
+    maxBatchSize: 100,
+  },
+});
+```
+
+Pass the resolved configuration to `WorkerProvider` as usual. The provider forwards `publication` to the client and built-in adapters, including their direct `enqueue()` calls. For standalone publication, pass a `WorkerPublicationBudgets` object as the second argument to `new WorkerClient(adapter, budgets)`. A standalone memory adapter accepts the same fields in its options; a standalone PostgreSQL adapter accepts budgets as its fifth constructor argument, after the three optional table overrides.
+
+`maxJobBytes` counts the UTF-8 bytes of the serialized payload plus the serialized correlation when present. `maxBatchBytes` sums those job sizes. JSON quotes and escaping count; queue names, identities, scheduling fields, SQL framing and transport overhead do not. Repeated identities count as requested jobs and bytes before deduplication. The limits apply to both `enqueue()` and `enqueueMany()` and are inclusive: an exact-size publication is accepted.
+
+Count overflow is rejected before schema validation. Payloads are then validated and prepared progressively; byte overflow stops preparation and rejects the whole batch before any backend write. `WorkerPublicationBudgetError` exposes `budget`, `limit`, `actual` and the zero-based `jobIndex` for byte failures. These are publication limits only: there is no JSON depth budget, no cumulative queue quota and no new check when consumers reserve, retry or acknowledge jobs. Consumer reservation limits remain independent. See [implementation guarantees and limits](../implementation/workers.md#publication-budgets).
 
 ## Process batches with partial results
 

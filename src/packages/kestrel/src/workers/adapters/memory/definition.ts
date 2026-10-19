@@ -6,6 +6,6 @@ export function memoryWorkers(options: MemoryWorkerAdapterOptions = {}) {
   return defineWorkerAdapter({
     dependencies: {},
     capabilities: {},
-    create: (_dependencies) => new MemoryWorkerAdapter(options),
+    create: (_dependencies, config) => new MemoryWorkerAdapter({ ...options, ...config.publication }),
   });
 }

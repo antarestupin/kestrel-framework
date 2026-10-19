@@ -11,6 +11,11 @@ import type {
   WorkerJobCorrelation,
 } from "./types.js";
 import type { Worker } from "./worker.js";
+import {
+  resolveWorkerPublicationBudgets,
+  WorkerPublicationBudgetGuard,
+  type WorkerPublicationBudgets,
+} from "./publication.js";
 
 export interface WorkerEnqueueOptions {
   /** Stable identity used by adapters to deduplicate publication retries. */
@@ -25,7 +30,11 @@ export interface WorkerEnqueueOptions {
 
 /** Typed application API for publishing jobs to worker queues. */
 export class WorkerClient {
-  public constructor(private readonly adapter: WorkerAdapter) {}
+  private readonly budgets: WorkerPublicationBudgets;
+
+  public constructor(private readonly adapter: WorkerAdapter, budgets: WorkerPublicationBudgets = {}) {
+    this.budgets = resolveWorkerPublicationBudgets(budgets);
+  }
 
   public async enqueue<
     InputSchema extends ZodType,
@@ -69,36 +78,40 @@ export class WorkerClient {
     rawPayloads: readonly input<InputSchema>[],
     options: WorkerEnqueueOptions,
   ): Promise<readonly string[]> {
+    // Reject count overflow before application schemas or serializers run.
+    const guard = new WorkerPublicationBudgetGuard(this.budgets, rawPayloads.length);
     if (options.identity !== undefined && rawPayloads.length > 1) {
       throw new TypeError(
         "A stable Worker identity can only describe one enqueued job.",
       );
     }
 
-    // Validate the complete batch before writing anything to the adapter.
-    const payloads = await Promise.all(rawPayloads.map(
-      (rawPayload) => parseSchema(
+    // Prepare progressively so byte overflow stops work on subsequent jobs.
+    const requests: EnqueueJobRequest[] = [];
+    for (const rawPayload of rawPayloads) {
+      const payload = await parseSchema(
         worker.inputSchema,
         rawPayload,
         worker.validation.input,
-      ),
-    ));
-    const requests: EnqueueJobRequest[] = payloads.map((payload) => ({
-      queue: worker.queue,
-      payload,
-      ...(options.identity === undefined ? {} : { identity: options.identity }),
-      ...(options.correlation === undefined
-        ? {}
-        : { correlation: options.correlation }),
-      ...(options.availableAt === undefined
-        ? {}
-        : { availableAt: options.availableAt }),
-      ...(options.groupId === undefined ? {} : { groupId: options.groupId }),
-      ...(options.executionId === undefined
-        ? {}
-        : { executionId: options.executionId }),
-    }));
+      );
+      requests.push(guard.snapshot({
+        queue: worker.queue,
+        payload,
+        ...(options.identity === undefined ? {} : { identity: options.identity }),
+        ...(options.correlation === undefined
+          ? {}
+          : { correlation: options.correlation }),
+        ...(options.availableAt === undefined
+          ? {}
+          : { availableAt: options.availableAt }),
+        ...(options.groupId === undefined ? {} : { groupId: options.groupId }),
+        ...(options.executionId === undefined
+          ? {}
+          : { executionId: options.executionId }),
+      }));
+    }
 
+    // External adapters receive the same JSON representation as built-in ones.
     return this.adapter.enqueue(requests);
   }
 }

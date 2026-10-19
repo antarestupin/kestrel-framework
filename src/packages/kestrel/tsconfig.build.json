@@ -13,6 +13,7 @@
     "src/studio/extensions/**/client/**",
     "src/testing/postgres.ts",
     "src/testing/redis.ts",
+    "src/workers/testing/**",
     "src/atlas/client/**"
   ]
 }

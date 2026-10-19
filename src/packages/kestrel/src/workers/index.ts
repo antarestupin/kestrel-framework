@@ -1,6 +1,8 @@
 export {
   WorkerBatchResultError,
   WorkerJobIdentityConflictError,
+  WorkerPayloadSerializationError,
+  WorkerPublicationBudgetError,
   WorkerRetryError,
 } from "./errors.js";
 export {
@@ -20,6 +22,7 @@ export {
   type WorkerCorrelatedCompletionSink,
 } from "./dependencies.js";
 export { WorkerRuntime } from "./runtime.js";
+export type { WorkerPublicationBudgets } from "./publication.js";
 export {
   WorkerScheduler,
   type WorkerSchedulerOptions,

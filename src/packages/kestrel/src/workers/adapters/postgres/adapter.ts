@@ -16,6 +16,7 @@ import {
   workerQueueControls,
 } from "./schema.js";
 import { WorkerJobIdentityConflictError } from "../../errors.js";
+import { resolveWorkerPublicationBudgets, snapshotWorkerRequests, type WorkerPublicationBudgets } from "../../publication.js";
 import type {
   DeadLetterJobRequest,
   DeferJobRequest,
@@ -69,13 +70,17 @@ const enqueueChunkSize = 1_000;
 /** PostgreSQL adapter using short atomic statements and server-side time. */
 export class PostgresWorkerAdapter implements WorkerAdapter {
   public readonly acknowledgementGrouping = "global" as const;
+  private readonly budgets: WorkerPublicationBudgets;
 
   public constructor(
     private readonly database: PostgresWorkerDatabase,
     private readonly jobsTable: typeof workerJobs = workerJobs,
     private readonly deadLetterTable: typeof workerDeadLetterJobs = workerDeadLetterJobs,
     private readonly queueControlsTable: typeof workerQueueControls = workerQueueControls,
-  ) {}
+    budgets: WorkerPublicationBudgets = {},
+  ) {
+    this.budgets = resolveWorkerPublicationBudgets(budgets);
+  }
 
   public async enqueue<Payload>(
     requests: readonly EnqueueJobRequest<Payload>[],
@@ -84,7 +89,9 @@ export class PostgresWorkerAdapter implements WorkerAdapter {
       return [];
     }
 
-    const identities = [...new Set(requests.flatMap((request) =>
+    // Normalize the complete batch before any SQL or identity comparison.
+    const snapshots = snapshotWorkerRequests(requests, this.budgets);
+    const identities = [...new Set(snapshots.flatMap((request) =>
       request.identity === undefined ? [] : [request.identity]))];
     const publish = async (database: PostgresWorkerDatabase) => {
       const existingByIdentity = new Map<string, IdentityJob>();
@@ -107,7 +114,7 @@ export class PostgresWorkerAdapter implements WorkerAdapter {
       }
 
       const inserts: (typeof workerJobs.$inferInsert)[] = [];
-      const ids = requests.map((request) => {
+      const ids = snapshots.map((request) => {
         const existing = request.identity === undefined
           ? undefined
           : existingByIdentity.get(request.identity);
@@ -120,17 +127,20 @@ export class PostgresWorkerAdapter implements WorkerAdapter {
 
         // Assign IDs before insertion instead of relying on RETURNING order.
         const id = uuidV7();
-        inserts.push({ ...request, id });
+        inserts.push({
+          ...request,
+          id,
+          // Drizzle treats a null parameter as SQL NULL; a payload root null
+          // must instead remain JSON null in the non-null JSONB column.
+          payload: request.payload === null ? sql`'null'::jsonb` : request.payload,
+        });
         if (request.identity !== undefined) {
-          // Match the stored JSON representation for repetitions within this
-          // publication, just like a subsequent publication would observe it.
+          // Requests already use the representation returned by JSON storage.
           existingByIdentity.set(request.identity, {
             id,
             queue: request.queue,
-            payload: JSON.parse(JSON.stringify(request.payload)),
-            correlation: request.correlation === undefined
-              ? null
-              : JSON.parse(JSON.stringify(request.correlation)),
+            payload: request.payload,
+            correlation: request.correlation ?? null,
             groupId: request.groupId ?? null,
             executionId: request.executionId ?? null,
           });

@@ -12,6 +12,11 @@ import { WorkerProvider } from "./provider.js";
 import { memoryWorkers } from "./adapters/memory/index.js";
 import { defineWorkerAdapter } from "./adapter_definition.js";
 import { dep } from "../di/index.js";
+import { z } from "zod";
+import { defineWorker } from "./worker.js";
+import { postgresWorkers } from "./adapters/postgres/index.js";
+import type { PostgresWorkerDatabase } from "./adapters/postgres/index.js";
+import type { WorkerAdapter } from "./types.js";
 
 const workersConfig: WorkersConfig = {
   slots: 2,
@@ -27,6 +32,30 @@ const workersConfig: WorkersConfig = {
 };
 
 describe("WorkerProvider", () => {
+  it.each(["memory", "postgres"] as const)("passes publication limits to the %s adapter and client", async (backend) => {
+    const app = new App({ name: "test" });
+    const database = dep<PostgresWorkerDatabase>("publicationDatabase");
+    // Rejection must happen before any PostgreSQL operation is attempted.
+    app.container.registerValue(database.id, {} as PostgresWorkerDatabase);
+    app.register(new WorkerProvider({ ...workersConfig, publication: { maxBatchSize: 1 } },
+      backend === "memory" ? memoryWorkers() : postgresWorkers(database)));
+    try {
+      const adapter = app.container.resolve(dep<WorkerAdapter>("workerAdapter"));
+      await expect(adapter.enqueue([
+        { queue: "test", payload: 1 }, { queue: "test", payload: 2 },
+      ])).rejects.toMatchObject({ budget: "maxBatchSize" });
+      let validations = 0;
+      const worker = defineWorker({
+        name: "test", queue: "test",
+        input: z.number().transform((value) => { validations++; return value; }),
+        handler: () => {},
+      });
+      const client = app.container.resolve(workerClientDependency);
+      await expect(client.enqueueMany(worker, [1, 2])).rejects.toMatchObject({ budget: "maxBatchSize" });
+      expect(validations).toBe(0);
+    } finally { await app.dispose(); }
+  });
+
   it("accepts an adapter that does not depend on PostgreSQL", async () => {
     const app = new App({ name: "test" });
     const adapter = memoryWorkers();

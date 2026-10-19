@@ -25,6 +25,8 @@ import type {
 import { createPostgresTestPool } from "../../../testing/postgres.js";
 import { uuidV7 } from "../../../utils/uuid.js";
 import { WorkerJobIdentityConflictError } from "../../errors.js";
+import { workerPayloadConformance } from "../../testing/payload_conformance.js";
+import type { WorkerPublicationBudgets } from "../../types.js";
 import {
   workerDeadLetterJobs,
   workerJobs,
@@ -104,12 +106,13 @@ let database: PostgresWorkerDatabase;
 let adapter: PostgresWorkerAdapter;
 
 /** Captures actual driver commands, including transaction boundaries. */
-function createCountingAdapter(queries: string[]): PostgresWorkerAdapter {
+function createCountingAdapter(queries: string[], budgets?: WorkerPublicationBudgets): PostgresWorkerAdapter {
   return new PostgresWorkerAdapter(
     drizzle(client, { logger: { logQuery: (query) => queries.push(query) } }),
     testWorkerJobs as unknown as typeof workerJobs,
     testDeadLetterJobs as unknown as typeof workerDeadLetterJobs,
     testWorkerQueueControls as unknown as typeof workerQueueControls,
+    budgets,
   );
 }
 
@@ -178,6 +181,18 @@ afterAll(async () => {
 });
 
 describe("PostgresWorkerAdapter", () => {
+  workerPayloadConformance((budgets) => createCountingAdapter([], budgets));
+
+  it("rejects budget overflow without sending any SQL to the backend", async () => {
+    const queries: string[] = [];
+    const adapter = createCountingAdapter(queries, { maxBatchBytes: 4 });
+    await expect(adapter.enqueue([
+      { queue: "queue", payload: "é" },
+      { queue: "queue", payload: "é" },
+    ])).rejects.toMatchObject({ budget: "maxBatchBytes" });
+    expect(queries).toEqual([]);
+  });
+
   it.each([
     { size: 100, commands: 1 },
     { size: 1_001, commands: 4 },

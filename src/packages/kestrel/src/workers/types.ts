@@ -1,3 +1,13 @@
+/** Independent optional limits for one enqueue call; omission means unlimited. */
+export interface WorkerPublicationBudgets {
+  /** UTF-8 JSON bytes of a job's payload plus its optional correlation. */
+  readonly maxJobBytes?: number | undefined;
+  /** Sum of job bytes, including repeated identities, in one publication. */
+  readonly maxBatchBytes?: number | undefined;
+  /** Number of requested jobs before validation or identity deduplication. */
+  readonly maxBatchSize?: number | undefined;
+}
+
 /** Serialized error retained with retrying and dead-letter jobs. */
 export interface WorkerJobError {
   name: string;
@@ -34,6 +44,7 @@ export interface EnqueueJobRequest<Payload = unknown> {
   /** Stable publisher identity. Reusing it with different content is invalid. */
   identity?: string;
   queue: string;
+  /** Stored with native JSON conversions, independently of caller references. */
   payload: Payload;
   correlation?: WorkerJobCorrelation;
   availableAt?: Date;
@@ -126,6 +137,14 @@ export type WorkerCorrelatedCompletion = {
 export interface WorkerAdapter {
   /** Defaults to global grouping when the backend has no queue restriction. */
   readonly acknowledgementGrouping?: WorkerAcknowledgementGrouping;
+  /**
+   * Snapshot payload/correlation through JSON before comparing identities or
+   * writing. Reject the whole batch if serialization fails. Returned jobs must
+   * not expose mutable storage references. WorkerClient also normalizes inputs
+   * so external adapters receive the same publication representation.
+   * Apply configured publication budgets before writes, including direct calls;
+   * these budgets do not apply to reservations or post-reservation mutations.
+   */
   enqueue<Payload>(
     requests: readonly EnqueueJobRequest<Payload>[],
   ): Promise<readonly string[]>;

@@ -6,6 +6,7 @@ import {
 
 import { MemoryWorkerAdapter } from "./adapter.js";
 import { WorkerJobIdentityConflictError } from "../../errors.js";
+import { workerPayloadConformance } from "../../testing/payload_conformance.js";
 
 function createSequence(prefix: string): () => string {
   let value = 0;
@@ -14,6 +15,39 @@ function createSequence(prefix: string): () => string {
 }
 
 describe("MemoryWorkerAdapter", () => {
+  workerPayloadConformance((budgets) => new MemoryWorkerAdapter(budgets));
+
+  it("isolates publication, reservation, inspection and dead-letter payloads", async () => {
+    const adapter = new MemoryWorkerAdapter();
+    const payload = { nested: { value: 1 } };
+    const correlation = { namespace: "test", id: "1", data: { value: 1 } };
+    await adapter.enqueue([{ queue: "queue", payload, correlation }]);
+    payload.nested.value = 2;
+    correlation.data.value = 2;
+    const inspected = adapter.inspectJobs()[0]!;
+    (inspected.payload as typeof payload).nested.value = 3;
+    expect(adapter.inspectJobs()[0]!.payload).toEqual({ nested: { value: 1 } });
+    expect(adapter.inspectJobs()[0]!.correlation?.data).toEqual({ value: 1 });
+
+    const reservation = {
+      queues: [{ queue: "queue", reservationLimit: 1, allowOverflow: true }],
+      totalLimit: 1, leaseMs: 60_000,
+    };
+    const [first] = await adapter.reserve(reservation);
+    (first!.payload as typeof payload).nested.value = 4;
+    (first!.correlation!.data as { value: number }).value = 4;
+    await adapter.release([{ jobId: first!.id, reservationToken: first!.reservationToken }]);
+    const [second] = await adapter.reserve(reservation);
+    expect(second!.payload).toEqual({ nested: { value: 1 } });
+    expect(second!.correlation?.data).toEqual({ value: 1 });
+    await adapter.deadLetter([{
+      jobId: second!.id, reservationToken: second!.reservationToken,
+      error: { name: "Error", message: "failed" },
+    }]);
+    (adapter.inspectDeadLetters()[0]!.payload as typeof payload).nested.value = 5;
+    expect(adapter.inspectDeadLetters()[0]!.payload).toEqual({ nested: { value: 1 } });
+  });
+
   it("deduplicates matching stable identities and rejects conflicting reuse", async () => {
     const adapter = new MemoryWorkerAdapter({
       createId: createSequence("job"),

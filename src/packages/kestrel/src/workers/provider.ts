@@ -106,7 +106,7 @@ export class WorkerProvider<Config> implements Provider<Config> {
 
   /** Creates the public queue client from the configured adapter. */
   protected createClient(adapter: WorkerAdapter): WorkerClient {
-    return new WorkerClient(adapter);
+    return new WorkerClient(adapter, this.config.publication);
   }
 
   /** Keeps throttling optional for applications without protected workers. */

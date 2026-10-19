@@ -1,3 +1,13 @@
+import type { WorkerPublicationBudgets } from "./types.js";
+
+/** Raised before publication when a payload or correlation cannot become JSON. */
+export class WorkerPayloadSerializationError extends TypeError {
+  public constructor(options?: ErrorOptions) {
+    super("Worker payload and correlation must have a JSON representation.", options);
+    this.name = "WorkerPayloadSerializationError";
+  }
+}
+
 /** Raised when a batch handler returns an ambiguous job result set. */
 export class WorkerBatchResultError extends Error {
   public constructor(message: string) {
@@ -39,5 +49,18 @@ export class WorkerJobIdentityConflictError extends Error {
   public constructor(public readonly identity: string) {
     super(`Worker job identity "${identity}" already belongs to another job.`);
     this.name = "WorkerJobIdentityConflictError";
+  }
+}
+
+/** Rejects an entire publication before storage when an optional limit is exceeded. */
+export class WorkerPublicationBudgetError extends RangeError {
+  public constructor(
+    public readonly budget: keyof WorkerPublicationBudgets,
+    public readonly limit: number,
+    public readonly actual: number,
+    public readonly jobIndex?: number,
+  ) {
+    super(`Worker publication ${budget} exceeded: ${actual} > ${limit}.`);
+    this.name = "WorkerPublicationBudgetError";
   }
 }

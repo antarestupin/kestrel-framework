@@ -7,6 +7,8 @@ export function postgresWorkers(database: RegisteredDependencyDescriptor<Postgre
   return defineWorkerAdapter({
     dependencies: { database },
     capabilities: {},
-    create: ({ database }) => new PostgresWorkerAdapter(database),
+    create: ({ database }, config) => new PostgresWorkerAdapter(
+      database, undefined, undefined, undefined, config.publication,
+    ),
   });
 }

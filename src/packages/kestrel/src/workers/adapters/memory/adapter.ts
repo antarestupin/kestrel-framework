@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import { uuidV7 } from "../../../utils/uuid.js";
 import { WorkerJobIdentityConflictError } from "../../errors.js";
+import { resolveWorkerPublicationBudgets, snapshotWorkerRequests, type WorkerPublicationBudgets } from "../../publication.js";
 
 import type {
   DeadLetterJob,
@@ -36,7 +37,7 @@ interface StoredJob {
   createdAt: Date;
 }
 
-export interface MemoryWorkerAdapterOptions {
+export interface MemoryWorkerAdapterOptions extends WorkerPublicationBudgets {
   now?: () => Date;
   createId?: () => string;
   createReservationToken?: () => string;
@@ -58,8 +59,10 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
   private readonly createId: () => string;
 
   private readonly createReservationToken: () => string;
+  private readonly budgets: WorkerPublicationBudgets;
 
   public constructor(options: MemoryWorkerAdapterOptions = {}) {
+    this.budgets = resolveWorkerPublicationBudgets(options);
     this.acknowledgementGrouping = options.acknowledgementGrouping ?? "global";
     this.now = options.now ?? (() => new Date());
     this.createId = options.createId ?? uuidV7;
@@ -70,9 +73,11 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
   public async enqueue<Payload>(
     requests: readonly EnqueueJobRequest<Payload>[],
   ): Promise<readonly string[]> {
+    // Direct adapter calls obey the same contract as WorkerClient publications.
+    const snapshots = snapshotWorkerRequests(requests, this.budgets);
     const now = this.now();
     const stagedJobs = new Map(this.jobs);
-    const jobIds = requests.map((request) => {
+    const jobIds = snapshots.map((request) => {
       if (request.identity !== undefined) {
         const existing = [...stagedJobs.values()].find(
           (job) => job.identity === request.identity,
@@ -282,12 +287,12 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
 
   /** Exposes immutable snapshots for adapter and scheduler tests. */
   public inspectJobs(): readonly Readonly<StoredJob>[] {
-    return [...this.jobs.values()].map((job) => ({ ...job }));
+    return structuredClone([...this.jobs.values()]);
   }
 
   /** Exposes immutable dead-letter snapshots for tests and local tooling. */
   public inspectDeadLetters(): readonly Readonly<DeadLetterJob>[] {
-    return this.deadLetters.map((job) => ({ ...job }));
+    return structuredClone(this.deadLetters);
   }
 
   private readyJobs(
@@ -340,7 +345,8 @@ function toReservedJob(
   reservationToken: string,
   reservedAt: Date,
 ): ReservedJob {
-  return {
+  // A handler must not mutate the stored payload used by retries or identity checks.
+  return structuredClone({
     id: job.id,
     ...(job.identity === undefined ? {} : { identity: job.identity }),
     queue: job.queue,
@@ -355,7 +361,7 @@ function toReservedJob(
     reservedAt,
     reservationToken,
     createdAt: job.createdAt,
-  };
+  });
 }
 
 function matchesIdentity<Payload>(

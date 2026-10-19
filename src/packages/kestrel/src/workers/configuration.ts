@@ -11,6 +11,12 @@ const positiveInteger = z.union([z.number(), z.string()]).pipe(
 
 /** Configuration contract required by the worker runtime. */
 export const workersConfigBase = defineConfigBase(z.object({
+  // Publication limits are independent; no omitted limit is synthesized.
+  publication: z.object({
+    maxJobBytes: positiveInteger.optional(),
+    maxBatchBytes: positiveInteger.optional(),
+    maxBatchSize: positiveInteger.optional(),
+  }).optional(),
   slots: positiveInteger.default(10),
   leaseMs: positiveInteger.default(300_000),
   reservationLimit: positiveInteger.default(100),
