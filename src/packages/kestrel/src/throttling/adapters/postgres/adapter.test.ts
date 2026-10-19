@@ -269,15 +269,16 @@ describe("PostgresRateLimitAdapter", () => {
     };
 
     await adapter.reserve(request);
+    await holdBucketRefill(request.key);
     await expect(adapter.reconcile([{
       ...request,
       estimatedCost: 6,
       actualCost: 12,
-    }])).resolves.toMatchObject({ "test:tokens": expect.closeTo(-2, 2) });
+    }])).resolves.toMatchObject({ "test:tokens": -2 });
     await expect(adapter.inspectMany([{ ...request, cost: 1 }]))
       .resolves.toMatchObject([{
         available: false,
-        remaining: expect.closeTo(-2, 2),
+        remaining: -2,
         retryAt: expect.any(Date),
       }]);
   });
@@ -293,11 +294,12 @@ describe("PostgresRateLimitAdapter", () => {
     };
 
     await adapter.reserve(request);
+    await holdBucketRefill(request.key);
     await expect(adapter.reconcile([{
       ...request,
       estimatedCost: 6,
       actualCost: 2,
-    }])).resolves.toMatchObject({ "test:tokens": expect.closeTo(8, 2) });
+    }])).resolves.toMatchObject({ "test:tokens": 8 });
     await expect(adapter.reserve({ ...request, cost: 8 }))
       .resolves.toMatchObject({ admitted: true });
   });
@@ -447,6 +449,15 @@ describe("PostgresRateLimitAdapter", () => {
     expect(bucket.rows[0]?.tokens).toBeLessThan(81);
   });
 });
+
+/** Isolate reconciliation arithmetic from real PostgreSQL refill time under concurrent CI load. */
+async function holdBucketRefill(key: string): Promise<void> {
+  await client.query(`
+    UPDATE throttling_rate_limit
+    SET refilled_at = statement_timestamp() + interval '1 day'
+    WHERE key = $1
+  `, [key]);
+}
 
 function createAdapter(
   options: ConstructorParameters<typeof PostgresRateLimitAdapter>[1] = {},

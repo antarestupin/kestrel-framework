@@ -17,7 +17,7 @@ cd kestrel-framework
 
 ## Develop and test
 
-GitHub Actions runs `.github/workflows/validate.yml` on pushes, pull requests, merge groups, and manual dispatch. Configure the stable `release-validation` job as a required check in the repository ruleset. Workflow files cannot enforce branch protection by themselves. See [release validation](implementation/distribution.md#release-validation) for the candidate and security contracts.
+GitHub Actions runs `.github/workflows/validate.yml` on pushes to main, pull requests, merge groups, and manual dispatch. The reusable documentation workflow builds once per validation and supplies the Pages deployment after the release gate succeeds on main. Configure the stable `release-validation` job as a required check in the repository ruleset. Workflow files cannot enforce branch protection by themselves. See [release validation](implementation/distribution.md#release-validation) for the candidate and security contracts.
 
 Use Node.js 24 and Docker Compose. From this repository root:
 
@@ -101,29 +101,37 @@ Publication requires explicit owner approval. Validation never publishes to npm.
 From a checkout with dependencies installed and test infrastructure prepared, run:
 
 ```sh
-# Build once, validate, and retain archives plus evidence in a new directory.
-npm run release:validate
-
-# Switch to the minimum Node runtime, reinstall the workspace lock, and reuse the same archives.
+# Use the same minimum runtime and resolver as CI.
 nvm use 24.11.0
 npm install --global npm@11.9.0 --ignore-scripts --no-audit --no-fund
 npm ci --ignore-scripts --no-audit --no-fund
-# Use the candidate directory printed by validation.
+# Build once, validate, and retain archives plus evidence in a new directory.
+npm run release:validate
+
+# Optionally repeat consumer verification using the printed candidate directory.
 npm run release:verify -- <candidate-directory>
 ```
 
-Start validation on a recent Node 24 version other than 24.11.0 with npm 11.9.0 at both checkpoints. CI performs both runtime checkpoints automatically, also running source tests on the minimum runtime. Without a path, `npm run release:validate` atomically selects the first unused directory among `artifacts/candidate`, `artifacts/candidate-2`, and subsequent numbered paths. It prints the selected directory and the command for additional runtime verification before running the gates. An explicit path such as `npm run release:validate -- artifacts/my-candidate` must be unused; an occupied path produces an error suggesting automatic selection. Existing evidence, including failed runs, is never overwritten. Verification and publication still default to `artifacts/candidate`; pass the printed path explicitly when another directory was selected. Tests assume the normal framework PostgreSQL/Redis infrastructure is available.
+Local validation accepts Node >=24.11.0 <25 and requires npm 11.9.0. CI remains pinned to Node 24.11.0. CI runs the source gates once and verifies the five independent consumer selections in parallel. Local validation limits consumer workers and the independent post-build source checks to two concurrent tasks. Without a path, `npm run release:validate` atomically selects the first unused directory among `artifacts/candidate`, `artifacts/candidate-2`, and subsequent numbered paths. It prints the selected directory before running the gates. An explicit path such as `npm run release:validate -- artifacts/my-candidate` must be unused; an occupied path produces an error suggesting automatic selection. Existing evidence, including failed runs, is never overwritten. Verification and publication still default to `artifacts/candidate`; pass the printed path explicitly when another directory was selected. Tests assume the normal framework PostgreSQL/Redis infrastructure is available.
 
-`candidate.json` records the source commit and dirty state, a digest of source inputs, tool versions, archive hashes, runtime verification results, and report hashes. A local dirty checkout may be validated for review; publication requires a candidate built from a clean commit and verified on both Node checkpoints. Download the complete CI candidate artifact into `artifacts/candidate` before publishing; preserve its directory structure. Check the successful `release-validation` result and the source commit before authorizing publication. Local checksums detect replacement, but do not authenticate a candidate received from an untrusted source.
+A candidate validated locally on a newer supported Node 24 release records that actual runtime. Publication still requires consumer verification on Node 24.11.0: use the CI candidate, or switch to the minimum and run `npm run release:verify -- <candidate-directory>` with matching source inputs. Existing documentation evidence may come from another supported Node 24 release.
+
+Release reports include `<log>.timing.json` sidecars for successful and failed commands, with individual consumer steps under `reports/consumers/<selection>/steps/`. Use elapsed durations to identify slow checks; concurrent and nested timings overlap.
+
+`candidate.json` records the source commit and dirty state, a digest of source inputs, tool versions, archive hashes, runtime verification results, and report hashes. A local dirty checkout may be validated for review; publication requires a candidate built from a clean commit and verified on Node 24.11.0 with complete documentation and consumer evidence. Download the complete CI candidate artifact into `artifacts/candidate` before publishing; preserve its directory structure. Check the successful `release-validation` result and the source commit before authorizing publication. Local checksums detect replacement, but do not authenticate a candidate received from an untrusted source.
 
 | Root command | Purpose |
 | --- | --- |
 | `npm run pack:dry-run` | Build and inspect both npm packages without publishing. |
 | `npm run release:validate` | Run all gates, pack once, verify consumers, and retain the candidate. |
-| `npm run release:verify` | Verify the candidate on the current Node 24 runtime without rebuilding. |
+| `npm run release:verify` | Repeat consumer verification on the current supported Node 24 runtime without rebuilding. |
+| `npm run release:prepare` | Run source gates and pack a non-publishable candidate for CI workers. |
+| `npm run release:docs` | Build documentation and retain its source/runtime receipt. |
+| `npm run release:consumer -- <directory> <selection>` | Verify `package`, `postgres-app`, `redis-app`, `postgres-atlas-app`, or `redis-atlas-app`. |
+| `npm run release:finalize -- <directory>` | Require all worker and documentation evidence, then seal the candidate. |
 | `npm run check:security` | Audit the workspace using the versioned security policy. |
 | `npm run publish:kestrel` | Publish the candidate framework archive with the `next` tag. |
 | `npm run publish:create-kestrel` | Publish the candidate creator archive with the `next` tag. |
 | `npm run publish:next` | Publish the candidate framework, then creator; stop on failure. |
 
-Publishing verifies artifact and report hashes, requires both runtime checkpoints, rejects expired security exceptions, and rejects evidence older than seven days. It passes the validated tarball directly to npm with lifecycle scripts disabled: no rebuild or repack occurs. For another candidate path, use `node scripts/release.mjs publish <directory> [all|framework|creator]` after approval. These commands perform real registry writes and require npm authentication and publishing rights. Published versions cannot be reused; if only creator publication fails, retry only the creator. Keep both package versions and the template/playground dependency aligned when changing release versions. Automatic publication, signed provenance, and a stable release policy remain deferred.
+Publishing verifies artifact and report hashes, requires the minimum-runtime verification and every documentation/consumer receipt, rejects expired security exceptions, and rejects evidence older than seven days. It passes the validated tarball directly to npm with lifecycle scripts disabled: no rebuild or repack occurs. For another candidate path, use `node scripts/release.mjs publish <directory> [all|framework|creator]` after approval. These commands perform real registry writes and require npm authentication and publishing rights. Published versions cannot be reused; if only creator publication fails, retry only the creator. Keep both package versions and the template/playground dependency aligned when changing release versions. Automatic publication, signed provenance, and a stable release policy remain deferred.

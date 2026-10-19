@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { checkEvidence, validationNode } from "./evidence.mjs";
 import { candidateFile, digest, npm, readJson, root, run, writeJson } from "./common.mjs";
 
 export const packages = ["kestrel", "create-kestrel"];
@@ -51,7 +52,9 @@ export async function pack(directory) {
   await mkdir(directory, { recursive: true });
   const archives = [];
   for (const name of packages) {
-    const { stdout } = await npm(["pack", `--workspace=./src/packages/${name}`, "--ignore-scripts", "--json", `--pack-destination=${directory}`], { capture: true });
+    const { stdout } = await npm(["pack", `--workspace=./src/packages/${name}`, "--ignore-scripts", "--json", `--pack-destination=${directory}`], {
+      capture: true, log: resolve(directory, `reports/pack-${name}.log`),
+    });
     const [item] = JSON.parse(stdout);
     archives.push({ name: item.name, version: item.version, file: item.filename, sha256: await digest(candidateFile(directory, item.filename)) });
   }
@@ -84,8 +87,10 @@ export async function checkCandidate(directory, { publish = false } = {}) {
     assert.equal(manifest.status, "validated", "The candidate has not passed validation");
     assert(!manifest.source.dirty, "Publishing requires a candidate built from a clean commit");
     assert(manifest.verifications.some((entry) => entry.node === "v24.11.0"), "Minimum Node 24.11 verification is missing");
-    assert(manifest.verifications.some((entry) => entry.node !== "v24.11.0"), "A second Node 24 verification is missing");
+    const runtime = await checkEvidence(directory, manifest);
+    assert.equal(runtime.node, validationNode, "Publication requires consumer evidence on Node 24.11.0");
     await verifyHashes(directory, manifest.reports);
+    assert.deepEqual(await reportInventory(directory), manifest.reports, "Candidate report inventory changed");
     // The candidate is intentionally independent of the current checkout when publishing.
     const policy = await readJson(resolve(directory, "reports/security-policy.json"));
     for (const entry of policy.exceptions) assert(new Date(`${entry.expires}T00:00:00Z`) > new Date(), `Expired exception: ${entry.advisory}`);

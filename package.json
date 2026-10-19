@@ -36,6 +36,10 @@
     "publish:next": "node scripts/release.mjs publish artifacts/candidate all",
     "test:release": "node --test scripts/release/*.test.mjs",
     "check:security": "node scripts/release/security.mjs",
+    "release:prepare": "node scripts/release.mjs prepare",
+    "release:consumer": "node scripts/release.mjs consumer",
+    "release:docs": "node scripts/release.mjs docs",
+    "release:finalize": "node scripts/release.mjs finalize",
     "release:validate": "node scripts/release.mjs validate",
     "release:verify": "node scripts/release.mjs verify"
   },

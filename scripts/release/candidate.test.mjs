@@ -4,7 +4,8 @@ import { mkdtemp, readFile, stat, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { candidateFile, digest, writeJson } from "./common.mjs";
-import { checkCandidate, createCandidateDirectory, verifyHashes } from "./candidate.mjs";
+import { verificationSelections } from "./evidence.mjs";
+import { checkCandidate, createCandidateDirectory, reportInventory, verifyHashes } from "./candidate.mjs";
 
 test("creates fresh candidates and preserves evidence when a path is reused", async () => {
   const directory = await mkdtemp(join(tmpdir(), "kestrel-validation-test-"));
@@ -80,20 +81,34 @@ test("publication also checks retained reports, policy expiry, and evidence age"
     await writeFile(join(directory, "package.tgz"), "fixture");
     const sha256 = await digest(join(directory, "package.tgz"));
     await writeJson(join(directory, "reports/security-policy.json"), { exceptions: [] });
-    const policyHash = await digest(join(directory, "reports/security-policy.json"));
     const manifest = { format: 1, status: "validated", source: { dirty: false }, validatedAt: new Date().toISOString(), archives: [
       { name: "@kestreljs/framework", file: "package.tgz", sha256 },
       { name: "@kestreljs/create-kestrel", file: "package.tgz", sha256 },
-    ], verifications: [{ node: "v24.11.0" }, { node: "v24.14.0" }], reports: [{ file: "reports/security-policy.json", sha256: policyHash }] };
+    ], verifications: [{ node: "v24.11.0" }], reports: [] };
+    // A single minimum runtime is sufficient, but every independent success is required.
+    const receipt = { source: manifest.source, node: "v24.11.0", npm: "11.9.0", status: "passed" };
+    await writeJson(join(directory, "reports/docs/result.json"), receipt);
+    for (const selection of verificationSelections) {
+      await writeJson(join(directory, "reports/consumers", selection, "result.json"), { ...receipt, selection, archives: manifest.archives });
+    }
+    manifest.reports = await reportInventory(directory);
     await writeJson(join(directory, "candidate.json"), manifest);
     await checkCandidate(directory, { publish: true });
+    // A forged minimum-runtime summary cannot authorize receipts from a newer runtime.
+    for (const selection of verificationSelections) {
+      await writeJson(join(directory, "reports/consumers", selection, "result.json"), { ...receipt, node: "v24.14.0", selection, archives: manifest.archives });
+    }
+    await assert.rejects(checkCandidate(directory, { publish: true }), /Publication requires consumer evidence/);
+    for (const selection of verificationSelections) {
+      await writeJson(join(directory, "reports/consumers", selection, "result.json"), { ...receipt, selection, archives: manifest.archives });
+    }
     await writeJson(join(directory, "reports/security-policy.json"), { exceptions: [{ advisory: "expired", expires: "2000-01-01" }] });
     await assert.rejects(checkCandidate(directory, { publish: true }), /Changed artifact/);
-    manifest.reports[0].sha256 = await digest(join(directory, "reports/security-policy.json"));
+    manifest.reports = await reportInventory(directory);
     await writeJson(join(directory, "candidate.json"), manifest);
     await assert.rejects(checkCandidate(directory, { publish: true }), /Expired exception/);
     await writeJson(join(directory, "reports/security-policy.json"), { exceptions: [] });
-    manifest.reports[0].sha256 = policyHash;
+    manifest.reports = await reportInventory(directory);
     manifest.validatedAt = "2000-01-01T00:00:00Z";
     await writeJson(join(directory, "candidate.json"), manifest);
     await assert.rejects(checkCandidate(directory, { publish: true }), /seven days/);

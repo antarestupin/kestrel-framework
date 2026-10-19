@@ -1,51 +1,34 @@
-# Build documentation changes and deploy main to GitHub Pages.
+# Reuse one documentation build for release evidence and GitHub Pages deployment.
 name: Documentation
-
 on:
-  push:
-    branches: [main]
-    paths: ['src/apps/docs/**', 'docs/**', 'package.json', 'package-lock.json', '.github/workflows/docs.yml']
-  pull_request:
-    paths: ['src/apps/docs/**', 'docs/**', 'package.json', 'package-lock.json', '.github/workflows/docs.yml']
-  workflow_dispatch:
-
+  workflow_call:
 permissions:
   contents: read
-
-concurrency:
-  group: docs-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 24.11.0
           cache: npm
-      - run: npm ci
-      - run: npm run docs:build
+      - run: npm install --global npm@11.9.0 --ignore-scripts --no-audit --no-fund
+      # Install the documentation dependency graph without framework/playground tooling.
+      - run: npm ci --workspace=@kestrel/docs --include-workspace-root=false --ignore-scripts --no-audit --no-fund
+      - run: npm run release:docs
         env:
           DOCS_URL: ${{ vars.DOCS_URL }}
           DOCS_BASE_URL: ${{ vars.DOCS_BASE_URL }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: documentation-evidence-${{ github.sha }}
+          path: artifacts/documentation/reports/docs/
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         with:
           path: src/apps/docs/build
-
-  # Pull requests validate the site; only main may publish the Pages artifact.
-  deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
