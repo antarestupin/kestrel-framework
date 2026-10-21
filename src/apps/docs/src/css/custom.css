@@ -1,26 +1,46 @@
+/* Terracotta follows the logo; text accents use darker shades for readable contrast. */
 :root {
-  --ifm-color-primary: #246653;
-  --ifm-color-primary-dark: #205c4b;
-  --ifm-color-primary-darker: #1f5747;
-  --ifm-color-primary-darkest: #19483a;
-  --ifm-color-primary-light: #28705b;
-  --ifm-color-primary-lighter: #29755f;
-  --ifm-color-primary-lightest: #2f856c;
+  --ifm-color-primary: #a64224;
+  --ifm-color-primary-dark: #953b20;
+  --ifm-color-primary-darker: #8d381f;
+  --ifm-color-primary-darkest: #742e19;
+  --ifm-color-primary-light: #b74928;
+  --ifm-color-primary-lighter: #bf4c29;
+  --ifm-color-primary-lightest: #d25732;
+  --ifm-color-primary-contrast-background: #fbe9e0;
+  --ifm-color-primary-contrast-foreground: #692a18;
+  --ifm-background-color: #fff;
+  --ifm-background-surface-color: #fff;
+  --ifm-navbar-background-color: #fff;
   --ifm-code-font-size: 90%;
   --ifm-heading-font-weight: 700;
+  --kestrel-brand-border: #e6c9bb;
+  --kestrel-footer-background: #30231e;
+  --docusaurus-highlighted-code-line-bg: rgb(189 82 44 / 10%);
 }
+/* Softer terracotta accents stay legible against warm charcoal surfaces. */
 [data-theme='dark'] {
-  --ifm-color-primary: #7cdcb5;
-  --ifm-color-primary-dark: #60d5a5;
-  --ifm-color-primary-darker: #52d19d;
-  --ifm-color-primary-darkest: #30be83;
-  --ifm-color-primary-light: #98e3c5;
-  --ifm-color-primary-lighter: #a6e7cd;
-  --ifm-color-primary-lightest: #cff2e4;
-  --pagefind-ui-text: var(--ifm-font-color-base);
-  --pagefind-ui-background: var(--ifm-background-color);
-  --pagefind-ui-border: #45534d;
+  --ifm-color-primary: #ed9d79;
+  --ifm-color-primary-dark: #e98b61;
+  --ifm-color-primary-darker: #e78155;
+  --ifm-color-primary-darkest: #e36630;
+  --ifm-color-primary-light: #f1af91;
+  --ifm-color-primary-lighter: #f3b99d;
+  --ifm-color-primary-lightest: #f9d4c2;
+  --ifm-color-primary-contrast-background: #482c21;
+  --ifm-color-primary-contrast-foreground: #f9d4c2;
+  --ifm-background-color: #211b18;
+  --ifm-background-surface-color: #2b231f;
+  --ifm-navbar-background-color: #2b231f;
+  --kestrel-brand-border: #624638;
+  --kestrel-footer-background: #191411;
+  --docusaurus-highlighted-code-line-bg: rgb(237 157 121 / 14%);
 }
+/* Carry the brand through navigation, calls to action, and the page boundary. */
+.navbar { border-bottom: 1px solid var(--kestrel-brand-border); }
+.footer--dark { --ifm-footer-background-color: var(--kestrel-footer-background); }
+.button--primary { --ifm-button-color: #fff; }
+[data-theme='dark'] .button--primary { --ifm-button-color: #211b18; }
 /* A responsive split keeps the introduction and real code equally readable. */
 .kestrel-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; padding-top: 5rem; padding-bottom: 4rem; align-items: center; }
 .kestrel-hero h1 { font-size: clamp(2.5rem, 4vw, 4rem); line-height: 1.08; letter-spacing: -.04em; }
@@ -30,9 +50,17 @@
 .kestrel-status { font-size: .85rem; color: var(--ifm-color-emphasis-700); }
 .kestrel-example { min-width: 0; }
 .kestrel-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; padding-bottom: 5rem; }
-.kestrel-features article { border-top: 1px solid var(--ifm-color-emphasis-300); padding-top: 1.5rem; }
+.kestrel-features article { border-top: 2px solid var(--kestrel-brand-border); padding-top: 1.5rem; }
 .kestrel-features h2 { font-size: 1.35rem; }
-.kestrel-search { max-width: 900px; min-height: 55vh; }
+/* Scope search tokens below Pagefind's root defaults, which load after the theme. */
+.kestrel-search {
+  --pagefind-ui-primary: var(--ifm-color-primary);
+  --pagefind-ui-text: var(--ifm-font-color-base);
+  --pagefind-ui-background: var(--ifm-background-color);
+  --pagefind-ui-border: var(--kestrel-brand-border);
+  max-width: 900px;
+  min-height: 55vh;
+}
 @media (max-width: 996px) {
   .kestrel-hero { grid-template-columns: 1fr; gap: 1.5rem; padding-top: 3rem; }
   .kestrel-features { grid-template-columns: 1fr; }
