@@ -33,8 +33,8 @@ export default {
     colorMode: { respectPrefersColorScheme: true },
     navbar: {
       title: 'Kestrel',
-      // The supplied logo includes the wordmark; its own light surface supports dark mode.
-      logo: { alt: 'Kestrel logo', src: 'img/kestrel-logo.png', className: 'kestrel-navbar-logo' },
+      // Pair the standalone mark with the navbar title; the homepage keeps the full wordmark.
+      logo: { alt: '', src: 'img/kestrel-mark.png', width: 32, height: 32 },
       items: [
         { type: 'doc', docId: 'usage/installation', label: 'Get started', position: 'left' },
         { type: 'docSidebar', sidebarId: 'guides', label: 'Guides', position: 'left' },

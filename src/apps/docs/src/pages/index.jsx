@@ -3,6 +3,7 @@ import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import CodeBlock from '@theme/CodeBlock';
+import ThemedImage from '@theme/ThemedImage';
 
 // Keep the first example aligned with the existing actions guide.
 const example = `import { z } from 'zod';
@@ -23,8 +24,15 @@ export default function Home() {
       <main>
         <header className="kestrel-hero container">
           <div>
-            {/* Resolve branding under the configured documentation deployment path. */}
-            <img className="kestrel-hero-logo" src={useBaseUrl('img/kestrel-logo.png')} alt="Kestrel" width="160" height="160" />
+            {/* The native themed image follows the page mode, including before hydration. */}
+            <div className="kestrel-hero-logo">
+              <ThemedImage
+                sources={{ light: useBaseUrl('img/kestrel-logo.png'), dark: useBaseUrl('img/kestrel-logo-dark.png') }}
+                alt="Kestrel"
+                width="160"
+                height="160"
+              />
+            </div>
             <p className="kestrel-eyebrow">A MODULAR TYPESCRIPT FRAMEWORK</p>
             <h1>Your application.<br />Explicit by design.</h1>
             <p className="kestrel-lead">Compose reusable actions, expose them through multiple transports, and choose the infrastructure your application needs.</p>
