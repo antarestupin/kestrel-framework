@@ -49,17 +49,6 @@
   aside.theme-doc-sidebar-container { border-right: 0; }
   .theme-doc-sidebar-container .menu { padding-top: 1.5rem; }
 }
-/* A responsive split keeps the introduction and real code equally readable. */
-.kestrel-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; padding-top: 5rem; padding-bottom: 4rem; align-items: center; }
-.kestrel-hero h1 { font-size: clamp(2.5rem, 4vw, 4rem); line-height: 1.08; letter-spacing: -.04em; }
-.kestrel-eyebrow { font-size: .8rem; letter-spacing: .12em; font-weight: 700; color: var(--ifm-color-primary); }
-.kestrel-lead { font-size: 1.2rem; max-width: 36rem; }
-.kestrel-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.75rem 0 1rem; }
-.kestrel-status { font-size: .85rem; color: var(--ifm-color-emphasis-700); }
-.kestrel-example { min-width: 0; }
-.kestrel-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; padding-bottom: 5rem; }
-.kestrel-features article { border-top: 2px solid var(--kestrel-brand-border); padding-top: 1.5rem; }
-.kestrel-features h2 { font-size: 1.35rem; }
 /* Scope search tokens below Pagefind's root defaults, which load after the theme. */
 .kestrel-search {
   --pagefind-ui-primary: var(--ifm-color-primary);
@@ -69,11 +58,3 @@
   max-width: 900px;
   min-height: 55vh;
 }
-@media (max-width: 996px) {
-  .kestrel-hero { grid-template-columns: 1fr; gap: 1.5rem; padding-top: 3rem; }
-  .kestrel-features { grid-template-columns: 1fr; }
-}
-
-/* Theme-specific wordmarks remain transparent; let ThemedImage control image visibility. */
-.kestrel-hero-logo { margin-bottom: 1.5rem; }
-.kestrel-hero-logo img { object-fit: contain; vertical-align: middle; }

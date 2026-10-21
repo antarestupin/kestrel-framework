@@ -1,0 +1,112 @@
+/* Page-specific styles keep the documentation reading layout independent of the landing page. */
+.kestrel-home {
+  --kestrel-home-muted: #6c625c;
+  --kestrel-home-border: #e8ded8;
+  --kestrel-home-panel: #faf8f6;
+}
+[data-theme='dark'] .kestrel-home {
+  --kestrel-home-muted: #c4b5aa;
+  --kestrel-home-border: #4b3930;
+  --kestrel-home-panel: #2b231f;
+}
+.kestrel-home h1, .kestrel-home h2, .kestrel-home h3 { letter-spacing: -.035em; }
+.kestrel-home h2 { font-size: clamp(2rem, 3.4vw, 3.15rem); line-height: 1.12; margin-bottom: 1.25rem; }
+.kestrel-home h2 span, .kestrel-hero h1 span { color: var(--ifm-color-primary); }
+.kestrel-home h3 { font-size: 1.2rem; line-height: 1.35; }
+.kestrel-home p { line-height: 1.75; }
+.kestrel-eyebrow { font-size: .69rem; letter-spacing: .13em; font-weight: 750; color: var(--ifm-color-primary); margin-bottom: 1.25rem; }
+/* A centered introduction balances the hero now that examples live in the capability tabs. */
+.kestrel-hero { padding-top: 4rem; padding-bottom: 4.5rem; text-align: center; }
+.kestrel-hero-copy { max-width: 64rem; margin-inline: auto; }
+.kestrel-hero .kestrel-actions, .kestrel-hero .kestrel-install { justify-content: center; }
+/* Logo visibility remains under ThemedImage control, including during hydration. */
+.kestrel-hero-logo { margin-bottom: 1.5rem; }
+.kestrel-hero-logo img { object-fit: contain; vertical-align: middle; }
+.kestrel-hero h1 { font-size: clamp(3.1rem, 5.4vw, 4.8rem); line-height: 1.03; margin-bottom: 1.5rem; letter-spacing: -.055em; }
+.kestrel-lead { color: var(--kestrel-home-muted); font-size: 1.1rem; max-width: 38rem; margin-inline: auto; }
+.kestrel-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1.5rem; margin: 1.8rem 0; }
+.kestrel-home .button { border-radius: .5rem; font-size: .95rem; padding: .9rem 1.3rem; }
+.kestrel-text-link { display: inline-flex; align-items: center; gap: .65rem; font-weight: 650; font-size: .95rem; }
+.kestrel-install { display: flex; align-items: center; gap: .75rem; margin-bottom: .8rem; font-size: .8rem; }
+.kestrel-install > span { color: var(--ifm-color-primary); }
+.kestrel-install code { min-width: 0; color: var(--ifm-font-color-base); background: transparent; padding: 0; border: 0; overflow-wrap: anywhere; }
+/* A compact copy control stays visible to pointer, keyboard, and touch users. */
+.kestrel-copy-command { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border: 1px solid var(--kestrel-home-border); border-radius: .4rem; background: transparent; color: var(--ifm-color-primary); cursor: pointer; }
+.kestrel-copy-command:hover { background: var(--kestrel-home-panel); border-color: var(--ifm-color-primary); }
+.kestrel-copy-command:focus-visible { outline: 2px solid var(--ifm-color-primary); outline-offset: 3px; }
+.kestrel-copy-error { color: var(--kestrel-home-muted); font-size: .75rem; }
+.kestrel-status { color: var(--kestrel-home-muted); font-size: .75rem; }
+.kestrel-home pre { font-size: .76rem; }
+/* Separate the overview from Atlas and give each card room for its explanatory text. */
+.kestrel-highlights { margin-top: 3.5rem; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.kestrel-highlights article { display: flex; flex-direction: column; padding: 1.4rem; border: 1px solid var(--kestrel-home-border); border-radius: .8rem; }
+.kestrel-highlight-label { display: flex; align-items: center; gap: .6rem; color: var(--ifm-color-primary); font-size: .6rem; letter-spacing: .08em; font-weight: 700; margin-bottom: 1.1rem; }
+.kestrel-highlight-label > span { font-family: var(--ifm-font-family-monospace); font-size: 1rem; letter-spacing: 0; }
+.kestrel-highlights h2 { font-size: 1.2rem; line-height: 1.3; margin-bottom: .75rem; }
+.kestrel-highlights p { color: var(--kestrel-home-muted); font-size: .825rem; margin-bottom: 1rem; }
+/* Bold feature labels and terracotta markers make the expanded overview easy to scan. */
+.kestrel-highlight-features { padding-left: 1.1rem; margin: 0 0 1.25rem; }
+.kestrel-highlight-features li { color: var(--kestrel-home-muted); font-size: .85rem; line-height: 1.7; margin-bottom: .65rem; padding-left: .2rem; }
+.kestrel-highlight-features li:last-child { margin-bottom: 0; }
+.kestrel-highlight-features li::marker { color: var(--ifm-color-primary); }
+.kestrel-highlight-features strong { color: var(--ifm-font-color-base); font-weight: 650; }
+.kestrel-highlights a { font-size: .8rem; margin-top: auto; }
+.kestrel-section { padding-top: 6.5rem; scroll-margin-top: calc(var(--ifm-navbar-height) + 1.5rem); }
+.kestrel-section-heading { display: grid; grid-template-columns: 1.2fr 1fr; gap: 5rem; align-items: end; margin-bottom: 2.5rem; }
+.kestrel-section-heading h2 { margin-bottom: 0; }
+.kestrel-section-heading > p, .kestrel-section-heading > div > p:not(.kestrel-eyebrow) { color: var(--kestrel-home-muted); max-width: 32rem; }
+/* Give intact screenshots roughly two thirds of each card while keeping text first in reading order. */
+.kestrel-product-section { padding-top: 3.5rem; }
+.kestrel-product-card { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.65fr); grid-template-areas: 'copy shot'; gap: 1.75rem; align-items: center; padding: 1.5rem; border: 1px solid var(--kestrel-home-border); border-radius: 1rem; }
+.kestrel-product-card--reverse { grid-template-columns: minmax(0, 1.65fr) minmax(0, .85fr); grid-template-areas: 'shot copy'; }
+.kestrel-product-copy { grid-area: copy; min-width: 0; }
+.kestrel-product-copy h2 { font-size: clamp(1.8rem, 2.6vw, 2.4rem); }
+.kestrel-product-copy > p:not(.kestrel-eyebrow) { color: var(--kestrel-home-muted); font-size: .9rem; }
+.kestrel-product-copy .kestrel-eyebrow { margin-bottom: .8rem; }
+.kestrel-product-benefits { list-style: none; padding: 0; margin: 1.25rem 0; }
+.kestrel-product-benefits li { color: var(--kestrel-home-muted); font-size: .8rem; line-height: 1.7; margin-bottom: .7rem; }
+.kestrel-product-benefits strong { color: var(--ifm-font-color-base); font-weight: 650; }
+.kestrel-product-card .kestrel-product-shot { grid-area: shot; min-width: 0; }
+/* Keep the original screenshot aspect ratios and full-resolution links. */
+.kestrel-product-shot { margin: 0; border: 1px solid var(--kestrel-home-border); border-radius: .9rem; overflow: hidden; box-shadow: 0 20px 60px -25px rgb(40 20 10 / 22%); }
+.kestrel-product-shot > a { display: block; }
+.kestrel-product-shot img { display: block; width: 100%; height: auto; }
+.kestrel-small-label { display: block; color: var(--ifm-color-primary); font-size: .65rem; letter-spacing: .1em; font-weight: 750; margin-bottom: .8rem; }
+.kestrel-closing { margin-top: 6.5rem; padding-top: 4rem; padding-bottom: 4rem; border-top: 1px solid var(--kestrel-home-border); text-align: center; }
+.kestrel-closing > p:not(.kestrel-eyebrow) { color: var(--kestrel-home-muted); }
+.kestrel-closing .kestrel-actions { justify-content: center; }
+/* The hero already supplies top spacing; separate the capability showcase from the product sections below. */
+.kestrel-home .kestrel-batteries { padding-top: 0; padding-bottom: 3.5rem; }
+/* Native tabs size each panel to its content, without reserving space for removed setup notes. */
+.kestrel-capability-browser { border: 1px solid var(--kestrel-home-border); border-radius: 1rem; padding: 1.5rem; }
+.kestrel-capability-tabs { gap: .3rem; border-bottom: 1px solid var(--kestrel-home-border); padding-bottom: .75rem; }
+.kestrel-capability-tabs .tabs__item { flex-shrink: 0; border: 0; border-radius: .4rem; padding: .6rem .95rem; font-size: .875rem; }
+.kestrel-capability-tabs .tabs__item--active { color: var(--ifm-color-primary); background: var(--ifm-color-primary-contrast-background); }
+.kestrel-capability-tabs .tabs__item:focus-visible { outline: 2px solid var(--ifm-color-primary); outline-offset: -2px; }
+.kestrel-capability-panel { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.5fr); gap: 2rem; padding-top: .75rem; }
+.kestrel-capability-copy { padding: .75rem; }
+.kestrel-capability-copy h3 { font-size: 1.65rem; }
+.kestrel-capability-copy > p:not(.kestrel-small-label) { color: var(--kestrel-home-muted); font-size: .9rem; }
+.kestrel-capability-code { min-width: 0; }
+.kestrel-capability-code .theme-code-block { margin-bottom: 0; }
+.kestrel-capability-code pre { max-height: 30rem; }
+@media (max-width: 1100px) {
+  .kestrel-section-heading { gap: 2.5rem; }
+}
+@media (max-width: 996px) {
+  .kestrel-capability-panel { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .kestrel-capability-copy { padding: 0; }
+  .kestrel-hero { padding-top: 2.5rem; padding-bottom: 3.5rem; }
+  .kestrel-section { padding-top: 4.5rem; }
+  .kestrel-product-card, .kestrel-product-card--reverse { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'copy' 'shot'; gap: 1.5rem; }
+  .kestrel-section-heading { grid-template-columns: 1fr; gap: 2rem; }
+}
+@media (max-width: 600px) {
+  .kestrel-highlights { grid-template-columns: minmax(0, 1fr); }
+  .kestrel-capability-browser { padding: 1rem; }
+  .kestrel-hero h1 { font-size: clamp(2.5rem, 11vw, 3.6rem); }
+  .kestrel-actions { gap: 1rem; }
+  .kestrel-product-card { padding: 1.25rem; }
+  .kestrel-section { padding-top: 3.5rem; }
+  .kestrel-closing { margin-top: 3.5rem; padding-top: 3rem; padding-bottom: 3rem; }
+}
