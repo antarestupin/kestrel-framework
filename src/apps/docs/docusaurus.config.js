@@ -1,3 +1,5 @@
+import { terracottaTheme } from "./src/prismThemes.js";
+
 // Deployment settings belong to this application, never to framework libraries.
 const url = process.env.DOCS_URL || 'https://antarestupin.github.io';
 const baseUrl = process.env.DOCS_BASE_URL || '/kestrel-framework/';
@@ -50,6 +52,9 @@ export default {
       copyright: 'Kestrel — a modular application framework.',
     },
     prism: {
+      // Keep code blocks dark in both page modes, with the same earth-tone token roles.
+      theme: terracottaTheme,
+      darkTheme: terracottaTheme,
       additionalLanguages: ['bash', 'typescript', 'sql', 'json'],
       magicComments: [
         // Keep highlighting first: Docusaurus uses it for metastring line ranges.
