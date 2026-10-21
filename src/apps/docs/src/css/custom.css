@@ -37,3 +37,8 @@
   .kestrel-hero { grid-template-columns: 1fr; gap: 1.5rem; padding-top: 3rem; }
   .kestrel-features { grid-template-columns: 1fr; }
 }
+
+/* Keep the supplied black wordmark readable in both documentation themes. */
+.kestrel-navbar-logo, .kestrel-hero-logo { background: #fff; border-radius: .5rem; padding: .25rem; object-fit: contain; }
+.navbar__logo:has(.kestrel-navbar-logo) { height: 2.75rem; }
+.kestrel-hero-logo { display: block; margin-bottom: 1.5rem; }

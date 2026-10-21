@@ -12,6 +12,8 @@ export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
   cacheDir: fileURLToPath(new URL("./.vite", import.meta.url)),
   base: DEFAULT_CLIENT_ASSET_BASE_PATH,
+  // Share application-owned public assets with the development Vite root.
+  publicDir: fileURLToPath(new URL("../../public", import.meta.url)),
   build: {
     outDir: fileURLToPath(new URL("../../dist/client", import.meta.url)),
     emptyOutDir: true,

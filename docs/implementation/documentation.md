@@ -4,6 +4,10 @@
 
 The private Docusaurus workspace in `src/apps/docs` renders the canonical Markdown under `docs`. Its Prism configuration registers `hide-start` / `hide-end` as the `kestrel-code-hidden-line` class, preserving the default highlighting directive as the first entry. Docusaurus removes recognized magic comments before tokenization and copying.
 
+## Branding assets
+
+The supplied logo and icon live in `src/apps/docs/static/img/`. Docusaurus resolves the favicon and navbar logo against its configured deployment base; the homepage uses `useBaseUrl` for the same reason. The logo includes a black wordmark, so its light surface stays visible in both themes. The starter owns a copy of the icon at `public/favicon.png`; generated applications can replace it without changing framework configuration. Production Vite configuration explicitly shares the project-root public directory with the development graph. Automatic icon variants and theme-specific artwork remain deferred.
+
 ## Code block disclosure
 
 When a hidden section starts at the first code line or forms a suffix at the end of the block, the layout also marks exposed blank separators at that boundary as hidden. Trailing blank lines after the final end marker are included when a hidden suffix is present. This affects presentation and the disclosure count only: source text, copied code, expanded spacing, and interior blank lines remain unchanged.

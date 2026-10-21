@@ -4,6 +4,7 @@ const baseUrl = process.env.DOCS_BASE_URL || '/kestrel-framework/';
 
 export default {
   title: 'Kestrel',
+  favicon: 'img/favicon.png',
   tagline: 'Compose your application. Keep control of its behavior.',
   url,
   baseUrl,
@@ -30,6 +31,8 @@ export default {
     colorMode: { respectPrefersColorScheme: true },
     navbar: {
       title: 'Kestrel',
+      // The supplied logo includes the wordmark; its own light surface supports dark mode.
+      logo: { alt: 'Kestrel logo', src: 'img/kestrel-logo.png', className: 'kestrel-navbar-logo' },
       items: [
         { type: 'doc', docId: 'usage/installation', label: 'Get started', position: 'left' },
         { type: 'docSidebar', sidebarId: 'guides', label: 'Guides', position: 'left' },

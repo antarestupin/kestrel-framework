@@ -45,6 +45,10 @@ it("creates the named application directory from its parent", async () => {
     expect(result.status, result.stderr).toBe(0);
     expect(JSON.parse(await readFile(join(target, "package.json"), "utf8")).name).toBe("my-app");
     await access(join(target, "src/server/core/app.ts"));
+    // Generation must preserve the supplied binary favicon byte for byte.
+    expect(await readFile(join(target, "public/favicon.png"))).toEqual(
+      await readFile(new URL("./template/public/favicon.png", import.meta.url)),
+    );
     // Application files belong to the new directory, never its parent.
     expect((await readdir(root)).sort()).toEqual(["framework.tgz", "my-app"]);
   });

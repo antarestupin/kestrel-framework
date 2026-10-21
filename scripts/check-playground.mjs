@@ -17,11 +17,18 @@ for (const file of await readdir(source, { recursive: true, withFileTypes: true 
   const templatePath = relative(fileURLToPath(source), join(file.parentPath, file.name));
   // Generation restores the hidden filename that npm otherwise excludes from its archive.
   const path = templatePath === "gitignore" ? ".gitignore" : templatePath;
-  const expected = renderApplicationTemplate(await readFile(new URL(templatePath, source), "utf8"), playgroundNames);
-  const actual = await readFile(new URL(path, playground), "utf8");
+  const contents = await readFile(new URL(templatePath, source));
+  const actualContents = await readFile(new URL(path, playground));
   // Launchers must retain the executable permissions of the package-owned template.
   const sourceMode = (await stat(new URL(templatePath, source))).mode & 0o111;
   assert.equal((await stat(new URL(path, playground))).mode & 0o111, sourceMode, `${path}: executable permissions`);
+  // Compare untouched assets as bytes so binary corruption cannot hide behind UTF-8 decoding.
+  if (!contents.includes("__KESTREL_") && path !== "package.json") {
+    assert.deepEqual(actualContents, contents, path);
+    continue;
+  }
+  const expected = renderApplicationTemplate(contents.toString("utf8"), playgroundNames);
+  const actual = actualContents.toString("utf8");
   if (path === "package.json") {
     const left = JSON.parse(expected), right = JSON.parse(actual);
     left.name = right.name;
