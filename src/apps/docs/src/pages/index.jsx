@@ -100,7 +100,7 @@ export default function Home() {
               <a className="kestrel-text-link" href="#developer-tools">Meet your toolkit <span aria-hidden="true">↓</span></a>
             </div>
             <InstallCommand />
-            <p className="kestrel-status">Current status: experimental</p>
+            <p className="kestrel-status">Current status: experimental and under active development.</p>
           </div>
         </header>
 

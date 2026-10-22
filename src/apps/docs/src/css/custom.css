@@ -38,6 +38,8 @@
 }
 /* Carry the brand through navigation, calls to action, and the page boundary. */
 .navbar { border-bottom: 1px solid var(--kestrel-brand-border); }
+/* Align the GitHub mark with its visible label in desktop and mobile navigation. */
+.kestrel-github-link svg { display: inline-block; margin-right: .4rem; vertical-align: -.2em; }
 .footer--dark { --ifm-footer-background-color: var(--kestrel-footer-background); }
 .button--primary { --ifm-button-color: #fff; }
 [data-theme='dark'] .button--primary { --ifm-button-color: #211b18; }
