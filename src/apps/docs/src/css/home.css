@@ -37,20 +37,20 @@
 .kestrel-copy-error { color: var(--kestrel-home-muted); font-size: .75rem; }
 .kestrel-status { color: var(--kestrel-home-muted); font-size: .75rem; }
 .kestrel-home pre { font-size: .76rem; }
-/* Separate the overview from Atlas and give each card room for its explanatory text. */
-.kestrel-highlights { margin-top: 3.5rem; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.kestrel-highlights article { display: flex; flex-direction: column; padding: 1.4rem; border: 1px solid var(--kestrel-home-border); border-radius: .8rem; }
-.kestrel-highlight-label { display: flex; align-items: center; gap: .6rem; color: var(--ifm-color-primary); font-size: .6rem; letter-spacing: .08em; font-weight: 700; margin-bottom: 1.1rem; }
-.kestrel-highlight-label > span { font-family: var(--ifm-font-family-monospace); font-size: 1rem; letter-spacing: 0; }
-.kestrel-highlights h2 { font-size: 1.2rem; line-height: 1.3; margin-bottom: .75rem; }
+/* Three equal pillars keep runtime speed distinct from the development loop. */
+.kestrel-highlights { margin-top: 3.5rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.kestrel-highlights article { display: flex; flex-direction: column; min-width: 0; padding: 1.6rem; border: 1px solid var(--kestrel-home-border); border-radius: .8rem; background: var(--kestrel-home-panel); }
+/* Center the decorative tile independently so card text stays left-aligned. */
+.kestrel-highlight-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 3.5rem; height: 3.5rem; margin: 0 auto 1rem; border-radius: .8rem; background: var(--ifm-color-primary-contrast-background); color: var(--ifm-color-primary); }
+.kestrel-highlight-icon svg { display: block; width: 2rem; height: 2rem; }
+/* Center only card headings; benefit lists retain their left alignment. */
+.kestrel-highlights h2 { text-align: center; font-size: 1.2rem; line-height: 1.3; margin-bottom: .75rem; }
 .kestrel-highlights p { color: var(--kestrel-home-muted); font-size: .825rem; margin-bottom: 1rem; }
-/* Bold feature labels and terracotta markers make the expanded overview easy to scan. */
-.kestrel-highlight-features { padding-left: 1.1rem; margin: 0 0 1.25rem; }
-.kestrel-highlight-features li { color: var(--kestrel-home-muted); font-size: .85rem; line-height: 1.7; margin-bottom: .65rem; padding-left: .2rem; }
+/* Compact benefits use spacing alone to separate their stacked labels and descriptions. */
+.kestrel-highlight-features { list-style: none; padding: 0; margin: 0; }
+.kestrel-highlight-features li { color: var(--kestrel-home-muted); font-size: .85rem; line-height: 1.6; margin-bottom: .65rem; }
 .kestrel-highlight-features li:last-child { margin-bottom: 0; }
-.kestrel-highlight-features li::marker { color: var(--ifm-color-primary); }
-.kestrel-highlight-features strong { color: var(--ifm-font-color-base); font-weight: 650; }
-.kestrel-highlights a { font-size: .8rem; margin-top: auto; }
+.kestrel-highlight-features strong { display: block; margin-bottom: .2rem; color: var(--ifm-font-color-base); font-weight: 650; }
 .kestrel-section { padding-top: 6.5rem; scroll-margin-top: calc(var(--ifm-navbar-height) + 1.5rem); }
 .kestrel-section-heading { display: grid; grid-template-columns: 1.2fr 1fr; gap: 5rem; align-items: end; margin-bottom: 2.5rem; }
 .kestrel-section-heading h2 { margin-bottom: 0; }
@@ -94,6 +94,8 @@
   .kestrel-section-heading { gap: 2.5rem; }
 }
 @media (max-width: 996px) {
+  /* Stack all three pillars together before their columns become cramped. */
+  .kestrel-highlights { grid-template-columns: minmax(0, 1fr); }
   .kestrel-capability-panel { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   .kestrel-capability-copy { padding: 0; }
   .kestrel-hero { padding-top: 2.5rem; padding-bottom: 3.5rem; }
@@ -102,11 +104,36 @@
   .kestrel-section-heading { grid-template-columns: 1fr; gap: 2rem; }
 }
 @media (max-width: 600px) {
-  .kestrel-highlights { grid-template-columns: minmax(0, 1fr); }
   .kestrel-capability-browser { padding: 1rem; }
   .kestrel-hero h1 { font-size: clamp(2.5rem, 11vw, 3.6rem); }
   .kestrel-actions { gap: 1rem; }
   .kestrel-product-card { padding: 1.25rem; }
   .kestrel-section { padding-top: 3.5rem; }
   .kestrel-closing { margin-top: 3.5rem; padding-top: 3rem; padding-bottom: 3rem; }
+}
+
+/* A shared client bridges the server to independent frontend choices without remote assets. */
+.kestrel-frontend { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 3rem; align-items: center; padding-top: 0; padding-bottom: 2rem; }
+.kestrel-frontend-copy > p { color: var(--kestrel-home-muted); font-size: .95rem; max-width: 32rem; }
+.kestrel-frontend-diagram { display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; border: 1px solid var(--kestrel-home-border); border-radius: 1rem; background: var(--kestrel-home-panel); }
+.kestrel-frontend-source img { display: block; object-fit: contain; }
+.kestrel-frontend-bridge { position: relative; margin-top: 1.5rem; padding: .85rem 1.2rem; border: 1px solid var(--kestrel-home-border); border-radius: .6rem; text-align: center; font-weight: 650; font-size: .9rem; }
+.kestrel-frontend-bridge::before, .kestrel-frontend-bridge::after { content: ''; position: absolute; left: 50%; width: 1px; height: 1.5rem; background: var(--kestrel-home-border); }
+.kestrel-frontend-bridge::before { bottom: 100%; }
+.kestrel-frontend-bridge::after { top: 100%; }
+.kestrel-frontend-bridge > span { display: block; color: var(--kestrel-home-muted); font-size: .75rem; font-weight: 400; }
+.kestrel-frontend-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; width: 100%; list-style: none; padding: 0; margin: 1.5rem 0 0; }
+.kestrel-frontend-choices li { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6rem; padding: 1rem .25rem; border-top: 1px solid var(--kestrel-home-border); color: var(--ifm-font-color-base); font-size: .8rem; font-weight: 650; text-align: center; }
+/* Fixed SVG dimensions keep every mark intact even in narrow framework tiles. */
+.kestrel-framework-mark { display: block; flex-shrink: 0; width: 2.5rem; height: 2.5rem; }
+.kestrel-framework-mark--react { color: #087ea4; }
+.kestrel-framework-mark--custom { color: var(--ifm-color-primary); }
+[data-theme='dark'] .kestrel-framework-mark--react { color: #61dafb; }
+@media (max-width: 996px) {
+  .kestrel-home .kestrel-frontend { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; padding-top: 0; }
+}
+@media (max-width: 600px) {
+  .kestrel-frontend-diagram { padding: 1.5rem .75rem; }
+  .kestrel-frontend-choices { gap: .3rem; }
+  .kestrel-frontend-choices li { font-size: .7rem; }
 }

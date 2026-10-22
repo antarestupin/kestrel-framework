@@ -10,8 +10,8 @@ export default function BatteriesIncluded() {
   return (
     <section className="container kestrel-section kestrel-batteries" aria-labelledby="batteries-title">
       <div className="kestrel-section-heading">
-        <div><p className="kestrel-eyebrow">01 / BATTERIES INCLUDED</p><h2 id="batteries-title">The everyday essentials.<br /><span>Already connected.</span></h2></div>
-        <p>From the first validated input to the background job: a shared set of contracts, providers, and tools for the work every application needs.</p>
+        <div><h2 id="batteries-title">The everyday essentials.<br /><span>Already connected.</span></h2></div>
+        <p>Validate inputs, query your database, send email, and run background jobs with tools that work together.</p>
       </div>
       <div className="kestrel-capability-browser">
         <Tabs defaultValue={capabilityExamples[0].id} className="kestrel-capability-tabs">
