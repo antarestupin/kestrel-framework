@@ -22,17 +22,19 @@ export function candidateFile(directory, path) {
 }
 
 /** Stream progress and retain the same output as release evidence; never invoke a shell. */
-export async function run(command, args, { cwd = root, log, env = process.env, capture = false, allowed = [0] } = {}) {
+export async function run(command, args, { cwd = root, log, env = process.env, capture = false, interactive = false, allowed = [0] } = {}) {
+  // Interactive authentication needs the actual terminal; never capture its credentials in reports.
+  if (interactive && (log || capture)) throw new Error("Interactive commands cannot log or capture output.");
   await mkdir(log ? dirname(log) : cwd, { recursive: true });
   const startedAt = new Date().toISOString();
   const started = performance.now();
   let code = null;
   let failure;
   const output = log ? createWriteStream(log) : undefined;
-  const child = spawn(command, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(command, args, { cwd, env, stdio: interactive ? "inherit" : ["ignore", "pipe", "pipe"] });
   const chunks = [];
-  child.stdout.on("data", (chunk) => { output?.write(chunk); if (capture) chunks.push(chunk); else process.stdout.write(chunk); });
-  child.stderr.on("data", (chunk) => { output?.write(chunk); process.stderr.write(chunk); });
+  child.stdout?.on("data", (chunk) => { output?.write(chunk); if (capture) chunks.push(chunk); else process.stdout.write(chunk); });
+  child.stderr?.on("data", (chunk) => { output?.write(chunk); process.stderr.write(chunk); });
   try {
     code = await new Promise((resolve, reject) => { child.once("error", reject); child.once("close", (code, signal) => signal ? reject(new Error(`${command} terminated: ${signal}`)) : resolve(code)); });
     if (!allowed.includes(code)) throw new Error(`${command} ${args.join(" ")} failed (${code}).`);

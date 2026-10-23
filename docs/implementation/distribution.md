@@ -75,7 +75,7 @@ The root scripts `pack:dry-run`, `publish:kestrel`, `publish:create-kestrel`, an
 
 The template pins the compatible framework prerelease exactly, so generating an application never silently switches to a later alpha. Keep both published package versions and the template/playground dependencies aligned, regenerate the root lockfile, and rerun archive verification for each release. Archive verification derives tarball names from package metadata and checks the installed creator's registry default before exercising all local-archive variants. The optional `vendor/README.md` ensures the Drizzle Docker build has a valid vendor directory in both modes. No registry publication occurs during packing or verification.
 
-Authenticate to npm and confirm scope ownership before running a publish command. If the framework succeeds but the creator fails, retry only `publish:create-kestrel`; npm versions are immutable. CI trusted publishing, scope migration, and stable release automation remain deferred.
+Authenticate to npm and confirm scope ownership before running a publish command. After candidate checks pass, only publication invokes the shared command runner with `interactive: true`, inheriting all three terminal streams so npm can complete browser-based two-factor authentication. Interactive execution rejects output capture and report logging to avoid retaining authentication material; validation commands retain their existing captured streams and timing reports. If the framework succeeds but the creator fails, retry only `publish:create-kestrel`; npm versions are immutable. CI trusted publishing, scope migration, and stable release automation remain deferred.
 
 ## Atlas distribution
 

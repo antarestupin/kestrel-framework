@@ -66,3 +66,10 @@ test("retains command timings and exit status for successful and failed checks",
     assert.equal(report.exitCode, null);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
+
+test("rejects interactive output capture and logging before starting a command", async () => {
+  // Interactive authentication must never leak into captured output or retained reports.
+  for (const options of [{ capture: true }, { log: "unused-authentication.log" }]) {
+    await assert.rejects(run(process.execPath, [], { ...options, interactive: true }), /cannot log or capture/);
+  }
+});

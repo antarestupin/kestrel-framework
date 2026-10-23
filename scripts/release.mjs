@@ -83,7 +83,8 @@ if (command === "pack") {
   const manifest = await checkCandidate(directory, { publish: true });
   assert(["all", "framework", "creator"].includes(selection), "Choose all, framework, or creator");
   for (const archive of manifest.archives.filter((item) => selection === "all" || item.name === (selection === "framework" ? "@kestreljs/framework" : "@kestreljs/create-kestrel"))) {
-    await npm(["publish", resolve(directory, archive.file), "--ignore-scripts", "--access", "public", "--tag", "next"]);
+    // Preserve npm's terminal so browser-based 2FA can finish after candidate validation.
+    await npm(["publish", resolve(directory, archive.file), "--ignore-scripts", "--access", "public", "--tag", "next"], { interactive: true });
   }
 } else {
   throw new Error("Usage: node scripts/release.mjs <pack|validate|prepare|docs|consumer|finalize|verify|publish> [candidate-directory] [selection]");
