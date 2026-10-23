@@ -24,6 +24,14 @@ export const authenticationSubjectProviderDependency = <
   Subject extends AuthenticationSubject,
 >() => dep<SubjectProvider<Subject>>("authenticationSubjectProvider");
 
+/** Loads the application-owned subject once in the authenticated execution. */
+export const currentUser = <Subject extends AuthenticationSubject>() =>
+  dep<Subject>("currentUser");
+
+/** Returns undefined for an anonymous execution or a subject that no longer exists. */
+export const optionalCurrentUser = <Subject extends AuthenticationSubject>() =>
+  dep<Subject | undefined>("optionalCurrentUser");
+
 export const passwordHasherDependency =
   dep<PasswordHasher>("passwordHasher");
 

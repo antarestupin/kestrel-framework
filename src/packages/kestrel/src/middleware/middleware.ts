@@ -63,7 +63,7 @@ export function defineMiddleware<
 export function runMiddlewarePipeline<Context, Result, Config>(
   middleware: readonly Middleware<Context, any>[],
   context: Context,
-  container: Pick<DependencyContainer<Config>, "resolveDependencies">,
+  container: Pick<DependencyContainer<Config>, "resolveDependenciesAsync">,
   terminal: MiddlewareNext<Result>,
 ): Promise<Result> {
   const dispatch = async (nextIndex: number): Promise<Result> => {
@@ -73,7 +73,7 @@ export function runMiddlewarePipeline<Context, Result, Config>(
       return terminal();
     }
 
-    const dependencies = container.resolveDependencies(
+    const dependencies = await container.resolveDependenciesAsync(
       current.dependencies,
     );
 

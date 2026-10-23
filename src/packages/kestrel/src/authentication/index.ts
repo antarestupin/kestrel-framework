@@ -23,6 +23,8 @@ export {
   authenticationContextDependency,
   authenticationManagerDependency,
   authenticationSubjectProviderDependency,
+  currentUser,
+  optionalCurrentUser,
   passwordHasherDependency,
   passwordMechanismDependency,
 } from "./dependencies.js";

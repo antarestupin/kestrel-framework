@@ -161,18 +161,16 @@ export const fulfillOrder = defineWorkflow({
     id: "auth",
     label: "Auth",
     title: "Sessions with explicit boundaries.",
-    description: "Password authentication and stateful sessions integrate with reusable action middleware. Protect behavior once, across its transports.",
+    description: "Once session middleware resolves authentication, inject your application user directly into actions and controllers. Kestrel loads it on demand and shares it throughout the execution.",
     guide: "/docs/usage/authentication",
     guideLabel: "Authentication guide",
     file: "protected_action.ts",
     language: "typescript",
     code: `export const welcomeBack = defineAction({
-  name: 'account.welcome-back',
-  input: z.object({}),
-  output: z.object({ message: z.string() }),
-  // Enforce authentication even for direct action calls.
-  middleware: [requireAuthentication],
-  handler: () => ({ message: 'Welcome back.' }),
+  // ...
+  dependencies: { user: currentUser<User>() },
+  // The user is already loaded and typed when the handler runs.
+  handler: (_input, { user }) => ({ message: 'Welcome back, ' + user.name + '.' }),
 });`,
   },
   {

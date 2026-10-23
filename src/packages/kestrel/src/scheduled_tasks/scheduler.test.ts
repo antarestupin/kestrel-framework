@@ -64,6 +64,34 @@ async function createStartedApp(): Promise<App<Record<string, never>>> {
 }
 
 describe("ScheduledTaskScheduler", () => {
+  it("awaits and disposes async task dependencies inside the execution", async () => {
+    const app = new App({});
+    const resource = { ready: true };
+    const dispose = vi.fn();
+    app.container.registerAsyncFactory("resource", {}, async () => resource, { lifetime: "scoped", dispose });
+    const handler = vi.fn(({ resource: injected }: { resource: typeof resource }) => {
+      expect(injected).toBe(resource);
+      expect(dispose).not.toHaveBeenCalled();
+    });
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    const task = defineScheduledTask({
+      id: "async.task", schedule: every({ minutes: 1, start: "immediate" }),
+      runtime: { state: "memory", coordination: "local" },
+      dependencies: { resource: dep<typeof resource>("resource") }, handler,
+    });
+    const scheduler = new ScheduledTaskScheduler(app, { memory: new MemoryScheduledTaskAdapter({ now: () => now }) }, undefined, [task], {
+      slots: 1, leaseMs: 10_000, now: () => now,
+    });
+    try {
+      await app.start();
+      expect(await scheduler.runOnce()).toBe(1);
+      expect(handler).toHaveBeenCalledOnce();
+      expect(dispose).toHaveBeenCalledExactlyOnceWith(resource);
+    } finally {
+      await app.dispose();
+    }
+  });
+
   it("runs a due task in an observed execution scope", async () => {
     const now = new Date("2026-01-01T00:00:00.000Z");
     const adapter = new MemoryScheduledTaskAdapter({ now: () => now });

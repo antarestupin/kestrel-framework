@@ -101,6 +101,37 @@ const authenticatedAccess = defineHttpAccessPolicy("example.authenticated", [
 
 Assign this policy to protected controllers. The trusted-origin check requires an Origin header; select policies deliberately for browser mutations versus read-only navigation. An optional-session policy uses `middleware.optionalSession`. Services inspect the scoped `authenticationContextDependency`; business actions can use `requireAuthentication` to protect direct calls too.
 
+## Inject the current application user
+
+`AuthenticationProvider` automatically registers `currentUser` and `optionalCurrentUser`. Declare their exported typed dependencies in an action, controller or middleware; Kestrel awaits the lookup and injects the application-owned subject directly.
+
+```ts
+import { z } from "zod";
+import { defineAction } from "@kestreljs/framework/actions";
+import { currentUser, optionalCurrentUser } from "@kestreljs/framework/authentication";
+
+type User = { id: string; displayName: string };
+const getMyName = defineAction({
+  name: "profile.my-name",
+  output: z.string(),
+  dependencies: { user: currentUser<User>() },
+  // The asynchronous subject lookup finishes before this handler executes.
+  handler: (_input, { user }) => user.displayName,
+});
+const getGreeting = defineAction({
+  name: "profile.greeting",
+  output: z.string(),
+  dependencies: { user: optionalCurrentUser<User>() },
+  handler: (_input, { user }) => user === undefined ? "Welcome" : `Welcome, ${user.displayName}`,
+});
+```
+
+Run `getMyName` behind `middleware.requiredSession` and `getGreeting` behind `middleware.optionalSession`. Any middleware consuming a current-user dependency must come after session middleware in the access policy. A pending authentication context produces an explicit configuration error for both dependencies, including direct actions without an established authentication context; resolving a dependency never reads HTTP cookies itself.
+
+The first current-user request calls `authenticationSubjectProvider.findById(principal.subjectId)`. Both variants share one lookup and the same returned object for that execution, including nested actions and concurrent consumers. Requests using only the principal or session claims never load the subject through these dependencies. The provider must return the application `User` type used in the dependency descriptor; Kestrel does not define a user model or add the object to session claims.
+
+`currentUser<User>()` yields `User` and throws `AuthenticationRequiredError` (HTTP 401) for anonymous access or a deleted subject. `optionalCurrentUser<User>()` yields `User | undefined` for those cases. Lookup errors propagate for both variants and remain cached within the execution. Resolving a missing subject does not rewrite the already resolved principal; code requiring a live subject should depend on the current user. To construct a service from this asynchronous value, use an [explicit asynchronous factory](./di.md#inject-an-asynchronously-created-value).
+
 The default attempt guard allows attempts. Configure an application-owned `authenticationAttemptGuard` or the bundled throttling guard before exposing password authentication; the [guard contract](../implementation/authentication.md#throttling-and-security-layers) explains the supported integration.
 
 Sessions have idle and absolute expiry, and account state is checked when resolving a session. Claims are snapshots, not live permissions. Invalid credentials produce a generic failure; missing required authentication has 401 semantics. Keep raw credentials and session tokens out of logs.

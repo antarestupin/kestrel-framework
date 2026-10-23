@@ -232,7 +232,11 @@ The explicit anonymous state avoids using `undefined` for both "not resolved yet
 
 The library exports a typed dependency descriptor created by the application-specific authentication definition. Actions and future authorization middleware depend on that descriptor rather than importing a global context or container.
 
-The context can lazily resolve the complete subject through a separate service when required. The principal itself never embeds the application user object because it must stay small, immutable, and safe to pass across Kestrel boundaries.
+`AuthenticationProvider` registers two execution-scoped asynchronous factories: `optionalCurrentUser` reads the resolved authentication context and loads the application subject through `authenticationSubjectProvider.findById(principal.subjectId)`; `currentUser` depends on that optional registration and raises `AuthenticationRequiredError` when no subject is available. Public descriptors are `optionalCurrentUser<Subject>()` and `currentUser<Subject>()`. Both share one lookup and one subject identity per execution through the [async DI lifecycle](./di.md#asynchronous-factories). No lookup is performed until a consumer requests a current-user dependency.
+
+Anonymous contexts and missing subjects resolve the optional dependency to `undefined`; the required dependency maps both to authentication-required semantics. A pending context rejects with an explicit error directing composition to resolve authentication first. Subject-provider failures propagate unchanged rather than being treated as anonymous, and scoped DI retains the failed lookup. Existing session middleware continues to establish the principal before downstream dependencies resolve; current-user factories do not interpret cookies, validate sessions again or rewrite context state when a subject disappears.
+
+The subject object is application-owned and retains its identity and application mutability. The principal itself never embeds that object because it must stay small, immutable, and safe to pass across Kestrel boundaries. Session-only consumers incur no extra subject lookup, and public response serialization must continue to select fields explicitly. Refreshing an already loaded subject within one execution and automatically revoking sessions when a subject lookup is missing remain deferred application policies.
 
 ## Session claims
 

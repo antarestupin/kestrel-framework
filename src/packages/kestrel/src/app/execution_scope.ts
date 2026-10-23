@@ -57,6 +57,10 @@ export interface ActionExecution {
   >(
     declarations: Declarations,
   ): ResolvedDependencies<Declarations>;
+  /** Awaits declared factories before invoking execution handlers. */
+  resolveDependenciesAsync<const Declarations extends DependencyDeclarations<never>>(
+    declarations: Declarations,
+  ): Promise<ResolvedDependencies<Declarations>>;
 }
 
 /**
@@ -115,6 +119,15 @@ export class ExecutionScope<Config> implements ActionExecution {
     declarations: Declarations,
   ): ResolvedDependencies<Declarations> {
     return this.container.resolveDependencies(
+      declarations as unknown as DependencyDeclarations<Config>,
+    ) as ResolvedDependencies<Declarations>;
+  }
+
+  /** Resolves asynchronous prerequisites in this execution's container. */
+  public async resolveDependenciesAsync<const Declarations extends DependencyDeclarations<never>>(
+    declarations: Declarations,
+  ): Promise<ResolvedDependencies<Declarations>> {
+    return await this.container.resolveDependenciesAsync(
       declarations as unknown as DependencyDeclarations<Config>,
     ) as ResolvedDependencies<Declarations>;
   }

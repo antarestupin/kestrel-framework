@@ -5,6 +5,12 @@ import type { AuthenticationConfig } from "./configuration.js";
 import { AllowAuthenticationAttemptGuard } from "./attempt_guard.js";
 import { AuthenticationContext } from "./context.js";
 import type { AuthenticationDefinition } from "./definition.js";
+import {
+  authenticationContextDependency,
+  authenticationSubjectProviderDependency,
+  optionalCurrentUser,
+} from "./dependencies.js";
+import { AuthenticationRequiredError } from "./errors.js";
 import { AuthenticationManager } from "./manager.js";
 import { PasswordMechanism } from "./mechanisms/password/mechanism.js";
 import { DefaultUsernameNormalizer } from "./mechanisms/password/normalization.js";
@@ -54,6 +60,33 @@ export class AuthenticationProvider<
     app.container.registerFactory(
       "authenticationContext",
       () => new AuthenticationContext<Claims>(),
+      { lifetime: "scoped" },
+    );
+    // Both public dependencies share the optional lookup, including an absent
+    // subject or a failed lookup, so one execution never reloads its user.
+    app.container.registerAsyncFactory(
+      "optionalCurrentUser",
+      {
+        context: authenticationContextDependency<Claims>(),
+        subjects: authenticationSubjectProviderDependency<Subject>(),
+      },
+      async ({ context, subjects }) => {
+        const state = context.value;
+        if (state.state === "pending") {
+          throw new Error("Authentication context is pending. Resolve authentication with session middleware before requesting the current user.");
+        }
+        if (state.state === "anonymous") return undefined;
+        return (await subjects.findById(state.principal.subjectId)) ?? undefined;
+      },
+      { lifetime: "scoped" },
+    );
+    app.container.registerAsyncFactory(
+      "currentUser",
+      { user: optionalCurrentUser<Subject>() },
+      ({ user }) => {
+        if (user === undefined) throw new AuthenticationRequiredError();
+        return user;
+      },
       { lifetime: "scoped" },
     );
     registerScopedAdapter(app.container, "authenticationAdapter", this.adapter, undefined);

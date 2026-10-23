@@ -838,7 +838,7 @@ export class WorkerScheduler<Config> {
         let hasResult = false;
 
         try {
-          const dependencies = execution.container.resolveDependencies(
+          const dependencies = await execution.container.resolveDependenciesAsync(
             worker.dependencies,
           );
           await worker.handler(
@@ -904,7 +904,7 @@ export class WorkerScheduler<Config> {
         const failuresByJobId = new Map<string, WorkerBatchFailureData>();
 
         try {
-          const dependencies = execution.container.resolveDependencies(
+          const dependencies = await execution.container.resolveDependenciesAsync(
             worker.dependencies,
           );
           const aggregated = await runAggregatedResult<

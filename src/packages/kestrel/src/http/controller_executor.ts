@@ -59,7 +59,7 @@ export function executeHttpController<
     },
     context.execution,
     async () => {
-      const dependencies = context.execution.resolveDependencies(
+      const dependencies = await context.execution.resolveDependenciesAsync(
         controller.dependencies,
       );
       const result = controller.source === "standalone"

@@ -6,11 +6,17 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 
+import { defineAction } from "../../actions/index.js";
+import { currentUser, optionalCurrentUser } from "../dependencies.js";
 import { App } from "../../app/index.js";
 import {
   defineHttpAccessPolicy,
+  defineHttpController,
+  defineHttpMiddleware,
+  get,
   HttpControllerManager,
 } from "../../http/index.js";
 import { MemoryAuthenticationAdapter } from "../adapters/memory/index.js";
@@ -120,6 +126,59 @@ describe("authentication HTTP controllers", () => {
     expect(anonymous.json()).toEqual({ authenticated: false });
   });
 
+  it("shares a lazy user between HTTP middleware, controller and nested action, with 401 semantics", async () => {
+    const { adapter, server, manager, middleware, findById } = await createHttpAuthentication();
+    const account = await adapter.createAccount({ subjectId: "subject-1" });
+    await adapter.createPasswordCredential({
+      accountId: account.id, username: "user", normalizedUsername: "user", passwordHash: "hash:correct-password",
+    });
+    const userDependency = currentUser<{ id: string }>();
+    const optionalUser = optionalCurrentUser<{ id: string }>();
+    const action = defineAction({
+      name: "test.current-user", output: z.string(), dependencies: { user: userDependency },
+      handler: (_input, { user }) => user.id,
+    });
+    let middlewareUser: { id: string } | undefined;
+    const readUser = defineHttpMiddleware("test.read-user", {
+      dependencies: { user: optionalUser },
+      handler: async ({ deps }, next) => { middlewareUser = deps.user; return next(); },
+    });
+    const access = defineHttpAccessPolicy("test.session", [middleware.optionalSession, readUser]);
+    manager.register(defineHttpController({
+      route: get("/me"), access, dependencies: { user: userDependency },
+      handler: async ({ deps, execution }) => {
+        expect(deps.user).toBe(middlewareUser);
+        return { id: await execution.get(action).run(null) };
+      },
+    }));
+    manager.register(defineHttpController({
+      route: get("/optional-me"), access, dependencies: { user: optionalUser },
+      handler: ({ deps }) => ({ id: deps.user?.id ?? null }),
+    }));
+    const signIn = await server.inject({
+      method: "POST", url: "/authentication/password/sign-in", headers: { origin: "http://app.test" },
+      payload: { username: "user", password: "correct-password" },
+    });
+    expect(signIn.statusCode).toBe(200);
+    const cookie = signIn.headers["set-cookie"];
+    findById.mockClear();
+    // A session-only endpoint must not eagerly fetch the application user.
+    expect((await server.inject({ url: "/authentication/session", headers: { cookie } })).statusCode).toBe(200);
+    expect(findById).not.toHaveBeenCalled();
+    const me = await server.inject({ url: "/me", headers: { cookie } });
+    expect(me.statusCode).toBe(200);
+    expect(me.json()).toEqual({ id: "subject-1" });
+    expect(findById).toHaveBeenCalledExactlyOnceWith("subject-1");
+    const again = await server.inject({ url: "/me", headers: { cookie } });
+    expect(again.statusCode).toBe(200);
+    expect(findById).toHaveBeenCalledTimes(2);
+    expect((await server.inject("/me")).statusCode).toBe(401);
+    expect((await server.inject("/optional-me")).json()).toEqual({ id: null });
+    findById.mockResolvedValue(null);
+    expect((await server.inject({ url: "/me", headers: { cookie } })).statusCode).toBe(401);
+    expect((await server.inject({ url: "/optional-me", headers: { cookie } })).json()).toEqual({ id: null });
+  });
+
   it("returns generic credential failures and rejects untrusted origins", async () => {
     const { server } = await createHttpAuthentication();
     const untrusted = await server.inject({
@@ -201,6 +260,10 @@ describe("authentication HTTP controllers", () => {
 async function createHttpAuthentication(): Promise<{
   adapter: MemoryAuthenticationAdapter<Record<string, never>>;
   server: FastifyInstance;
+  app: App<Record<string, never>>;
+  manager: HttpControllerManager<Record<string, never>>;
+  middleware: ReturnType<typeof createAuthenticationHttpControllers>["middleware"];
+  findById: ReturnType<typeof vi.fn<(id: string) => Promise<{ id: string } | null>>>;
 }> {
   const definition = defineAuthentication({
     sessionClaims: {
@@ -219,9 +282,8 @@ async function createHttpAuthentication(): Promise<{
   const server = Fastify();
 
   app.container.registerValue("authenticationAdapter", adapter);
-  app.container.registerValue("authenticationSubjectProvider", {
-    findById: async (id: string) => ({ id }),
-  });
+  const findById = vi.fn(async (id: string): Promise<{ id: string } | null> => ({ id }));
+  app.container.registerValue("authenticationSubjectProvider", { findById });
   app.register(new AuthenticationProvider(config, memoryAuthentication(adapter), definition, new TestPasswordHasher()));
 
   const manager = new HttpControllerManager(app, server);
@@ -232,7 +294,7 @@ async function createHttpAuthentication(): Promise<{
   apps.add(app);
   servers.add(server);
 
-  return { adapter, server };
+  return { adapter, server, app, manager, middleware: controllers.middleware, findById };
 }
 
 class TestPasswordHasher implements PasswordHasher {

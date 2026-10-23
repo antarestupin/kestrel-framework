@@ -53,6 +53,38 @@ Declare `dependencies: { getUser }` where `getUser` is an action definition. The
 
 Libraries can support their own definition types by implementing the DI-owned `ResolvableDependency<Config, Value>` protocol with the exported `resolveDependency` symbol. Business handlers consume the resolved values; container access remains inside the protocol implementation. See the [protocol contract](../implementation/di.md#resolvable-definitions).
 
+## Inject an asynchronously created value
+
+Use `registerAsyncFactory(id, dependencies, factory, options)` when creating a value requires asynchronous work, or when a service needs an asynchronously created dependency. Declare prerequisites explicitly so Kestrel can await the complete graph before constructing a consumer. The existing `dep<Value>(id)` declares the final value, without a `Promise` in its type.
+
+```ts
+// Register these factories in a provider during composition.
+const profileDependency = dep<{ name: string }>("profile");
+app.container.registerAsyncFactory(
+  "profile",
+  { directory: directoryDependency },
+  async ({ directory }) => ({ name: await directory.findName("member-1") }),
+  { lifetime: "scoped" },
+);
+app.container.registerAsyncFactory(
+  "greetingText",
+  { profile: profileDependency },
+  // The profile is already loaded when this synchronous consumer executes.
+  ({ profile }) => `Hello, ${profile.name}!`,
+  { lifetime: "scoped" },
+);
+```
+
+An action declaring `dependencies: { greeting: dep<string>("greetingText") }` receives a string directly. Actions, middleware, HTTP and CLI controllers, workers and scheduled tasks await their declared dependencies automatically. Independent prerequisites load concurrently; middleware still executes in declaration order, and handler dependencies resolve after middleware has completed its setup.
+
+At a composition or execution boundary, use `await container.resolveAsync(profileDependency)` or `await container.resolveDependenciesAsync({ profile: profileDependency })`. An `ActionExecution` also exposes `resolveDependenciesAsync()`. The synchronous `resolve()` and `resolveDependencies()` APIs remain available for synchronous graphs; requesting an asynchronous registration through them throws an explanatory error, even after its value has been cached.
+
+For a class that consumes an asynchronous value, register an explicit factory such as `registerAsyncFactory("service", { profile: profileDependency }, ({ profile }) => new ProfileService({ profile }), { lifetime: "scoped" })`. Ordinary `registerFactory()`, `registerClass()` and automatically constructed class declarations keep their synchronous constructor injection; they cannot implicitly await an asynchronous prerequisite. Register asynchronous work with `registerAsyncFactory()` rather than returning a Promise from an ordinary factory.
+
+Scoped and singleton factories share their in-flight operation and final result, including a rejection, for their owning lifetime. Retrying after a scoped failure requires a new scope. Transient factories run separately for each resolution. Singletons resolve against the root container, while scoped factories see the active scope's overrides. A cached factory cannot capture a shorter-lived registration.
+
+Supply `dispose` in the options to release an owned resource. Disposal waits for in-flight factories, releases asynchronous consumers before their prerequisites, then releases synchronous resources. Async transient instances with a disposer are also owned by their resolving scope. A factory that allocates a resource and then rejects must clean up that partial allocation itself, because no value was returned to the container. See the [implementation contract](../implementation/di.md#asynchronous-factories) for failure and lifecycle details.
+
 ## Own a resource's lifetime
 
 Choose a lifetime when a dependency holds state or needs cleanup. A scoped scratch buffer belongs to one execution and is cleared when that scope is disposed.

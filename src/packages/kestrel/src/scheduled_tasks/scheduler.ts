@@ -393,7 +393,7 @@ export class ScheduledTaskScheduler<Config> {
         });
 
         try {
-          const dependencies = execution!.container.resolveDependencies(
+          const dependencies = await execution!.container.resolveDependenciesAsync(
             resolved.task.dependencies,
           );
           await resolved.task.handler(dependencies, {

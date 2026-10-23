@@ -43,7 +43,7 @@ export function createActionRunner<
       const parsedInput =
         await parseSchema(action.inputSchema, rawInput, action.validation.input);
       const execute = async (): Promise<output<OutputSchema>> => {
-        const dependencies = container.resolveDependencies(
+        const dependencies = await container.resolveDependenciesAsync(
           action.dependencies,
         );
         const rawOutput = await action.handler(

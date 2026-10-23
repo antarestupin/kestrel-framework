@@ -21,8 +21,11 @@ classDiagram
         +registerValue(id, value)
         +registerFactory(id, factory, options)
         +registerClass(id, target, options)
+        +registerAsyncFactory(id, dependencies, factory, options)
         +resolve(dependency)
         +resolveDependencies(declarations)
+        +resolveAsync(dependency)
+        +resolveDependenciesAsync(declarations)
         +createScope()
         +dispose()
     }
@@ -58,7 +61,7 @@ sequenceDiagram
     Provider->>Root: Register factory with lifetime and disposer
     Runtime->>Root: createScope()
     Root-->>Runtime: Scope
-    Runtime->>Scope: resolveDependencies(declarations)
+    Runtime->>Scope: await resolveDependenciesAsync(declarations)
     Scope->>Root: Resolve inherited singleton if required
     Scope->>Scope: Build scoped and transient dependencies
     Scope-->>Consumer: Named resolved dependency object
@@ -209,6 +212,20 @@ The contract is `[resolveDependency](container: DependencyContainer<Config>): Va
 Normalization checks the symbol before treating functions as constructors and retains the definition in a `resolvable` descriptor. The container invokes the method with its original receiver and the current container, including child-scope registrations. Errors propagate to the caller. The protocol has no asynchronous initialization, implicit awaiting, cache, lifetime registration or automatic disposal of its return value; implementations should bind lightweight facades and resolve owned resources through ordinary registrations. A new action runner is therefore created for each resolution while the services it uses retain their registered lifetimes.
 
 DI does not import action code: the actions library implements this protocol to return a runner. Dependency graph inspection, protocol-specific overrides, cycle detection and additional lifetime controls remain deferred. Protocol authors must avoid resolving themselves recursively and must keep returned scope-bound values within the scope's lifetime.
+
+## Asynchronous factories
+
+`DependencyContainer.registerAsyncFactory(id, dependencies, factory, options?)` opts a named registration into asynchronous resolution. The factory receives `ResolvedDependencies<typeof dependencies>` and may return a value synchronously or through a Promise. `dep<Value>(id)` continues to describe the final value. `resolveAsync(declaration)` returns `Promise<ResolvedDependency<typeof declaration>>`; `resolveDependenciesAsync(declarations)` returns a Promise of the resolved map. `ActionExecution.resolveDependenciesAsync()` forwards to its active container. Runtime handler boundaries for actions, middleware, HTTP, CLI, individual and batch workers, and scheduled tasks use this asynchronous map API.
+
+Explicit declarations make asynchronous prerequisites traversable before construction. The container validates the declared graph for cycles before consulting caches, including concurrent requests for opposite ends of a cycle. It rejects shorter-lived prerequisites for cached consumers using the same singleton/scoped/transient ordering as synchronous injection. Value registrations remain safe to borrow. Automatically constructed classes are transient; register them with an appropriate lifetime when a cached asynchronous factory needs them.
+
+Awilix still owns synchronous registrations and their strict constructor injection. Asynchronous registrations use a synchronous resolver that throws a diagnostic directing callers to `resolveAsync()` and explicit factories. Resolver identity associates asynchronous definitions with their declarations, preserving inherited registrations and scope overrides without exposing Awilix in the public API. Async factories cannot be consumed through implicit constructor or factory injection; an explicit factory must bridge the asynchronous boundary before calling a synchronous constructor. The resolvable-definition protocol remains synchronous and uncached.
+
+Each container owns asynchronous work, a cache keyed by registration identity, and cleanup callbacks. Scoped work belongs to the resolving scope; singleton work belongs to the root and resolves its dependencies there, regardless of the requesting scope. The in-flight Promise is cached before factory work begins, and both fulfillment and rejection remain cached for scoped and singleton lifetimes. Transient registrations create a new operation each time. Independent declarations resolve concurrently, but the map API waits for every sibling to settle before propagating the first failure in declaration order. A failed prerequisite prevents its consumer factory from running.
+
+Disposal closes asynchronous resolution admission and waits for already admitted factory graphs to settle. Successful results with disposers are tracked in completion order and released in reverse order, so a consumer is released before its prerequisites. This also tracks owned async transient results. Unused factories never initialize, rejected factories have no returned resource to dispose, and all cleanup callbacks are attempted even if one fails. Async resource cleanup precedes synchronous container cleanup; disposal failures are reported as aggregate errors. Failed partial initialization remains the factory's responsibility. Scope disposal is idempotent and later asynchronous resolutions reject.
+
+Automatic dependency discovery for asynchronous constructors, asynchronous resolvable-definition protocols, cancellation and retry policies remain deferred. Callers must await requested work and dispose child scopes before disposing the root; application execution lifecycles already enforce these ownership boundaries. Scoped provider adapters retain their separate contract of synchronous readiness and do not gain asynchronous adapter initialization from this API.
 
 ## Class dependencies
 

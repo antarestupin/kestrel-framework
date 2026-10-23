@@ -53,6 +53,33 @@ function createTestCli(): TestCli {
 }
 
 describe("CliCommandManager", () => {
+  it("awaits async dependencies shared by CLI middleware and controller", async () => {
+    const cli = createTestCli();
+    const resource = { label: "ready" };
+    const create = vi.fn(async () => resource);
+    const dispose = vi.fn();
+    const dependency = dep<typeof resource>("asyncResource");
+    cli.app.container.registerAsyncFactory("asyncResource", {}, create, { lifetime: "scoped", dispose });
+    cli.manager.register(defineCliController({
+      command: "async-resource",
+      dependencies: { resource: dependency },
+      middleware: [defineCliMiddleware("test.async", {
+        dependencies: { resource: dependency },
+        handler: async ({ deps }, next) => { expect(deps.resource).toBe(resource); return next(); },
+      })],
+      handler: ({ deps }) => deps.resource.label,
+    }));
+    try {
+      expect(await cli.manager.run(["async-resource"])).toBe(0);
+      expect(cli.errors).toEqual([]);
+      expect(cli.output.join("")).toContain("ready");
+      expect(create).toHaveBeenCalledOnce();
+      expect(dispose).toHaveBeenCalledExactlyOnceWith(resource);
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
   it("retains inherited async action input and independently validates CLI output", async () => {
     const cli = createTestCli();
     const action = defineAction({

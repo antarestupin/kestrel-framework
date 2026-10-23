@@ -173,7 +173,7 @@ export class CliCommandManager<Config> {
             { controller, input, execution },
             execution.container,
             async () => {
-              const dependencies = execution.container.resolveDependencies(
+              const dependencies = await execution.container.resolveDependenciesAsync(
                 controller.dependencies,
               );
               const result = controller.source === "standalone"

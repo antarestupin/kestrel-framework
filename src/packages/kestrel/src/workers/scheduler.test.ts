@@ -6,6 +6,7 @@ import {
 } from "vitest";
 import { z } from "zod";
 
+import { dep } from "../di/index.js";
 import { App } from "../app/index.js";
 import {
   AsyncLocalObserverContext,
@@ -94,6 +95,35 @@ async function createStartedApp(): Promise<App<Record<string, never>>> {
 }
 
 describe("WorkerScheduler", () => {
+  it.each([false, true])("awaits and disposes async dependencies for batch=%s", async (batch) => {
+    const app = new App({});
+    const adapter = createAdapter();
+    const resource = { ready: true };
+    const dispose = vi.fn();
+    const create = vi.fn(async () => resource);
+    const handler = vi.fn((_job: unknown, { resource: injected }: { resource: typeof resource }) => {
+      expect(injected).toBe(resource);
+      expect(dispose).not.toHaveBeenCalled();
+    });
+    app.container.registerAsyncFactory("resource", {}, create, { lifetime: "scoped", dispose });
+    const options = {
+      name: "async.worker", queue: "async.worker", input: z.string(),
+      dependencies: { resource: dep<typeof resource>("resource") }, handler,
+    };
+    const worker = batch ? defineWorker({ ...options, batch: { size: 2 } }) : defineWorker(options);
+    const scheduler = new WorkerScheduler(app, adapter, [worker], { slots: 1, leaseMs: 1_000 });
+    try {
+      await app.start();
+      await adapter.enqueue([{ queue: worker.queue, payload: "payload" }]);
+      expect(await scheduler.runOnce()).toBe(1);
+      expect(handler).toHaveBeenCalledOnce();
+      expect(create).toHaveBeenCalledOnce();
+      expect(dispose).toHaveBeenCalledExactlyOnceWith(resource);
+    } finally {
+      await app.dispose();
+    }
+  });
+
   it.each([
     { size: 1, fail: false },
     { size: 100, fail: false },
