@@ -48,7 +48,7 @@ All npm workspaces live under `src/`: framework and starter packages in `src/pac
 
 ```sh
 npm run pack:local
-node src/packages/create-kestrel/bin/create.mjs /tmp/my-web-app --framework-archive artifacts/kestreljs-framework-0.1.0-alpha.0.tgz
+node src/packages/create-kestrel/bin/create.mjs /tmp/my-web-app --framework-archive artifacts/kestreljs-framework-0.1.0-alpha.1.tgz
 cd /tmp/my-web-app
 npm install
 npm run build:ai
@@ -59,9 +59,9 @@ Back in the framework repository root, run `npm run verify:archive` after packin
 
 By default, the creator generates an exact npm dependency on the compatible framework version. With `--framework-archive`, it copies the archive into the generated application's `vendor` directory instead. It never installs dependencies or contacts a registry itself. `src/packages/create-kestrel/template` is the canonical template; `src/apps/playground` follows its rendered `kestrel-playground` identity, and `npm run check:playground` detects drift. The playground uses the repository infrastructure on the same ports as the standalone starter; use `npm run dev:database --workspace=@kestrel/playground` for its Drizzle Studio instead of starting the playground’s standalone Compose stack. To develop the playground, run `npm run dev --workspace=@kestrel/playground`; its database migrations run through `npm run db:migrate --workspace=@kestrel/playground`.
 
-The archive command above uses the current `0.1.0-alpha.0` filename; after a version change, use the filename printed by `npm run pack:local`. Choose a missing or empty destination outside the framework checkout. To test only the generator against the published framework, run `node src/packages/create-kestrel/bin/create.mjs <app-name>` without an archive override.
+The archive command above uses the current `0.1.0-alpha.1` filename; after a version change, use the filename printed by `npm run pack:local`. Choose a missing or empty destination outside the framework checkout. To test only the generator against the published framework, run `node src/packages/create-kestrel/bin/create.mjs <app-name>` without an archive override.
 
-To install an archive into an existing consumer, run `npm install /absolute/path/to/kestreljs-framework-0.1.0-alpha.0.tgz` from that application's directory. Rebuild and repack after framework changes, then update the consumer installation. The generated application's commands run independently of the framework repository.
+To install an archive into an existing consumer, run `npm install /absolute/path/to/kestreljs-framework-0.1.0-alpha.1.tgz` from that application's directory. Rebuild and repack after framework changes, then update the consumer installation. The generated application's commands run independently of the framework repository.
 
 ## Maintain the documentation
 
