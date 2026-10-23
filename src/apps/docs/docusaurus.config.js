@@ -9,7 +9,7 @@ const githubLinkContent = '<svg viewBox="0 0 16 16" width="20" height="20" fill=
 
 export default {
   title: 'Kestrel',
-  favicon: 'img/favicon.png',
+  favicon: 'img/favicon.svg',
   tagline: 'Compose your application. Keep control of its behavior.',
   url,
   baseUrl,
@@ -37,7 +37,7 @@ export default {
     navbar: {
       title: 'Kestrel',
       // Pair the standalone mark with the navbar title; the homepage keeps the full wordmark.
-      logo: { alt: '', src: 'img/kestrel-mark.png', width: 32, height: 32 },
+      logo: { alt: '', src: 'img/kestrel-mark.svg', width: 32, height: 32 },
       items: [
         { type: 'doc', docId: 'usage/installation', label: 'Get started', position: 'left' },
         { type: 'docSidebar', sidebarId: 'guides', label: 'Guides', position: 'left' },

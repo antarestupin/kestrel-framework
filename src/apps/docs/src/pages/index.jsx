@@ -85,7 +85,7 @@ function ProductScreenshot({ src, alt, width, height }) {
 }
 
 export default function Home() {
-  const logoSources = { light: useBaseUrl('img/kestrel-logo.png'), dark: useBaseUrl('img/kestrel-logo-dark.png') };
+  const logoSources = { light: useBaseUrl('img/kestrel-logo.svg'), dark: useBaseUrl('img/kestrel-logo-dark.svg') };
   return (
     <Layout title="Build with Kestrel" description="A TypeScript framework built on Fastify, with Zod contracts, integrated caching, Studio, Atlas, durable workflows, and generated HTTP clients.">
       <main className="kestrel-home">
