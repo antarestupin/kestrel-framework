@@ -50,7 +50,7 @@ These definitions do not enable authentication or restrict the starter's public 
 
 ## Browser client
 
-The default Kestrel favicon is application-owned at `public/favicon.svg`. Replace that file to customize your browser icon, or update the icon link in `src/client/index.html` to use another format. Vite serves public assets during development and copies them into `dist/client/` with the configured asset base for production.
+The default Kestrel favicon is application-owned at `public/favicon.ico` with 16×16 and 32×32 images. Replace that file to customize your browser icon, or update the icon link in `src/client/index.html` to use another format. Vite serves public assets during development and copies them into `dist/client/` with the configured asset base for production.
 
 `src/server/example/example_catalog.ts` owns the example feature's actions and controllers. `src/server/core/app_catalog.ts` composes feature catalogs and derives the HTTP catalog used for generation. Add definitions to their owning feature catalog, then include that catalog in the application.
 

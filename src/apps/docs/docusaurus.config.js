@@ -9,7 +9,7 @@ const githubLinkContent = '<svg viewBox="0 0 16 16" width="20" height="20" fill=
 
 export default {
   title: 'Kestrel',
-  favicon: 'img/favicon.svg',
+  favicon: 'img/favicon.ico',
   tagline: 'Compose your application. Keep control of its behavior.',
   url,
   baseUrl,

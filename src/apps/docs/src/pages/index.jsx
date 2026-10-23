@@ -72,13 +72,19 @@ function InstallCommand() {
   );
 }
 
-/** Keep screenshots intact and make interface details available at full resolution. */
+const screenshotWidths = [640, 960, 1600, 1920];
+// Match the product card's stacked layout, padding, 66% image column, and container caps.
+const screenshotSizes = '(max-width: 600px) calc(100vw - 76px), (max-width: 996px) calc(100vw - 84px), (max-width: 1139px) calc(66vw - 75px), (max-width: 1439px) 678px, 797px';
+
+/** Load a responsive WebP preview; the original PNG is only the full-resolution link target. */
 function ProductScreenshot({ src, alt, width, height }) {
   const url = useBaseUrl(src);
+  const previewBase = useBaseUrl(src.replace(/\.png$/, ''));
+  const srcSet = screenshotWidths.map((size) => `${previewBase}-${size}.webp ${size}w`).join(', ');
   return (
     <figure className="kestrel-product-shot">
       <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`Open full-size image: ${alt}`}>
-        <img src={url} alt={alt} width={width} height={height} loading="lazy" decoding="async" />
+        <img src={`${previewBase}-960.webp`} srcSet={srcSet} sizes={screenshotSizes} alt={alt} width={width} height={height} loading="lazy" decoding="async" />
       </a>
     </figure>
   );
