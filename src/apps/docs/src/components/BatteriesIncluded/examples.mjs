@@ -42,7 +42,7 @@ export const contact = pgTable('contact', {
 // Interact with the DB using the repository pattern
 const contacts = app.get(ContactRepository);
 await contacts.create({ name: 'Sam' });
-const foundContact = await contacts.findById(sam.id);
+const foundContact = await contacts.findById(id);
 
 // You can wrap calls in a transaction, with auto commit and roll back.
 await databaseManager.transaction(async () => {
