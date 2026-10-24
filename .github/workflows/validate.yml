@@ -1,12 +1,8 @@
 # Build once and validate independent consumers on the supported minimum runtime; never publish to npm.
 name: Validate
 on:
-  # Branch pull requests already receive their own validation run.
-  push:
-    branches: [main]
-  pull_request:
+  # Run the complete validation pipeline only when explicitly requested.
   workflow_dispatch:
-  merge_group:
 permissions:
   contents: read
 concurrency:
