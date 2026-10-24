@@ -108,5 +108,10 @@ export {
 } from "./runtime.js";
 export { httpRuntimeDependency } from "./dependencies.js";
 export { HttpRuntimeProvider } from "./provider.js";
+export {
+  httpMaintenanceConfigSchema,
+  type HttpMaintenanceConfig,
+  type HttpMaintenanceException,
+} from "./maintenance/index.js";
 
 export type { ValidationMode, ValidationOptions } from "../definitions/index.js";

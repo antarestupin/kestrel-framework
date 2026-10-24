@@ -101,7 +101,7 @@ sequenceDiagram
 | Controller declarations | `defineHttpController()`, `defineActionHttpController()`, `defineModelListActionHttpController()` and controller option, context and example types |
 | Access and middleware | `defineHttpAccessPolicy()`, `defineHttpMiddleware()` and their policy, context and target types |
 | Execution and runtime | `executeHttpController()`, `HttpControllerManager`, `HttpRuntime`, `HttpRuntimeProvider`, `httpRuntimeDependency`, `HttpExtension` |
-| Configuration and hardening | `httpConfigBase`, `createHttpHardeningProfile()`, `httpHardeningConfigBase` and resolved configuration/profile types |
+| Configuration and hardening | `httpConfigBase`, `httpMaintenanceConfigSchema`, `HttpMaintenanceConfig`, `HttpMaintenanceException`, `createHttpHardeningProfile()`, `httpHardeningConfigBase` and resolved configuration/profile types |
 | Client runtime | `createHttpClientTransport()`, `HttpClientError` and operation, input-binding, output and transport types |
 | Audience and generation | audience definition, catalog filtering and validation helpers, `generateHttpClientSource()`, `writeHttpClient()`, `HttpClientGenerationProvider` and generation configuration types |
 
@@ -277,6 +277,26 @@ Controllers are declared beside their domain actions in optional `controllers.ht
 `HttpControllerManager` receives the shared `App`, a Fastify instance and optional manager options. HTTP extensions such as Studio use it to register controllers inside an encapsulated plugin scope while retaining the parent application execution context.
 
 `HttpRuntimeProvider` declares a lazy `HttpRuntime` and contributes the `run server` CLI controller. The runtime resolves the root logger, constructs Fastify, mounts `app.httpExtensions` and registers `app.catalog.httpControllers`. Fastify readiness starts the application for both network listening and `fastify.inject()`, while close stops execution admission before draining requests. The runtime owns Fastify, but the common CLI launcher owns final application disposal. Request scopes use collision-safe execution UUIDs independently from Fastify's process-local request ids. Tests resolve or construct the runtime and exercise its server through `fastify.inject()` without opening a network port.
+
+## Maintenance admission
+
+`httpConfigBase` includes a defaulted `maintenance` section. `httpMaintenanceConfigSchema` and its output types are exported from `@kestreljs/framework/http` for applications that assemble configuration separately. The runtime validates and snapshots this section before allocating Fastify, then installs a root `onRequest` hook after the selected hardening profile and before mounting extensions and controllers. Host admission and security headers remain active. Rejected requests never reach body parsing, controller validation, access middleware, dependency resolution or execution-scope creation. Encapsulated extension routes inherit the same gate, including unmatched requests handled as 404 outside maintenance. Direct users of `HttpControllerManager` must supply their own admission policy or compose through `HttpRuntime` to receive this behavior.
+
+| Setting | Default | Contract |
+| --- | --- | --- |
+| `enabled` | `false` | Capture admission mode once at runtime construction. |
+| `retryAfterSeconds` | Omitted | Optional nonnegative safe integer; serialized as `Retry-After` delta seconds, including zero. |
+| `html` | Bundled document | Optional nonblank trusted HTML served verbatim; no request interpolation, rendering service or database access. |
+| `apiPathPrefixes` | `["/api"]` | Force JSON on each prefix and its descendants at a `/` boundary; trailing slashes on prefixes are ignored, `/` matches every path, and an empty list disables path-based selection. |
+| `exceptions` | `[]` | Exact raw-path exceptions with optional nonempty uppercase HTTP `methods`; omitted methods permit every method. |
+
+Paths must start with one slash and contain no query, fragment, backslash, whitespace or wildcard. The gate removes only the query string from `request.raw.url`; it neither decodes nor normalizes the path. Exceptions are checked before API prefix selection. They bypass only maintenance and leave all ordinary routing and access checks intact. GET does not implicitly exempt HEAD. Route patterns and prefix exceptions are intentionally unsupported.
+
+All blocked responses use status 503, `Cache-Control: no-store` and `Vary: Accept`, with the optional retry header. HTML is available only for GET/HEAD outside the configured API prefixes, with an explicit positive `text/html` preference. JSON quality follows the most specific matching `application/json`, `application/*` or `*/*` range. Higher quality wins; an equal explicit HTML/JSON preference selects JSON, while explicit HTML wins a wildcard tie. Wildcard-only, absent or unusable HTML preferences fall back to JSON. This fallback also applies when neither representation is acceptable; maintenance retains status 503 rather than returning 406. Non-read methods always receive JSON. HEAD sends headers without a body even on unknown routes, where Fastify has no generated HEAD handler to suppress a payload.
+
+JSON errors use `{ statusCode: 503, error: "Service Unavailable", message: "The site is temporarily unavailable for maintenance. Please try again later." }`. The bundled HTML is static, accessible without external assets, JavaScript or application services, and compatible with the default hardening profile. Custom HTML remains subject to that profile's headers. The hook owns no resources, introduces no dependencies and reads no environment variables.
+
+Readiness still starts the application and mounts extensions normally. This policy cannot make an application boot without its usual startup dependencies, and it does not provide maintenance while the process is down; deployments needing that guarantee require an independently served page at their proxy or hosting layer. It does not cancel admitted requests, stop workers or scheduled tasks, or terminate existing long-lived connections. Runtime toggles, shared distributed maintenance state, privileged bypass credentials and coordinated background suspension are deferred. See the [usage recipe](../usage/http.md#enable-maintenance-mode) for configuration, deployment overrides and customization.
 
 ## Production hardening
 

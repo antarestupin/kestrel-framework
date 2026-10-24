@@ -5,6 +5,7 @@ import {
   type ConfigOutput,
 } from "../configuration/index.js";
 import { httpClientGenerationConfigSchema } from "./client_generation/configuration.js";
+import { httpMaintenanceConfigSchema } from "./maintenance/index.js";
 
 const httpPort = z.union([z.number(), z.string()]).pipe(
   z.coerce.number<string | number>().int().min(0).max(65_535),
@@ -19,6 +20,11 @@ export const httpConfigBase = defineConfigBase(z.object({
   executionIdHeader: z.string()
     .regex(/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/u)
     .default("x-execution-id"),
+  maintenance: httpMaintenanceConfigSchema.default({
+    enabled: false,
+    apiPathPrefixes: ["/api"],
+    exceptions: [],
+  }),
   clientGeneration: httpClientGenerationConfigSchema,
 }));
 

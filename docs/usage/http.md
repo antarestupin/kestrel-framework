@@ -4,6 +4,61 @@
 
 Use typed controllers for routes and register `HttpRuntimeProvider` as shown in [application composition](./app.md). Controllers inherit the runtime access policy, which permits anonymous requests by default. Set `defaultAccess` on the provider to change that default, or `access` in a controller's options to override it.
 
+## Enable maintenance mode
+
+Configure `http.maintenance` to reject new HTTP requests with `503 Service Unavailable` while keeping the requested URL. Maintenance is disabled by default. Add the following fields to your existing `configure(httpConfigBase, { ... })` declaration, retaining its listener and client-generation settings:
+
+```ts
+maintenance: {
+  enabled: true,
+  // Optional delay in seconds, advertised on every maintenance response.
+  retryAfterSeconds: 120,
+  // API prefixes match a complete path segment, including descendants.
+  apiPathPrefixes: ["/api", "/rpc"],
+  exceptions: [
+    // Keep only this liveness endpoint available during maintenance.
+    { path: "/health/live", methods: ["GET", "HEAD"] },
+  ],
+},
+```
+
+Pass the resolved `config.http` to `HttpRuntimeProvider` as usual. The runtime captures maintenance settings when constructed; changing configuration afterward does not toggle an existing runtime. With the `APP_CONFIG` prefix from the [configuration guide](./configuration.md#override-a-library-setting-without-another-binding), deployments can set `APP_CONFIG__HTTP__MAINTENANCE__ENABLED=true` and optionally `APP_CONFIG__HTTP__MAINTENANCE__RETRY_AFTER_SECONDS=120` before starting the application. Array settings such as exceptions and API prefixes belong in the application declaration or an explicit configuration source.
+
+Browsers receive a self-contained HTML page for GET/HEAD requests that explicitly accept `text/html` with a positive quality value and do not prefer JSON. API prefixes always receive JSON, even if HTML is requested. Other methods, requests without `Accept`, and wildcard-only requests also receive JSON. The default API prefix is `/api`; set `apiPathPrefixes: []` to rely entirely on `Accept` for GET/HEAD requests. JSON contains:
+
+```json
+{
+  "statusCode": 503,
+  "error": "Service Unavailable",
+  "message": "The site is temporarily unavailable for maintenance. Please try again later."
+}
+```
+
+Every maintenance response includes `Cache-Control: no-store` and `Vary: Accept`, plus `Retry-After` when configured. HEAD responses include no body. Maintenance covers catalog controllers, extension routes, static assets served by those extensions, and unknown paths before body parsing or request execution. Exceptions bypass only maintenance; routing, validation and authentication still apply. The application and extensions still start normally, so maintenance does not remove their startup dependencies.
+
+### Customize the page and exceptions
+
+Set `maintenance.html` to a complete trusted HTML document. Kestrel serves it verbatim only for HTML maintenance responses; JSON errors retain the contract above.
+
+```ts
+maintenance: {
+  enabled: true,
+  // Keep this document independent of blocked assets and application services.
+  html: `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Scheduled maintenance</title></head>
+<body><main><h1>We'll be back soon</h1><p>We are upgrading our service.</p></main></body>
+</html>`,
+  exceptions: [{ path: "/health/live", methods: ["GET", "HEAD"] }],
+},
+```
+
+The default page needs no external assets or JavaScript. Custom HTML should be equally autonomous and compatible with the application's security headers. If it needs a separately served asset, declare that asset's path as an exception.
+
+Exception paths match the raw URL path exactly, ignoring the query string. They are case-sensitive, do not decode percent escapes, and do not expand wildcards, route parameters or trailing slashes. `/health/live` does not exempt `/health/live/` or `/health/live/details`. Omitting `methods` allows every method on that path; listing `GET` alone does not exempt `HEAD`. No paths are automatically exempted. A liveness exception does not imply that a readiness check should report the application ready to serve business traffic.
+
+Maintenance currently controls new HTTP requests only. It does not cancel in-flight work, stop workers or scheduled tasks, or close existing long-lived connections. Live toggling and coordinated background-work suspension are deferred; see the [implementation contract](../implementation/http.md#maintenance-admission).
+
 ## Set default access and override a route
 
 ```ts

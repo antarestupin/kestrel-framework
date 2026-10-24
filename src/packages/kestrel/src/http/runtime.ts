@@ -10,6 +10,8 @@ import { applicationLoggerDependency } from "../log/index.js";
 import type { HttpConfig } from "./configuration.js";
 import { HttpControllerManager } from "./controller_manager.js";
 import type { HttpHardeningProfile } from "./hardening/index.js";
+import { httpMaintenanceConfigSchema } from "./maintenance/index.js";
+import { installHttpMaintenance } from "./maintenance/policy.js";
 import {
   anonymousHttpAccess,
   type HttpAccessPolicy,
@@ -45,6 +47,7 @@ export class HttpRuntime<Config> {
     this.defaultAccess = validateHttpAccessPolicy(
       options.defaultAccess === undefined ? anonymousHttpAccess : options.defaultAccess,
     );
+    const maintenance = httpMaintenanceConfigSchema.parse(config.maintenance ?? {});
     if (
       options.profile !== undefined
       && options.server?.serverFactory !== undefined
@@ -73,6 +76,8 @@ export class HttpRuntime<Config> {
     });
 
     options.profile?.install(this.server);
+    // Preserve transport hardening before maintenance admission on every surface.
+    installHttpMaintenance(this.server, maintenance);
     this.composeServer();
     app.shutdown.registerDrain(() => this.stop());
   }
