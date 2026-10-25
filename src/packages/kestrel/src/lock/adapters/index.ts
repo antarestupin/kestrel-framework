@@ -6,3 +6,5 @@ export {
   PostgresLockAdapter,
   type PostgresLockDatabase,
 } from "./postgres/index.js";
+
+export * from "./redis/index.js";

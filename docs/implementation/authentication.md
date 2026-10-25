@@ -119,7 +119,7 @@ Application profile fields remain on the application user. Password hashes, exte
 
 ### Narrow capabilities replace one universal adapter
 
-The manager depends on focused storage contracts. A concrete adapter may implement several contracts, but callers receive only the capability they require. This lets a later deployment store accounts and credentials in PostgreSQL while storing sessions in Redis without changing the authentication manager.
+The manager depends on focused storage contracts. A concrete adapter may implement several contracts, but callers receive only the capability they require. This lets a deployment store accounts and credentials in PostgreSQL while storing sessions in Redis without changing the authentication manager.
 
 ### Proof construction is trusted
 
@@ -918,7 +918,7 @@ The initial contracts intentionally retain room for:
 - account linking with explicit proof and collision policy;
 - session families, replay detection, device labels, remembered devices, and risk history;
 - selective claims refresh through versioned claims policies;
-- Redis or dedicated session adapters and split adapter composition;
+- additional dedicated session adapters beyond the bundled Redis backend;
 - stateless or hybrid sessions only when their revocation and freshness tradeoffs are explicitly accepted;
 - self-service and administrative account/session management protected by authorization;
 - security notifications and durable audit trails with retention and privacy policies;
@@ -942,3 +942,13 @@ These evolutions must add explicit capabilities rather than changing the meaning
 `AuthenticationProvider(config, adapter, definition, hasher)` registers an execution-scoped adapter. `postgresAuthentication(manager, tables?)` replaces the adapter-only PostgreSQL provider. Independently registered account, session and password-credential adapters still override the corresponding combined-adapter fallbacks. Public storage contracts use the `StorageAdapter` suffix.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+## Redis session adapter
+
+`RedisSessionStorageAdapter` implements only `SessionStorageAdapter`. `redisSessions(connection, settings)` returns a public execution-scoped `SessionStorageAdapterDefinition`; `withAuthenticationSessions(base, sessions)` composes that definition into the existing `AuthenticationAdapterDefinition` accepted by `AuthenticationProvider`. External stores use the same `defineSessionStorageAdapter()` extension point. Child definitions are lazy within each execution and their disposal hooks run once, including cleanup after another child fails to construct. The composed adapter deliberately omits the base adapter's `SessionAccountResolver`, preventing a PostgreSQL session lookup from bypassing Redis.
+
+Three fixed, same-slot hashes under `<keyPrefix>{sessions}:` store sessions by ID, IDs by token digest and retained IDs by account. Redis 7.4+ `HPEXPIREAT` expires record and digest fields at absolute expiry. Account-index fields expire at the greatest absolute expiry of their members. Creation removes stale account members and updates all three structures in one script. Idle expiration is checked by the authentication manager and atomic touch rather than shortening physical administrative retention. Revoked sessions retain their reason until absolute expiry. See [hash-field expiration](https://redis.io/docs/latest/commands/hpexpireat/).
+
+Touch compares current revocation and both expiry boundaries, preserves monotonic last-seen/idle watermarks and caps idle expiry at the absolute deadline. Revocation and account-wide revocation cannot be undone by concurrent touches. Listing is newest-first with ID tie-breaking and includes retained idle-expired/revoked records. Session/account state is read separately; account security versions remain authoritative in the account store.
+
+Application claims and authentication evidence are opaque JSON strings inside the versioned envelope, so Lua does not change empty arrays or round application numbers. Only bearer digests are stored. Unexpected records and infrastructure errors reject; they are never silently interpreted as anonymous access. No session pruning capability is needed. There is no transaction spanning Redis session writes and PostgreSQL account changes, and cluster-client routing is not yet validated. Session rotation, persistent audit retention beyond absolute expiry and scalable account-session pagination remain deferred.

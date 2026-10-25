@@ -155,3 +155,5 @@ export { defineThrottlingAdapter, type ThrottlingAdapterDefinition, type Throttl
 export { postgresThrottlingConfigBase, type PostgresThrottlingConfig } from "./adapters/postgres/index.js";
 export { postgresThrottling } from "./adapters/postgres/index.js";
 export { memoryThrottling } from "./adapters/memory/index.js";
+
+export * from "./adapters/redis/index.js";

@@ -114,3 +114,18 @@ Storage failure rejects by default. Emergency-local capacity is an explicit prov
 - Report dependency feedback and observe circuit transitions.
 - Configure local resource-pressure thresholds and inspect admission state.
 - Complete a manually acquired permit and compare worker hold and release buffering.
+
+## Redis backend
+
+```ts
+import { ThrottlingProvider, redisThrottling } from "@kestreljs/framework/throttling";
+import { redisDependency } from "./providers/redis_provider.js";
+
+app.register(new ThrottlingProvider(app.config.throttling, redisThrottling(redisDependency, app.config.throttling.adapter)));
+```
+
+Compose `redisThrottlingConfigBase` as the nested application `adapter` contribution. It owns `keyPrefix`, defaulting to `kestrel:throttling:`. The shared Redis provider owns the native `@redis/client` connection and must boot before consumers use it. Standalone callers may construct `RedisRateLimitAdapter(client, settings)` directly.
+
+Redis supports exact and leased rate coordination, atomic AND composition, fractional costs, actual-cost reconciliation and advisory inspection. The existing denial-cache, backend-failure and local-lease decorators are reused. Backend failures follow the configured `backendFailurePolicy`; there is no implicit fail-open admission. Concurrency limits, circuit breakers and resource pressure remain process-local.
+
+Buckets expire only when their rate debt has refilled and every outstanding lease has expired or been returned. No `prune()` capability or maintenance task is exposed. Use `noeviction`; losing a live bucket can restore quota too early. Persistence, restart and failover policies determine whether Redis is suitable for strict or long-lived budgets. See the [Redis implementation](../implementation/throttling.md#redis-adapter).

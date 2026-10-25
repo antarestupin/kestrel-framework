@@ -48,9 +48,8 @@ const DEFAULT_RETRY_JITTER_RATIO = 0.1;
 const DEFAULT_MAX_CACHED_DENIALS = 10_000;
 
 /** Consumes bounded PostgreSQL grants locally and replenishes them atomically. */
-export class LeasedRateLimitAdapter implements
-  LeasableRateLimitAdapter,
-  PrunableRateLimitAdapter {
+export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
+  public readonly prune?: (options: RateLimitPruneOptions) => Promise<number>;
   private readonly denialCache = new Map<string, CachedLeaseDenial>();
 
   private readonly leases = new Map<string, LocalLease[]>();
@@ -88,6 +87,9 @@ export class LeasedRateLimitAdapter implements
     this.retryJitterRatio = options.retryJitterRatio
       ?? DEFAULT_RETRY_JITTER_RATIO;
     this.instrumentation = options.instrumentation;
+    // Keep capability detection accurate through the complete decorator chain.
+    const prunable = authoritative as Partial<PrunableRateLimitAdapter>;
+    if (typeof prunable.prune === "function") this.prune = (options) => prunable.prune!(options);
 
     if (this.ownerId.trim().length === 0) {
       throw new TypeError("A leased throttling owner id cannot be empty.");
@@ -231,16 +233,6 @@ export class LeasedRateLimitAdapter implements
 
   public returnLeases(leases: readonly RateLimitLeaseReturn[]): Promise<number> {
     return this.authoritative.returnLeases(leases);
-  }
-
-  public prune(options: RateLimitPruneOptions): Promise<number> {
-    const prunable = this.authoritative as Partial<PrunableRateLimitAdapter>;
-
-    if (prunable.prune === undefined) {
-      throw new ThrottlingAdapterCapabilityError("bounded pruning");
-    }
-
-    return prunable.prune(options);
   }
 
   public close(): Promise<void> {

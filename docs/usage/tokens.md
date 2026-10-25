@@ -103,3 +103,20 @@ The definition's `strategy` selects its manager entry. Retain old verification k
 `TokenProvider(config, adapter, options?)` accepts `postgresTokens(manager, table?)`, `memoryTokens(sharedState)` or an external scoped storage definition. Stateless configurations explicitly pass `undefined` and disable the stored strategy. Storage and token representation remain separate contracts.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+## Redis backend
+
+```ts
+import { TokenProvider, redisTokens } from "@kestreljs/framework/tokens";
+import { redisDependency } from "./providers/redis_provider.js";
+
+app.register(new TokenProvider(app.config.tokens, redisTokens(redisDependency, app.config.tokens.adapter)));
+```
+
+Compose `redisTokensConfigBase` under the application configuration's `adapter` contribution. It owns `keyPrefix`, defaulting to `kestrel:tokens:`. `RedisTokenStorageAdapter(client, settings)` also accepts a connected native `@redis/client` client directly.
+
+Opaque tokens and stateful hybrid JWT strategies share the same storage. Redis atomically creates batches, replaces tokens for a subject, consumes single-use tokens and applies revocation. Only digests are persisted; bearer values are never stored. Stateless JWT strategies do not require this adapter.
+
+Logical expiration does not delete lifecycle records. Consumed, revoked and expired records remain available for subject deletion and the existing `tokens.prune({ expiredBefore, inactiveBefore, limit })` operation. Arrange bounded pruning through application maintenance. Redis TTL is deliberately not substituted for this retention contract.
+
+Token consumption in Redis cannot commit or roll back with a PostgreSQL business transaction. Use idempotent application operations or keep PostgreSQL token storage when that shared transaction is required. Redis errors propagate rather than being interpreted as invalid tokens. Use `noeviction` and durable storage: losing a consumption or replacement write can revalidate a previously spent or replaced token. See the [Redis implementation](../implementation/tokens.md#redis-adapter).

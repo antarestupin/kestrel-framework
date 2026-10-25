@@ -407,3 +407,13 @@ Multiple stored strategies can be composed directly with separate `PostgresToken
 `TokenProvider(config, adapter, options?)` accepts `postgresTokens(manager, table?)`, `memoryTokens(sharedState)` or an external scoped storage definition. Stateless configurations explicitly pass `undefined` and disable the stored strategy. Storage and token representation remain separate contracts.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+## Redis adapter
+
+`RedisTokenStorageAdapter` implements the complete existing storage contract without changing opaque or hybrid token strategies. `redisTokens(connection, settings)` creates a synchronously ready execution-scoped adapter over a borrowed native node-redis client. It requires no asynchronous adapter initialization.
+
+Five fixed, same-slot keys under `<keyPrefix>{tokens}:` hold a records hash, digest-to-ID hash, lexicographically indexed definition/subject membership sorted set, expiration sorted set and inactivity sorted set. Lua receives all keys explicitly and validates record/index types before writes. Batch creation checks uniqueness before replacement or insertion. Subject replacement and single-use consumption serialize on the primary. Application payloads are serialized separately and remain opaque to Lua, preserving empty arrays and numeric precision. Timestamps and token digests retain their full representation.
+
+Pruning reads at most `limit` candidates from each expiration/inactivity index and deletes at most `limit` records, updating every index in the same script. Expiration candidates precede inactive candidates, each ordered by score and ID; adapters do not promise identical physical deletion order. Subject replacement, revocation and deletion necessarily visit the selected subject's retained records. Admission limits for very large subject histories remain a future evolution; callers should prune regularly.
+
+Records have no automatic TTL because the existing contract distinguishes logical invalidity from retained consumed/revoked state. Pruning is a real operation rather than a no-op. The adapter never opens, closes or retries its shared connection. Redis is a separate commit boundary from PostgreSQL; SQL transaction rollback does not restore a consumed Redis token. Durable primary state and `noeviction` are deployment requirements when consumption/revocation must survive restart or failover. Native cluster-client routing and multi-shard atomicity remain deferred.

@@ -667,6 +667,31 @@
       "types": "./dist/atlas/contract.d.ts",
       "import": "./dist/atlas/contract.js",
       "default": "./dist/atlas/contract.js"
+    },
+    "./lock/adapters/redis": {
+      "types": "./dist/lock/adapters/redis/index.d.ts",
+      "import": "./dist/lock/adapters/redis/index.js",
+      "default": "./dist/lock/adapters/redis/index.js"
+    },
+    "./throttling/adapters/redis": {
+      "types": "./dist/throttling/adapters/redis/index.d.ts",
+      "import": "./dist/throttling/adapters/redis/index.js",
+      "default": "./dist/throttling/adapters/redis/index.js"
+    },
+    "./tokens/adapters/redis": {
+      "types": "./dist/tokens/adapters/redis/index.d.ts",
+      "import": "./dist/tokens/adapters/redis/index.js",
+      "default": "./dist/tokens/adapters/redis/index.js"
+    },
+    "./authentication/adapters/redis": {
+      "types": "./dist/authentication/adapters/redis/index.d.ts",
+      "import": "./dist/authentication/adapters/redis/index.js",
+      "default": "./dist/authentication/adapters/redis/index.js"
+    },
+    "./authentication/adapters/composed": {
+      "types": "./dist/authentication/adapters/composed/index.d.ts",
+      "import": "./dist/authentication/adapters/composed/index.js",
+      "default": "./dist/authentication/adapters/composed/index.js"
     }
   },
   "bin": {
@@ -703,7 +728,8 @@
     "drizzle-seed": "^0.3.1",
     "vite": "^8.2.0",
     "@types/pg": "^8.20.0",
-    "@tanstack/react-query": "^5.101.4"
+    "@tanstack/react-query": "^5.101.4",
+    "@redis/client": "^6.2.1"
   },
   "publishConfig": {
     "access": "public",

@@ -224,6 +224,7 @@ it.each(["postgres", "redis"])("composes %s cache with its required infrastructu
       expect(app.match(/new RedisProvider\(/g)).toHaveLength(1);
       // All providers register before cache storage is resolved at boot.
       expect(app).toContain("redisCache(redisDependency, app.config.cache.adapter)");
+      expect(app.indexOf("new RedisProvider(")).toBeLessThan(app.indexOf("new CacheProvider("));
       await access(join(target, "src/server/core/cache.test.ts"));
       await access(join(target, "src/server/core/providers/redis_provider.test.ts"));
       expect(infrastructure.services.app.environment.REDIS_URL).toBe("redis://redis:6379/0");

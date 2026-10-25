@@ -149,3 +149,35 @@ Sessions have idle and absolute expiry, and account state is checked when resolv
 `AuthenticationProvider(config, adapter, definition, hasher)` registers an execution-scoped adapter. `postgresAuthentication(manager, tables?)` replaces the adapter-only PostgreSQL provider. Independently registered account, session and password-credential adapters still override the corresponding combined-adapter fallbacks. Public storage contracts use the `StorageAdapter` suffix.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+## Redis sessions with PostgreSQL accounts
+
+Select session storage inside the adapter definition passed to the existing provider:
+
+```ts
+import {
+  AuthenticationProvider,
+  postgresAuthentication,
+  redisSessions,
+  withAuthenticationSessions,
+} from "@kestreljs/framework/authentication";
+import { redisDependency } from "./providers/redis_provider.js";
+
+app.register(new AuthenticationProvider(
+  app.config.authentication,
+  withAuthenticationSessions(
+    postgresAuthentication(databaseManagerDependency),
+    redisSessions(redisDependency, app.config.authentication.adapter.sessions),
+  ),
+  authenticationDefinition,
+  passwordHasher,
+));
+```
+
+Compose `redisSessionsConfigBase` under `adapter.sessions` in the application authentication configuration. Its `keyPrefix` defaults to `kestrel:authentication:`. Shared connection credentials remain in Redis infrastructure configuration. `RedisSessionStorageAdapter(client, settings)` is available for standalone use.
+
+Accounts and password credentials remain in the base adapter; sessions alone use Redis. Account state and `securityVersion` are still checked during authentication. The combined PostgreSQL session/account query is deliberately unavailable in this composition. Both child adapters remain execution-scoped and borrow the infrastructure connections.
+
+Redis 7.4 or later is required for native hash-field expiration. Active, idle-expired and revoked session records are retained until absolute expiration, so administration can inspect revocation metadata. The manager and atomic `touch()` enforce idle expiration without resurrecting expired or revoked sessions. Concurrent touches cannot shorten an existing activity watermark. Account indexes expire at the latest retained absolute deadline and remove stale members on subsequent session creation. No pruning task is required.
+
+`withAuthenticationSessions()` also accepts external `SessionStorageAdapterDefinition` recipes created with `defineSessionStorageAdapter()`. There is no backend-name registry or Redis-specific provider subclass. Storage failures propagate and fail closed. Redis session writes do not share the base database transaction; avoid publishing a session whose account changes have not committed. Use a `noeviction` deployment with an explicit durability policy. See the [Redis implementation](../implementation/authentication.md#redis-session-adapter).

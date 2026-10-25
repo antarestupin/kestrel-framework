@@ -37,7 +37,8 @@ const DEFAULT_MAX_ENTRIES = 10_000;
 
 /** Coalesces matching authoritative denials without caching admissions. */
 export class DenialCachingRateLimitAdapter
-implements LeasableRateLimitAdapter, PrunableRateLimitAdapter {
+implements LeasableRateLimitAdapter {
+  public readonly prune?: (options: RateLimitPruneOptions) => Promise<number>;
   private readonly batchDenials = new Map<string, BatchDenial>();
 
   private readonly serialization = new Map<string, Promise<void>>();
@@ -57,6 +58,9 @@ implements LeasableRateLimitAdapter, PrunableRateLimitAdapter {
     this.maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
     this.monotonicNow = options.monotonicNow ?? (() => performance.now());
     this.now = options.now ?? (() => new Date());
+    // Preserve optional maintenance instead of inventing a pruning capability.
+    const prunable = adapter as Partial<PrunableRateLimitAdapter>;
+    if (typeof prunable.prune === "function") this.prune = (options) => prunable.prune!(options);
 
     if (!Number.isInteger(this.maxEntries) || this.maxEntries <= 0) {
       throw new TypeError("maxEntries must be a positive integer.");
@@ -202,16 +206,6 @@ implements LeasableRateLimitAdapter, PrunableRateLimitAdapter {
     }
 
     return results;
-  }
-
-  public prune(options: RateLimitPruneOptions): Promise<number> {
-    const prunable = this.adapter as Partial<PrunableRateLimitAdapter>;
-
-    if (prunable.prune === undefined) {
-      throw new ThrottlingAdapterCapabilityError("bounded pruning");
-    }
-
-    return prunable.prune(options);
   }
 
   public allocateLeases(

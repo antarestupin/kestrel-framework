@@ -88,3 +88,20 @@ Manual handles do not renew automatically: keep work within the TTL or call `ext
 `LockProvider(config, adapter)` registers a `LockAdapterDefinition`. `postgresLocks(database)` and `memoryLocks(settings?)` are bundled. The declared `prune` capability must match the constructed interface; non-prunable adapters contribute no maintenance task.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+## Redis backend
+
+Select the backend explicitly in the application composition module:
+
+```ts
+import { LockProvider, redisLocks } from "@kestreljs/framework/lock";
+import { redisDependency } from "./providers/redis_provider.js";
+
+app.register(new LockProvider(app.config.lock, redisLocks(redisDependency, app.config.lock.adapter)));
+```
+
+Compose `redisLocksConfigBase` under the `adapter` contribution in the application lock configuration. It owns `keyPrefix`, defaulting to `kestrel:lock:`. Pass a connected native `@redis/client` client for standalone use with `new RedisLockAdapter(client, settings)`.
+
+The adapter supports atomic multi-lock acquisition and extension. Redis expires lease keys; no pruning task is registered. A separate, non-expiring sequence supplies distinct `bigint` fencing tokens, including values beyond JavaScript number precision. Never expire, reset or evict this sequence while protected resources can retain fencing state. Fractional TTLs round up to Redis's millisecond resolution.
+
+Use a primary with `noeviction` and an explicitly chosen persistence/failover policy. Lost Redis writes can invalidate mutual exclusion and roll fencing counters backward; this adapter does not provide a consensus guarantee or implement Redlock. A fencing token protects an external resource only when that resource rejects stale tokens. See the [implementation and guarantees](../implementation/lock.md#redis-adapter).

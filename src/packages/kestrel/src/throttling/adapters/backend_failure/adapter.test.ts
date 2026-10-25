@@ -66,7 +66,7 @@ describe("BackendFailureRateLimitAdapter", () => {
       { strategy: "emergency-local", capacity: 1, periodMs: 1_000 },
     );
 
-    await expect(adapter.prune({ limit: 10 })).rejects.toBe(backendError);
+    await expect(adapter.prune!({ limit: 10 })).rejects.toBe(backendError);
   });
 
   it("degrades atomic batches and inspection as one bounded local policy", async () => {

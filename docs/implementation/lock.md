@@ -304,3 +304,13 @@ The lock library owns typed `lock.acquisition`, `lock.extension` and `lock.relea
 `LockProvider(config, adapter)` registers a `LockAdapterDefinition`. `postgresLocks(database)` and `memoryLocks(settings?)` are bundled. The declared `prune` capability must match the constructed interface; non-prunable adapters contribute no maintenance task.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+## Redis adapter
+
+`RedisLockAdapter` implements `LockAdapter`, including atomic `tryAcquireMany()` and `extendMany()`. Its adapter directory contains the scripts, configuration, definition, tests and exports. `redisLocks(connection, settings)` uses the shared singleton provider-adapter lifecycle and borrows a native `@redis/client` client without connecting or closing it.
+
+Physical lease keys use `<keyPrefix>{locks}:lease:<base64url-qualified-key>`. `<keyPrefix>{locks}:sequence` is a persistent signed 64-bit Redis counter. Batch acquisition first validates every candidate, reserves the complete counter range with `INCRBY`, then writes the leases. Decimal string incrementing preserves tokens beyond Lua/JavaScript integer precision. Overflow fails before any lease is installed. Extension and release compare the owner inside Redis. Redis server time calculates expiration, and `SET ... PXAT` enforces native deadlines (Redis 6.2+).
+
+All keys in an atomic operation share a hash tag. This permits same-slot execution but concentrates one adapter prefix on one cluster shard; multi-shard atomic locks are not provided. A native cluster-client integration and its routing/failover behavior remain deferred and are not covered by the standalone Redis integration suite.
+
+The fencing sequence has no TTL and must survive release, lease expiration and pruning. Redis expiration therefore replaces lease pruning but never sequence retention. Single-primary isolation is the guarantee: asynchronous replication, eviction, resets or loss of persistence can admit overlapping owners or reuse a previous token after failover. Redlock and stronger failover guarantees are not implemented. See [Redis distributed-lock guarantees](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/).

@@ -211,11 +211,11 @@ flowchart LR
     Failure --> Denials["Denial-cache decorator<br/>bounded process-local coalescing"]
     Denials --> Exact["PostgreSQL backend<br/>authoritative application-wide state"]
     Manager --> Memory["Memory backend<br/>optional process-local composition"]
-    Failure -. future .-> Redis["Redis-compatible backend<br/>optional storage capability"]
+    Failure --> Redis["Redis-compatible backend<br/>optional storage capability"]
     Manager --> Events["Instrumentation and observations"]
 ```
 
-The manager owns policy semantics and local lifecycle state. Adapters own rate-state guarantees and storage operations. This boundary lets the simple API remain stable while exact, leased, memory or future Redis-compatible coordination use different storage mechanics.
+The manager owns policy semantics and local lifecycle state. Adapters own rate-state guarantees and storage operations. This boundary lets the simple API remain stable while exact, leased, memory or Redis coordination use different storage mechanics.
 
 ## Simple API
 
@@ -1156,7 +1156,7 @@ Policies describe behavior; adapters provide storage capabilities. The base impl
 - feedback persistence;
 - bounded pruning.
 
-The in-memory adapter provides deterministic process-local behavior and focused tests. The standard distributed adapter uses PostgreSQL. A specialized Redis-compatible adapter can implement the same capabilities when the required throughput or isolation justifies another infrastructure dependency.
+The in-memory adapter provides deterministic process-local behavior and focused tests. The standard distributed adapter uses PostgreSQL. The bundled Redis adapter implements exact and leased rate coordination using the same public contract.
 
 ### PostgreSQL
 
@@ -1182,7 +1182,7 @@ A Redis-compatible store is a natural optional backend for high-frequency centra
 
 It is not an automatically stronger guarantee. Persistence, asynchronous replication, failover and eviction configuration determine whether recent quota state can be lost. The adapter must advertise the guarantee it can actually provide and apply the same conservative restart or failure policy as PostgreSQL when state durability is weaker than the definition requires.
 
-The first implementation should not require Redis solely for throttling. PostgreSQL exact coordination establishes correctness for low and moderate rates, and leased coordination supplies the standard high-frequency fast path. A Redis-compatible adapter becomes a prioritized evolution when measurements show persistent PostgreSQL contention, the application already operates such a datastore, or centralized per-admission decisions are a hard requirement.
+The first implementation should not require Redis solely for throttling. PostgreSQL exact coordination establishes correctness for low and moderate rates, and leased coordination supplies the standard high-frequency fast path. Select `redisThrottling()` when measurements show persistent PostgreSQL contention, the application already operates Redis, or centralized per-admission decisions justify it.
 
 ## Dependency feedback and adaptive control
 
@@ -1464,14 +1464,14 @@ Core policies receive injected wall clocks, monotonic clocks, sleep functions, r
 
 Focused tests should cover boundary bursts, concurrent acquisition, cancellation, wait deadlines, cost debt, duplicate completion, compensation, adapter failures, lease expiration, clock skew avoidance and worker head-of-line behavior. Configuration-only `defineConfig` files do not require tests.
 
-Storage strategy tests should additionally cover progressive lease thresholds, concurrent refresh coalescing, denial caching, reset boundaries, conservative recovery after lost ephemeral state and identical public guarantees across PostgreSQL and future Redis-compatible adapters.
+Storage strategy tests should additionally cover progressive lease thresholds, concurrent refresh coalescing, denial caching, reset boundaries, conservative recovery after lost ephemeral state and identical public guarantees across PostgreSQL and Redis adapters.
 
 ## Potential evolutions
 
 The following capabilities are deliberately kept for later phases:
 
 - automatic provider quota discovery and header-specific connectors;
-- a Redis-compatible distributed adapter when measured load justifies it;
+- measured tuning and cluster-aware routing for the Redis distributed adapter;
 - fair sharing and criticality tiers between tenants or workloads;
 - monthly monetary budgets and other long-horizon policies;
 - heavy-hitter or hot-key detection;
@@ -1488,3 +1488,15 @@ These evolutions should extend the same definition, permit and instrumentation c
 ## Adapter definition lifecycle
 
 This feature uses the [shared adapter definition lifecycle](./app.md#adapter-definitions-and-resource-ownership). Backend helpers and configuration schemas live with each adapter. See [application composition and migration](../usage/configuration.md#configure-providers-and-their-backends).
+
+## Redis adapter
+
+`RedisRateLimitAdapter` implements exact reservations, atomic batch reservation, reconciliation, inspection and the `LeasableRateLimitAdapter` contract. `redisThrottling(connection, settings)` composes the same denial-cache, backend-failure and leased decorators as PostgreSQL and advertises `prune: false`. These decorators now expose pruning only when their wrapped adapter implements it; existing PostgreSQL maintenance remains available.
+
+Each `<keyPrefix>{throttling}:<base64url-qualified-key>` stores a versioned bucket and its outstanding grants. Fixed Lua scripts receive all accessed keys explicitly. They read and validate the full batch, project refill using Redis time, stage the decision and only then apply writes. Rejected reservations do not consume other dimensions. Replenishment may commit refunds even when the new grant is denied, matching the PostgreSQL contract. Lease IDs make returns idempotent; expired grants cannot be refunded. Guard bands and the outstanding-unit bound select exact admission near exhaustion.
+
+Arithmetic state and returned amounts use round-trippable decimal strings because Redis cjson would otherwise round doubles to fourteen significant digits. Application retry deadlines are projected from server-calculated durations. Local lease deadlines additionally subtract the full command round trip, so server/application clock skew cannot lengthen ownership. Every bucket's native expiry covers both its full-refill deadline and all live grants. Leases are embedded in the expiring bucket, so there are no detached indexes requiring a pruning worker. Redis 6.2+ is required for `PXAT`.
+
+All dimensions use one hash tag per adapter key prefix. Cluster-aware routing and sharded coordination remain deferred; the integration suite exercises standalone Redis. Circuit breakers, concurrency gates and resource pressure stay local to `ThrottlingManager`; the storage adapter does not silently distribute them. Scripts are isolated but do not supply SQL rollback or cross-store transactions. Infrastructure failures are normalized to `ThrottlingBackendUnavailableError`, and ambiguous mutations are never retried by the adapter.
+
+Choose `noeviction`, bounded command waits and an explicit persistence/failover policy. Losing live state may restore capacity or forget outstanding grants. Strict durable budgets may require retaining the PostgreSQL backend. See [Redis eviction](https://redis.io/docs/latest/develop/reference/eviction/) and [Lua execution](https://redis.io/docs/latest/develop/programmability/eval-intro/).

@@ -159,3 +159,30 @@ The following factories are public recipes, not eagerly created resources. Each 
 For token configurations without a storage strategy, pass `undefined` as the adapter and `{ stored: false, strategies }` as options. Backend settings remain application contributions; a provider's common schema does not enumerate backend names. Application code may select a factory by deployment environment after configuration has been resolved.
 
 `PostgresDrizzleProvider(config.database, { schema })` explicitly installs PostgreSQL and Drizzle infrastructure. Its optional `createDatabase(pool)` factory supports more specific facade construction. Other database engines or ORMs require their own providers and compatible feature adapters; sharing the same SQL engine does not make ORM interfaces interchangeable.
+
+
+## Redis backends across providers
+
+The Redis factories keep connection descriptors separate from backend settings, following the same convention as `redisCache()`. Compose `redisThrottlingConfigBase`, `redisLocksConfigBase` and `redisTokensConfigBase` under each feature's `adapter` contribution; use `redisSessionsConfigBase` under `authentication.adapter.sessions` when combining PostgreSQL accounts with Redis sessions.
+
+```ts
+// Application composition: select each backend explicitly.
+app
+  .register(new RedisProvider(app.config.redis))
+  .register(new ThrottlingProvider(app.config.throttling, redisThrottling(redisDependency, app.config.throttling.adapter)))
+  .register(new LockProvider(app.config.lock, redisLocks(redisDependency, app.config.lock.adapter)))
+  .register(new TokenProvider(app.config.tokens, redisTokens(redisDependency, app.config.tokens.adapter)))
+  .register(new AuthenticationProvider(
+    app.config.authentication,
+    withAuthenticationSessions(
+      postgresAuthentication(databaseManagerDependency),
+      redisSessions(redisDependency, app.config.authentication.adapter.sessions),
+    ),
+    authenticationDefinition,
+    passwordHasher,
+  ));
+```
+
+Every Redis backend schema owns its non-empty `keyPrefix`; credentials and connection policy remain in application infrastructure. Native node-redis clients provide the `eval()` method used directly by these four adapters. The generated `RedisProvider` exposes its native client, connects during standard boot, skips resolution during minimal boot and closes the owned connection during application disposal. Adapter definitions do not connect or close it. Existing applications using a command-only Redis wrapper must expose a connected native client before selecting these adapters. There is no shared Redis abstraction layer or backend registry.
+
+See [throttling](./throttling.md#redis-backend), [locks](./lock.md#redis-backend), [tokens](./tokens.md#redis-backend) and [authentication sessions](./authentication.md#redis-sessions-with-postgresql-accounts) for guarantees and retention differences. Generated application CLI choices remain cache-specific; installing these additional providers is currently an explicit application composition step.

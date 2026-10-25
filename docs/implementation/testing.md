@@ -86,3 +86,8 @@ Here are some specific rules gathered over time:
 - Don't test configuration files
 
 The repository Compose services use dedicated host ports 55432 (PostgreSQL) and 56379 (Redis). See [infrastructure setup](../contributing.md#integration-test-infrastructure). PostgreSQL and Redis helpers are repository test infrastructure and are excluded from the runtime archive; the HTTP policy fixture has an explicit testing subpath.
+
+
+### Additional Redis adapter suites
+
+Locks, throttling, tokens and authentication sessions use the same `createRedisTestContext()` fixture as the cache, dedicated database 2, unique per-test prefixes and deterministic resource disposal. Their suites are explicitly assigned to the integration project in `vitest.config.ts` and run through `npm run test:ai`. Redis must be 7.4+ for session hash-field expiration; the development service uses Redis 8. Tests cover independent clients, concurrent ownership/consumption, atomic batches, fencing precision, actual-cost debt, lease returns, retained token pruning, session index expiration and Fastify-injected authentication with Redis sessions. Unit suites cover adapter selection, minimal boot, optional pruning, scoped composition and cleanup failures without starting HTTP listeners.

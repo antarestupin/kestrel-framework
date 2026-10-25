@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { installRedisBootFixture } from "./release/redis-fixture.mjs";
 
 // Resolve every dependency from an independently installed application, never this workspace.
 const application = process.argv[2];
@@ -111,8 +112,8 @@ for (const atlasEnabled of hasAtlas ? [false, true] : [false]) {
     import assert from "node:assert/strict";
     import app from "./dist/server/core/app.js";
     import { httpRuntimeDependency } from "@kestreljs/framework/http";
-    // A configured Redis cache must not connect while serving routes that never use it.
-    app.container.registerFactory("redisCacheConnection", () => { throw new Error("Redis must remain lazy."); });
+    // RedisProvider boots its native client; these routes must not issue storage commands.
+    const redisFixture = (${installRedisBootFixture.toString()})(app);
     const runtime = app.container.resolve(httpRuntimeDependency);
     try {
       const document = await runtime.server.inject("/");
@@ -151,6 +152,7 @@ for (const atlasEnabled of hasAtlas ? [false, true] : [false]) {
     } finally {
       try { await runtime.stop(); } finally { await app.dispose(); }
     }
+    redisFixture.verify();
   `], {
     cwd: application, encoding: "utf8",
     env: {

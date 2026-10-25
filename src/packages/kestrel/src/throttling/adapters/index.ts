@@ -22,3 +22,5 @@ export {
 export { postgresThrottlingConfigBase, type PostgresThrottlingConfig } from "./postgres/index.js";
 export { postgresThrottling } from "./postgres/index.js";
 export { memoryThrottling } from "./memory/index.js";
+
+export * from "./redis/index.js";

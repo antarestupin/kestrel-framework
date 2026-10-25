@@ -4,6 +4,7 @@ import { access, writeFile, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { run } from "./release/common.mjs";
+import { installRedisBootFixture } from "./release/redis-fixture.mjs";
 
 const directory = resolve(process.argv[2]);
 // All imports below resolve from the isolated deployment, which has no source checkout.
@@ -43,6 +44,8 @@ try {
     import assert from "node:assert/strict";
     import app from "./dist/server/core/app.js";
     import { httpRuntimeDependency } from "@kestreljs/framework/http";
+    // Exercise native-client boot and disposal while keeping browser checks Redis-independent.
+    const redisFixture = (${installRedisBootFixture.toString()})(app);
     const runtime = app.container.resolve(httpRuntimeDependency);
     try {
       const response = await runtime.server.inject("/api/greet?name=Production");
@@ -61,6 +64,7 @@ try {
         }
       }
     } finally { try { await runtime.stop(); } finally { await app.dispose(); } }
+    redisFixture.verify();
   `], { cwd: directory, env });
 } finally {
   try { if (created) await maintenance.query(`DROP DATABASE "${database}"`); }

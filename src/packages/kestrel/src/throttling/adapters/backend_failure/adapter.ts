@@ -6,6 +6,7 @@ import {
 import type {
   LeasableRateLimitAdapter,
   PrunableRateLimitAdapter,
+  RateLimitAdapter,
   RateLimitBatchReservationResult,
   RateLimitInspectionResult,
   RateLimitLeaseBatchResult,
@@ -24,18 +25,20 @@ export interface BackendFailureRateLimitAdapterOptions {
 }
 
 /** Applies an explicit bounded policy when authoritative storage fails. */
-export class BackendFailureRateLimitAdapter implements
-  LeasableRateLimitAdapter,
-  PrunableRateLimitAdapter {
+export class BackendFailureRateLimitAdapter implements LeasableRateLimitAdapter {
+  public readonly prune?: (options: RateLimitPruneOptions) => Promise<number>;
   private readonly fallback: MemoryRateLimitAdapter;
 
   public constructor(
-    private readonly authoritative: PrunableRateLimitAdapter,
+    private readonly authoritative: RateLimitAdapter,
     private readonly policy: ThrottlingBackendFailurePolicy,
     options: BackendFailureRateLimitAdapterOptions = {},
   ) {
     validatePolicy(policy);
     this.fallback = options.fallback ?? new MemoryRateLimitAdapter();
+    // Native-expiring backends do not contribute maintenance work.
+    const prunable = authoritative as Partial<PrunableRateLimitAdapter>;
+    if (typeof prunable.prune === "function") this.prune = (options) => prunable.prune!(options);
   }
 
   public async reserve(
@@ -224,11 +227,6 @@ export class BackendFailureRateLimitAdapter implements
 
   public close(): Promise<void> {
     return this.authoritative.close?.() ?? Promise.resolve();
-  }
-
-  /** Maintenance remains authoritative and never silently degrades. */
-  public prune(options: RateLimitPruneOptions): Promise<number> {
-    return this.authoritative.prune(options);
   }
 
   private createFallbackRequest(
