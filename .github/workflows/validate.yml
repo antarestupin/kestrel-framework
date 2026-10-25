@@ -70,7 +70,7 @@ jobs:
           path: artifacts/candidate
       # Verification scripts use Node built-ins; only isolated consumers install dependencies.
       - if: matrix.selection != 'package'
-        # Generated tests keep Redis lazy; production migrations require only PostgreSQL.
+        # Generated HTTP tests inject Redis clients; production migrations require only PostgreSQL.
         run: npm run infra:up -- postgres
       - run: npm run release:consumer -- artifacts/candidate ${{ matrix.selection }}
       - uses: actions/upload-artifact@v4

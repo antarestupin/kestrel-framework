@@ -1,4 +1,4 @@
-import { access, mkdtemp, mkdir, readFile, readdir, stat, writeFile, rm } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, readdir, stat, symlink, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -279,6 +279,24 @@ it.each([
     }
   });
 });
+
+it.each([false, true])("runs generated Redis greeting tests without infrastructure (Atlas: %s)", async (atlas) => {
+  await withFixture(async ({ target, archive }) => {
+    const generated = create(target, archive, "--cache", "redis", atlas ? "--atlas" : "--no-atlas", "--yes");
+    expect(generated.status, generated.stderr).toBe(0);
+    // Reuse audited workspace dependencies; the generated test still loads its own application.
+    await symlink(fileURLToPath(new URL("../../../node_modules/", import.meta.url)), join(target, "node_modules"), "dir");
+    const result = spawnSync(process.execPath, [
+      fileURLToPath(new URL("../../../node_modules/vitest/vitest.mjs", import.meta.url)),
+      "run", "src/server/example/greet.test.ts", "--reporter=minimal", "--no-isolate",
+    ], {
+      cwd: target, encoding: "utf8", timeout: 20_000,
+      // An unreachable URL prevents local infrastructure from hiding a missing test override.
+      env: { ...process.env, ENVIRONMENT: "test", REDIS_URL: "redis://127.0.0.1:1/2" },
+    });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+  });
+}, 30_000);
 
 it.each([[], ["--yes"]])("uses PostgreSQL and Atlas defaults without prompts: %j", async (...arguments_: string[]) => {
   await withFixture(async ({ target, archive }) => {

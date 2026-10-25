@@ -32,6 +32,8 @@ The helpers stay below `src/packages/kestrel/src/testing` so Kestrel tests never
 
 Tests must remain compatible with Vitest's `--no-isolate` mode. Mutable global state, fake timers, event listeners, dependency overrides and resources must be restored explicitly.
 
+The starter's generated greeting tests exercise the composed application through Fastify injection. Redis variants replace the native `redisDependency` registration before resolving the HTTP runtime, preserving standard provider boot and application disposal without opening a Redis socket. Cleanup asserts one connection and one destruction, and rejects any Redis command use, including errors swallowed by cache fail-open behavior. Real Redis behavior remains covered by the framework integration suites; greeting tests must acquire a storage fixture if the example later uses storage. Atlas selection does not change this isolation.
+
 ## Execution scenario
 
 ```mermaid

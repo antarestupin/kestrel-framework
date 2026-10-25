@@ -19,6 +19,32 @@ export default class RedisGenerator extends Generator {
       'import { PostgresDrizzleProvider } from "./providers/database_provider.js";\nimport { RedisProvider } from "./providers/redis_provider.js";');
     replaceSource(this, "src/server/core/app.ts", "  .register(new PostgresDrizzleProvider(app.config.database, environment))",
       "  .register(new PostgresDrizzleProvider(app.config.database, environment))\n  .register(new RedisProvider(app.config.redis))");
+    // HTTP contract tests exercise standard boot while replacing only the native Redis connection.
+    replaceSource(this, "src/server/example/greet.test.ts", 'import { afterAll, expect, it } from "vitest";',
+      'import { afterAll, expect, it, vi } from "vitest";');
+    replaceSource(this, "src/server/example/greet.test.ts", 'import app from "../core/app.js";',
+      `import app from "../core/app.js";
+import { redisDependency } from "../core/providers/redis_provider.js";
+
+// Greeting requests do not use storage; keep provider boot and disposal without a Redis server.
+const redis = {
+  isOpen: false,
+  connect: vi.fn(async () => { redis.isOpen = true; }),
+  destroy: vi.fn(() => { redis.isOpen = false; }),
+  sendCommand: vi.fn(async () => { throw new Error("Greeting tests must not execute Redis commands."); }),
+  eval: vi.fn(async () => { throw new Error("Greeting tests must not execute Redis commands."); }),
+};
+app.container.registerFactory(redisDependency.id, () => redis, {
+  lifetime: "singleton",
+  dispose: (client) => { if (client.isOpen) client.destroy(); },
+});`);
+    replaceSource(this, "src/server/example/greet.test.ts", "    await app.dispose();",
+      `    await app.dispose();
+    // Standard boot and application cleanup must still own the injected connection.
+    expect(redis.connect).toHaveBeenCalledOnce();
+    expect(redis.destroy).toHaveBeenCalledOnce();
+    expect(redis.sendCommand).not.toHaveBeenCalled();
+    expect(redis.eval).not.toHaveBeenCalled();`);
     const manifestPath = this.destinationPath("package.json");
     const manifest = this.fs.readJSON(manifestPath);
     manifest.dependencies["@redis/client"] = "^6.2.1";

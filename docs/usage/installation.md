@@ -44,7 +44,7 @@ npm run dev
 
 `infra:up` starts PostgreSQL, Drizzle Studio, and the selected optional Redis services. `db:dev:migrate` applies application migrations and prepares development-only tables used by Studio. Open the application URL printed by the server, and visit `/_studio` on the same origin for Studio. Stop the development process when finished and run `npm run infra:down` to stop its services while keeping their data. If you supply your own database instead, configure the generated `.env` using `.env.example`.
 
-Run `npm run build:ai` and `npm run test:ai` inside the generated application to build and test it. Its database migrations live in `src/server/core/db/migrations/`; use `npm run db:generate` and `npm run db:migrate` when preparing and applying deployment migrations. The generated README describes configuration, commands, and local database reset boundaries.
+Run `npm run build:ai` and `npm run test:ai` inside the generated application to build and test it. The greeting HTTP tests use Fastify injection; Redis variants inject a test connection and verify its lifecycle without requiring a Redis server. Normal application startup still requires the configured Redis service. Its database migrations live in `src/server/core/db/migrations/`; use `npm run db:generate` and `npm run db:migrate` when preparing and applying deployment migrations. The generated README describes configuration, commands, and local database reset boundaries.
 
 ## Choose the cache backend
 
