@@ -51,7 +51,10 @@ export default {
         { label: 'Get started', to: '/docs/usage/installation' },
         { label: 'Guides', to: '/docs/usage/' },
         { label: 'Advanced', to: '/docs/implementation/' },
-      ] }],
+      ] }, {
+        // Keep publisher and privacy information reachable from every page.
+        title: 'Legal', items: [{ label: 'Legal notice & privacy', to: '/legal/' }],
+      }],
       copyright: 'Kestrel — a modular application framework.',
     },
     prism: {
