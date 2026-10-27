@@ -144,6 +144,8 @@ Use the corresponding library guide for its required exports: [cache](./cache.md
 
 For development-only tables managed by Drizzle Push, call `applyDatabaseSchemaContributions(localSchema, executeSql)` after Push completes, where `executeSql` is an application-supplied async SQL executor. This replays installation SQL and stops on the first failure; it does not calculate removal diffs. Only use replay-safe contributions on this path. Keep Push exports and `tablesFilter` strictly aligned; see the [development storage reference](../implementation/database.md).
 
+For descriptions declared with `defineDatabaseSchemaDescription()` and `defineDatabaseTableDescriptions()`, generated migrations touch only added, edited or removed comments. Adding a described column does not clear or rewrite the other comments on its table. Editing a description emits one direct `COMMENT ON`; removing it emits `COMMENT ON ... IS NULL` before any DDL that could drop or rename the object. Existing grouped snapshots remain compatible and historical migrations are preserved. See [database descriptions](../implementation/database.md#database-descriptions) for details; local Push contribution replay continues installing all declared comments.
+
 ## Create a repository-backed action
 
 Use a repository and a model action helper for conventional record creation. This example maps a contact table to a validated action that returns the created record.

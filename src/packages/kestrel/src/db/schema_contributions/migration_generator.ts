@@ -11,6 +11,7 @@ import {
   getDatabaseSchemaContributions,
   type DatabaseSchemaContribution,
 } from "./definition.js";
+import { createDescriptionUpdatePlan, descriptionContributionsEqual } from "./description_diff.js";
 
 interface DrizzleJournal {
   readonly entries: readonly DrizzleJournalEntry[];
@@ -154,6 +155,13 @@ export function createMigrationSqlPlan(
 ): MigrationSqlPlan {
   const previousById = new Map(previous.map((item) => [item.id, item]));
   const currentById = new Map(current.map((item) => [item.id, item]));
+  // Description bundles keep their historical ids, but diff each target separately.
+  // Do not change cleanup semantics for functions, triggers or arbitrary custom SQL.
+  const descriptionPlans = new Map(previous.flatMap((oldContribution) => {
+    const newContribution = currentById.get(oldContribution.id);
+    const plan = newContribution === undefined ? undefined : createDescriptionUpdatePlan(oldContribution, newContribution);
+    return plan === undefined ? [] : [[oldContribution.id, plan] as const];
+  }));
   const replacedOrRemoved = previous.filter((oldContribution) => {
     const newContribution = currentById.get(oldContribution.id);
     return newContribution === undefined
@@ -166,18 +174,20 @@ export function createMigrationSqlPlan(
   });
 
   return {
-    before: replacedOrRemoved.flatMap(({ uninstallBeforeSql }) =>
-      uninstallBeforeSql === undefined ? [] : [uninstallBeforeSql]
+    before: replacedOrRemoved.flatMap(({ id, uninstallBeforeSql }) =>
+      descriptionPlans.get(id)?.before ?? (uninstallBeforeSql === undefined ? [] : [uninstallBeforeSql])
     ),
     after: [
-      ...replacedOrRemoved.flatMap(({ uninstallAfterSql }) =>
-        uninstallAfterSql === undefined ? [] : [uninstallAfterSql]
+      ...replacedOrRemoved.flatMap(({ id, uninstallAfterSql }) =>
+        descriptionPlans.has(id) || uninstallAfterSql === undefined ? [] : [uninstallAfterSql]
       ),
-      ...addedOrReplaced.map((contribution) => {
+      ...addedOrReplaced.flatMap((contribution) => {
+        const descriptionPlan = descriptionPlans.get(contribution.id);
+        if (descriptionPlan !== undefined) return descriptionPlan.after;
         const existed = previousById.has(contribution.id);
-        return existed
+        return [existed
           ? contribution.updateSql ?? contribution.installSql
-          : contribution.installSql;
+          : contribution.installSql];
       }),
     ],
   };
@@ -334,7 +344,8 @@ function contributionCollectionsEqual(
   right: readonly DatabaseSchemaContribution[],
 ): boolean {
   return left.length === right.length
-    && left.every((item, index) => contributionsEqual(item, right[index]!));
+    && left.every((item, index) => contributionsEqual(item, right[index]!)
+      || descriptionContributionsEqual(item, right[index]!));
 }
 
 function hasCustomFlag(arguments_: readonly string[]): boolean {
