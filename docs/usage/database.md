@@ -38,7 +38,7 @@ const config = configuration.resolveConfig({
 const app = new App(config).register(new PostgresDrizzleProvider(config.database));
 ```
 
-The provider owns pool disposal. Pass `{ schema }` or a typed `{ createDatabase: (pool) => drizzle(pool, { schema }) }` constructor option to attach the application schema. Ordinary repositories only need the scoped `databaseManager` registration.
+The provider owns pool disposal. Pass `{ schema }` or a typed `{ schema, createDatabase: (pool) => drizzle(pool, { schema }) }` constructor option to attach the application schema. Ordinary repositories only need the scoped `databaseManager` registration.
 
 ## Pool budgets, failures and recovery
 
@@ -224,6 +224,73 @@ const createPair = defineAction({
 
 Thrown failures, including output validation failures, roll back the transaction. Code that needs an explicit boundary can call `PostgresDrizzleManager.transaction(callback)`.
 
+## Maintain a reference counter
+
+Use `defineReferenceCounter()` to maintain an exact, synchronous count of referencing rows. Declare the destination column normally in Drizzle, then attach the counter definition to the source table. An optional SQL predicate selects the source rows that contribute.
+
+```ts
+import { and, eq, isNull } from "drizzle-orm";
+import { index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { defineReferenceCounter } from "@kestreljs/framework/db";
+
+export const debate = pgTable("debate", {
+  id: uuid("id").primaryKey(),
+  commentsCount: integer("comments_count").notNull().default(0),
+});
+
+export const comment = pgTable("comment", {
+  id: uuid("id").primaryKey(),
+  debateId: uuid("debate_id").references(() => debate.id, { onDelete: "cascade" }),
+  status: text("status").notNull(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+}, (table) => [index("comment_debate_id_idx").on(table.debateId)]);
+
+// Use only the callback's columns so Kestrel can evaluate OLD and NEW rows.
+export const debateCommentsCounter = defineReferenceCounter(comment, {
+  id: "debate.comments-count",
+  reference: comment.debateId,
+  target: debate.id,
+  counter: debate.commentsCount,
+  where: (row) => and(eq(row.status, "published"), isNull(row.deletedAt)),
+});
+```
+
+Export both tables through the migration schema and pass those same schema exports to `new PostgresDrizzleProvider(config.database, { schema })`. When supplying a custom `createDatabase` factory, also supply `schema` for counter discovery. No separate counter registry or application CLI handler is needed: the provider contributes `database counter rebuild` and resolves its database dependency through the App. Help remains connection-free.
+
+Generate migrations through the [Kestrel migration generator](#install-library-schemas). The contribution installs the trigger functions, handles their replacement and removal, and performs no initial scan. Inserts, deletes, changes of reference and changes of filter membership update the count within the source transaction. Nullable references and SQL predicates evaluating to null contribute zero. Updates that preserve the same contribution do not write the destination. Foreign-key cascades are supported, including deletion of the destination itself. Target keys are immutable while a counter is installed; a generated trigger rejects changes.
+
+Use a single-column primary key of type UUID, text/varchar or integer/smallint/bigint, with a matching declared foreign key on the source table. Each counter owns one destination column on another table. That column must be a NOT NULL integer or bigint with a literal zero default and no generated or application update/default functions. Choose bigint when the count can exceed PostgreSQL integer capacity. Give every counter a stable, unique id; changing the id creates a different contribution. The helper does not create an index: declare a source-reference index, optionally a partial index matching the filter, to support efficient counting.
+
+Filters are trusted schema definitions, compiled to SQL literals at declaration time. Use a pure callback that depends only on its supplied source columns and stable constants. Placeholders, joins, subqueries, time-dependent expressions and dependencies on other rows are unsupported. Schema-qualify any custom SQL functions; generated trigger functions use a fixed `pg_catalog` search path. Changing the filter or the relation requires a new migration followed by a complete rebuild.
+
+### Initialize or rebuild in batches
+
+Use the same command to initialize an existing database or repair stored values:
+
+```sh
+./do database counter rebuild --id=debate.comments-count
+./do database counter rebuild --id=debate.comments-count --batch-size=100 --pause-ms=50
+# Resume strictly after the last committed target key reported by an earlier run.
+./do database counter rebuild --id=debate.comments-count --after=019abcde-1234-7000-8000-000000000042
+```
+
+| Option | Contract |
+| --- | --- |
+| `--id` | Required stable counter id, discovered from the provider's schema exports. |
+| `--batch-size` | Target rows per transaction; defaults to 100, range 1–10000. |
+| `--pause-ms` | Pause between batches; defaults to 50, range 0–60000. |
+| `--after` | Exclusive target key in its PostgreSQL text representation. Omit for a complete rebuild. |
+
+The command traverses target keys in database order, counts with the declared filter and updates only incorrect counters, including resetting empty counts to zero. Each batch locks only its target rows and owns a separate READ COMMITTED transaction. Small batches limit simultaneous locks and transaction size; one target with many source rows can still take significant time. The command is available in every environment selected by the application, including production.
+
+After each successful COMMIT, stderr reports cumulative processed and updated target counts plus the resume cursor. Final stdout contains `{ id, processed, updated, cursor, completed }`; use `--_format=json` for machine-readable output. No checkpoint is stored. SIGINT/SIGTERM requests cooperative cancellation: the current batch settles, its committed progress is reported, and the command returns `completed: false`. Cancellation does not forcibly cancel an in-flight database statement; native database timeouts still apply. An interrupted, orderly run returns exit code 0 with `completed: false`; unexpected failures return nonzero, and unknown counter ids return 2. On failure, resume from the last reported committed cursor. Replaying a committed batch is safe. Do not skip ahead or reuse a cursor after changing the counter definition.
+
+For an existing database, install the column and triggers, run a complete initialization, then enable application reads of the counter. Values are provisional until initialization completes and can temporarily be negative if existing source rows are deleted before their target is initialized; do not impose a nonnegative constraint during that interval. A fresh, empty database starts with correct zero counters. New target rows must retain the zero default, and applications must not write counter columns themselves. Initialization readiness belongs to the deployment/application; Kestrel does not persist a readiness flag.
+
+`TRUNCATE` of the source alone, disabled triggers and writes bypassing ordinary PostgreSQL trigger execution are unsupported; rebuild before trusting affected counts again. Composite keys, self-references, deferred foreign keys, row-level-security policies hiding relevant rows and partitioned source/target tables are outside this first version. The executing role must be able to read all relevant rows and update the destination. Direct source operations run the trigger with the caller's privileges.
+
+For programmatic maintenance, the provider registers `ReferenceCounterMaintenance` as `referenceCounterMaintenance`. Its `rebuild(id, options)` accepts `batchSize`, `pauseMs`, `after`, `signal` and an awaited `onProgress` callback. It owns independent transactions and must not be called from a transaction already holding locks needed by the rebuild. See [implementation and deferred evolutions](../implementation/database.md#reference-counters).
+
 ## Track row history
 
 Add a history table when an application needs to retain changes to a source record. Include it in migrations alongside the source table before recording audited writes. Use the [Kestrel migration generator](#install-library-schemas) so the history table's functions and triggers are installed along with its Drizzle table.
@@ -249,6 +316,6 @@ For descriptions, custom SQL contributions, migration generation, seeding and lo
 
 ## Explicit provider adapters
 
-`PostgresDrizzleProvider` names the actual PostgreSQL/Drizzle boundary. `PostgresDrizzleConfig`, `postgresDrizzleConfigBase`, `PostgresDrizzleClient` and `PostgresDrizzleManager` are explicit public names. Supply `{ schema }` or `{ createDatabase: (pool) => drizzle(pool, { schema }) }` as constructor options. Application subclasses are only needed for additional composition such as maintenance. A TypeORM integration requires its own infrastructure provider and compatible feature adapters.
+`PostgresDrizzleProvider` names the actual PostgreSQL/Drizzle boundary. `PostgresDrizzleConfig`, `postgresDrizzleConfigBase`, `PostgresDrizzleClient` and `PostgresDrizzleManager` are explicit public names. Supply `{ schema }` or `{ schema, createDatabase: (pool) => drizzle(pool, { schema }) }` as constructor options. Application subclasses are only needed for additional composition such as maintenance. A TypeORM integration requires its own infrastructure provider and compatible feature adapters.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

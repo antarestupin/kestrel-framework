@@ -181,6 +181,7 @@ export class CliCommandManager<Config> {
                     input,
                     deps: dependencies,
                     execution,
+                    writeProgress: (message) => this.writeError(`${message}\n`),
                   })
                 : await this.runActionController(
                     controller,
@@ -517,6 +518,7 @@ export class CliCommandManager<Config> {
           input: input_,
           deps: dependencies,
           execution,
+          writeProgress: (message) => this.writeError(`${message}\n`),
         });
   }
 

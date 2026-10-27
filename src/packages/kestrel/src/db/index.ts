@@ -40,6 +40,17 @@ export {
 export { utilsSchema } from "./utils_schema.js";
 export { devSchema } from "./dev_schema.js";
 export {
+  defineReferenceCounter,
+  getReferenceCounterDefinitions,
+  ReferenceCounterMaintenance,
+  referenceCounterCliControllers,
+  type ReferenceCounterDefinition,
+  type ReferenceCounterOptions,
+  type ReferenceCounterProgress,
+  type ReferenceCounterRebuildOptions,
+  type ReferenceCounterRebuildResult,
+} from "./reference_counter/index.js";
+export {
   postgresDrizzleConfigBase,
   type PostgresDrizzleConfig,
 } from "./configuration.js";

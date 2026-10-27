@@ -37,7 +37,7 @@ export default new App({}, {
 });
 ```
 
-Unbound fields become `--<field>` options. Positional indexes start at zero and must be contiguous. Use `z.coerce.number()` for numeric strings and `repeatableOption()` for repeated options. A custom handler receives `{ input, deps, execution }`, plus `action` on action controllers.
+Unbound fields become `--<field>` options. Positional indexes start at zero and must be contiguous. Use `z.coerce.number()` for numeric strings and `repeatableOption()` for repeated options. A custom handler receives `{ input, deps, execution, writeProgress }`, plus `action` on action controllers. Call `writeProgress?.("message")` to emit diagnostic progress to stderr while keeping the final result on stdout, including in JSON mode.
 
 ## Launch the application
 
@@ -51,6 +51,8 @@ node_modules/.bin/tsx --import zod/compile node_modules/@kestreljs/framework/dis
 ```
 
 An application's `./do` wrapper can supply its module path once. Runtime providers add `run server`, `run workers`, `run scheduled-tasks`, `run workflows` or `run background` commands; only registered providers contribute their commands.
+
+`PostgresDrizzleProvider` contributes `database counter rebuild --id=<counter-id>` for [reference counter maintenance](./database.md#initialize-or-rebuild-in-batches), with `--batch-size`, `--pause-ms` and `--after` options. Counter discovery uses the provider's schema exports; no application-specific command or database-manager argument is needed.
 
 ## Control output and errors
 

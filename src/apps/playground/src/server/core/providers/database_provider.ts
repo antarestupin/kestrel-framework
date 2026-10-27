@@ -29,7 +29,7 @@ export class PostgresDrizzleProvider extends BaseDatabaseProvider<AppConfig, App
     config: PostgresDrizzleConfig,
     private readonly environment: Environment,
   ) {
-    super(config, { createDatabase: (pool) => drizzle(pool, { schema }) });
+    super(config, { schema, createDatabase: (pool) => drizzle(pool, { schema }) });
   }
 
   protected override registerExtensions(app: ProviderCompositionApp<AppConfig>): void {

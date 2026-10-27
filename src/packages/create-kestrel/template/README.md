@@ -21,6 +21,7 @@ The starter home page lives in `src/client/src/main.tsx`, with responsive styles
 | `npm run db:generate` | Generate migrations with Kestrel schema contributions. |
 | `npm run db:check` | Validate the migration journal and snapshots. |
 | `npm run db:migrate` | Run `database migrate` through the application provider. |
+| `./do database counter rebuild --id=<counter-id>` | Rebuild a declared reference counter; use `--after` to resume. |
 | `npm run db:dev:migrate` | Migrate application tables, push local tables, and install their schema contributions. |
 | `npm run infra:up` | Build and start PostgreSQL, Drizzle Studio, and selected optional services. |
 | `npm run dev:database` | Run Drizzle Studio on the host when its Compose service is stopped. |

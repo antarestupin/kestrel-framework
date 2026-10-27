@@ -11,6 +11,9 @@ import {
   recordDatabaseQueryInstrumentation,
 } from "./observations.js";
 import { instrumentDrizzleDatabase, instrumentPostgresPool } from "./query_instrumentation.js";
+import { getReferenceCounterDefinitions } from "./reference_counter/definition.js";
+import { ReferenceCounterMaintenance } from "./reference_counter/maintenance.js";
+import { referenceCounterCliControllers } from "./reference_counter/cli.js";
 
 export interface PostgresDrizzleClient<Database extends NodePgDatabase<any> = NodePgDatabase<any>> {
   readonly database: Database;
@@ -25,6 +28,7 @@ export interface PostgresDrizzleClient<Database extends NodePgDatabase<any> = No
 export interface PostgresDrizzleProviderOptions<Database> {
   /** Sanitized pool diagnostics, independent of request-scoped observation. */
   readonly onPoolEvent?: (event: PostgresPoolEvent) => void | Promise<void>;
+  /** Drizzle schema exports, also used to discover declarative reference counters. */
   readonly schema?: Record<string, unknown>;
   /** Overrides facade construction while the provider retains pool ownership. */
   readonly createDatabase?: (pool: Pool) => Database;
@@ -56,6 +60,15 @@ export class PostgresDrizzleProvider<
       }
     >("database", ({ databaseClient }) => databaseClient.database, { lifetime: "singleton" });
     app.container.registerClass("databaseManager", PostgresDrizzleManager, { lifetime: "scoped" });
+
+    // Discovery does not construct the facade or activate its connection pool.
+    const counters = getReferenceCounterDefinitions(this.options.schema ?? {});
+    app.container.registerFactory("referenceCounterMaintenance", ({ database }: { database: Database }) =>
+      new ReferenceCounterMaintenance(database, counters), { lifetime: "singleton" });
+    app.catalog.contribute(
+      { databaseCounters: { controllers: { cli: referenceCounterCliControllers } } },
+      { kind: "provider", provider: this.constructor.name },
+    );
 
     this.registerExtensions(app);
   }

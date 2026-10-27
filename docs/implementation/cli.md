@@ -50,6 +50,8 @@ The library separates declaration, parsing and execution. Controller definitions
 
 Input validation occurs before middleware. A successful execution unwinds middleware, validates any controller output, serializes it and disposes its scope. Every failure still crosses the error handler and scope-disposal boundary.
 
+Both standalone and action-backed custom handlers receive an optional `writeProgress(message)` capability. The command manager implements it through its configured error writer, appending a newline. Progress therefore uses stderr and does not interfere with the final result's pretty or JSON serialization. Embedded invocations can capture it through `writeError`; direct handler callers may omit it. The [reference counter command](./database.md#reference-counters) uses it to report only committed resume cursors.
+
 ## Execution scenarios
 
 ### Action-backed command

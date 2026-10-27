@@ -40,6 +40,8 @@ export interface CliControllerHandlerContext<
   input: output<InputSchema>;
   deps: ResolvedDependencies<Dependencies>;
   execution: ActionExecution;
+  /** Emits diagnostic progress independently of the final result format. */
+  writeProgress?: (message: string) => void;
 }
 
 export interface ActionCliControllerHandlerContext<
