@@ -308,6 +308,10 @@ export const articleHistory = defineHistoryTable(articles, {
 
 The generated migration locks the source against concurrent writes, copies existing rows, and then installs the triggers in the same migration transaction. The baseline SQL exists only in the contribution's installation lifecycle, so later trigger updates do not copy the rows again. A local reset naturally executes it once while replaying that migration.
 
+Column selection is resolved once during declaration, before deriving the history table. `include` adds the configured columns to the identity set; `exclude` subtracts configured non-identity columns from the source set. Source order is preserved and duplicate references are normalized. Both modes together, foreign column references and excluded identity columns fail immediately. The resolved keys drive table columns, inferred selection types, baseline SQL, insert values, sparse update values and the no-change predicate. Ignored values are never copied, even during mixed tracked/untracked updates. Identity-only histories still record insertions and deletions. Trigger updates use the contribution update lifecycle without replaying the baseline.
+
+Future extensions could retain removed audit columns through an explicit archival policy. Current selection changes use the ordinary destructive column diff and require retention review.
+
 Actor and reason metadata must be installed before the write and in the same transaction:
 
 ```ts
@@ -327,7 +331,7 @@ The history table recreates supported source types with Drizzle custom columns t
 
 Sparse rows use PostgreSQL's null bitmap, avoiding repeated storage for unchanged values while retaining ordinary typed columns for direct SQL access. Operations are stored as small integers and mapped to the typed `insert`, `update`, and `delete` API values. `__changedColumns` currently uses a readable `text[]`; a permanent ordinal bitmap could use less space but would make column removal and schema evolution substantially more fragile.
 
-The trigger function is generated from the current Drizzle declarations and uses explicit quoted column lists. `AFTER INSERT`, `AFTER UPDATE`, and `AFTER DELETE` row triggers keep the source mutation and event atomic. The update function compares every column with `IS DISTINCT FROM` to ignore no-op updates while preserving correct null semantics. PostgreSQL `json` columns are compared through `to_jsonb()` because the original `json` type has no equality operator. A trigger failure rolls back the source mutation.
+The trigger function is generated from the current Drizzle declarations and uses explicit quoted column lists. `AFTER INSERT`, `AFTER UPDATE`, and `AFTER DELETE` row triggers keep the source mutation and event atomic. The update function compares every tracked column with `IS DISTINCT FROM` to ignore no-op updates while preserving correct null semantics. PostgreSQL `json` columns are compared through `to_jsonb()` because the original `json` type has no equality operator. A trigger failure rolls back the source mutation.
 
 Drizzle Kit does not model functions and triggers. `defineHistoryTable()` therefore registers their generated PL/pgSQL as a custom schema contribution. The application only exports the derived table. `db:generate` places the trigger lifecycle in the same ordered, reviewable migration as the related Drizzle diff, and both deployment migration and local reset replay that file without a history-specific runtime reconciliation step.
 

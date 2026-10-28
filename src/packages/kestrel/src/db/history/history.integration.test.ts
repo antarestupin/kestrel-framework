@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
+  integer,
   json,
   pgSchema,
   text,
@@ -47,7 +48,18 @@ const existingRecords = historySchema.table("existing_record", {
 const existingRecordHistory = defineHistoryTable(existingRecords, {
   baseline: "existing_rows",
 });
+// Two audit tables exercise both public selection modes against real triggers.
+const selectedRecords = historySchema.table("selected_record", {
+  id: uuid("id").primaryKey(), value: text("value"), count: integer("count"),
+});
+const includedHistory = defineHistoryTable(selectedRecords, {
+  name: "included_history", include: [selectedRecords.value], baseline: "existing_rows",
+});
+const excludedHistory = defineHistoryTable(selectedRecords, {
+  name: "excluded_history", exclude: [selectedRecords.count], baseline: "existing_rows",
+});
 const schema = {
+  selectedRecords, includedHistory,
   records,
   recordHistory,
   existingRecords,
@@ -95,6 +107,14 @@ beforeAll(async () => {
       __actor text,
       __reason text
     );
+    CREATE TABLE kestrel_history_test.selected_record (id uuid PRIMARY KEY, value text, count integer);
+    CREATE TABLE kestrel_history_test.included_history (
+      id uuid, value text, __sequence bigint GENERATED ALWAYS AS IDENTITY,
+      __operation smallint NOT NULL, __changed_columns text[] NOT NULL,
+      __changed_at timestamptz NOT NULL, __actor text, __reason text
+    );
+    CREATE TABLE kestrel_history_test.excluded_history (LIKE kestrel_history_test.included_history INCLUDING ALL);
+    INSERT INTO kestrel_history_test.selected_record VALUES ('ac3ddc0d-f5db-4a63-8518-d4a462f0bdd4', 'Baseline', 0);
     INSERT INTO kestrel_history_test.existing_record (id, value)
     VALUES ('ec3ddc0d-f5db-4a63-8518-d4a462f0bdd4', 'Predates history');
   `);
@@ -113,6 +133,27 @@ afterAll(async () => {
 });
 
 describe("database history", () => {
+  it("ignores counter-only updates but records tracked changes, nulls and deletions", async () => {
+    for (const history of [includedHistory, excludedHistory]) {
+      const [definition] = getHistoryTableDefinitions({ history });
+      // Replace the source triggers when switching from include to exclude mode.
+      await pool.query(createHistoryTriggerSql(definition!));
+      const database = drizzle(pool);
+      const id = crypto.randomUUID();
+      await database.insert(selectedRecords).values({ id, value: "Initial", count: 0 });
+      await database.update(selectedRecords).set({ count: 1 }).where(eq(selectedRecords.id, id));
+      expect(await database.select().from(history).where(eq(history.id, id))).toHaveLength(1);
+      await database.update(selectedRecords).set({ count: 2, value: null }).where(eq(selectedRecords.id, id));
+      await database.delete(selectedRecords).where(eq(selectedRecords.id, id));
+      const events = await database.select().from(history).where(eq(history.id, id)).orderBy(asc(history.__sequence));
+      expect(events.map(event => event.__operation)).toEqual(["insert", "update", "delete"]);
+      expect(events[1]).toMatchObject({ value: null, __changedColumns: ["value"] });
+    }
+    const database = drizzle(pool);
+    expect((await database.select().from(includedHistory)).find(event => event.value === "Baseline"))
+      .toMatchObject({ __changedColumns: ["id", "value"] });
+  });
+
   it("copies existing rows when a baseline is requested", async () => {
     const database = drizzle(pool, { schema });
     const events = await database.select().from(existingRecordHistory);

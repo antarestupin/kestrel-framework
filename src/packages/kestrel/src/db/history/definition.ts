@@ -1,4 +1,5 @@
 import {
+  type BuildColumns,
   getTableColumns,
   sql,
 } from "drizzle-orm";
@@ -19,6 +20,7 @@ import {
   type CustomTypeValues,
   type ExtraConfigColumn,
   type PgCustomColumnBuilder,
+  type PgTableWithColumns,
 } from "drizzle-orm/pg-core";
 
 import { defineDatabaseSchemaContribution } from "../schema_contributions/definition.js";
@@ -59,12 +61,27 @@ type HistoryColumnBuilder<Column extends AnyPgColumn> =
     driverData: Column["_"]["driverParam"];
   }>>;
 
-type HistoryColumnBuilders<Table extends AnyPgTable> = {
-  [Key in keyof Table["_"]["columns"]]:
+// Selection is reflected in the returned Drizzle table as well as its SQL.
+type SelectedKeys<Table extends AnyPgTable, Options> = {
+  [Key in TableColumnKey<Table>]: Options extends { include: readonly AnyPgColumn[] }
+    ? Table["_"]["columns"][Key] extends Options["include"][number] ? Key
+      : Key extends IdentityKeys<Table, Options> ? Key : never
+    : Options extends { exclude: readonly AnyPgColumn[] }
+      ? Table["_"]["columns"][Key] extends Options["exclude"][number] ? never : Key
+      : Key
+}[TableColumnKey<Table>];
+type IdentityKeys<Table extends AnyPgTable, Options> = {
+  [Key in TableColumnKey<Table>]: Options extends { identity: readonly AnyPgColumn[] }
+    ? Table["_"]["columns"][Key] extends Options["identity"][number] ? Key : never
+    : Table["_"]["columns"][Key]["_"]["isPrimaryKey"] extends true ? Key : never
+}[TableColumnKey<Table>];
+
+type HistoryColumnBuilders<Table extends AnyPgTable, Options> = {
+  [Key in SelectedKeys<Table, Options>]:
     HistoryColumnBuilder<Table["_"]["columns"][Key]>;
 };
 
-export interface HistoryTableOptions<Table extends AnyPgTable> {
+interface HistoryTableBaseOptions<Table extends AnyPgTable> {
   /** Defaults to `<source table name>_history`. */
   readonly name?: string;
   /** Stable source columns used to retrieve one entity's event stream. */
@@ -72,6 +89,12 @@ export interface HistoryTableOptions<Table extends AnyPgTable> {
   /** Copies current rows once when history is enabled on an existing table. */
   readonly baseline?: "existing_rows";
 }
+
+/** Select tracked columns, or exclude noisy values; the two modes are exclusive. */
+export type HistoryTableOptions<Table extends AnyPgTable> = HistoryTableBaseOptions<Table> & (
+  | { readonly include?: readonly TableColumn<Table>[]; readonly exclude?: never }
+  | { readonly exclude?: readonly TableColumn<Table>[]; readonly include?: never }
+);
 
 export interface HistoryTableDefinition<
   Source extends AnyPgTable = AnyPgTable,
@@ -90,16 +113,47 @@ type DefinedHistoryTable<Table extends AnyPgTable> = Table & {
   readonly [historyTableDefinition]: HistoryTableDefinition;
 };
 
+// Keep BuildColumns explicit in emitted declarations to preserve the pg dialect.
+type HistoryTable<Source extends AnyPgTable, Options> = DefinedHistoryTable<PgTableWithColumns<{
+  name: string;
+  schema: string | undefined;
+  dialect: "pg";
+  columns: BuildColumns<string, HistoryColumnBuilders<Source, Options>
+    & ReturnType<typeof createHistoryMetadata<SelectedKeys<Source, Options>>>, "pg">;
+}>>;
+
+function createHistoryMetadata<Keys extends string>() {
+  return {
+    __sequence: bigint("__sequence", { mode: "bigint" })
+      .generatedAlwaysAsIdentity()
+      .notNull(),
+    __operation: historyOperationType("__operation").notNull(),
+    __changedColumns: text("__changed_columns")
+      .array()
+      .$type<Keys[]>()
+      .notNull(),
+    __changedAt: timestamp("__changed_at", {
+      mode: "date",
+      withTimezone: true,
+    }).notNull(),
+    __actor: text("__actor"),
+    __reason: text("__reason"),
+  };
+}
+
 /**
  * Derives a sparse, append-only history table from one PostgreSQL table.
  *
  * Source constraints and defaults are deliberately omitted because update and
  * delete events contain only identity columns and changed values.
  */
-export function defineHistoryTable<const Source extends AnyPgTable>(
+export function defineHistoryTable<
+  const Source extends AnyPgTable,
+  const Options extends HistoryTableOptions<Source> = {},
+>(
   source: Source,
-  options: HistoryTableOptions<Source> = {},
-) {
+  options: Options = {} as Options,
+): HistoryTable<Source, Options> {
   const sourceConfig = getTableConfig(source);
   assertReservedNamesAvailable(sourceConfig.columns);
   const sourceColumns = getTableColumns(source);
@@ -110,24 +164,12 @@ export function defineHistoryTable<const Source extends AnyPgTable>(
     options.identity,
     sourceEntries,
   );
+  const trackedEntries = selectHistoryColumns(sourceEntries, identityKeys, options);
   const tableName = options.name ?? `${sourceConfig.name}_history`;
-  const clonedColumns = cloneHistoryColumns(source, sourceConfig.columns);
+  const clonedColumns = cloneHistoryColumns<Source, Options>(source, trackedEntries);
   const historyColumnsDefinition = {
     ...clonedColumns,
-    __sequence: bigint("__sequence", { mode: "bigint" })
-      .generatedAlwaysAsIdentity()
-      .notNull(),
-    __operation: historyOperationType("__operation").notNull(),
-    __changedColumns: text("__changed_columns")
-      .array()
-      .$type<TableColumnKey<Source>[]>()
-      .notNull(),
-    __changedAt: timestamp("__changed_at", {
-      mode: "date",
-      withTimezone: true,
-    }).notNull(),
-    __actor: text("__actor"),
-    __reason: text("__reason"),
+    ...createHistoryMetadata<SelectedKeys<Source, Options>>(),
   };
   const extraConfig = (historyColumns: Record<string, ExtraConfigColumn>) => {
     const firstIdentity = historyColumns[identityKeys[0]!]!;
@@ -157,7 +199,7 @@ export function defineHistoryTable<const Source extends AnyPgTable>(
     source,
     table,
     identityKeys,
-    sourceColumnKeys: sourceEntries.map(([key]) => key),
+    sourceColumnKeys: trackedEntries.map(([key]) => key),
     baseline: options.baseline,
   };
 
@@ -179,7 +221,7 @@ export function defineHistoryTable<const Source extends AnyPgTable>(
     uninstallBeforeSql: createHistoryTriggerRemovalSql(definition),
   });
 
-  return table as DefinedHistoryTable<typeof table>;
+  return table as HistoryTable<Source, Options>;
 }
 
 /** Collects history declarations from an aggregated Drizzle schema. */
@@ -203,19 +245,36 @@ function isDefinedHistoryTable(value: unknown): value is DefinedHistoryTable<Any
     && historyTableDefinition in value;
 }
 
-function cloneHistoryColumns<Source extends AnyPgTable>(
-  source: Source,
-  columns: readonly AnyPgColumn[],
-): HistoryColumnBuilders<Source> {
-  const sourceColumns = getTableColumns(source);
-  const supportedColumns = new Set(columns);
-  const clonedEntries = Object.entries(sourceColumns).map(([key, column]) => {
-    if (!supportedColumns.has(column)) {
-      throw new TypeError(
-        `History column ${getTableConfig(source).name}.${key} is not part of the source table.`,
-      );
+/** Keep source order, always retain identity, and reject invalid untyped callers. */
+function selectHistoryColumns<Source extends AnyPgTable>(
+  entries: readonly [string, AnyPgColumn][],
+  identityKeys: readonly string[],
+  options: HistoryTableOptions<Source>,
+): [string, AnyPgColumn][] {
+  if (options.include !== undefined && options.exclude !== undefined) {
+    throw new TypeError("History include and exclude cannot be used together.");
+  }
+  const configured = options.include ?? options.exclude;
+  if (configured !== undefined && !Array.isArray(configured)) {
+    throw new TypeError("History column selection must be an array.");
+  }
+  const selected = new Set(configured ?? []);
+  for (const column of selected) {
+    const entry = entries.find(([, candidate]) => candidate === column);
+    if (!entry) throw new TypeError("Every history selected column must belong to the source table.");
+    if (options.exclude !== undefined && identityKeys.includes(entry[0])) {
+      throw new TypeError("History identity columns cannot be excluded.");
     }
+  }
+  return entries.filter(([key, column]) => identityKeys.includes(key)
+    || (options.include !== undefined ? selected.has(column) : !selected.has(column)));
+}
 
+function cloneHistoryColumns<Source extends AnyPgTable, Options>(
+  source: Source,
+  entries: readonly [string, AnyPgColumn][],
+): HistoryColumnBuilders<Source, Options> {
+  const clonedEntries = entries.map(([key, column]) => {
     const sqlType = getHistorySqlType(column, getTableConfig(source).name, key);
     const historyType = customType<CustomTypeValues>({
       dataType: () => sqlType,
@@ -226,7 +285,7 @@ function cloneHistoryColumns<Source extends AnyPgTable>(
     return [key, historyType(column.name)] as const;
   });
 
-  return Object.fromEntries(clonedEntries) as HistoryColumnBuilders<Source>;
+  return Object.fromEntries(clonedEntries) as HistoryColumnBuilders<Source, Options>;
 }
 
 /**

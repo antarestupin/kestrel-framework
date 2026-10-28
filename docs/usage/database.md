@@ -304,6 +304,23 @@ import { defineHistoryTable } from "@kestreljs/framework/db";
 export const contactHistory = defineHistoryTable(contacts);
 ```
 
+Exclude derived counters or select an explicit audit scope using source column references:
+
+```ts
+// Keep business changes without logging counter-only updates.
+export const articleHistory = defineHistoryTable(articles, {
+  exclude: [articles.viewCount],
+});
+
+// Alternatively, record only selected values plus the identity columns.
+export const scopedHistory = defineHistoryTable(articles, {
+  name: "article_scoped_history",
+  include: [articles.title],
+});
+```
+
+`include` and `exclude` are mutually exclusive in TypeScript and at runtime. Both accept only columns belonging to the source table. Identity columns are always retained and cannot be excluded. With neither option, all columns are tracked. An empty `include` tracks only identity and insertion/deletion; an empty `exclude` tracks everything. Updates affecting only untracked columns produce no event. Inserts and the optional existing-row baseline contain only tracked values. Changing the selection requires a generated migration; excluding a previously tracked column removes its history column and stored values, so review retention before applying it.
+
 Use `runWithHistoryContext(databaseManager, { actor, reason }, callback)` around writes to attach application audit metadata. Source writes and generated history events share one transaction. Removing a source column currently also removes its derived history column; review schema changes with retention needs in mind.
 
 For descriptions, custom SQL contributions, migration generation, seeding and local resets, use the [schema and maintenance reference](../implementation/database.md#custom-schema-contributions). Local push-schema exports and `tablesFilter` must describe exactly the same tables.

@@ -48,6 +48,19 @@ describe("createHistoryBaselineSql", () => {
 const articleHistory = defineHistoryTable(articles);
 
 describe("createHistoryTriggerSql", () => {
+  it("omits untracked columns from baseline, deltas, and update comparisons", () => {
+    for (const selection of [{ include: [articles.title] }, { exclude: [articles.content] }]) {
+      const filtered = defineHistoryTable(articles, { ...selection, baseline: "existing_rows" });
+      const [definition] = getHistoryTableDefinitions({ filtered });
+      const trigger = createHistoryTriggerSql(definition!);
+      const baseline = createHistoryBaselineSql(definition!);
+      expect(trigger).not.toContain('"content"');
+      expect(baseline).not.toContain('"content"');
+      expect(trigger).toContain('IF NOT (OLD."id" IS DISTINCT FROM NEW."id" OR OLD."title" IS DISTINCT FROM NEW."title")');
+      expect(baseline).toContain('source."title"');
+    }
+  });
+
   it("generates sparse insert, update and delete event triggers", () => {
     const [definition] = getHistoryTableDefinitions({ articleHistory });
     const triggerSql = createHistoryTriggerSql(definition!);

@@ -72,6 +72,46 @@ describe("defineHistoryTable", () => {
       .toEqualTypeOf<Array<"id" | "revision" | "title" | "publishedAt">>();
   });
 
+  it("filters tracked columns and preserves inferred identity and result types", () => {
+    const excluded = defineHistoryTable(source, { exclude: [source.revision] });
+    const included = defineHistoryTable(source, { include: [source.title] });
+    const identityOnly = defineHistoryTable(source, { include: [] });
+    expect(Object.keys(getTableColumns(excluded))).not.toContain("revision");
+    expect(Object.keys(getTableColumns(included)).filter(key => !key.startsWith("__")))
+      .toEqual(["id", "title"]);
+    expect(Object.keys(getTableColumns(identityOnly)).filter(key => !key.startsWith("__")))
+      .toEqual(["id"]);
+    expectTypeOf<keyof typeof included.$inferSelect>()
+      .toEqualTypeOf<"id" | "title" | "__sequence" | "__operation" | "__changedColumns" | "__changedAt" | "__actor" | "__reason">();
+    expectTypeOf<typeof included.$inferSelect.__changedColumns>()
+      .toEqualTypeOf<Array<"id" | "title">>();
+    expectTypeOf<keyof typeof excluded.$inferSelect>()
+      .toEqualTypeOf<Exclude<keyof typeof history.$inferSelect, "revision">>();
+    const composite = pgTable("selected_composite", {
+      tenant: integer("tenant"), record: integer("record"), value: text("value"),
+    });
+    const selected = defineHistoryTable(composite, {
+      identity: [composite.tenant, composite.record], include: [],
+    });
+    expect(Object.keys(getTableColumns(selected)).filter(key => !key.startsWith("__")))
+      .toEqual(["tenant", "record"]);
+  });
+
+  it("rejects conflicting selection, foreign columns and excluded identities", () => {
+    // Untyped callers must receive the same mutual-exclusion guarantee.
+    expect(() => defineHistoryTable(source, {
+      include: [source.title],
+      // @ts-expect-error The selection modes are mutually exclusive.
+      exclude: [source.revision],
+    })).toThrow("cannot be used together");
+    const other = pgTable("other_history_source", { id: uuid("id").primaryKey() });
+    expect(() => defineHistoryTable(source, {
+      include: [other.id] as unknown as [typeof source.id],
+    })).toThrow("must belong to the source table");
+    expect(() => defineHistoryTable(source, { exclude: [source.id] }))
+      .toThrow("identity columns cannot be excluded");
+  });
+
   it("discovers definitions without adding enumerable schema properties", () => {
     expect(getHistoryTableDefinitions({ source, history })).toEqual([
       expect.objectContaining({
