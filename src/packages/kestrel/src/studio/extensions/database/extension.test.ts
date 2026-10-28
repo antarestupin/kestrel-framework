@@ -82,7 +82,9 @@ describe("defineDatabaseStudioExtension", () => {
       expect(response.headers["content-disposition"]).toBe('inline; filename="database-schema.svg"');
       expect(response.headers["cache-control"]).toBe("no-store");
       expect(response.body).toMatch(/^<\?xml/);
-      expect(response.body).toContain("parent_fk: public.member.parent_id → public.member.id");
+      expect(response.body).toContain("parent_fk: (parent_id) → public.member(id)");
+      expect(response.body).toContain('class="database-schema-frame"');
+      expect(response.body).not.toContain("marker-end=");
       expect(source.getLayout).toHaveBeenCalledTimes(2);
     } finally {
       await server.close();

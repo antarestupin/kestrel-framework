@@ -1,172 +1,187 @@
 import type {
   StudioDatabaseLayout,
+  StudioDatabaseSchema,
   StudioDatabaseTable,
 } from "./contract.js";
 
-const MARGIN = 64;
-const GAP = 100;
-const HEADER = 58;
-const ROW = 28;
+const MARGIN = 20;
+const GROUP_GAP = 16;
+const INSET = 12;
+const TABLE_GAP = 12;
+const GROUP_HEADER = 34;
+const TABLE_HEADER = 24;
+const ROW = 16;
 const COLORS = ["#2563eb", "#0f766e", "#9333ea", "#b45309", "#be123c"];
 
 interface TableNode {
   id: string;
-  schema: string;
   table: StudioDatabaseTable;
-  color: string;
   x: number;
   y: number;
   width: number;
   height: number;
 }
 
-/** Generates a standalone, script-free diagram without external layout services. */
+interface SchemaGroup {
+  id: string;
+  schema: StudioDatabaseSchema;
+  color: string;
+  tables: TableNode[];
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Generates a compact, standalone overview without external layout services. */
 export function renderDatabaseSchemaSvg(layout: StudioDatabaseLayout): string {
-  const { nodes, width, height } = positionTables(layout);
-  const byName = new Map(nodes.map((node) => [tableKey(node.schema, node.table.name), node]));
-  const relationships: string[] = [];
-  let constraintCount = 0;
-
-  for (const source of nodes) {
-    for (const foreignKey of source.table.foreignKeys ?? []) {
-      const target = byName.get(tableKey(foreignKey.referencedSchema, foreignKey.referencedTable));
-      // Custom sources may omit a referenced table; never infer missing relations.
-      if (target === undefined) continue;
-      const paths: string[] = [];
-
-      foreignKey.columns.forEach((column, index) => {
-        const from = source.table.columns.findIndex((entry) => entry.name === column);
-        const to = target.table.columns.findIndex((entry) => entry.name === foreignKey.referencedColumns[index]);
-        if (from < 0 || to < 0) return;
-
-        const title = `${foreignKey.name}: ${source.schema}.${source.table.name}.${column} → ${target.schema}.${target.table.name}.${foreignKey.referencedColumns[index]}`;
-        paths.push(renderRelationship(source, target, from, to, constraintCount, title));
-      });
-
-      if (paths.length > 0) {
-        relationships.push(...paths);
-        constraintCount += 1;
-      }
-    }
-  }
+  const groups = layout.schemas.map(positionSchemaTables);
+  const { width, height } = packSchemaGroups(groups);
+  const tableCount = groups.reduce((count, group) => count + group.tables.length, 0);
+  const constraintCount = groups.reduce((count, group) => count + group.tables.reduce(
+    (sum, node) => sum + (node.table.foreignKeys?.length ?? 0), 0,
+  ), 0);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="diagram-title diagram-description">
   <title id="diagram-title">Database schema</title>
-  <desc id="diagram-description">${nodes.length} tables across ${layout.schemas.length} schemas. ${constraintCount} foreign keys. Arrows point from foreign-key columns to referenced columns.</desc>
-  <defs>
-    <marker id="reference-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker>
-  </defs>
+  <desc id="diagram-description">${tableCount} tables grouped into ${groups.length} schemas. ${constraintCount} foreign keys. Foreign-key references are available in column tooltips.</desc>
   <rect width="100%" height="100%" fill="#f8fafc"/>
   <g font-family="system-ui, sans-serif" fill="#0f172a">
-    <text x="${MARGIN}" y="42" font-size="24" font-weight="700">Database schema</text>
-    <text x="${MARGIN}" y="68" font-size="13" fill="#475569">${nodes.length} tables · ${constraintCount} foreign keys · PK: primary key · FK: foreign key · ?: nullable · arrows point to referenced columns</text>
+    <text x="${MARGIN}" y="28" font-size="18" font-weight="700">Database schema</text>
+    <text x="${MARGIN}" y="47" font-size="11" fill="#475569">${tableCount} tables · ${groups.length} schemas · PK: primary key · FK: foreign key · ?: nullable</text>
   </g>
-  <g fill="none" stroke="#64748b" stroke-width="1.5" stroke-linejoin="round">${relationships.join("")}</g>
-  <g font-family="monospace" font-size="12">${nodes.map(renderTable).join("")}</g>
-  ${nodes.length === 0 ? '<text x="64" y="130" font-family="system-ui, sans-serif" fill="#475569">No application tables found.</text>' : ""}
+  ${groups.map(renderSchemaGroup).join("")}
+  ${groups.length === 0 ? `<text x="${MARGIN}" y="${height - 20}" font-family="system-ui, sans-serif" font-size="12" fill="#475569">No application tables found.</text>` : ""}
 </svg>`;
 }
 
-/** Packs schema groups into rows, reserving clear gutters for relationship paths. */
-function positionTables(layout: StudioDatabaseLayout) {
-  const tables = layout.schemas.flatMap((schema) => schema.tables);
-  const columnCount = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(tables.length))));
-  // Monospace sizing keeps long identifiers and SQL types readable without clipping.
-  const width = Math.max(340, ...layout.schemas.flatMap((schema) => schema.tables.flatMap((table) => [
-    32 + Math.max(schema.name.length, table.name.length) * 8,
-    ...table.columns.map((column) => 112 + (column.name.length + column.type.length) * 8),
-  ])));
-  const nodes: TableNode[] = [];
-  let y = 140;
-
-  layout.schemas.forEach((schema, schemaIndex) => {
-    for (let start = 0; start < schema.tables.length; start += columnCount) {
-      const row = schema.tables.slice(start, start + columnCount);
-      let rowHeight = 0;
-      row.forEach((table, columnIndex) => {
-        const height = HEADER + Math.max(1, table.columns.length) * ROW + 8;
-        nodes.push({
-          id: `table-${nodes.length}`,
-          schema: schema.name,
-          table,
-          color: COLORS[schemaIndex % COLORS.length]!,
-          x: MARGIN + columnIndex * (width + GAP),
-          y,
-          width,
-          height,
-        });
-        rowHeight = Math.max(rowHeight, height);
-      });
-      y += rowHeight + GAP;
-    }
+/** Keep each schema together and stack tables in the shortest available column. */
+function positionSchemaTables(schema: StudioDatabaseSchema, schemaIndex: number): SchemaGroup {
+  const widths = schema.tables.map(tableWidth);
+  const width = Math.max(180, ...widths);
+  const heights = schema.tables.map((table) => TABLE_HEADER + Math.max(1, table.columns.length) * ROW + 4);
+  const totalHeight = heights.reduce((sum, height) => sum + height + TABLE_GAP, 0);
+  // Near-square schema blocks pack well without forcing unrelated tables into rows.
+  const columnCount = Math.max(1, Math.min(schema.tables.length, Math.round(Math.sqrt(totalHeight / width))));
+  const bottoms = Array<number>(columnCount).fill(GROUP_HEADER);
+  const tables = schema.tables.map((table, index): TableNode => {
+    const column = bottoms.indexOf(Math.min(...bottoms));
+    const y = bottoms[column]!;
+    const height = heights[index]!;
+    bottoms[column] = y + height + TABLE_GAP;
+    return { id: `table-${schemaIndex}-${index}`, table, x: INSET + column * (width + TABLE_GAP), y, width, height };
   });
 
   return {
-    nodes,
-    width: Math.max(1000, MARGIN * 2 + columnCount * width + (columnCount - 1) * GAP),
-    height: Math.max(200, y - GAP + MARGIN),
+    id: `schema-${schemaIndex}`,
+    schema,
+    color: COLORS[schemaIndex % COLORS.length]!,
+    tables,
+    x: 0,
+    y: 0,
+    width: Math.max(INSET * 2 + columnCount * width + (columnCount - 1) * TABLE_GAP, compact(schema.name, 48).length * 8 + 100),
+    height: Math.max(...bottoms) + (tables.length === 0 ? 24 : -TABLE_GAP) + INSET,
   };
 }
 
-/** Routes each column pair through row/column gutters, including self references. */
-function renderRelationship(
-  source: TableNode,
-  target: TableNode,
-  from: number,
-  to: number,
-  index: number,
-  title: string,
-): string {
-  const rightward = target.x >= source.x;
-  const sameColumn = target.x === source.x;
-  const sourceX = source.x + (rightward ? source.width : 0);
-  const targetX = target.x + (sameColumn || !rightward ? target.width : 0);
-  const sourceY = source.y + HEADER + from * ROW + ROW / 2;
-  const targetY = target.y + HEADER + to * ROW + ROW / 2;
-  const offset = 16 + (index % 7) * 5;
-  const sourceLane = sourceX + (rightward ? offset : -offset);
-  const targetLane = targetX + (sameColumn || !rightward ? offset : -offset);
-  const corridorY = Math.min(source.y, target.y) - offset;
-  const path = sameColumn
-    ? `M ${sourceX} ${sourceY} H ${sourceLane} V ${targetY} H ${targetX}`
-    : `M ${sourceX} ${sourceY} H ${sourceLane} V ${corridorY} H ${targetLane} V ${targetY} H ${targetX}`;
+/** Pack whole schema rectangles, filling spaces alongside taller groups first. */
+function packSchemaGroups(groups: SchemaGroup[]) {
+  const area = groups.reduce((sum, group) => sum + (group.width + GROUP_GAP) * (group.height + GROUP_GAP), 0);
+  const targetWidth = Math.max(480, ...groups.map((group) => group.width), Math.ceil(Math.sqrt(area * 1.5)));
+  const placed: SchemaGroup[] = [];
 
-  return `<a href="#${target.id}-column-${to}"><title>${xml(title)}</title><path d="${path}" marker-end="url(#reference-arrow)"/><circle cx="${sourceX}" cy="${sourceY}" r="3" fill="#f8fafc"/></a>`;
+  for (const group of [...groups].sort((a, b) => b.height - a.height || b.width - a.width)) {
+    const xs = [...new Set([0, ...placed.map((entry) => entry.x + entry.width + GROUP_GAP)])].sort((a, b) => a - b);
+    const ys = [...new Set([0, ...placed.map((entry) => entry.y + entry.height + GROUP_GAP)])].sort((a, b) => a - b);
+    // A candidate directly below every existing block always provides a fit.
+    findPosition: for (const y of ys) {
+      for (const x of xs) {
+        if (x + group.width > targetWidth) continue;
+        const overlaps = placed.some((entry) =>
+          x < entry.x + entry.width + GROUP_GAP && x + group.width + GROUP_GAP > entry.x
+          && y < entry.y + entry.height + GROUP_GAP && y + group.height + GROUP_GAP > entry.y
+        );
+        if (overlaps) continue;
+        group.x = x;
+        group.y = y;
+        break findPosition;
+      }
+    }
+    placed.push(group);
+  }
+
+  return {
+    width: Math.max(480, ...groups.map((group) => group.x + group.width)) + MARGIN * 2,
+    height: Math.max(60, ...groups.map((group) => group.y + group.height)) + 66 + MARGIN,
+  };
 }
 
-/** Numeric fragment identifiers avoid collisions and unsafe identifiers in markup. */
-function renderTable(node: TableNode): string {
-  const { table, x, y, width, height, color } = node;
-  const foreignColumns = new Set((table.foreignKeys ?? []).flatMap((key) => [...key.columns]));
-  const columns = table.columns.map((column, index) => {
-    const top = y + HEADER + index * ROW;
-    const flags = [column.primaryKey ? "PK" : "", foreignColumns.has(column.name) ? "FK" : ""].filter(Boolean).join(" ");
-    const label = `${column.name}${column.nullable ? " ?" : ""}`;
-    return `<g id="${node.id}-column-${index}">
-      <title>${xml(`${column.name}: ${column.type}; ${column.nullable ? "nullable" : "not null"}${column.description === undefined ? "" : `\n${column.description}`}`)}</title>
-      <rect x="${x + 1}" y="${top}" width="${width - 2}" height="${ROW}" fill="${index % 2 === 0 ? "#fff" : "#f1f5f9"}"/>
-      <text x="${x + 12}" y="${top + 19}" fill="${color}" font-size="10" font-weight="700">${flags}</text>
-      <text x="${x + 64}" y="${top + 19}" fill="#0f172a">${xml(label)}</text>
-      <text x="${x + width - 14}" y="${top + 19}" text-anchor="end" fill="#475569">${xml(column.type)}</text>
-    </g>`;
-  });
+/** Short SQL aliases reduce visual noise; tooltips retain the complete type. */
+function columnType(type: string): string {
+  return compact(type
+    .replace(/^timestamp(\(\d+\))? with time zone((?:\[\])*)$/, "timestamptz$1$2")
+    .replace(/^timestamp(\(\d+\))? without time zone((?:\[\])*)$/, "timestamp$1$2")
+    .replace(/^time(\(\d+\))? with time zone((?:\[\])*)$/, "timetz$1$2")
+    .replace(/^time(\(\d+\))? without time zone((?:\[\])*)$/, "time$1$2")
+    .replace(/^character varying(\(\d+\))?((?:\[\])*)$/, "varchar$1$2")
+    .replace(/^double precision((?:\[\])*)$/, "float8$1"), 24);
+}
 
-  return `<g id="${node.id}">
-    <title>${xml(`${node.schema}.${table.name}${table.description === undefined ? "" : `\n${table.description}`}`)}</title>
-    <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="8" fill="#fff" stroke="#cbd5e1"/>
-    <rect x="${x}" y="${y}" width="${width}" height="${HEADER}" rx="8" fill="${color}"/>
-    <rect x="${x}" y="${y + HEADER - 8}" width="${width}" height="8" fill="${color}"/>
-    <text x="${x + 14}" y="${y + 20}" fill="#fff" font-size="11">${xml(node.schema)}${table.kind === "partitioned-table" ? " · partitioned" : ""}</text>
-    <text x="${x + 14}" y="${y + 43}" fill="#fff" font-size="15" font-weight="700">${xml(table.name)}</text>
-    ${columns.join("")}
-    ${columns.length === 0 ? `<text x="${x + 14}" y="${y + HEADER + 20}" fill="#64748b">No columns</text>` : ""}
+/** Size each schema independently so one long type cannot widen the entire DB. */
+function tableWidth(table: StudioDatabaseTable): number {
+  return Math.max(180, compact(table.name, 48).length * 7 + 20, ...table.columns.map((column) =>
+    62 + (compact(column.name, 32).length + columnType(column.type).length) * 6
+  ));
+}
+
+function renderSchemaGroup(group: SchemaGroup): string {
+  const { schema, color } = group;
+  return `<g id="${group.id}" transform="translate(${group.x + MARGIN} ${group.y + 66})" role="group" aria-labelledby="${group.id}-title">
+    <title id="${group.id}-title">${xml(`${schema.name}${schema.description === undefined ? "" : `\n${schema.description}`}`)}</title>
+    <rect class="database-schema-frame" width="${group.width}" height="${group.height}" rx="6" fill="#fff" stroke="${color}" stroke-opacity="0.35"/>
+    <rect width="${group.width}" height="28" rx="6" fill="${color}" fill-opacity="0.08"/>
+    <text x="${INSET}" y="19" font-family="monospace" font-size="12" font-weight="700" fill="${color}">${xml(compact(schema.name, 48))}</text>
+    <text x="${group.width - INSET}" y="19" text-anchor="end" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">${schema.tables.length} ${schema.tables.length === 1 ? "table" : "tables"}</text>
+    <g font-family="monospace" font-size="10">${group.tables.map((node) => renderTable(node, schema.name, color)).join("")}</g>
+    ${schema.tables.length === 0 ? `<text x="${INSET}" y="49" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">No tables</text>` : ""}
   </g>`;
 }
 
-/** Tuple keys distinguish quoted SQL names containing dots or separators. */
-function tableKey(schema: string, table: string): string {
-  return JSON.stringify([schema, table]);
+/** Dense table rows retain keys, full comments and foreign-key metadata on hover. */
+function renderTable(node: TableNode, schema: string, color: string): string {
+  const { table, width, height } = node;
+  const columns = table.columns.map((column, index) => {
+    const top = TABLE_HEADER + index * ROW;
+    const references = (table.foreignKeys ?? []).filter((key) => key.columns.includes(column.name));
+    const flags = [column.primaryKey ? "PK" : "", references.length > 0 ? "FK" : ""].filter(Boolean).join(" ");
+    const title = [
+      `${column.name}: ${column.type}; ${column.nullable ? "nullable" : "not null"}`,
+      ...(column.description === undefined ? [] : [column.description]),
+      ...references.map((key) => `${key.name}: (${key.columns.join(", ")}) → ${key.referencedSchema}.${key.referencedTable}(${key.referencedColumns.join(", ")})`),
+    ].join("\n");
+    return `<g id="${node.id}-column-${index}">
+      <title>${xml(title)}</title>
+      <rect x="1" y="${top}" width="${width - 2}" height="${ROW}" fill="${index % 2 === 0 ? "#fff" : "#f1f5f9"}"/>
+      <text x="6" y="${top + 11}" fill="${color}" font-size="8" font-weight="700">${flags}</text>
+      <text x="38" y="${top + 11}" fill="#0f172a">${xml(compact(column.name, 32))}${column.nullable ? " ?" : ""}</text>
+      <text x="${width - 7}" y="${top + 11}" text-anchor="end" fill="#64748b">${xml(columnType(column.type))}</text>
+    </g>`;
+  });
+
+  return `<g id="${node.id}" transform="translate(${node.x} ${node.y})">
+    <title>${xml(`${schema}.${table.name}${table.kind === "partitioned-table" ? " (partitioned)" : ""}${table.description === undefined ? "" : `\n${table.description}`}`)}</title>
+    <rect class="database-table-frame" width="${width}" height="${height}" rx="3" fill="#fff" stroke="#cbd5e1"/>
+    <rect x="1" y="1" width="${width - 2}" height="${TABLE_HEADER - 1}" fill="${color}" fill-opacity="0.12"/>
+    <text x="7" y="16" fill="#0f172a" font-size="11" font-weight="700">${xml(compact(table.name, 48))}</text>
+    ${columns.join("")}
+    ${columns.length === 0 ? `<text x="7" y="${TABLE_HEADER + 11}" fill="#64748b">No columns</text>` : ""}
+  </g>`;
+}
+
+/** Keep unusually long identifiers compact while preserving full tooltip values. */
+function compact(value: string, length: number): string {
+  return value.length <= length ? value : `${value.slice(0, length - 1)}…`;
 }
 
 /** Escape all catalog text and remove characters XML 1.0 cannot represent. */

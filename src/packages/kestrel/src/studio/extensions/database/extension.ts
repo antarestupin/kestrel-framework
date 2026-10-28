@@ -84,7 +84,7 @@ export function defineDatabaseStudioExtension(
         defineHttpController({
           access: studioHttpAccess,
           route: get(joinStudioPath(basePath, `${dataPath}.svg`)),
-          description: "Render tables and foreign-key relationships as a standalone SVG diagram.",
+          description: "Render a compact SVG overview of tables grouped by PostgreSQL schema.",
           handler: async ({ reply }) => {
             const diagram = renderDatabaseSchemaSvg(await source.getLayout());
             // Send an image directly so opening the resource never returns a JSON string.

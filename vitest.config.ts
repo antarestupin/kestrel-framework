@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 
 // Integration suites always run when selected; unavailable infrastructure is a failure.
 const integration = [
+  "src/packages/kestrel/src/studio/extensions/database/schema_source.integration.test.ts",
   "src/packages/kestrel/src/authentication/adapters/redis/adapter.test.ts",
   "src/packages/kestrel/src/tokens/adapters/redis/adapter.test.ts",
   "src/packages/kestrel/src/throttling/adapters/redis/adapter.test.ts",
