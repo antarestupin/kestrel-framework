@@ -141,7 +141,7 @@ export function ResourceList({
       <PageHeader
         eyebrow="Resource"
         title={resource.label}
-        actions={(
+        actions={resource.capabilities.create === undefined ? null : (
           <button className="button primary" onClick={onCreate} type="button">
             <Icon name="create" />
             Create {resource.labelSingular.toLocaleLowerCase()}
@@ -444,7 +444,7 @@ export function ResourceRead({
   const remove = useMutation({
     mutationFn: () => executeAtlasOperation(
       manifest.basePath,
-      resource.capabilities.delete,
+      requireCapability(resource.capabilities.delete),
       { [resource.identity]: recordId },
     ),
     onSuccess: async () => {
@@ -471,10 +471,10 @@ export function ResourceRead({
         title={getResourceRecordLabel(resource, query.data, recordId)}
         actions={(
           <>
-            <button className="button" onClick={onEdit} type="button">
+            {resource.capabilities.update === undefined ? null : <button className="button" onClick={onEdit} type="button">
               <Icon name="edit" />
               Edit
-            </button>
+            </button>}
             <RecordActionsMenu
               actions={resource.recordActions}
               deletePending={remove.isPending}
@@ -706,12 +706,12 @@ export function ResourceForm({
     mutationFn: (input: Record<string, unknown>) =>
       executeAtlasOperation<Record<string, unknown>>(
         manifest.basePath,
-        operation,
+        requireCapability(operation),
         input,
       ),
     onSuccess,
   });
-  const bodyInputs = operation.inputs.filter(
+  const bodyInputs = (operation?.inputs ?? []).filter(
     (input) => input.id !== resource.identity,
   );
 
@@ -730,6 +730,8 @@ export function ResourceForm({
 
     mutation.mutate(input);
   };
+
+  if (operation === undefined) return <div className="page"><ErrorState error={new Error("This operation is unavailable for this resource.")} /></div>;
 
   if (mode === "update" && recordQuery.isPending) {
     return <div className="page"><LoadingState /></div>;
@@ -1504,7 +1506,7 @@ function RowRecordActions({
   const remove = useMutation({
     mutationFn: () => executeAtlasOperation(
       manifest.basePath,
-      resource.capabilities.delete,
+      requireCapability(resource.capabilities.delete),
       { [resource.identity]: recordId },
     ),
     onSuccess: async () => {
@@ -1564,6 +1566,9 @@ function RecordActionsMenu({
     AtlasRecordActionManifest | undefined
   >();
 
+  // Read-only resources without domain commands do not need an empty action menu.
+  if (actions.length === 0 && resource.capabilities.update === undefined && resource.capabilities.delete === undefined) return null;
+
   return (
     <div className="action-menu">
       <Menu.Root>
@@ -1593,13 +1598,13 @@ function RecordActionsMenu({
               {actions.length === 0
                 ? null
                 : <div className="action-menu-divider" role="separator" />}
-              {onEdit === undefined ? null : (
+              {onEdit === undefined || resource.capabilities.update === undefined ? null : (
                 <Menu.Item className="action-menu-item" onClick={onEdit}>
                   <Icon name="edit" />
                   Edit
                 </Menu.Item>
               )}
-              <OperationControl
+              {resource.capabilities.delete === undefined ? null : <OperationControl
                 icon="delete"
                 label={deletePending ? "Deleting…" : "Delete"}
                 onExecute={onDelete}
@@ -1607,7 +1612,7 @@ function RecordActionsMenu({
                 pending={deletePending}
                 role="menuitem"
                 tone="danger"
-              />
+              />}
             </Menu.Popup>
           </Menu.Positioner>
         </Menu.Portal>
@@ -2128,4 +2133,10 @@ function humanize(value: string): string {
   const spaced = value.replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2");
 
   return `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)}`;
+}
+
+/** Reject direct mutation attempts even when navigation bypasses the hidden control. */
+function requireCapability<T>(operation: T | undefined): T {
+  if (operation === undefined) throw new Error("This operation is unavailable for this resource.");
+  return operation;
 }

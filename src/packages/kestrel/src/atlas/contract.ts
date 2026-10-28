@@ -225,9 +225,9 @@ export interface AtlasResourceCapabilitiesManifest {
   readonly list: AtlasOperationManifest;
   readonly read: AtlasOperationManifest;
   readonly readMany: AtlasOperationManifest;
-  readonly create: AtlasOperationManifest;
-  readonly update: AtlasOperationManifest;
-  readonly delete: AtlasOperationManifest;
+  readonly create?: AtlasOperationManifest;
+  readonly update?: AtlasOperationManifest;
+  readonly delete?: AtlasOperationManifest;
 }
 
 /** Serializable resource definition consumed by Atlas UI. */

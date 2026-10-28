@@ -90,9 +90,9 @@ export interface AtlasResourceCapabilities {
   readonly list: AtlasOperationReference;
   readonly read: AtlasOperationReference;
   readonly readMany: AtlasOperationReference;
-  readonly create: AtlasOperationReference;
-  readonly update: AtlasOperationReference;
-  readonly delete: AtlasOperationReference;
+  readonly create?: AtlasOperationReference;
+  readonly update?: AtlasOperationReference;
+  readonly delete?: AtlasOperationReference;
 }
 
 export interface AtlasResourceViewOptions {
@@ -256,8 +256,8 @@ function compileResource(
   }
 
   const writableFields = new Set([
-    ...getOperationInputNames(options.capabilities.create),
-    ...getOperationInputNames(options.capabilities.update),
+    ...(options.capabilities.create ? getOperationInputNames(options.capabilities.create) : []),
+    ...(options.capabilities.update ? getOperationInputNames(options.capabilities.update) : []),
   ]);
   // The record identity selects an update target; it is never an editable field.
   writableFields.delete(options.identity);
@@ -304,19 +304,25 @@ function compileResource(
         getCapabilityExposureId(options.id, "read-many"),
         options.capabilities.readMany,
       ),
-      create: compileOperation(
-        getCapabilityExposureId(options.id, "create"),
-        options.capabilities.create,
-      ),
-      update: compileOperation(
-        getCapabilityExposureId(options.id, "update"),
-        options.capabilities.update,
-      ),
-      delete: compileOperation(
-        getCapabilityExposureId(options.id, "delete"),
-        options.capabilities.delete,
-        "destructive",
-      ),
+      ...(options.capabilities.create === undefined ? {} : {
+        create: compileOperation(
+          getCapabilityExposureId(options.id, "create"),
+          options.capabilities.create,
+        ),
+      }),
+      ...(options.capabilities.update === undefined ? {} : {
+        update: compileOperation(
+          getCapabilityExposureId(options.id, "update"),
+          options.capabilities.update,
+        ),
+      }),
+      ...(options.capabilities.delete === undefined ? {} : {
+        delete: compileOperation(
+          getCapabilityExposureId(options.id, "delete"),
+          options.capabilities.delete,
+          "destructive",
+        ),
+      }),
     },
     relatedCollections: [],
     views: Object.entries(options.views ?? {}).map(([id, view]) =>

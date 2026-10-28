@@ -110,11 +110,11 @@ export function createAtlasRouter(
       path: `/${resource.id}`,
       component: () => createElement(pageRenderers.resourceList, { manifest, resource }),
     }),
-    createRoute({
+    ...(resource.capabilities.create === undefined ? [] : [createRoute({
       getParentRoute: () => rootRoute,
       path: `/${resource.id}/create`,
       component: () => createElement(pageRenderers.resourceCreate, { manifest, resource }),
-    }),
+    })]),
     createRoute({
       getParentRoute: () => rootRoute,
       path: `/${resource.id}/$recordId`,
@@ -124,7 +124,7 @@ export function createAtlasRouter(
         recordId: getRecordId(),
       }),
     }),
-    createRoute({
+    ...(resource.capabilities.update === undefined ? [] : [createRoute({
       getParentRoute: () => rootRoute,
       path: `/${resource.id}/$recordId/edit`,
       component: () => createElement(pageRenderers.resourceEdit, {
@@ -132,7 +132,7 @@ export function createAtlasRouter(
         resource,
         recordId: getRecordId(),
       }),
-    }),
+    })]),
     ...resource.recordActions.map((action) => createRoute({
       getParentRoute: () => rootRoute,
       path: `/${resource.id}/$recordId/actions/${action.id}`,

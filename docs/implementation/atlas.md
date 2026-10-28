@@ -153,7 +153,7 @@ A Resource is an orchestration convenience, not a mandatory abstraction. Domain 
 
 A Resource definition does not execute operations, own client cache state or render React components. These responsibilities belong to the server gateway, client runtime and renderer layers respectively.
 
-In the first implementation, a catalog-backed Resource explicitly references each Query or Action used for its `list`, `read`, `create`, `update` and `delete` capabilities. Automatic discovery from naming conventions is intentionally deferred because application catalogs can contain domain-specific operations whose intent cannot be inferred reliably. REST source adapters may later infer conventional capabilities more safely from routes and HTTP methods.
+A catalog-backed Resource explicitly references each Query or Action used for its required `list`, `read` and `readMany` capabilities and optional `create`, `update` and `delete` capabilities. Omitted mutations compile to neither manifest entries nor gateway exposures. The browser omits their controls and create/edit routes; reusable forms also reject unavailable operations. Read-only resources may still expose explicit domain record Actions. Writable-field inference uses only the declared create/update inputs. Automatic discovery from naming conventions is intentionally deferred because application catalogs can contain domain-specific operations whose intent cannot be inferred reliably. REST source adapters may later infer conventional capabilities more safely from routes and HTTP methods.
 
 A Resource does not expose an unstructured collection of operations. Its additional behavior is described from the perspective of Atlas UI:
 
@@ -748,3 +748,7 @@ Installed-archive verification checks Atlas HTML, configuration and referenced J
 `AtlasProvider(adapter, options)` requires an explicit `AtlasClientAdapterDefinition`; `viteAtlasClient(settings)` selects bundled browser delivery. Atlas manifests, access policy and authentication options remain distinct from delivery. Backend initialization waits until HTTP mounting.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+### Optional mutation evolution
+
+Optional capabilities describe the supported operation set of a resource, not dynamic record/actor authorization. Future contextual availability and bulk mutations must retain authoritative source checks and define partial-failure semantics before becoming public contracts. The current implementation deliberately keeps the three read operations mandatory for navigation and batched hydration.

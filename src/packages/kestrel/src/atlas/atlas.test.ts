@@ -187,7 +187,7 @@ describe("Atlas", () => {
       sourceId: "application",
       effect: "read",
     });
-    expect(resource.capabilities.update.inputs).toEqual([
+    expect(resource.capabilities.update!.inputs).toEqual([
       expect.objectContaining({ id: "id" }),
       expect.objectContaining({ id: "email" }),
     ]);
@@ -196,7 +196,7 @@ describe("Atlas", () => {
       effect: "read",
       inputs: [expect.objectContaining({ id: "ids" })],
     });
-    expect(resource.capabilities.delete.effect).toBe("destructive");
+    expect(resource.capabilities.delete!.effect).toBe("destructive");
     expect(resource.views).toEqual([
       expect.objectContaining({
         id: "active",
@@ -430,4 +430,21 @@ describe("Atlas", () => {
     expect(defineAtlas({ resources: [resource] })
       .getManifest().resources[0]?.relatedCollections).toEqual([]);
   });
+});
+
+it("omits unavailable mutations from read-only resource manifests and gateway exposures", () => {
+  const source = defineCatalogAtlasSource({ id: "application", actions: catalog });
+  const resource = defineAtlasResource({
+    id: "inspection", label: "Inspection", source, identity: "id",
+    capabilities: { list: source.query(catalog.list), read: source.query(catalog.get), readMany: source.query(catalog.getMany) },
+    recordActions: { review: defineAtlasRecordAction({ label: "Review", recordInput: "id", action: source.action(catalog.fillName) }) },
+  });
+  const manifest = resource.toManifest();
+  // Unavailable CRUD is absent, while explicit domain commands remain callable.
+  expect(Object.keys(manifest.capabilities)).toEqual(["list", "read", "readMany"]);
+  expect(manifest.fields.every((field) => field.readOnly)).toBe(true);
+  expect(manifest.recordActions[0]?.id).toBe("review");
+  expect(resource.getOperationExposures().map(({ id }) => id)).toEqual([
+    "resource:inspection:list", "resource:inspection:read", "resource:inspection:read-many",
+  ]);
 });

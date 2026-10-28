@@ -68,3 +68,12 @@ describe("atlas router renderer registries", () => {
     );
   });
 });
+
+it("does not register create or edit routes for read-only resources", () => {
+  const original = manifest.resources[0]!;
+  const { list, read, readMany } = original.capabilities;
+  const { router } = createAtlasRouter({ ...manifest, resources: [{ ...original, capabilities: { list, read, readMany } }] });
+  expect(router.routesByPath["/example/create"]).toBeUndefined();
+  expect(router.routesByPath["/example/$recordId/edit"]).toBeUndefined();
+  expect(router.routesByPath["/example/$recordId"]).toBeDefined();
+});

@@ -120,6 +120,12 @@ const atlas = defineAtlas({ title: "Administration", basePath: "/admin", resourc
 
 Only compiled exposures are callable through the gateway. `readMany` supports batched relation hydration. Enable searchable/filterable/sortable field metadata only when the source implements those operations; the demonstration above supplies pagination only.
 
+## Expose inspection with selected mutations
+
+Every resource supplies `list`, `read` and `readMany`. Omit `create`, `update` or `delete` when the application does not support that operation. For an inspection resource, provide only the three read capabilities in the example above. Add record Actions for explicit domain commands such as publishing a proposal or closing a discussion, preserving their authoritative application authorization and validation.
+
+Omitted mutations have no manifest entry, no standard UI control and no create/edit route. Their operation IDs are absent from the gateway allowlist and return `404`. All fields are inferred read-only when both create and update are absent. Optional capabilities describe supported operations for every operator of the resource; they do not implement per-record permissions. The application must still enforce access and business rules in the exposed operations.
+
 ## Add a record action and success feedback
 
 Add a record action when operators need a task beyond the standard CRUD controls. This example reads a selected contact and displays a notification after the operation succeeds.
