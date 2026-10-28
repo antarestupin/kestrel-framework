@@ -140,6 +140,8 @@ export function defineAtlasRecordAction(
 }
 
 export interface AtlasResourceOptions {
+  /** Optional sidebar section label; matching labels share one group. */
+  readonly navigationGroup?: string;
   readonly id: string;
   readonly label: string;
   readonly labelSingular?: string;
@@ -225,6 +227,10 @@ export function defineAtlasResource(
     assertIdentifier(actionId, "record action");
   }
 
+  if (options.navigationGroup !== undefined && options.navigationGroup.trim() === "") {
+    throw new TypeError("An Atlas navigation group label cannot be empty.");
+  }
+
   validateViews(options);
   validateRecordActions(options);
   validateFields(options);
@@ -283,6 +289,7 @@ function compileResource(
   return {
     id: options.id,
     label: options.label,
+    ...(options.navigationGroup === undefined ? {} : { navigationGroup: options.navigationGroup.trim() }),
     labelSingular: options.labelSingular ?? singularize(options.label),
     identity: options.identity,
     displayField,

@@ -5,6 +5,7 @@ import type { AtlasClientAuthenticationConfig } from "../../client_config.js";
 import type { AtlasManifest } from "../../contract.js";
 import { CatalogIcon, Icon } from "./ui/icon.js";
 import { signOutAtlas } from "./login_runtime.js";
+import { groupNavigationResources } from "./navigation.js";
 import { AtlasThemeSelector } from "./theme.js";
 
 export interface AtlasLayoutProperties {
@@ -27,32 +28,36 @@ export function AtlasLayout({
           </span>
         </Link>
         <nav aria-label="Resources">
-          <p className="nav-label">Resources</p>
-          {manifest.resources.map((resource) => (
-            <div className="nav-resource" key={resource.id}>
-              <Link
-                activeProps={{ className: "nav-link active" }}
-                className="nav-link"
-                to={`/${resource.id}`}
-              >
-                <CatalogIcon
-                  catalog={manifest.icons}
-                  fallback="table"
-                  iconId={resource.icon}
-                />
-                {resource.label}
-              </Link>
-              {resource.views.map((view) => (
-                <Link
-                  activeProps={{ className: "nav-subitem active" }}
-                  className="nav-subitem"
-                  key={view.id}
-                  to={`/${resource.id}/views/${view.id}`}
-                >
-                  {view.label}
-                </Link>
+          {groupNavigationResources(manifest.resources).map((group) => (
+            <section className="nav-group" aria-label={group.label ?? "Resources"} key={JSON.stringify(group.label ?? null)}>
+              <h2 className="nav-label">{group.label ?? "Resources"}</h2>
+              {group.resources.map((resource) => (
+                <div className="nav-resource" key={resource.id}>
+                  <Link
+                    activeProps={{ className: "nav-link active" }}
+                    className="nav-link"
+                    to={`/${resource.id}`}
+                  >
+                    <CatalogIcon
+                      catalog={manifest.icons}
+                      fallback="table"
+                      iconId={resource.icon}
+                    />
+                    {resource.label}
+                  </Link>
+                  {resource.views.map((view) => (
+                    <Link
+                      activeProps={{ className: "nav-subitem active" }}
+                      className="nav-subitem"
+                      key={view.id}
+                      to={`/${resource.id}/views/${view.id}`}
+                    >
+                      {view.label}
+                    </Link>
+                  ))}
+                </div>
               ))}
-            </div>
+            </section>
           ))}
         </nav>
         <div className="sidebar-footer">

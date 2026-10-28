@@ -448,3 +448,14 @@ it("omits unavailable mutations from read-only resource manifests and gateway ex
     "resource:inspection:list", "resource:inspection:read", "resource:inspection:read-many",
   ]);
 });
+
+it("compiles navigation labels and rejects blank group names", () => {
+  const source = defineCatalogAtlasSource({ id: "application", actions: catalog });
+  const options = {
+    id: "inspection", label: "Inspection", source, identity: "id",
+    capabilities: { list: source.query(catalog.list), read: source.query(catalog.get), readMany: source.query(catalog.getMany) },
+  };
+  expect(defineAtlasResource({ ...options, navigationGroup: "  Editorial  " }).toManifest().navigationGroup).toBe("Editorial");
+  expect(defineAtlasResource(options).toManifest()).not.toHaveProperty("navigationGroup");
+  expect(() => defineAtlasResource({ ...options, navigationGroup: "  " })).toThrow("navigation group label cannot be empty");
+});

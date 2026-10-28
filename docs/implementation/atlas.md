@@ -752,3 +752,7 @@ See the [shared composition convention](../implementation/app.md#provider-adapte
 ### Optional mutation evolution
 
 Optional capabilities describe the supported operation set of a resource, not dynamic record/actor authorization. Future contextual availability and bulk mutations must retain authoritative source checks and define partial-failure semantics before becoming public contracts. The current implementation deliberately keeps the three read operations mandatory for navigation and batched hydration.
+
+### Resource navigation groups
+
+The optional `AtlasResourceOptions.navigationGroup` label is validated and trimmed during resource compilation, then serialized on `AtlasResourceManifest`. The browser groups resources with an insertion-ordered map, retaining first-appearance section ordering and declaration order within each section. Ungrouped resources share a separate Resources section. Each section has an accessible label and retains the resource's icons and nested Views. The manifest resource array, router, operation allowlists and authorization remain unchanged. No application domain names are embedded in Atlas. Collapsible groups, nested groups and separate group ordering remain future extensions.

@@ -232,6 +232,7 @@ export interface AtlasResourceCapabilitiesManifest {
 
 /** Serializable resource definition consumed by Atlas UI. */
 export interface AtlasResourceManifest {
+  readonly navigationGroup?: string;
   readonly id: string;
   readonly label: string;
   readonly labelSingular: string;

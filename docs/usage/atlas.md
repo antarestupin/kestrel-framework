@@ -126,6 +126,12 @@ Every resource supplies `list`, `read` and `readMany`. Omit `create`, `update` o
 
 Omitted mutations have no manifest entry, no standard UI control and no create/edit route. Their operation IDs are absent from the gateway allowlist and return `404`. All fields are inferred read-only when both create and update are absent. Optional capabilities describe supported operations for every operator of the resource; they do not implement per-record permissions. The application must still enforce access and business rules in the exposed operations.
 
+## Group resources in navigation
+
+Set `navigationGroup: "Editorial"` on a `defineAtlasResource()` definition to place it under that sidebar heading. Resources with matching labels share one section, even when their declarations are interleaved. Sections appear in order of their first resource; resources and their Views retain declaration order within each section. Labels are trimmed and cannot be blank.
+
+Omit `navigationGroup` to retain the default Resources section. Grouping changes sidebar presentation only: it does not change URLs, resource capabilities, home-page cards or access policies. Keep authorization in the source operations and Atlas access composition.
+
 ## Add a record action and success feedback
 
 Add a record action when operators need a task beyond the standard CRUD controls. This example reads a selected contact and displays a notification after the operation succeeds.
