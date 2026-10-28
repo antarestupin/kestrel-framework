@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../db/framework_table.js";
 import {
   bigserial,
   index,
@@ -28,6 +29,7 @@ export const lockLeases = utilsSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(lockLeases);
 defineDatabaseTableDescriptions(lockLeases, {
   description: "Expiring distributed-lock leases protected by monotonically increasing fencing tokens.",
   columns: {

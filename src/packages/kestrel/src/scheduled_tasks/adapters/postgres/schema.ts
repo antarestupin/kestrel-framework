@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../../../db/framework_table.js";
 import {
   boolean,
   index,
@@ -54,6 +55,7 @@ export const scheduledTaskStates = scheduledTasksSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(scheduledTaskStates);
 defineDatabaseTableDescriptions(scheduledTaskStates, {
   description: "Durable schedule, operator controls, and latest execution summary for each registered task.",
   columns: {
@@ -95,6 +97,7 @@ export const scheduledTaskRuns = scheduledTasksSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(scheduledTaskRuns);
 defineDatabaseTableDescriptions(scheduledTaskRuns, {
   description: "Active scheduled-task occurrence reservations retained until completion or lease expiry.",
   columns: {

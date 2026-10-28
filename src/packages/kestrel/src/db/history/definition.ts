@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../framework_table.js";
 import {
   type BuildColumns,
   getTableColumns,
@@ -221,6 +222,8 @@ export function defineHistoryTable<
     uninstallBeforeSql: createHistoryTriggerRemovalSql(definition),
   });
 
+  // The generated history table belongs to the framework; its source does not.
+  markFrameworkDatabaseTable(table);
   return table as HistoryTable<Source, Options>;
 }
 

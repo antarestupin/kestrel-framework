@@ -13,6 +13,7 @@ import {
   PostgresDatabaseSchemaSource,
   type DatabaseSchemaSource,
 } from "@kestreljs/framework/studio/extensions/database";
+import * as databaseSchema from "../db/schema/dev_schema.js";
 import type { AppConfig } from "../app_config.js";
 
 /** Installs the application's catalogs and lazily resolved database into Studio. */
@@ -41,7 +42,7 @@ export class StudioProvider extends KestrelStudioProvider<AppConfig, AppConfig["
       // Catalog inspection and CLI commands must not construct a database client.
       getLayout: () => {
         const { pool } = app.container.resolve(dep<PostgresDrizzleClient>("databaseClient"));
-        return new PostgresDatabaseSchemaSource(pool).getLayout();
+        return new PostgresDatabaseSchemaSource(pool, databaseSchema).getLayout();
       },
     };
 

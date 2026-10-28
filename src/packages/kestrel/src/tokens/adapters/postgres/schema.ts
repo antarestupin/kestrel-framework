@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../../../db/framework_table.js";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -86,6 +87,7 @@ export function createPostgresTokenTable(
     ],
   );
 
+  markFrameworkDatabaseTable(table);
   return defineDatabaseTableDescriptions(table, {
     description: "Opaque application tokens stored by digest with expiry, consumption, and revocation state.",
     columns: {

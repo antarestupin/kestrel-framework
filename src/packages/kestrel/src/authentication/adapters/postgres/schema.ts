@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../../../db/framework_table.js";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -57,6 +58,7 @@ export const authenticationAccounts = authenticationSqlSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(authenticationAccounts);
 defineDatabaseTableDescriptions(authenticationAccounts, {
   description: "Authentication state mapped to an opaque subject owned by the integrating application.",
   columns: {
@@ -99,6 +101,7 @@ export const authenticationPasswordCredentials = authenticationSqlSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(authenticationPasswordCredentials);
 defineDatabaseTableDescriptions(authenticationPasswordCredentials, {
   description: "Password credentials and normalized login identity owned by an authentication account.",
   columns: {
@@ -162,6 +165,7 @@ export const authenticationSessions = authenticationSqlSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(authenticationSessions);
 defineDatabaseTableDescriptions(authenticationSessions, {
   description: "Revocable bearer-token sessions stored by digest and bounded by idle and absolute expiry.",
   columns: {

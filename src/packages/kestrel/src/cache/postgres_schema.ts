@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../db/framework_table.js";
 import { sql } from "drizzle-orm";
 import {
   index,
@@ -45,6 +46,7 @@ export const cacheEntries = defineUnloggedTable(
   ),
 );
 
+markFrameworkDatabaseTable(cacheEntries);
 defineDatabaseTableDescriptions(cacheEntries, {
   description: "Disposable unlogged cache entries with expiration and tag-based invalidation.",
   columns: {

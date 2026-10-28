@@ -50,6 +50,36 @@ describe("defineDrizzleStudioExtension", () => {
 });
 
 describe("defineDatabaseStudioExtension", () => {
+  it("exports the selected framework filter and preserves provenance in JSON", async () => {
+    const source: DatabaseSchemaSource = { getLayout: async () => ({ schemas: [{ name: "mixed", tables: [
+      { name: "internal", kind: "table", origin: "framework", columns: [] },
+      { name: "note", kind: "table", columns: [] },
+    ] }] }) };
+    const server = Fastify();
+    const app = new App({});
+    const studio = new Studio({ basePath: "/tools", extensions: [defineDatabaseStudioExtension(source)] });
+    const manager = new HttpControllerManager(app, server);
+    try {
+      for (const controller of await studio.defineHttpControllers()) manager.register(controller);
+      await app.start();
+      const json = await server.inject("/tools/api/extensions/database/schema");
+      expect(json.json().schemas[0].tables[0].origin).toBe("framework");
+      for (const suffix of ["", "?hideFramework=false"]) {
+        const response = await server.inject(`/tools/api/extensions/database/schema.svg${suffix}`);
+        expect(response.statusCode).toBe(200);
+        expect(response.body).toContain("mixed.internal");
+      }
+      const filtered = await server.inject("/tools/api/extensions/database/schema.svg?hideFramework=true");
+      expect(filtered.statusCode).toBe(200);
+      expect(filtered.body).toContain("mixed.note");
+      expect(filtered.body).not.toContain("mixed.internal");
+      expect((await server.inject("/tools/api/extensions/database/schema.svg?hideFramework=invalid")).statusCode).toBe(400);
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
   it.each(["/_studio", "/developer/tools", "/"])("serves a fresh inline SVG under %s", async (basePath) => {
     const source: DatabaseSchemaSource = {
       getLayout: vi.fn(async () => ({ schemas: [{ name: "public", tables: [{

@@ -1,3 +1,4 @@
+import { logs } from "../../../log/db/schema.js";
 import type { Pool } from "pg";
 import {
   describe,
@@ -9,6 +10,17 @@ import {
 import { PostgresDatabaseSchemaSource } from "./schema_source.js";
 
 describe("PostgresDatabaseSchemaSource", () => {
+  it("enriches catalog tables from definition provenance without guessing schema ownership", async () => {
+    const rows = ["log", "note"].map((name) => ({
+      schema_name: "dev", schema_description: null, table_name: name, table_description: null,
+      relation_kind: "r", column_name: null, column_type: null, foreign_keys: null,
+    }));
+    const source = new PostgresDatabaseSchemaSource({ query: vi.fn(async () => ({ rows })) } as unknown as Pick<Pool, "query">, { logs });
+    const layout = await source.getLayout();
+    expect(layout.schemas[0]?.tables[0]?.origin).toBe("framework");
+    expect(layout.schemas[0]?.tables[1]?.origin).toBeUndefined();
+  });
+
   it("preserves composite foreign-key pairs and qualified references", async () => {
     const foreignKeys = [{
       name: "member_team_fk",

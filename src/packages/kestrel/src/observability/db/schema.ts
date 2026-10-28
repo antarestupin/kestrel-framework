@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../../db/framework_table.js";
 import {
   bigint,
   doublePrecision,
@@ -60,6 +61,7 @@ export const observations = devSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(observations);
 defineDatabaseTableDescriptions(observations, {
   description: "Disposable structured observations captured for local development and execution tracing.",
   columns: {

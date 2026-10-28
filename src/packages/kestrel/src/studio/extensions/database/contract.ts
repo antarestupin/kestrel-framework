@@ -15,6 +15,8 @@ export interface StudioDatabaseSchema {
 /** Table metadata rendered as one card in the database layout. */
 export interface StudioDatabaseTable {
   name: string;
+  /** Only framework-owned definitions carry provenance; unmarked tables remain visible. */
+  origin?: "framework";
   description?: string;
   kind: "table" | "partitioned-table";
   columns: readonly StudioDatabaseColumn[];

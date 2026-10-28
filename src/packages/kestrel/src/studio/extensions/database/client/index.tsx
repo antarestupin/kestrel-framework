@@ -3,8 +3,10 @@ import {
   useContext,
   useEffect,
   useId,
+  useMemo,
   useState,
 } from "react";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 
 import { StudioPageHeader } from "../../../client/src/page.js";
 import type { StudioPageRenderer } from "../../../client/src/page_renderer.js";
@@ -20,8 +22,10 @@ import {
   type StudioDatabaseTable,
 } from "../contract.js";
 import { formatDatabaseColumnType } from "../presentation.js";
+import { filterDatabaseLayout } from "../filter.js";
 import { createDatabaseDiagramLayout, type SchemaGroup, type TableNode } from "../schema_layout.js";
 import { useDatabaseDiagramLayout } from "./diagram_layout.js";
+import { databaseFilterUrl } from "./filter_url.js";
 import "./styles.css";
 
 /** Client renderer contributed by the native Database extension. */
@@ -33,6 +37,17 @@ const databaseSchemaPageRenderer: StudioPageRenderer = {
 addStudioPageRenderer(databaseSchemaPageRenderer);
 
 function DatabaseSchemaPage({ page }: { page: StudioPageManifest }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const hideFramework = new URLSearchParams(location.searchStr).get("hideFramework") === "true";
+  const changeFilter = (hidden: boolean) => {
+    // Let the router update its own history while retaining unrelated query parameters.
+    void navigate({
+      href: databaseFilterUrl(location.href, hidden),
+      replace: true,
+      resetScroll: false,
+    });
+  };
   return (
     <div className="page database-schema-page">
       <StudioPageHeader page={page} eyebrow="Database" />
@@ -41,8 +56,7 @@ function DatabaseSchemaPage({ page }: { page: StudioPageManifest }) {
         : (
             <>
               {/* The manifest endpoint already includes the configured Studio base path. */}
-              <DatabaseDiagramLink dataPath={page.dataPath} />
-              <DatabaseLayoutData dataPath={page.dataPath} />
+              <DatabaseLayoutData dataPath={page.dataPath} hideFramework={hideFramework} onHideFrameworkChange={changeFilter} />
             </>
           )}
     </div>
@@ -50,11 +64,11 @@ function DatabaseSchemaPage({ page }: { page: StudioPageManifest }) {
 }
 
 /** Opens the standalone resource for native browser zooming and saving. */
-export function DatabaseDiagramLink({ dataPath }: { dataPath: string }) {
+export function DatabaseDiagramLink({ dataPath, hideFramework = false }: { dataPath: string; hideFramework?: boolean }) {
   return (
     <a
       className="database-diagram-link"
-      href={`${dataPath}.svg`}
+      href={`${dataPath}.svg${hideFramework ? "?hideFramework=true" : ""}`}
       rel="noopener noreferrer"
       target="_blank"
     >
@@ -63,7 +77,11 @@ export function DatabaseDiagramLink({ dataPath }: { dataPath: string }) {
   );
 }
 
-function DatabaseLayoutData({ dataPath }: { dataPath: string }) {
+function DatabaseLayoutData({ dataPath, hideFramework, onHideFrameworkChange }: {
+  dataPath: string;
+  hideFramework: boolean;
+  onHideFrameworkChange: (hidden: boolean) => void;
+}) {
   const resource = useDatabaseLayout(dataPath);
 
   if (resource.status === "loading") {
@@ -84,11 +102,20 @@ function DatabaseLayoutData({ dataPath }: { dataPath: string }) {
     );
   }
 
-  return <DatabaseLayout layout={resource.layout} />;
+  return <DatabaseLayout layout={resource.layout} dataPath={dataPath} hideFramework={hideFramework} onHideFrameworkChange={onHideFrameworkChange} />;
 }
 
 /** Renders the loaded database layout with page-wide comment controls. */
-export function DatabaseLayout({ layout }: { layout: StudioDatabaseLayout }) {
+export function DatabaseLayout({ layout: completeLayout, dataPath, hideFramework: controlledFilter, onHideFrameworkChange }: {
+  layout: StudioDatabaseLayout;
+  dataPath?: string;
+  hideFramework?: boolean;
+  onHideFrameworkChange?: (hidden: boolean) => void;
+}) {
+  const [localFilter, setLocalFilter] = useState(false);
+  const hideFramework = controlledFilter ?? localFilter;
+  // Keep the measured layout stable between filter changes and comment disclosures.
+  const layout = useMemo(() => filterDatabaseLayout(completeLayout, hideFramework), [completeLayout, hideFramework]);
   const { canvas, diagram } = useDatabaseDiagramLayout(layout);
   const tableCount = layout.schemas.reduce(
     (count, schema) => count + schema.tables.length,
@@ -125,6 +152,19 @@ export function DatabaseLayout({ layout }: { layout: StudioDatabaseLayout }) {
     <DatabaseCommentExpansionContext.Provider value={expansion}>
       <div className="database-layout">
         <div className="database-layout-toolbar">
+          <button
+            className="database-filter-toggle"
+            type="button"
+            aria-pressed={hideFramework}
+            onClick={() => {
+              const next = !hideFramework;
+              setLocalFilter(next);
+              onHideFrameworkChange?.(next);
+            }}
+          >
+            {hideFramework ? "Show framework tables" : "Hide framework tables"}
+          </button>
+          {dataPath === undefined ? null : <DatabaseDiagramLink dataPath={dataPath} hideFramework={hideFramework} />}
           <p className="database-layout-summary">
             {tableCount} {tableCount === 1 ? "table" : "tables"} across{" "}
             {layout.schemas.length}{" "}
@@ -146,6 +186,7 @@ export function DatabaseLayout({ layout }: { layout: StudioDatabaseLayout }) {
               )}
         </div>
         <p className="database-layout-legend">PK: primary key · FK: foreign key · ?: nullable</p>
+        {hideFramework && layout.schemas.length === 0 ? <p role="status">No tables remain after filtering.</p> : null}
         {/* The canvas retains its natural size and can extend beyond the viewport. */}
         <div className="database-schema-groups" ref={canvas} style={{ width: diagram.width, height: diagram.height }}>
           {diagram.groups.map((group) => (

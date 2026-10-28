@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../../db/framework_table.js";
 import {
   bigint,
   index,
@@ -44,6 +45,7 @@ export const logs = devSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(logs);
 defineDatabaseTableDescriptions(logs, {
   description: "Disposable structured log records captured for local development and Studio inspection.",
   columns: {

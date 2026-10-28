@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../../../db/framework_table.js";
 import {
   bigint,
   customType,
@@ -58,6 +59,7 @@ export const emailCaptures = devSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(emailCaptures);
 defineDatabaseTableDescriptions(emailCaptures, {
   description: "Disposable emails captured instead of delivery for local development and Studio inspection.",
   columns: {
@@ -103,6 +105,7 @@ export const emailCaptureAttachments = devSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(emailCaptureAttachments);
 defineDatabaseTableDescriptions(emailCaptureAttachments, {
   description: "Attachment content and metadata belonging to locally captured emails.",
   columns: {

@@ -23,6 +23,27 @@ describe("DatabaseSchemaSection", () => {
     expect(markup).toContain("Open SVG diagram");
   });
 
+  it("offers the HTML filter and propagates its enabled state to the SVG resource", () => {
+    const link = renderToStaticMarkup(<DatabaseDiagramLink dataPath="/tools/api/extensions/database/schema" hideFramework />);
+    expect(link).toContain('href="/tools/api/extensions/database/schema.svg?hideFramework=true"');
+    const page = renderToStaticMarkup(<DatabaseLayout layout={{ schemas: [] }} />);
+    expect(page).toContain("Hide framework tables");
+    expect(page).toContain('aria-pressed="false"');
+  });
+
+  it("restores the URL-selected filter in the table overview and SVG export", () => {
+    const markup = renderToStaticMarkup(<DatabaseLayout dataPath="/tools/api/extensions/database/schema" hideFramework layout={{ schemas: [
+      { name: "dev", tables: [{ name: "log", kind: "table", origin: "framework", columns: [] }] },
+      { name: "public", tables: [{ name: "note", kind: "table", columns: [] }] },
+    ] }} />);
+    expect(markup).toContain("Show framework tables");
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).not.toContain('title="dev.log"');
+    expect(markup).toContain('title="public.note"');
+    expect(markup).toContain('href="/tools/api/extensions/database/schema.svg?hideFramework=true"');
+    expect(markup).toContain("1 table across 1 schema");
+  });
+
   it("signals comments while keeping every description collapsed initially", () => {
     const markup = renderToStaticMarkup(
       <DatabaseSchemaSection schema={{

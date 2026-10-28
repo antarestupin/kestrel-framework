@@ -13,6 +13,7 @@ import { fontAwesomeIcon } from "../../icon_definition.js";
 import { DATABASE_SCHEMA_PAGE_KIND } from "./contract.js";
 import type { DatabaseSchemaSource } from "./schema_source.js";
 import { renderDatabaseSchemaSvg } from "./schema_svg.js";
+import { filterDatabaseLayout } from "./filter.js";
 
 const databaseIcon = fontAwesomeIcon(faDatabase);
 const externalLinkIcon = fontAwesomeIcon(faUpRightFromSquare);
@@ -28,6 +29,7 @@ const databaseLayoutSchema = z.object({
       name: z.string(),
       description: z.string().optional(),
       kind: z.enum(["table", "partitioned-table"]),
+      origin: z.literal("framework").optional(),
       columns: z.array(z.object({
         name: z.string(),
         description: z.string().optional(),
@@ -84,9 +86,11 @@ export function defineDatabaseStudioExtension(
         defineHttpController({
           access: studioHttpAccess,
           route: get(joinStudioPath(basePath, `${dataPath}.svg`)),
+          input: z.object({ hideFramework: z.enum(["true", "false"]).default("false") }),
+          bindings: { hideFramework: { kind: "query" } },
           description: "Render a compact SVG overview of tables grouped by PostgreSQL schema.",
-          handler: async ({ reply }) => {
-            const diagram = renderDatabaseSchemaSvg(await source.getLayout());
+          handler: async ({ reply, input }) => {
+            const diagram = renderDatabaseSchemaSvg(filterDatabaseLayout(await source.getLayout(), input.hideFramework === "true"));
             // Send an image directly so opening the resource never returns a JSON string.
             reply.type("image/svg+xml; charset=utf-8");
             reply.header("content-disposition", 'inline; filename="database-schema.svg"');

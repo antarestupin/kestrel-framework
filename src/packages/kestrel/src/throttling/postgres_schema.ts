@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../db/framework_table.js";
 import {
   boolean,
   doublePrecision,
@@ -43,6 +44,7 @@ export const throttlingRateLimits = utilsSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(throttlingRateLimits);
 defineDatabaseTableDescriptions(throttlingRateLimits, {
   description: "Continuously refilled token buckets shared by all application processes.",
   columns: {
@@ -96,6 +98,7 @@ export const throttlingRateLimitLeases = utilsSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(throttlingRateLimitLeases);
 defineDatabaseTableDescriptions(throttlingRateLimitLeases, {
   description: "Expiring grants that bound rate-limit capacity held outside authoritative storage.",
   columns: {

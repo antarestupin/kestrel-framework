@@ -10,6 +10,7 @@ import type {
   StudioDatabaseSchema,
   StudioDatabaseTable,
 } from "./contract.js";
+import { getFrameworkDatabaseTableKeys } from "../../../db/framework_table.js";
 
 interface DatabaseSchemaRow extends QueryResultRow {
   schema_name: string;
@@ -44,7 +45,10 @@ export interface DatabaseSchemaSource {
  * leaking into the Studio transport contract.
  */
 export class PostgresDatabaseSchemaSource implements DatabaseSchemaSource {
-  public constructor(private readonly pool: Pick<Pool, "query">) {}
+  public constructor(
+    private readonly pool: Pick<Pool, "query">,
+    private readonly schema: Readonly<Record<string, unknown>> = {},
+  ) {}
 
   public async getLayout(): Promise<StudioDatabaseLayout> {
     const result = await this.pool.query<DatabaseSchemaRow>(`
@@ -128,13 +132,14 @@ export class PostgresDatabaseSchemaSource implements DatabaseSchemaSource {
         attribute.attnum
     `);
 
-    return groupDatabaseSchemaRows(result.rows);
+    return groupDatabaseSchemaRows(result.rows, getFrameworkDatabaseTableKeys(this.schema));
   }
 }
 
 /** Groups the ordered catalog result into the compact client contract. */
 function groupDatabaseSchemaRows(
   rows: readonly DatabaseSchemaRow[],
+  frameworkTables: ReadonlySet<string>,
 ): StudioDatabaseLayout {
   const schemas = new Map<string, {
     schema: MutableDatabaseSchema;
@@ -161,6 +166,8 @@ function groupDatabaseSchemaRows(
     if (table === undefined) {
       table = {
         name: row.table_name,
+        ...(frameworkTables.has(JSON.stringify([row.schema_name, row.table_name]))
+          ? { origin: "framework" as const } : {}),
         ...descriptionProperty(row.table_description),
         kind: row.relation_kind === "p" ? "partitioned-table" : "table",
         columns: [],

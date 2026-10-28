@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../../../db/framework_table.js";
 import {
   index,
   pgSchema,
@@ -35,6 +36,7 @@ export const authorizationSubjectRoles = authorizationSqlSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(authorizationSubjectRoles);
 defineDatabaseTableDescriptions(authorizationSubjectRoles, {
   description: "Role grants assigned to opaque application-owned subjects.",
   columns: {

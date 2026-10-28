@@ -26,7 +26,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 0;
   padding: 8px 12px;
   border: 1px solid var(--studio-border);
   border-radius: 6px;
@@ -63,6 +63,7 @@
   gap: 16px;
 }
 
+.database-filter-toggle,
 .database-comments-toggle {
   padding: 4px 8px;
   border: 1px solid var(--studio-border);
@@ -74,6 +75,8 @@
   font-size: 10px;
 }
 
+.database-filter-toggle:hover,
+.database-filter-toggle[aria-pressed="true"],
 .database-comments-toggle:hover,
 .database-comments-toggle[aria-pressed="true"] {
   border-color: var(--studio-accent);
@@ -81,6 +84,7 @@
   background: var(--studio-surface-accent);
 }
 
+.database-filter-toggle:focus-visible,
 .database-comments-toggle:focus-visible {
   outline: 2px solid var(--studio-accent);
   outline-offset: 2px;

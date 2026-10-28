@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../../../db/framework_table.js";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -101,6 +102,7 @@ export const workflowExecutions = workflowsSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(workflowExecutions);
 defineDatabaseTableDescriptions(workflowExecutions, {
   description: "Durable workflow identity, pinned definition, lifecycle state, result, and replay revision.",
   columns: {
@@ -152,6 +154,7 @@ export const workflowHistoryArchives = workflowsSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(workflowHistoryArchives);
 defineDatabaseTableDescriptions(workflowHistoryArchives, {
   description: "Immutable replay-history snapshots rotated out when an execution continues as new.",
   columns: {
@@ -202,6 +205,7 @@ export const workflowHistoryEvents = workflowsSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(workflowHistoryEvents);
 defineDatabaseTableDescriptions(workflowHistoryEvents, {
   description: "Immutable ordered workflow events that form the source of truth for deterministic replay.",
   columns: {
@@ -256,6 +260,7 @@ export const workflowTasks = workflowsSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(workflowTasks);
 defineDatabaseTableDescriptions(workflowTasks, {
   description: "Runnable workflow activations, timers, and embedded activity work protected by expiring reservations.",
   columns: {
@@ -304,6 +309,7 @@ export const workflowSignals = workflowsSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(workflowSignals);
 defineDatabaseTableDescriptions(workflowSignals, {
   description: "Validated external workflow messages retained independently from their consumption history.",
   columns: {
@@ -359,6 +365,7 @@ export const workflowDispatchOutbox = workflowsSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(workflowDispatchOutbox);
 defineDatabaseTableDescriptions(workflowDispatchOutbox, {
   description: "Transactional publication outbox for activities dispatched through non-embedded transports.",
   columns: {

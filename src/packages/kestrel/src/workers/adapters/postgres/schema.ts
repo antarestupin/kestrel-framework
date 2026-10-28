@@ -1,3 +1,4 @@
+import { markFrameworkDatabaseTable } from "../../../db/framework_table.js";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -38,6 +39,7 @@ export const workerQueueControls = workersSchema.table(
   },
 );
 
+markFrameworkDatabaseTable(workerQueueControls);
 defineDatabaseTableDescriptions(workerQueueControls, {
   description: "Durable operator controls that enable or pause consumption for individual queues.",
   columns: {
@@ -93,6 +95,7 @@ export const workerJobs = workersSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(workerJobs);
 defineDatabaseTableDescriptions(workerJobs, {
   description: "Active durable background jobs whose availability timestamp also represents reservation expiry.",
   columns: {
@@ -145,6 +148,7 @@ export const workerDeadLetterJobs = workersSchema.table(
   ],
 );
 
+markFrameworkDatabaseTable(workerDeadLetterJobs);
 defineDatabaseTableDescriptions(workerDeadLetterJobs, {
   description: "Terminally failed jobs retained separately from the active reservation table.",
   columns: {
