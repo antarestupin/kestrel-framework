@@ -1,9 +1,24 @@
-.database-schema-page {
-  width: min(1480px, 100%);
+.page.database-schema-page {
+  /* Keep the natural diagram width instead of squeezing it into the normal page. */
+  width: max-content;
+  min-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .database-layout {
-  padding-top: 28px;
+  padding-top: 18px;
+}
+
+.database-layout-legend {
+  margin: 6px 0 14px;
+  color: var(--studio-text-faint);
+  font-size: 10px;
+}
+
+/* Shared SVG geometry defines a canvas that can scroll with the page horizontally. */
+.database-schema-groups {
+  position: relative;
 }
 
 /* Keep the diagram resource visible before the catalog request completes. */
@@ -42,7 +57,9 @@
   display: flex;
   min-height: 24px;
   align-items: center;
-  justify-content: space-between;
+  /* Keep comment controls nearby even when the canvas extends beyond the screen. */
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
@@ -70,27 +87,44 @@
 }
 
 .database-schema {
-  margin-top: 44px;
+  --database-schema-color: #8bb2ff;
+  position: absolute;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--studio-border);
+  border-color: color-mix(in srgb, var(--database-schema-color) 40%, var(--studio-border));
+  border-radius: 7px;
+  background: var(--studio-surface);
+  break-inside: avoid;
 }
 
-.database-schema:first-of-type {
-  margin-top: 32px;
-}
+.database-schema:nth-child(5n + 2) { --database-schema-color: #5ed4c6; }
+.database-schema:nth-child(5n + 3) { --database-schema-color: #c49bf5; }
+.database-schema:nth-child(5n + 4) { --database-schema-color: #e9b46a; }
+.database-schema:nth-child(5n + 5) { --database-schema-color: #ef98b2; }
 
 .database-schema-heading {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  padding-bottom: 12px;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 5px 9px;
   border-bottom: 1px solid var(--studio-border-subtle);
+  border-radius: 6px 6px 0 0;
+  background: var(--studio-surface-subtle);
+  background: color-mix(in srgb, var(--database-schema-color) 8%, var(--studio-surface));
 }
 
 .database-schema-heading h2 {
   margin: 0;
-  color: var(--studio-heading);
+  overflow: hidden;
+  color: var(--database-schema-color);
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 17px;
+  font-size: 12px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .database-schema-title {
@@ -100,46 +134,47 @@
   gap: 5px;
 }
 
-.database-schema-heading span {
+.database-schema-count {
+  flex: 0 0 auto;
   color: var(--studio-text-faint);
   font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .database-schema-description {
-  max-width: 760px;
-  margin: 10px 0 0;
+  margin: 0;
+  padding: 8px 9px;
   color: var(--studio-text-muted);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.55;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .database-table-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
-  align-items: start;
-  margin-top: 16px;
+  /* Cards are positioned relative to the schema frame, including its heading. */
+  position: static;
 }
 
 .database-table-card {
+  position: absolute;
+  min-width: 0;
+  margin: 0;
   overflow: hidden;
   border: 1px solid var(--studio-border);
-  border-radius: 10px;
+  border-radius: 4px;
   background: var(--studio-surface);
+  break-inside: avoid;
 }
 
 .database-table-card > header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 46px;
-  padding: 11px 14px;
+  min-height: 28px;
+  padding: 3px 7px;
   border-bottom: 1px solid var(--studio-border-subtle);
   background: var(--studio-surface-subtle);
+  background: color-mix(in srgb, var(--database-schema-color) 10%, var(--studio-surface));
 }
 
 .database-table-card h3 {
@@ -149,7 +184,7 @@
   margin: 0;
   color: var(--studio-text-strong);
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -159,8 +194,8 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
-  margin-left: 10px;
+  gap: 4px;
+  margin-left: 6px;
 }
 
 .database-comment-button {
@@ -178,7 +213,7 @@
 
 .database-comment-button:hover,
 .database-comment-button[aria-expanded="true"] {
-  color: var(--studio-accent-strong);
+  color: var(--database-schema-color);
   background: var(--studio-surface-accent);
 }
 
@@ -193,7 +228,7 @@
 }
 
 .database-table-kind {
-  color: var(--studio-accent);
+  color: var(--database-schema-color);
   font-size: 8px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -201,30 +236,34 @@
 
 .database-table-description {
   margin: 0;
-  padding: 10px 14px;
+  padding: 6px 7px;
   border-bottom: 1px solid var(--studio-border-subtle);
   background: var(--studio-surface-subtle);
   color: var(--studio-text-muted);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.5;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .database-column-list {
-  padding: 5px 0;
+  padding: 2px 0;
 }
 
 .database-column {
-  min-height: 30px;
-  padding: 6px 14px;
+  min-height: 22px;
+  padding: 1px 7px;
 }
 
 .database-column-summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(90px, auto) 20px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content) 20px;
+  gap: 6px;
   align-items: center;
+}
+
+.database-column:nth-child(even) {
+  background: var(--studio-surface-subtle);
 }
 
 .database-column + .database-column {
@@ -237,26 +276,32 @@
   align-items: baseline;
 }
 
-.database-column-name abbr,
-.database-column-marker {
-  flex: 0 0 22px;
-  color: var(--studio-accent-strong);
+.database-column-markers {
+  display: flex;
+  flex: 0 0 30px;
+  gap: 3px;
+  color: var(--database-schema-color);
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 8px;
   font-weight: 700;
+}
+
+.database-column-markers abbr {
   text-decoration: none;
+  cursor: help;
 }
 
 .database-column-name code {
   overflow: hidden;
   color: var(--studio-text);
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 11px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .database-nullable {
+  flex: 0 0 auto;
   margin-left: 4px;
   color: var(--studio-text-faint);
   font-family: "SFMono-Regular", Consolas, monospace;
@@ -264,6 +309,7 @@
 }
 
 .database-column-type {
+  max-width: 120px;
   overflow: hidden;
   color: var(--studio-text-subtle);
   font-family: "SFMono-Regular", Consolas, monospace;
@@ -280,7 +326,7 @@
 }
 
 .database-column-description {
-  margin: 4px 0 1px 22px;
+  margin: 4px 0 5px 30px;
   color: var(--studio-text-muted);
   font-size: 10px;
   line-height: 1.45;
@@ -290,18 +336,16 @@
 
 .database-table-empty {
   margin: 0;
-  padding: 18px 14px;
+  padding: 8px 7px;
   color: var(--studio-text-faint);
   font-size: 11px;
 }
 
-@media (max-width: 520px) {
-  .database-table-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .database-column-summary {
-    grid-template-columns: minmax(0, 1fr) minmax(72px, auto) 20px;
-    gap: 8px;
-  }
+/* Match the SVG palette in light mode while keeping contrast in dark mode. */
+@media (prefers-color-scheme: light) {
+  .database-schema { --database-schema-color: #2563eb; }
+  .database-schema:nth-child(5n + 2) { --database-schema-color: #0f766e; }
+  .database-schema:nth-child(5n + 3) { --database-schema-color: #9333ea; }
+  .database-schema:nth-child(5n + 4) { --database-schema-color: #b45309; }
+  .database-schema:nth-child(5n + 5) { --database-schema-color: #be123c; }
 }

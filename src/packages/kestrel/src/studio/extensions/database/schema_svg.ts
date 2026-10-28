@@ -1,42 +1,20 @@
 import type {
   StudioDatabaseLayout,
-  StudioDatabaseSchema,
-  StudioDatabaseTable,
 } from "./contract.js";
+import { formatDatabaseColumnType } from "./presentation.js";
+import { createDatabaseDiagramLayout, type SchemaGroup, type TableNode } from "./schema_layout.js";
 
-const MARGIN = 20;
-const GROUP_GAP = 16;
-const INSET = 12;
-const TABLE_GAP = 12;
-const GROUP_HEADER = 34;
 const TABLE_HEADER = 24;
 const ROW = 16;
-const COLORS = ["#2563eb", "#0f766e", "#9333ea", "#b45309", "#be123c"];
+const INSET = 12;
 
-interface TableNode {
-  id: string;
-  table: StudioDatabaseTable;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface SchemaGroup {
-  id: string;
-  schema: StudioDatabaseSchema;
-  color: string;
-  tables: TableNode[];
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
+const MARGIN = 20;
 /** Generates a compact, standalone overview without external layout services. */
 export function renderDatabaseSchemaSvg(layout: StudioDatabaseLayout): string {
-  const groups = layout.schemas.map(positionSchemaTables);
-  const { width, height } = packSchemaGroups(groups);
+  const diagram = createDatabaseDiagramLayout(layout);
+  const { groups } = diagram;
+  const width = diagram.width + MARGIN * 2;
+  const height = diagram.height + 66 + MARGIN;
   const tableCount = groups.reduce((count, group) => count + group.tables.length, 0);
   const constraintCount = groups.reduce((count, group) => count + group.tables.reduce(
     (sum, node) => sum + (node.table.foreignKeys?.length ?? 0), 0,
@@ -56,83 +34,8 @@ export function renderDatabaseSchemaSvg(layout: StudioDatabaseLayout): string {
 </svg>`;
 }
 
-/** Keep each schema together and stack tables in the shortest available column. */
-function positionSchemaTables(schema: StudioDatabaseSchema, schemaIndex: number): SchemaGroup {
-  const widths = schema.tables.map(tableWidth);
-  const width = Math.max(180, ...widths);
-  const heights = schema.tables.map((table) => TABLE_HEADER + Math.max(1, table.columns.length) * ROW + 4);
-  const totalHeight = heights.reduce((sum, height) => sum + height + TABLE_GAP, 0);
-  // Near-square schema blocks pack well without forcing unrelated tables into rows.
-  const columnCount = Math.max(1, Math.min(schema.tables.length, Math.round(Math.sqrt(totalHeight / width))));
-  const bottoms = Array<number>(columnCount).fill(GROUP_HEADER);
-  const tables = schema.tables.map((table, index): TableNode => {
-    const column = bottoms.indexOf(Math.min(...bottoms));
-    const y = bottoms[column]!;
-    const height = heights[index]!;
-    bottoms[column] = y + height + TABLE_GAP;
-    return { id: `table-${schemaIndex}-${index}`, table, x: INSET + column * (width + TABLE_GAP), y, width, height };
-  });
-
-  return {
-    id: `schema-${schemaIndex}`,
-    schema,
-    color: COLORS[schemaIndex % COLORS.length]!,
-    tables,
-    x: 0,
-    y: 0,
-    width: Math.max(INSET * 2 + columnCount * width + (columnCount - 1) * TABLE_GAP, compact(schema.name, 48).length * 8 + 100),
-    height: Math.max(...bottoms) + (tables.length === 0 ? 24 : -TABLE_GAP) + INSET,
-  };
-}
-
-/** Pack whole schema rectangles, filling spaces alongside taller groups first. */
-function packSchemaGroups(groups: SchemaGroup[]) {
-  const area = groups.reduce((sum, group) => sum + (group.width + GROUP_GAP) * (group.height + GROUP_GAP), 0);
-  const targetWidth = Math.max(480, ...groups.map((group) => group.width), Math.ceil(Math.sqrt(area * 1.5)));
-  const placed: SchemaGroup[] = [];
-
-  for (const group of [...groups].sort((a, b) => b.height - a.height || b.width - a.width)) {
-    const xs = [...new Set([0, ...placed.map((entry) => entry.x + entry.width + GROUP_GAP)])].sort((a, b) => a - b);
-    const ys = [...new Set([0, ...placed.map((entry) => entry.y + entry.height + GROUP_GAP)])].sort((a, b) => a - b);
-    // A candidate directly below every existing block always provides a fit.
-    findPosition: for (const y of ys) {
-      for (const x of xs) {
-        if (x + group.width > targetWidth) continue;
-        const overlaps = placed.some((entry) =>
-          x < entry.x + entry.width + GROUP_GAP && x + group.width + GROUP_GAP > entry.x
-          && y < entry.y + entry.height + GROUP_GAP && y + group.height + GROUP_GAP > entry.y
-        );
-        if (overlaps) continue;
-        group.x = x;
-        group.y = y;
-        break findPosition;
-      }
-    }
-    placed.push(group);
-  }
-
-  return {
-    width: Math.max(480, ...groups.map((group) => group.x + group.width)) + MARGIN * 2,
-    height: Math.max(60, ...groups.map((group) => group.y + group.height)) + 66 + MARGIN,
-  };
-}
-
-/** Short SQL aliases reduce visual noise; tooltips retain the complete type. */
 function columnType(type: string): string {
-  return compact(type
-    .replace(/^timestamp(\(\d+\))? with time zone((?:\[\])*)$/, "timestamptz$1$2")
-    .replace(/^timestamp(\(\d+\))? without time zone((?:\[\])*)$/, "timestamp$1$2")
-    .replace(/^time(\(\d+\))? with time zone((?:\[\])*)$/, "timetz$1$2")
-    .replace(/^time(\(\d+\))? without time zone((?:\[\])*)$/, "time$1$2")
-    .replace(/^character varying(\(\d+\))?((?:\[\])*)$/, "varchar$1$2")
-    .replace(/^double precision((?:\[\])*)$/, "float8$1"), 24);
-}
-
-/** Size each schema independently so one long type cannot widen the entire DB. */
-function tableWidth(table: StudioDatabaseTable): number {
-  return Math.max(180, compact(table.name, 48).length * 7 + 20, ...table.columns.map((column) =>
-    62 + (compact(column.name, 32).length + columnType(column.type).length) * 6
-  ));
+  return compact(formatDatabaseColumnType(type), 24);
 }
 
 function renderSchemaGroup(group: SchemaGroup): string {

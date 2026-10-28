@@ -63,7 +63,7 @@ describe("DatabaseSchemaSection", () => {
       /class="database-table-controls"><button[^>]+database-comment-button/,
     );
     expect(markup).toMatch(
-      /class="database-column-type">text<\/code><div class="database-column-comment"><button/,
+      /class="database-column-type" title="text">text<\/code><div class="database-column-comment"><button/,
     );
   });
 
@@ -127,5 +127,45 @@ describe("DatabaseSchemaSection", () => {
     expect(markup).toContain(
       '<div class="database-column-comment"></div>',
     );
+  });
+
+  it("groups tables into labeled frames and retains compact type and key details", () => {
+    const markup = renderToStaticMarkup(<DatabaseLayout layout={{ schemas: [
+      { name: "identity", tables: [{
+        name: "member", kind: "table",
+        columns: [{ name: "created_at", type: "timestamp(3) with time zone", primaryKey: true, nullable: true }],
+        foreignKeys: [{ name: "member_created_fk", columns: ["created_at"], referencedSchema: "audit", referencedTable: "event", referencedColumns: ["created_at"] }],
+      }] },
+      { name: "audit", tables: [{ name: "event", kind: "table", columns: [] }] },
+    ] }} />);
+
+    expect(markup).toContain('class="database-schema-groups"');
+    const groups = markup.split("<section ").slice(1);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toContain('title="identity.member"');
+    expect(groups[0]).not.toContain('title="audit.event"');
+    expect(groups[1]).toContain('title="audit.event"');
+    expect(markup.match(/aria-labelledby=/g)).toHaveLength(2);
+    expect(markup).toContain('title="timestamp(3) with time zone">timestamptz(3)</code>');
+    expect(markup).toContain('title="identity.member.created_at"');
+    expect(markup).toContain('title="Primary key">PK</abbr>');
+    expect(markup).toContain('title="member_created_fk: (created_at) → audit.event(created_at)">FK</abbr>');
+    expect(markup).toContain('title="Nullable">?</span>');
+  });
+
+  it("uses shared balanced geometry beyond the page width and handles empty groups", () => {
+    const markup = renderToStaticMarkup(<DatabaseLayout layout={{ schemas: [
+      { name: "public", tables: Array.from({ length: 48 }, (_, index) => ({ name: `record_${index}`, kind: "table", columns: Array.from({ length: 12 }, (_, column) => ({ name: `column_${column}`, type: "text", primaryKey: false, nullable: false })) })) },
+      { name: "pair", tables: Array.from({ length: 2 }, (_, index) => ({ name: `pair_${index}`, kind: "table", columns: [] })) },
+      { name: "triple", tables: Array.from({ length: 3 }, (_, index) => ({ name: `triple_${index}`, kind: "table", columns: [] })) },
+      { name: "empty", tables: [] },
+    ] }} />);
+
+    expect(markup).toContain('data-columns="7"');
+    const canvasWidth = Number(/class="database-schema-groups" style="width:(\d+)px/.exec(markup)?.[1]);
+    expect(canvasWidth).toBeGreaterThan(1480);
+    expect(markup).toContain('data-columns="1"');
+    expect(markup.match(/class="database-table-card"/g)).toHaveLength(53);
+    expect(markup).toContain("No tables");
   });
 });

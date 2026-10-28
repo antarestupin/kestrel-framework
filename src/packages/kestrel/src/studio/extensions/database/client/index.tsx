@@ -14,10 +14,14 @@ import { Icon } from "../../../client/src/ui/icon.js";
 import {
   DATABASE_SCHEMA_PAGE_KIND,
   type StudioDatabaseColumn,
+  type StudioDatabaseForeignKey,
   type StudioDatabaseLayout,
   type StudioDatabaseSchema,
   type StudioDatabaseTable,
 } from "../contract.js";
+import { formatDatabaseColumnType } from "../presentation.js";
+import { createDatabaseDiagramLayout, type SchemaGroup, type TableNode } from "../schema_layout.js";
+import { useDatabaseDiagramLayout } from "./diagram_layout.js";
 import "./styles.css";
 
 /** Client renderer contributed by the native Database extension. */
@@ -85,6 +89,7 @@ function DatabaseLayoutData({ dataPath }: { dataPath: string }) {
 
 /** Renders the loaded database layout with page-wide comment controls. */
 export function DatabaseLayout({ layout }: { layout: StudioDatabaseLayout }) {
+  const { canvas, diagram } = useDatabaseDiagramLayout(layout);
   const tableCount = layout.schemas.reduce(
     (count, schema) => count + schema.tables.length,
     0,
@@ -140,9 +145,13 @@ export function DatabaseLayout({ layout }: { layout: StudioDatabaseLayout }) {
                 </button>
               )}
         </div>
-        {layout.schemas.map((schema) => (
-          <DatabaseSchemaSection key={schema.name} schema={schema} />
-        ))}
+        <p className="database-layout-legend">PK: primary key · FK: foreign key · ?: nullable</p>
+        {/* The canvas retains its natural size and can extend beyond the viewport. */}
+        <div className="database-schema-groups" ref={canvas} style={{ width: diagram.width, height: diagram.height }}>
+          {diagram.groups.map((group) => (
+            <DatabaseSchemaSection key={group.schema.name} schema={group.schema} group={group} />
+          ))}
+        </div>
       </div>
     </DatabaseCommentExpansionContext.Provider>
   );
@@ -178,42 +187,54 @@ function getDatabaseCommentKeys(layout: StudioDatabaseLayout): string[] {
 /** Renders one independently expandable PostgreSQL schema section. */
 export function DatabaseSchemaSection({
   schema,
+  group = createDatabaseDiagramLayout({ schemas: [schema] }, { minimumTableWidth: 300, groupHeaderHeight: 44, tableHeaderHeight: 28, rowHeight: 23 }).groups[0]!,
 }: {
   schema: StudioDatabaseSchema;
+  group?: SchemaGroup;
 }) {
   const comment = useDatabaseComment(`schema ${schema.name}`);
+  const headingId = useId();
 
   return (
-    <section className="database-schema">
-      <header className="database-schema-heading">
-        <div className="database-schema-title">
-          <h2>{schema.name}</h2>
-          {schema.description === undefined
-            ? null
-            : <DatabaseCommentButton disclosure={comment} />}
-        </div>
-        <span>
-          {schema.tables.length}{" "}
-          {schema.tables.length === 1 ? "table" : "tables"}
-        </span>
-      </header>
-      {schema.description === undefined
-        ? null
-        : (
-            <p
-              className="database-schema-description"
-              hidden={!comment.expanded}
-              id={comment.commentId}
-            >
-              {schema.description}
-            </p>
-          )}
+    <section
+      aria-labelledby={headingId}
+      className="database-schema"
+      data-columns={group.columnCount}
+      style={{ left: group.x, top: group.y, width: group.width, height: group.height }}
+    >
+      <div data-database-measure={group.id}>
+        <header className="database-schema-heading">
+          <div className="database-schema-title">
+            <h2 id={headingId} title={schema.name}>{schema.name}</h2>
+            {schema.description === undefined
+              ? null
+              : <DatabaseCommentButton disclosure={comment} />}
+          </div>
+          <span className="database-schema-count">
+            {schema.tables.length}{" "}
+            {schema.tables.length === 1 ? "table" : "tables"}
+          </span>
+        </header>
+        {schema.description === undefined
+          ? null
+          : (
+              <p
+                className="database-schema-description"
+                hidden={!comment.expanded}
+                id={comment.commentId}
+              >
+                {schema.description}
+              </p>
+            )}
+      </div>
       <div className="database-table-grid">
-        {schema.tables.map((table) => (
+        {schema.tables.length === 0 ? <p className="database-table-empty">No tables</p> : null}
+        {group.tables.map((node) => (
           <DatabaseTableCard
-            key={`${schema.name}.${table.name}`}
+            key={node.id}
+            node={node}
             schemaName={schema.name}
-            table={table}
+            table={node.table}
           />
         ))}
       </div>
@@ -224,16 +245,22 @@ export function DatabaseSchemaSection({
 function DatabaseTableCard({
   schemaName,
   table,
+  node,
 }: {
   schemaName: string;
   table: StudioDatabaseTable;
+  node: TableNode;
 }) {
   const comment = useDatabaseComment(`table ${schemaName}.${table.name}`);
 
   return (
-    <article className="database-table-card">
+    <article
+      className="database-table-card"
+      data-database-measure={node.id}
+      style={{ left: node.x, top: node.y, width: node.width }}
+    >
       <header>
-        <h3>{table.name}</h3>
+        <h3 title={`${schemaName}.${table.name}`}>{table.name}</h3>
         <div className="database-table-controls">
           {table.kind === "partitioned-table"
             ? <span className="database-table-kind">Partitioned</span>
@@ -261,6 +288,7 @@ function DatabaseTableCard({
               {table.columns.map((column) => (
                 <DatabaseColumnRow
                   column={column}
+                  foreignKeys={table.foreignKeys ?? []}
                   key={column.name}
                   tableName={`${schemaName}.${table.name}`}
                 />
@@ -273,26 +301,36 @@ function DatabaseTableCard({
 
 function DatabaseColumnRow({
   column,
+  foreignKeys,
   tableName,
 }: {
   column: StudioDatabaseColumn;
+  foreignKeys: readonly StudioDatabaseForeignKey[];
   tableName: string;
 }) {
   const comment = useDatabaseComment(`column ${tableName}.${column.name}`);
+  // Keep full constraint details available without drawing relationship arrows.
+  const references = foreignKeys.filter((key) => key.columns.includes(column.name));
+  const referenceTitle = references.map((key) =>
+    `${key.name}: (${key.columns.join(", ")}) → ${key.referencedSchema}.${key.referencedTable}(${key.referencedColumns.join(", ")})`
+  ).join("\n");
 
   return (
     <div className="database-column">
       <div className="database-column-summary">
         <div className="database-column-name">
-          {column.primaryKey
-            ? <abbr title="Primary key"><Icon name="key" /></abbr>
-            : <span className="database-column-marker" />}
-          <code>{column.name}</code>
+          <span className="database-column-markers">
+            {column.primaryKey ? <abbr title="Primary key">PK</abbr> : null}
+            {references.length > 0 ? <abbr title={referenceTitle}>FK</abbr> : null}
+          </span>
+          <code title={`${tableName}.${column.name}`}>{column.name}</code>
           {column.nullable
             ? <span className="database-nullable" title="Nullable">?</span>
             : null}
         </div>
-        <code className="database-column-type">{column.type}</code>
+        <code className="database-column-type" title={column.type}>
+          {formatDatabaseColumnType(column.type)}
+        </code>
         <div className="database-column-comment">
           {column.description === undefined
             ? null
