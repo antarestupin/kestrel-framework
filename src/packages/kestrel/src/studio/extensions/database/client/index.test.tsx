@@ -7,10 +7,22 @@ import {
 
 import {
   DatabaseLayout,
+  DatabaseDiagramLink,
   DatabaseSchemaSection,
 } from "./index.js";
 
 describe("DatabaseSchemaSection", () => {
+  it("links to the SVG resource under the configured Studio mount", () => {
+    const markup = renderToStaticMarkup(
+      <DatabaseDiagramLink dataPath="/tools/studio/api/extensions/database/schema" />,
+    );
+
+    expect(markup).toContain('href="/tools/studio/api/extensions/database/schema.svg"');
+    expect(markup).toContain('target="_blank"');
+    expect(markup).toContain('rel="noopener noreferrer"');
+    expect(markup).toContain("Open SVG diagram");
+  });
+
   it("signals comments while keeping every description collapsed initially", () => {
     const markup = renderToStaticMarkup(
       <DatabaseSchemaSection schema={{

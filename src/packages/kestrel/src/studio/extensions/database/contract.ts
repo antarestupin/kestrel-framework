@@ -18,9 +18,20 @@ export interface StudioDatabaseTable {
   description?: string;
   kind: "table" | "partitioned-table";
   columns: readonly StudioDatabaseColumn[];
+  /** Optional so existing custom schema sources remain compatible. */
+  foreignKeys?: readonly StudioDatabaseForeignKey[];
 }
 
-/** Column metadata kept deliberately small for the initial read-only view. */
+/** Ordered column pairs belonging to one PostgreSQL foreign-key constraint. */
+export interface StudioDatabaseForeignKey {
+  name: string;
+  columns: readonly string[];
+  referencedSchema: string;
+  referencedTable: string;
+  referencedColumns: readonly string[];
+}
+
+/** Column metadata shared by the cards and the SVG diagram. */
 export interface StudioDatabaseColumn {
   name: string;
   description?: string;

@@ -5,6 +5,7 @@ import type {
 
 import type {
   StudioDatabaseColumn,
+  StudioDatabaseForeignKey,
   StudioDatabaseLayout,
   StudioDatabaseSchema,
   StudioDatabaseTable,
@@ -22,6 +23,7 @@ interface DatabaseSchemaRow extends QueryResultRow {
   column_type: string | null;
   nullable: boolean;
   primary_key: boolean;
+  foreign_keys: StudioDatabaseForeignKey[] | null;
 }
 
 interface MutableDatabaseSchema extends Omit<StudioDatabaseSchema, "tables"> {
@@ -46,6 +48,38 @@ export class PostgresDatabaseSchemaSource implements DatabaseSchemaSource {
 
   public async getLayout(): Promise<StudioDatabaseLayout> {
     const result = await this.pool.query<DatabaseSchemaRow>(`
+      WITH foreign_keys AS (
+        SELECT
+          constraint_definition.conrelid,
+          jsonb_agg(jsonb_build_object(
+            'name', constraint_definition.conname,
+            'columns', ARRAY(
+              SELECT source_attribute.attname
+              FROM unnest(constraint_definition.conkey) WITH ORDINALITY AS key(attnum, position)
+              JOIN pg_catalog.pg_attribute AS source_attribute
+                ON source_attribute.attrelid = constraint_definition.conrelid
+                AND source_attribute.attnum = key.attnum
+              ORDER BY key.position
+            ),
+            'referencedSchema', referenced_namespace.nspname,
+            'referencedTable', referenced_relation.relname,
+            'referencedColumns', ARRAY(
+              SELECT target_attribute.attname
+              FROM unnest(constraint_definition.confkey) WITH ORDINALITY AS key(attnum, position)
+              JOIN pg_catalog.pg_attribute AS target_attribute
+                ON target_attribute.attrelid = constraint_definition.confrelid
+                AND target_attribute.attnum = key.attnum
+              ORDER BY key.position
+            )
+          ) ORDER BY constraint_definition.conname) AS definitions
+        FROM pg_catalog.pg_constraint AS constraint_definition
+        JOIN pg_catalog.pg_class AS referenced_relation
+          ON referenced_relation.oid = constraint_definition.confrelid
+        JOIN pg_catalog.pg_namespace AS referenced_namespace
+          ON referenced_namespace.oid = referenced_relation.relnamespace
+        WHERE constraint_definition.contype = 'f'
+        GROUP BY constraint_definition.conrelid
+      )
       SELECT
         namespace.nspname AS schema_name,
         pg_catalog.obj_description(
@@ -75,10 +109,12 @@ export class PostgresDatabaseSchemaSource implements DatabaseSchemaSource {
           WHERE relation_index.indrelid = relation.oid
             AND relation_index.indisprimary
             AND attribute.attnum = ANY(relation_index.indkey)
-        ) AS primary_key
+        ) AS primary_key,
+        foreign_keys.definitions AS foreign_keys
       FROM pg_catalog.pg_class AS relation
       JOIN pg_catalog.pg_namespace AS namespace
         ON namespace.oid = relation.relnamespace
+      LEFT JOIN foreign_keys ON foreign_keys.conrelid = relation.oid
       LEFT JOIN pg_catalog.pg_attribute AS attribute
         ON attribute.attrelid = relation.oid
         AND attribute.attnum > 0
@@ -128,6 +164,8 @@ function groupDatabaseSchemaRows(
         ...descriptionProperty(row.table_description),
         kind: row.relation_kind === "p" ? "partitioned-table" : "table",
         columns: [],
+        // Preserve constraint column order, including composite and self references.
+        ...(row.foreign_keys == null ? {} : { foreignKeys: row.foreign_keys }),
       };
       schemaEntry.tables.set(row.table_name, table);
       schemaEntry.schema.tables.push(table);

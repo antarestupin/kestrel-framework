@@ -9,7 +9,9 @@ The durable-workflows extension adds definition/version inventory, paginated exe
 
 Studio is available at `/_studio` by default. `StudioProvider` can configure another `basePath` without rebuilding the client because client assets use the separate stable internal prefix `/_studio_assets/`. The provider declares a sentinel route for this prefix in Studio's Fastify scope so the encapsulated Vite middleware receives asset requests. The server places the URI-encoded client configuration in the root element's `data-studio-config` attribute; this keeps configuration non-executable and compatible with the production HTTP profile's `script-src 'self'` policy.
 
-The Database extension includes a read-only schema layout at `/_studio/database`. It queries PostgreSQL's catalog through the application pool and groups application tables by SQL schema, with column types, nullability and primary keys. PostgreSQL system schemas are excluded. The layout is intentionally card-based rather than a relationship graph so the complete database remains easy to scan and can gain filters or foreign-key links later.
+The Database extension includes a read-only schema layout at `/_studio/database`. It queries PostgreSQL's catalog through the application pool and groups application tables by SQL schema, with column types, nullability, primary keys and ordered foreign-key column pairs. PostgreSQL system schemas are excluded. The card view links to a standalone SVG relationship diagram generated on demand from the same metadata, without reading table contents or calling an external service.
+
+The SVG renderer lives beside the Database extension. It uses a deterministic grid grouped by schema, schema-colored table headers, column-level arrows through reserved gutters, primary/foreign-key markers and nullable markers. Composite constraints draw one arrow per ordered column pair; cross-schema and self references are supported. Table and column comments appear in SVG tooltips. Catalog strings are escaped as XML and fragment identifiers are generated numerically. The response uses `image/svg+xml`, an inline filename and `Cache-Control: no-store`, and follows Studio's existing access and mount boundary. `StudioDatabaseTable.foreignKeys` is optional for compatibility with custom `DatabaseSchemaSource` implementations; missing targets are omitted instead of inferred.
 
 Generated applications include a separate Drizzle Studio Compose service bound to `127.0.0.1:4983`. The Database extension links to its hosted interface at the configured `DRIZZLE_STUDIO_URL` in a separate tab for browsing and editing data. The application owns this URL and its database schema entrypoint; the Studio library only receives an external link through the extension.
 
@@ -187,6 +189,7 @@ The development email extension combines two intentionally separate sources. Ema
 - `GET /_studio` and client-side page paths return the Studio application shell.
 - `GET /_studio/api/manifest` returns registered extensions and pages.
 - `GET /_studio/api/extensions/database/schema` returns application tables grouped by PostgreSQL schema.
+- `GET /_studio/api/extensions/database/schema.svg` returns a standalone diagram of tables, columns and declared foreign-key relationships.
 - `GET /_studio/api/extensions/actions-documentation/actions` returns actions with execution capabilities, examples, the execution endpoint and optional observation metadata.
 - `POST /_studio/api/extensions/actions-documentation/actions/execute` accepts `{ name, input }` and returns a correlated execution result; unknown actions return 404 and disabled actions return 403.
 - `GET /_studio/api/extensions/controllers` returns the nested HTTP controller catalog and its request metadata.
@@ -209,6 +212,8 @@ The development email extension combines two intentionally separate sources. Ema
 All paths follow the provider's configured `basePath`.
 
 ## Deferred evolution
+
+The database diagram uses a dependency-free layout with native browser zooming and saving. Interactive rearrangement, relationship filtering, index/unique-constraint details and inference of relationships not declared as PostgreSQL foreign keys remain deferred. Large, densely connected schemas may have crossing or shared relationship paths.
 
 The application subclass currently assembles every built-in extension in one protected factory. If several applications reuse the same extension groups, future provider options or extension bundles can make those groups composable without widening the provider's protected surface. Studio configuration currently selects one client delivery mode for the complete instance; independently hosted clients or multiple Studio instances would also require named registrations and collision-resistant asset prefixes before they can be supported safely.
 

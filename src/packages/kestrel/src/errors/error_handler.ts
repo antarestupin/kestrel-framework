@@ -154,16 +154,28 @@ function createDiagnostic(error: unknown): ErrorDiagnostic {
 function createCauseDiagnostics(error: unknown): ErrorDiagnostic[] {
   const diagnostics: ErrorDiagnostic[] = [];
   const visited = new Set<unknown>([error]);
-  let current = error instanceof Error ? error.cause : undefined;
+  const pending = diagnosticChildren(error);
 
-  // Cause chains can be cyclic when errors originate in third-party code.
-  while (current !== undefined && !visited.has(current)) {
+  // Runtime supervision aggregates polling and drain failures. Traverse both
+  // aggregate members and causes once, including cyclic third-party errors.
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (visited.has(current)) continue;
     visited.add(current);
     diagnostics.push(createDiagnostic(current));
-    current = current instanceof Error ? current.cause : undefined;
+    pending.push(...diagnosticChildren(current));
   }
 
   return diagnostics;
+}
+
+/** Reverse children so the stack preserves cause and aggregate member order. */
+function diagnosticChildren(error: unknown): unknown[] {
+  if (!(error instanceof Error)) return [];
+  return [
+    ...(error.cause === undefined ? [] : [error.cause]),
+    ...(error instanceof AggregateError ? error.errors : []),
+  ].reverse();
 }
 
 function formatCliDiagnostic(diagnostic: ErrorDiagnostic): string {

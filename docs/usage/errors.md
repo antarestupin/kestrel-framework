@@ -41,7 +41,7 @@ Use an application error handler when the same domain failure needs different pu
 
 Leave domain failures as ordinary `Error` subclasses when their public meaning depends on context. Register a scoped handler under `errorHandlerDependency` that extends `DefaultErrorHandler`, overriding `resolveHttp` or `resolveCli` and delegating other errors to `super`. The [handler reference](../implementation/errors.md#execution-handler) describes this extension contract.
 
-Unexpected errors receive an opaque message and execution identifier by default. Debug mode may expose stack and cause details; choose that policy at application composition. Error handling happens before execution-scope disposal, so reporting can still use scoped logging and diagnostics.
+Unexpected errors receive an opaque message and execution identifier by default. Debug mode may expose stacks, cause chains and nested `AggregateError` members, including the underlying polling failures; choose that policy at application composition. Error handling happens before execution-scope disposal, so reporting can still use scoped logging and diagnostics. The CLI executable also prints nested errors when final disposal fails, independently of the transport's debug representation.
 
 ## Use cases still to document
 

@@ -12,6 +12,7 @@ import { studioHttpAccess } from "../../http_access.js";
 import { fontAwesomeIcon } from "../../icon_definition.js";
 import { DATABASE_SCHEMA_PAGE_KIND } from "./contract.js";
 import type { DatabaseSchemaSource } from "./schema_source.js";
+import { renderDatabaseSchemaSvg } from "./schema_svg.js";
 
 const databaseIcon = fontAwesomeIcon(faDatabase);
 const externalLinkIcon = fontAwesomeIcon(faUpRightFromSquare);
@@ -34,6 +35,13 @@ const databaseLayoutSchema = z.object({
         nullable: z.boolean(),
         primaryKey: z.boolean(),
       })).readonly(),
+      foreignKeys: z.array(z.object({
+        name: z.string(),
+        columns: z.array(z.string()).readonly(),
+        referencedSchema: z.string(),
+        referencedTable: z.string(),
+        referencedColumns: z.array(z.string()).readonly(),
+      })).readonly().optional(),
     })).readonly(),
   })).readonly(),
 });
@@ -72,6 +80,19 @@ export function defineDatabaseStudioExtension(
           description: "Return the PostgreSQL database layout visible to Studio.",
           output: databaseLayoutSchema,
           handler: () => source.getLayout(),
+        }),
+        defineHttpController({
+          access: studioHttpAccess,
+          route: get(joinStudioPath(basePath, `${dataPath}.svg`)),
+          description: "Render tables and foreign-key relationships as a standalone SVG diagram.",
+          handler: async ({ reply }) => {
+            const diagram = renderDatabaseSchemaSvg(await source.getLayout());
+            // Send an image directly so opening the resource never returns a JSON string.
+            reply.type("image/svg+xml; charset=utf-8");
+            reply.header("content-disposition", 'inline; filename="database-schema.svg"');
+            reply.header("cache-control", "no-store");
+            return diagram;
+          },
         }),
       ];
     },

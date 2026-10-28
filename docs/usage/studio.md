@@ -82,6 +82,12 @@ Workers (including worker details), Scheduled tasks, Workflows, Email history an
 
 Paginated lists refresh their newest page, so automatic refresh replaces any older pages loaded with “Load older”. Server-pushed updates and retaining older pages during refresh remain deferred improvements.
 
+## View the database relationship diagram
+
+On **Database schema**, choose **Open SVG diagram** to open a standalone diagram in another tab. Tables are grouped and colored by PostgreSQL schema, with column types, **PK** and **FK** markers and **?** for nullable columns. Arrows connect foreign-key columns to their referenced columns, including composite keys, self references and references across schemas. Hover over a table or column to read its database comment, or over an arrow to see its constraint and column pair. Use your browser's zoom and save controls to inspect or export the SVG.
+
+The resource is available at `/_studio/api/extensions/database/schema.svg` and follows your configured Studio `basePath`. Each request reads the current PostgreSQL catalog through the application's pool; table contents are not included and no external diagram service is used. Only declared foreign keys whose tables and columns are present in the layout produce arrows. Custom schema sources can supply the optional `StudioDatabaseTable.foreignKeys` metadata to include relationships.
+
 ## Link another development tool
 
 Add a navigation link when a separate tool already provides a useful development interface. This example makes an existing database browser reachable from Studio.

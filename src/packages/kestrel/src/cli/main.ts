@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { realpathSync, writeSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { inspect } from "node:util";
 
 import { waitForShutdownSignal } from "../app/process.js";
 import type { ApplicationShutdownTimeoutError } from "../app/index.js";
@@ -50,7 +51,9 @@ if (isEntrypoint) {
       process.exitCode = exitCode;
     })
     .catch((error: unknown) => {
-      console.error(error);
+      // Shutdown can nest several AggregateErrors; retain their leaf failures
+      // instead of hiding the infrastructure cause behind `[Array]`.
+      console.error(inspect(error, { depth: null }));
       process.exitCode = 1;
     });
 }

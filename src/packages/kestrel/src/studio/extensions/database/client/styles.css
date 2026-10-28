@@ -6,6 +6,31 @@
   padding-top: 28px;
 }
 
+/* Keep the diagram resource visible before the catalog request completes. */
+.database-diagram-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 8px 12px;
+  border: 1px solid var(--studio-border);
+  border-radius: 6px;
+  color: var(--studio-accent-strong);
+  background: var(--studio-surface);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.database-diagram-link:hover {
+  border-color: var(--studio-accent);
+  background: var(--studio-surface-accent);
+}
+
+.database-diagram-link:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 2px;
+}
+
 .database-layout-summary {
   margin: 0;
   color: var(--studio-text-muted);

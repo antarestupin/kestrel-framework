@@ -9,6 +9,35 @@ import {
 import { PostgresDatabaseSchemaSource } from "./schema_source.js";
 
 describe("PostgresDatabaseSchemaSource", () => {
+  it("preserves composite foreign-key pairs and qualified references", async () => {
+    const foreignKeys = [{
+      name: "member_team_fk",
+      columns: ["tenant_id", "team_id"],
+      referencedSchema: "organization",
+      referencedTable: "team",
+      referencedColumns: ["tenant_id", "id"],
+    }];
+    const query = vi.fn(async () => ({ rows: [{
+      schema_name: "public",
+      schema_description: null,
+      table_name: "member",
+      table_description: null,
+      relation_kind: "r",
+      column_name: "tenant_id",
+      column_description: null,
+      column_type: "uuid",
+      nullable: false,
+      primary_key: true,
+      foreign_keys: foreignKeys,
+    }] }));
+    const source = new PostgresDatabaseSchemaSource({ query } as unknown as Pick<Pool, "query">);
+
+    const layout = await source.getLayout();
+
+    expect(layout.schemas[0]?.tables[0]?.foreignKeys).toEqual(foreignKeys);
+    expect(layout.schemas[0]?.tables[0]?.columns).toHaveLength(1);
+  });
+
   it("groups catalog rows by schema and table while preserving column order", async () => {
     const query = vi.fn(async (_queryText: string) => ({
       rows: [

@@ -34,8 +34,28 @@ function DatabaseSchemaPage({ page }: { page: StudioPageManifest }) {
       <StudioPageHeader page={page} eyebrow="Database" />
       {page.dataPath === undefined
         ? <p className="error-panel">The database page has no data endpoint.</p>
-        : <DatabaseLayoutData dataPath={page.dataPath} />}
+        : (
+            <>
+              {/* The manifest endpoint already includes the configured Studio base path. */}
+              <DatabaseDiagramLink dataPath={page.dataPath} />
+              <DatabaseLayoutData dataPath={page.dataPath} />
+            </>
+          )}
     </div>
+  );
+}
+
+/** Opens the standalone resource for native browser zooming and saving. */
+export function DatabaseDiagramLink({ dataPath }: { dataPath: string }) {
+  return (
+    <a
+      className="database-diagram-link"
+      href={`${dataPath}.svg`}
+      rel="noopener noreferrer"
+      target="_blank"
+    >
+      Open SVG diagram <Icon name="external-link" />
+    </a>
   );
 }
 

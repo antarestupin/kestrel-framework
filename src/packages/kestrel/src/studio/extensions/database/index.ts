@@ -7,6 +7,7 @@ export {
 export {
   DATABASE_SCHEMA_PAGE_KIND,
   type StudioDatabaseColumn,
+  type StudioDatabaseForeignKey,
   type StudioDatabaseLayout,
   type StudioDatabaseSchema,
   type StudioDatabaseTable,

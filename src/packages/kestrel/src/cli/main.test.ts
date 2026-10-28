@@ -5,6 +5,30 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 
+it("the executable prints leaf errors nested beneath shutdown aggregates", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "kestrel-diagnostics-"));
+  try {
+    const fixture = join(directory, "app.mjs");
+    await writeFile(fixture, `
+      import { App } from ${JSON.stringify(new URL("../app/index.ts", import.meta.url).href)};
+      const app = new App({});
+      // Disposal adds another aggregate around this nested polling failure.
+      app.shutdown.registerDrain(async () => {
+        throw new AggregateError([
+          new AggregateError([new Error("Missing workflow task relation")], "Polling failed"),
+        ], "Workflow drain failed");
+      });
+      export default app;
+    `);
+    const result = spawnSync(process.execPath, ["--import", import.meta.resolve("tsx"),
+      fileURLToPath(new URL("./main.ts", import.meta.url)), fixture, "--help"], { encoding: "utf8", timeout: 5_000 });
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain("Missing workflow task relation");
+    expect(result.stderr).not.toContain("[Array]");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
 it("the executable exits at its deadline even when a command and diagnostic sink never finish", async () => {
   const directory = await mkdtemp(join(tmpdir(), "kestrel-shutdown-"));
   try {

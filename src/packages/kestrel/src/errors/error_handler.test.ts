@@ -123,4 +123,32 @@ describe("DefaultErrorHandler", () => {
       ),
     });
   });
+
+  it("retains nested polling failures and avoids duplicate or cyclic diagnostics", () => {
+    const handler = new DefaultErrorHandler({ debug: true });
+    const databaseError = new Error('relation "workflows.task" does not exist');
+    const queryError = new Error("Query failed", { cause: databaseError });
+    const pollingError = new AggregateError([queryError], "Workflow polling failed.");
+    const error = new AggregateError([pollingError, queryError, "Drain failed"], "Runtime failed.");
+    // Real supervisors can retain the same failure through multiple owners.
+    databaseError.cause = error;
+
+    const cli = handler.handleCli(error, context);
+    expect(cli.exitCode).toBe(1);
+    expect(cli.message).toContain('relation "workflows.task" does not exist');
+    expect(cli.message.match(/Error: Query failed/g)).toHaveLength(1);
+    expect(cli.message).toContain("UnknownError: Drain failed");
+    expect(handler.handleHttp(error, context).extensions).toMatchObject({
+      causes: [
+        { message: "Workflow polling failed." },
+        { message: "Query failed" },
+        { message: databaseError.message },
+        { message: "Drain failed" },
+      ],
+    });
+    // Production transport responses must continue hiding internal diagnostics.
+    const production = new DefaultErrorHandler({ debug: false });
+    expect(production.handleCli(error, context).message).not.toContain(databaseError.message);
+    expect(production.handleHttp(error, context).extensions).not.toHaveProperty("causes");
+  });
 });

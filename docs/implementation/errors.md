@@ -109,7 +109,7 @@ An error may implement either interface, both or neither. Domain errors that do 
 
 Every `ExecutionScope` resolves an `ErrorHandler`. HTTP and CLI managers catch execution failures and invoke this handler before disposing scoped dependencies. The handler can therefore use execution-scoped loggers and other services safely.
 
-`DefaultErrorHandler` first uses an error's transport contract. Errors without a representation are unexpected. Its safe default returns an opaque message and execution identifier, while debug mode also exposes the error name, message, stack and complete cause chain.
+`DefaultErrorHandler` first uses an error's transport contract. Errors without a representation are unexpected. Its safe default returns an opaque message and execution identifier, while debug mode also exposes the error name, message, stack, cause chain and nested `AggregateError` members. Diagnostic traversal visits each error identity once, follows causes before aggregate members and preserves member order, so shared or cyclic failures cannot duplicate diagnostics or loop indefinitely. The CLI executable uses unlimited inspection depth for failures escaping final disposal, retaining leaf errors beneath nested runtime and transport-drain aggregates. Transport debug diagnostics remain flattened for compatibility; a structured error tree and output-size budgets remain possible future improvements.
 
 Applications can subclass the default handler and override `resolveHttp()` or `resolveCli()` for application-specific mappings before delegating to `super`. They can override `reportUnexpected()` to send complete unexpected errors to their logging or reporting infrastructure.
 
