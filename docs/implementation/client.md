@@ -185,3 +185,29 @@ Use `ViteDevelopmentRuntime` when several browser clients should share one devel
 `ClientProvider(adapter, options?)` accepts a `WebClientAdapterDefinition`. `viteClient(settings)` supplies the bundled backend. Definitions initialize during HTTP mounting, not application boot; `setup()` installs server-owned shutdown hooks. Borrowed development runtimes retain their own ownership.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+## Installed dependency refresh
+
+The Vite adapter's `dependency_refresh.ts` is internal to the client library. `ViteDevelopmentRuntimeOptions.dependencyRefresh` selects the installed-state receipts; the default is npm's hidden lockfile relative to the explicit runtime root. The application supplies custom paths or disables the mechanism. The implementation reads no application environment variables and has no dependency on application clients or configuration modules.
+
+The runtime injects an inline Vite plugin when creating its lazy middleware server. `configureServer` installs nonpersistent `watchFile` polling at a one-second interval, independent of Vite's node_modules exclusions and container filesystem events. Timestamp changes on existing or newly created receipts schedule one 300ms debounce shared across all watched files. Deletion is ignored because clean installations temporarily remove the tree. Duplicate paths share one subscription. The installed receipt, rather than a source lockfile, indicates installation has completed; this assumes the package manager writes its receipt after its file updates.
+
+```mermaid
+sequenceDiagram
+    participant Installer
+    participant Receipt as Installed receipt
+    participant Watcher as Vite dependency watcher
+    participant Vite
+    Installer->>Receipt: Write installation result
+    Watcher->>Receipt: Poll file metadata
+    Watcher->>Watcher: Coalesce changes
+    Watcher->>Vite: Await restart
+    Vite->>Watcher: buildEnd disposes old watchers and timers
+    Vite->>Watcher: configureServer creates fresh watchers
+```
+
+Restart requests within one watcher lifetime execute serially. Synchronous and asynchronous failures go to Vite's configured logger, without an unhandled rejected promise. Cleanup marks the watcher closed, cancels its debounce and removes only its own polling listeners. It prevents queued work from restarting a disposed server but does not cancel an already running restart. Vite's plugin-container close lifecycle also handles internal configuration restarts, so the runtime does not attach extra Fastify listeners or close the shared runtime to refresh dependencies.
+
+Tests live beside the adapter. Real temporary-file tests cover installed receipt changes, delayed receipt creation, error reporting and disposal without opening an HTTP server. Runtime composition tests verify default plugin injection and explicit disabling. Application integration tests continue checking installed delivery and adjacent-source build graphs.
+
+Potential evolutions include explicit receipts for additional package managers, configurable poll/debounce budgets and opt-in structured restart observations. These are not automatic package-manager detection or a promise to recover from an interrupted installation. The supported behavior and manual fallback are documented in the [usage guide](../usage/client.md#refresh-installed-development-dependencies).

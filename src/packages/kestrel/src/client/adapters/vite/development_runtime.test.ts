@@ -98,7 +98,7 @@ describe("ViteDevelopmentRuntime", () => {
     const transformIndexHtml = vi.fn(
       async (_url: string, source: string) => `transformed:${source}`,
     );
-    const createServer = vi.fn(async () => ({
+    const createServer = vi.fn(async (_config: import("vite").InlineConfig) => ({
       close,
       middlewares: vi.fn(),
       transformIndexHtml,
@@ -135,6 +135,9 @@ describe("ViteDevelopmentRuntime", () => {
       appType: "custom",
       server: expect.objectContaining({ middlewareMode: true, ws: { server: first.server.server } }),
     }));
+    expect(createServer.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
+      plugins: [expect.objectContaining({ name: "kestrel:refresh-installed-dependencies" })],
+    }));
     expect(first.use).toHaveBeenCalledOnce();
     expect(second.use).toHaveBeenCalledOnce();
     expect(document).toContain(
@@ -145,6 +148,19 @@ describe("ViteDevelopmentRuntime", () => {
     await first.runPreClose();
     await second.runPreClose();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("can disable dependency receipt watching", async () => {
+    const createServer = vi.fn(async (_config: import("vite").InlineConfig) => ({
+      close: vi.fn(async () => {}), middlewares: vi.fn(),
+    }) as unknown as ViteDevServer);
+    const runtime = new ViteDevelopmentRuntime({
+      root: "/workspace", configFile: "/workspace/vite.config.ts", dependencyRefresh: false,
+    }, { createServer });
+    try {
+      await runtime.mount(createFastifyScope().server);
+      expect(createServer.mock.calls[0]?.[0].plugins).toEqual([]);
+    } finally { await runtime.close(); }
   });
 
   it("rejects an HTML template that no longer contains its declared entry", async () => {

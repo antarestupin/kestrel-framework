@@ -93,3 +93,36 @@ function createSharedDevelopment(projectRoot: string) {
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
 
 For a deployment containing only compiled output, pass the deployment root (the directory containing `package.json`) as `projectRoot` in production. The Vite adapter reads the cached build configuration under `distDir`; it must not point to a removed `src/client` directory. In development, pass the existing client source directory or supply the shared development runtime. The starter selects these roots from `devMode`.
+
+## Refresh installed development dependencies
+
+A shared `ViteDevelopmentRuntime` automatically restarts its Vite server when npm updates `node_modules/.package-lock.json` under the configured runtime root. This clears cached missing imports after installation without requiring an application plugin. Install dependencies in the environment running Vite; a host installation does not update an isolated container dependency volume. The watcher starts only when the runtime mounts, and remains absent from production delivery.
+
+```ts
+import { ViteDevelopmentRuntime } from "@kestreljs/framework/client";
+
+// npm's installed receipt is watched by default, relative to projectRoot.
+const runtime = new ViteDevelopmentRuntime({
+  root: projectRoot,
+  configFile: "vite.development.config.ts",
+});
+
+// Another package manager can supply its installed-state receipt(s).
+// Choose files written after installation, not source manifests updated before it completes.
+const customized = new ViteDevelopmentRuntime({
+  root: projectRoot,
+  configFile: "vite.development.config.ts",
+  dependencyRefresh: { files: ["node_modules/.installation-complete"] },
+});
+
+// Disable automatic refresh when a separate development supervisor owns restarts.
+const supervised = new ViteDevelopmentRuntime({
+  root: projectRoot,
+  configFile: "vite.development.config.ts",
+  dependencyRefresh: false,
+});
+```
+
+Custom receipt paths may be absolute or relative to `root`; an empty file list also disables watching. Polling detects Docker-mounted file changes approximately once per second, then coalesces updates for 300 milliseconds. Missing or deleted receipts do not cause restarts; their creation or replacement does. Without a receipt written by the installer, restart the development command manually. Restart errors are logged through Vite; a later receipt update can trigger another attempt. Watchers and queued refreshes are removed when Vite closes or restarts, and refresh requests are serialized. An already running restart cannot be cancelled by cleanup. Reload an open error-overlay page if the browser does not reconnect automatically.
+
+This behavior belongs to the shared runtime; standalone adapters without that runtime retain their existing Vite lifecycle. See [implementation details](../implementation/client.md#installed-dependency-refresh).

@@ -1,3 +1,4 @@
+import { refreshInstalledDependencies } from "./dependency_refresh.js";
 import middie from "@fastify/middie";
 import type { FastifyInstance } from "fastify";
 import { readFile } from "node:fs/promises";
@@ -16,6 +17,10 @@ export interface ViteDevelopmentEntry {
 export interface ViteDevelopmentRuntimeOptions {
   readonly root: string;
   readonly configFile: string;
+  /** Restart Vite after installed dependency receipts change. Defaults to npm's hidden lockfile.
+   * File paths are relative to root unless absolute; false disables this development-only watcher.
+   */
+  readonly dependencyRefresh?: false | { readonly files?: readonly string[] };
 }
 
 export interface ViteDevelopmentClientOptions {
@@ -148,6 +153,11 @@ export class ViteDevelopmentRuntime {
         // Native loading uses the application's Node/tsx runtime and preserves real-file watching.
         configLoader: "native",
         appType: "custom",
+        // The plugin owns watchers per Vite lifecycle, including internal restarts.
+        plugins: this.options.dependencyRefresh === false ? [] : [
+          refreshInstalledDependencies(this.options.root,
+            this.options.dependencyRefresh?.files ?? ["node_modules/.package-lock.json"]),
+        ],
         server: {
           middlewareMode: true,
           ws: { server: server.server },
