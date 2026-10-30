@@ -1,3 +1,5 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import {
   describe,
   expect,
@@ -10,6 +12,7 @@ import {
   createScopedCollectionQuery,
   getNextSorting,
   readFormValue,
+  RecordLinks,
 } from "./pages.js";
 
 describe("atlas record Action dialogs", () => {
@@ -89,5 +92,16 @@ describe("atlas operation forms", () => {
       required: true,
       schema: { type: "array", items: { type: "string" } },
     })).toEqual(["user-1", "user-2"]);
+  });
+});
+
+describe("Atlas record link navigation", () => {
+  it("renders resolved links in a protected new tab and omits empty links", () => {
+    const html = renderToStaticMarkup(createElement(RecordLinks, { links: [{ id: "publicPage", label: "Open public page", href: "/spaces/test" }] }));
+    expect(html).toContain('href="/spaces/test"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain("Open public page");
+    expect(renderToStaticMarkup(createElement(RecordLinks, { links: [] }))).toBe("");
   });
 });

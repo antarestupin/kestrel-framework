@@ -32,6 +32,7 @@ import type {
 import type {
   AtlasRecordAction,
   AtlasResource,
+  AtlasOperationExposure,
 } from "./resource.js";
 import { createResourceCollectionQuerySchema } from "./collection.js";
 
@@ -42,6 +43,7 @@ interface RecordActionInvocation {
 }
 
 interface OperationInvocation {
+  readonly resolveRecordLinks?: AtlasOperationExposure["resolveRecordLinks"];
   readonly inputSchema: ZodType;
   readonly reference: AtlasOperationReference;
 }
@@ -203,10 +205,14 @@ export class Atlas {
             });
           }
 
-          return invocation.reference.execute(
+          const response = await invocation.reference.execute(
             parsedInput.data,
             createCatalogOperationExecutor({ execution, request, reply, defaultAccess }),
           );
+          return invocation.resolveRecordLinks === undefined ? response : {
+            ...response,
+            recordLinks: invocation.resolveRecordLinks(response.data),
+          };
         },
       }),
       defineHttpController({
@@ -456,6 +462,7 @@ function compileOperationAllowlist(
           exposure.collectionConstraints,
         ),
       reference: exposure.reference,
+      resolveRecordLinks: exposure.resolveRecordLinks,
     });
   }
 

@@ -157,9 +157,17 @@ export type AtlasClientEffect =
     };
   };
 
+/** Resolved navigation metadata, separate from the business record. */
+export interface AtlasRecordLink {
+  readonly id: string;
+  readonly label: string;
+  readonly href: string;
+}
+
 /** Uniform result returned by Atlas operation gateway. */
 export interface AtlasOperationResponse<Data = unknown> {
   readonly data: Data;
+  readonly recordLinks?: readonly AtlasRecordLink[];
   readonly effects: readonly AtlasClientEffect[];
 }
 

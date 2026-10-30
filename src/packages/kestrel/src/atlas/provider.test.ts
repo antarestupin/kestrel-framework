@@ -52,7 +52,7 @@ class TestAtlasClientAdapter implements AtlasClientAdapter {
 const controllerMiddlewareRun = vi.fn();
 const workerHandler = vi.fn();
 
-function createTestAtlas(inheritControllerAccess = false): Atlas {
+function createTestAtlas(inheritControllerAccess = false, withLinks = false): Atlas {
   const modelSchema = z.object({ id: z.string(), name: z.string() });
   const idSchema = modelSchema.pick({ id: true });
   const writeSchema = z.object({ name: z.string() });
@@ -66,7 +66,7 @@ function createTestAtlas(inheritControllerAccess = false): Atlas {
     name: "model.get",
     input: idSchema,
     output: modelSchema.nullable(),
-    handler: () => null,
+    handler: ({ id }) => withLinks && id !== "missing" ? { id, name: "Hello world" } : null,
   });
   const readMany = defineAction({
     name: "model.getMany",
@@ -156,6 +156,10 @@ function createTestAtlas(inheritControllerAccess = false): Atlas {
         label: "Models",
         identity: "id",
         source,
+        ...(withLinks ? { recordLinks: {
+          "public-page": { label: "Open public page", href: (record: { name: string }) => `/models/${encodeURIComponent(record.name)}` },
+          hidden: { label: "Hidden", href: () => undefined },
+        } } : {}),
         capabilities: {
           list: source.query(catalog.list),
           read: source.query(catalog.read),
@@ -578,5 +582,32 @@ describe("AtlasProvider", () => {
           },
         }),
     ).toThrow("sign-out URL");
+  });
+});
+
+describe("Atlas record link gateway", () => {
+  it("returns links with authorized read data, omits conditional links and skips missing records", async () => {
+    const server = Fastify();
+    const app = new App({});
+    const client = new TestAtlasClientAdapter();
+    app.register(new AtlasProvider(
+      defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+      { atlas: createTestAtlas(false, true) },
+    ));
+    try {
+      for (const extension of app.httpExtensions.definitions) await extension.mount({ app, server });
+      await app.start();
+      for (const id of ["1", "missing"]) {
+        const response = await server.inject({ method: "POST", url: "/management/api/operations/resource%3Amodel%3Aread", payload: { input: { id } } });
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual({
+          data: id === "missing" ? null : { id, name: "Hello world" }, effects: [],
+          recordLinks: id === "missing" ? [] : [{ id: "public-page", label: "Open public page", href: "/models/Hello%20world" }],
+        });
+      }
+    } finally {
+      await server.close();
+      await app.stop();
+    }
   });
 });

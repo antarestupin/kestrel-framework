@@ -165,3 +165,34 @@ Dynamic no-code pages, arbitrary external sources and bulk mutations are future 
 `AtlasProvider(adapter, options)` requires an explicit `AtlasClientAdapterDefinition`; `viteAtlasClient(settings)` selects bundled browser delivery. Atlas manifests, access policy and authentication options remain distinct from delivery. Backend initialization waits until HTTP mounting.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+
+## Add links to a record page
+
+Use `recordLinks` on `defineAtlasResource` to open a record's public page or an external application from its Atlas detail page. Each entry has a stable lowercase kebab-case identifier, a nonempty `label` and a synchronous `href` builder. The builder argument is inferred from the validated output of the Resource's `read` capability, excluding `null` and `undefined`. Keep that output schema specific to preserve field inference; the application owns the source operations and any base URL configuration.
+
+```typescript
+import { defineAtlasResource } from "@kestreljs/framework/atlas";
+
+// Reuse application-owned source and capabilities whose read output includes slug and published.
+const resource = defineAtlasResource({
+  id: "space",
+  label: "Spaces",
+  identity: "id",
+  source,
+  capabilities,
+  recordLinks: {
+    "public-page": {
+      label: "Open public page",
+      // Hide navigation while this record has no public page.
+      href: (space) => space.published
+        ? `/spaces/${encodeURIComponent(space.slug)}`
+        : undefined,
+    },
+  },
+});
+```
+
+Builders execute on the server after the normal authorized `read` operation, using its validated public output. They must be pure and synchronous, without additional data access or record mutation. Missing records skip all builders. Return `undefined` to omit a link; returning an invalid URL or throwing fails the read request as a server error rather than silently hiding a configuration problem. Only HTTP(S) URLs and same-origin absolute paths starting with a single `/` are accepted; encode record values when inserting them into path segments.
+
+The read gateway response retains its business `data` and `effects` and adds `recordLinks: [{ id, label, href }]` for Resources configured with links, including an empty array when no links apply. Functions and configuration closures are never serialized into the manifest. The standard UI displays links in declaration order in the record header, opening a new tab with `noopener noreferrer`. There is no additional link request, and list rows do not display these links. Cached links refresh with the record's normal read query. See the [implementation contract](../implementation/atlas.md#record-links) for boundaries and deferred extensions.

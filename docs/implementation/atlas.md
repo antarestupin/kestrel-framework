@@ -756,3 +756,31 @@ Optional capabilities describe the supported operation set of a resource, not dy
 ### Resource navigation groups
 
 The optional `AtlasResourceOptions.navigationGroup` label is validated and trimmed during resource compilation, then serialized on `AtlasResourceManifest`. The browser groups resources with an insertion-ordered map, retaining first-appearance section ordering and declaration order within each section. Ungrouped resources share a separate Resources section. Each section has an accessible label and retains the resource's icons and nested Views. The manifest resource array, router, operation allowlists and authorization remain unchanged. No application domain names are embedded in Atlas. Collapsible groups, nested groups and separate group ordering remain future extensions.
+
+
+## Record links
+
+Implemented: `AtlasResourceOptions<Read>` infers each `AtlasRecordLinkOptions` builder argument from the non-nullish output of the `read` operation reference, including any explicit output derivation. `NoInfer` prevents builder annotations from widening that inferred contract. Identifiers follow the same lowercase kebab-case convention as other Resource extensions. Definition compilation rejects empty labels and invalid identifiers.
+
+The Resource attaches a server-only resolver to its `read` exposure. The operation allowlist retains that resolver; the gateway invokes it only after the existing execution path has authorized and validated the operation. The resolver never accepts a browser-supplied record. It adds optional `AtlasRecordLink[]` metadata beside `data` and `effects`, preserving the operation output contract and avoiding field-name collisions. Other capabilities, views and record Actions receive no link metadata, even when they reuse the same underlying operation.
+
+```mermaid
+sequenceDiagram
+  participant UI as Record page
+  participant Gateway as Atlas gateway
+  participant Read as Authorized read operation
+  participant Builder as Resource link builders
+  UI->>Gateway: Execute allowlisted read with identity
+  Gateway->>Read: Validate input and execute
+  Read-->>Gateway: Validated data and effects
+  opt Record exists and recordLinks is configured
+    Gateway->>Builder: Resolve links from read output
+    Builder-->>Gateway: Ordered visible links
+  end
+  Gateway-->>UI: data, effects, optional recordLinks
+  UI->>UI: Render new-tab navigation in header
+```
+
+The source and operation reference continue to own authorization, execution and output validation. The Resource owns URL construction and validation. The browser owns presentation and retains the complete read envelope in the query cache, exposing business data and link metadata separately to pages. Builders are synchronous and must not mutate records or perform data access. Missing records produce an empty link array without invoking builders; `undefined` omits individual links. Builder exceptions and invalid results fail the read request. URL validation permits HTTP(S) URLs or same-origin absolute paths, rejects protocol-relative URLs, backslashes, whitespace and control characters, and parses the URL before returning navigation metadata. Opening a link does not grant access to its destination, which retains its own authorization.
+
+Deferred: optional list visibility with batched resolution, asynchronous builders with explicit execution context, and per-link presentation options. These require separate contracts and are not available through the current API. See the [usage recipe](../usage/atlas.md#add-links-to-a-record-page).

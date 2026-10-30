@@ -21,6 +21,7 @@ import type {
   AtlasManifest,
   AtlasOperationInputManifest,
   AtlasOperationResponse,
+  AtlasRecordLink,
   AtlasRecordActionManifest,
   AtlasRelatedCollectionManifest,
   AtlasRelatedRecordsFeaturesManifest,
@@ -32,6 +33,7 @@ import { Dialog, Menu } from "./ui/primitives.js";
 import {
   executeAtlasRecordAction,
   executeAtlasOperation,
+  executeAtlasOperationResponse,
   getAtlasRedirectPath,
   getAtlasBasePath,
   getRecordActionParameters,
@@ -436,10 +438,11 @@ export function ResourceRead({
   const confirm = useAtlasConfirmation();
   const queryClient = useQueryClient();
   const query = useResourceRecord(manifest.basePath, resource, recordId);
+  const record = query.data;
   const relations = useRelationHydration(
     manifest,
     resource,
-    query.data === undefined ? [] : [query.data],
+    record === undefined ? [] : [record],
   );
   const remove = useMutation({
     mutationFn: () => executeAtlasOperation(
@@ -468,9 +471,10 @@ export function ResourceRead({
     <div className="page">
       <PageHeader
         eyebrow={resource.labelSingular}
-        title={getResourceRecordLabel(resource, query.data, recordId)}
+        title={getResourceRecordLabel(resource, record, recordId)}
         actions={(
           <>
+            <RecordLinks links={query.recordLinks} />
             {resource.capabilities.update === undefined ? null : <button className="button" onClick={onEdit} type="button">
               <Icon name="edit" />
               Edit
@@ -493,7 +497,7 @@ export function ResourceRead({
       {relations.error === undefined
         ? null
         : <ErrorState error={relations.error} />}
-      {query.data === undefined ? null : (
+      {record === undefined ? null : (
         <>
           <dl className="detail-panel">
             {resource.fields.filter((field) => !field.hidden).map((field) => (
@@ -506,10 +510,10 @@ export function ResourceRead({
                     onOpenRelation={onOpenRelation}
                     relationReferences={relations.references(
                       field,
-                      query.data[field.id],
+                      record[field.id],
                     )}
                     resource={resource}
-                    value={relations.resolve(field, query.data[field.id])}
+                    value={relations.resolve(field, record[field.id])}
                   />
                 </dd>
               </div>
@@ -1058,23 +1062,24 @@ function useResourceRecord(
   recordId: string,
   enabled = true,
 ) {
-  return useQuery({
+  const query = useQuery({
     queryKey: [resource.id, "read", recordId],
     enabled,
     queryFn: async () => {
-      const result = await executeAtlasOperation(
+      const response = await executeAtlasOperationResponse<Record<string, unknown>>(
         basePath,
         resource.capabilities.read,
         { [resource.identity]: recordId },
       );
 
-      if (!isRecord(result)) {
+      if (!isRecord(response.data)) {
         throw new TypeError("The resource read operation returned an invalid result.");
       }
 
-      return result;
+      return response;
     },
   });
+  return { ...query, data: query.data?.data, recordLinks: query.data?.recordLinks ?? [] };
 }
 
 /** Search and flat-filter controls shared by conventional Resource lists. */
@@ -2139,4 +2144,14 @@ function humanize(value: string): string {
 function requireCapability<T>(operation: T | undefined): T {
   if (operation === undefined) throw new Error("This operation is unavailable for this resource.");
   return operation;
+}
+
+/** Navigation resolved by the server from the current record. */
+export function RecordLinks({ links }: { links: readonly AtlasRecordLink[] }) {
+  return <>{links.map((link) => (
+    <a className="button" href={link.href} key={link.id} target="_blank" rel="noopener noreferrer">
+      <Icon name="external-link" />
+      {link.label}
+    </a>
+  ))}</>;
 }

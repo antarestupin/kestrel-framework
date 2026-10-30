@@ -1,6 +1,7 @@
 import {
   z,
   type ZodType,
+  type output,
 } from "zod";
 import type { SvgIconDefinition } from "./icon_definition.js";
 
@@ -13,6 +14,7 @@ import type {
   AtlasOperationInputManifest,
   AtlasOperationManifest,
   AtlasRecordActionManifest,
+  AtlasRecordLink,
   AtlasRecordActionFeedback,
   AtlasRecordActionPresentation,
   AtlasRecordActionsInList,
@@ -139,7 +141,13 @@ export function defineAtlasRecordAction(
   return { ...options };
 }
 
-export interface AtlasResourceOptions {
+/** A synchronous server-side URL builder for a successfully read record. */
+export interface AtlasRecordLinkOptions<RecordData> {
+  readonly label: string;
+  readonly href: (record: RecordData) => string | undefined;
+}
+
+export interface AtlasResourceOptions<Read extends AtlasOperationReference = AtlasOperationReference> {
   /** Optional sidebar section label; matching labels share one group. */
   readonly navigationGroup?: string;
   readonly id: string;
@@ -151,7 +159,12 @@ export interface AtlasResourceOptions {
   readonly identity: string;
   /** Selects the field used to represent one record in the standard UI. */
   readonly displayField?: string;
-  readonly capabilities: AtlasResourceCapabilities;
+  readonly capabilities: AtlasResourceCapabilities & { readonly read: Read };
+  /** Server-only navigation built from the non-nullish public read output. */
+  readonly recordLinks?: Readonly<Record<
+    string,
+    AtlasRecordLinkOptions<NonNullable<output<NoInfer<Read>["outputSchema"]>>>
+  >>;
   readonly views?: Readonly<Record<string, AtlasResourceView>>;
   readonly recordActions?: Readonly<Record<string, AtlasRecordAction>>;
   readonly recordActionsInList?: AtlasRecordActionsInList;
@@ -173,6 +186,8 @@ export interface AtlasOperationExposure {
   readonly id: string;
   readonly reference: AtlasOperationReference;
   readonly inputSchema: ZodType;
+  /** Resolves navigation only after this read exposure validates its output. */
+  readonly resolveRecordLinks?: (record: unknown) => readonly AtlasRecordLink[];
   /** Selects the Resource whose collection field allowlist guards this input. */
   readonly collectionResourceId?: string;
   readonly collectionConstraints?: {
@@ -183,8 +198,8 @@ export interface AtlasOperationExposure {
 }
 
 /** Defines one manually mapped CRUD resource. */
-export function defineAtlasResource(
-  options: AtlasResourceOptions,
+export function defineAtlasResource<Read extends AtlasOperationReference>(
+  options: AtlasResourceOptions<Read>,
 ): AtlasResource {
   assertIdentifier(options.id, "resource");
 
@@ -231,6 +246,13 @@ export function defineAtlasResource(
     throw new TypeError("An Atlas navigation group label cannot be empty.");
   }
 
+  for (const [id, link] of Object.entries(options.recordLinks ?? {})) {
+    assertIdentifier(id, "record link");
+    if (link.label.trim() === "") {
+      throw new TypeError("An Atlas record link label cannot be empty.");
+    }
+  }
+
   validateViews(options);
   validateRecordActions(options);
   validateFields(options);
@@ -247,7 +269,7 @@ export function defineAtlasResource(
 }
 
 function compileResource(
-  options: AtlasResourceOptions,
+  options: Omit<AtlasResourceOptions, "recordLinks">,
 ): AtlasResourceManifest {
   const readOutputSchema = toJsonSchema(
     options.capabilities.read.outputSchema,
@@ -340,8 +362,8 @@ function compileResource(
   };
 }
 
-function compileOperationExposures(
-  options: AtlasResourceOptions,
+function compileOperationExposures<Read extends AtlasOperationReference>(
+  options: AtlasResourceOptions<Read>,
 ): readonly AtlasOperationExposure[] {
   const fields = compileResource(options).fields;
   const capabilities = Object.entries(options.capabilities).map(
@@ -351,6 +373,9 @@ function compileOperationExposures(
         capability === "readMany" ? "read-many" : capability,
       ),
       reference,
+      ...(capability === "read" && options.recordLinks !== undefined
+        ? { resolveRecordLinks: (record: unknown) => resolveRecordLinks(options.recordLinks!, record) }
+        : {}),
       inputSchema: capability === "list"
         ? createResourceCollectionQuerySchema(fields)
         : reference.inputSchema,
@@ -451,7 +476,7 @@ function mergeFieldOptions(
   return { ...inherited, ...override };
 }
 
-function validateViews(options: AtlasResourceOptions): void {
+function validateViews(options: Omit<AtlasResourceOptions, "recordLinks">): void {
   for (const [id, view] of Object.entries(options.views ?? {})) {
     if (view.label.trim() === "") {
       throw new TypeError(
@@ -469,7 +494,7 @@ function validateViews(options: AtlasResourceOptions): void {
   }
 }
 
-function validateRecordActions(options: AtlasResourceOptions): void {
+function validateRecordActions(options: Omit<AtlasResourceOptions, "recordLinks">): void {
   for (const [id, item] of Object.entries(options.recordActions ?? {})) {
     if (item.label.trim() === "") {
       throw new TypeError(
@@ -521,7 +546,7 @@ function validateRecordActions(options: AtlasResourceOptions): void {
   }
 }
 
-function validateFields(options: AtlasResourceOptions): void {
+function validateFields(options: Omit<AtlasResourceOptions, "recordLinks">): void {
   for (const [id, field] of Object.entries(options.fields ?? {})) {
     validateFieldOptions(id, field);
   }
@@ -659,7 +684,7 @@ function validateFieldOptions(
   }
 }
 
-function validateReadMany(options: AtlasResourceOptions): void {
+function validateReadMany(options: Omit<AtlasResourceOptions, "recordLinks">): void {
   const readMany = options.capabilities.readMany;
 
   if (readMany.effect !== "read") {
@@ -689,7 +714,7 @@ function compileView(
 }
 
 function compileRecordAction(
-  options: AtlasResourceOptions,
+  options: Omit<AtlasResourceOptions, "recordLinks">,
   id: string,
   item: AtlasRecordAction,
 ): AtlasRecordActionManifest {
@@ -1148,4 +1173,29 @@ function isJsonSchema(value: unknown): value is AtlasJsonSchema {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Resolve only server-validated read output; absent records never reach builders. */
+function resolveRecordLinks<RecordData>(
+  links: Readonly<Record<string, AtlasRecordLinkOptions<RecordData>>>,
+  record: unknown,
+): readonly AtlasRecordLink[] {
+  if (record === null || record === undefined) return [];
+  return Object.entries(links).flatMap(([id, link]) => {
+    // The resolver is called only by the gateway after the read output is validated.
+    const href = link.href(record as RecordData);
+    if (href === undefined) return [];
+    // Limit navigation to HTTP(S) URLs and same-origin absolute paths.
+    if (typeof href !== "string" || href !== href.trim()
+      || /[\\\u0000-\u0020]/u.test(href)
+      || !(href.startsWith("/") && !href.startsWith("//")
+        || /^https?:\/\//iu.test(href))) {
+      throw new TypeError(`Atlas record link "${id}" returned an invalid URL.`);
+    }
+    const url = new URL(href, "https://atlas.invalid");
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new TypeError(`Atlas record link "${id}" returned an invalid URL.`);
+    }
+    return [{ id, label: link.label, href }];
+  });
 }
