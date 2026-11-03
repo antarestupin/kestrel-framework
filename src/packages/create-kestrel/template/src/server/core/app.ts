@@ -1,7 +1,6 @@
 // Composes the application catalog, configuration, and runtime providers for the Kestrel CLI.
 // Register application services here; configure their settings through app_config.ts and config/.
 
-import { resolve } from "node:path";
 import { App } from "@kestreljs/framework/app";
 import { LoggerProvider, pinoLogger } from "@kestreljs/framework/log";
 import { HttpClientGenerationProvider, HttpRuntimeProvider } from "@kestreljs/framework/http";
@@ -32,10 +31,8 @@ if (app.config.client.enabled) {
     new ClientProvider(
       viteClient(development, {
         devMode: app.config.client.devMode,
-        // Production discovers the cached Vite build without requiring application sources.
-        projectRoot: app.config.client.devMode
-          ? resolve(app.config.core.runtimeRoot, "src/client")
-          : app.config.core.runtimeRoot,
+        projectRoot: app.config.core.runtimeRoot,
+        sourceRoot: "src/client",
         distDir: "dist/client",
       }),
       {

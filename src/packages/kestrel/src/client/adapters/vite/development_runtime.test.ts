@@ -11,6 +11,21 @@ import type { ViteDevServer } from "vite";
 import { ViteDevelopmentRuntime } from "./development_runtime.js";
 
 describe("ViteDevelopmentRuntime", () => {
+  it("builds external entries with custom files and URL-safe filesystem paths", () => {
+    const runtime = new ViteDevelopmentRuntime({ root: "/workspace", configFile: "vite.config.ts" });
+    const root = join(tmpdir(), "external client#?");
+    const client = runtime.externalEntry({ root, html: "pages/index.html", module: "browser/main.tsx" });
+    expect(client.runtime).toBe(runtime);
+    expect(client.entry.htmlPath).toBe(join(root, "pages/index.html"));
+    expect(client.entry.templateModulePath).toBe("/browser/main.tsx");
+    expect(client.entry.developmentModulePath).toContain("external%20client%23%3F/browser/main.tsx");
+    expect(client.entry.developmentModulePath).toMatch(/^\/@fs\//);
+    expect(runtime.externalEntry({ root }).entry.templateModulePath).toBe("/src/main.tsx");
+    expect(() => runtime.externalEntry({ root: "../sibling" })).toThrow("absolute path");
+    expect(() => runtime.externalEntry({ root, html: "../index.html" })).toThrow("relative path");
+    expect(() => runtime.externalEntry({ root, module: "../outside.ts" })).toThrow("relative path");
+  });
+
   it.each(["/", "/development/"])("serves production asset URLs through the shared Vite base %s", async (base) => {
     const server = Fastify();
     const seen: string[] = [];

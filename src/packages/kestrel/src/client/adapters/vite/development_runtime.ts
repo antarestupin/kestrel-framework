@@ -24,7 +24,7 @@ export interface ViteDevelopmentRuntimeOptions {
 }
 
 export interface ViteDevelopmentClientOptions {
-  /** Client root relative to the shared Vite development root. */
+  /** Relative root for entry(); absolute filesystem root for externalEntry(). */
   readonly root: string;
   /** Standalone HTML template relative to the client root. */
   readonly html?: string;
@@ -85,6 +85,26 @@ export class ViteDevelopmentRuntime {
         htmlPath: resolve(this.options.root, clientRoot, html),
         templateModulePath: `/${module}`,
         developmentModulePath: `/${posix.join(clientRoot, module)}`,
+      },
+    };
+  }
+
+  /** Resolves an external source tree without exposing Vite filesystem URLs to applications. */
+  public externalEntry(options: ViteDevelopmentClientOptions): ViteClientDevelopmentOptions {
+    if (!isAbsolute(options.root)) {
+      throw new TypeError("A Vite external client root must be an absolute path.");
+    }
+    const html = normalizeRelativePath(options.html ?? "index.html", "client HTML");
+    const module = normalizeRelativePath(options.module ?? "src/main.tsx", "client module");
+    // Encode URL delimiters while retaining path separators and native drive notation.
+    const modulePath = resolve(options.root, module).replaceAll("\\", "/");
+    const moduleUrl = encodeURI(modulePath).replaceAll("#", "%23").replaceAll("?", "%3F");
+    return {
+      runtime: this,
+      entry: {
+        htmlPath: resolve(options.root, html),
+        templateModulePath: `/${module}`,
+        developmentModulePath: `/@fs/${moduleUrl}`,
       },
     };
   }

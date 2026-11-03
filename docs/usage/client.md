@@ -16,11 +16,13 @@ import { ClientProvider, viteClient } from "@kestreljs/framework/client";
 
 function mountClient<Config>(app: App<Config>, projectRoot: string, devMode: boolean) {
   return app.register(new ClientProvider(
-    viteClient({ projectRoot, devMode, distDir: "dist/client" }),
+    viteClient({ projectRoot, sourceRoot: "src/client", devMode, distDir: "dist/client" }),
     { basePath: "/", assetBasePath: "/_client_assets/", excludedPaths: ["/api"] },
   ));
 }
 ```
+
+Use a stable absolute application `projectRoot`, set `sourceRoot` to the Vite source/config directory and `distDir` to the directory containing the compiled `vite.config.json`. Both paths may be absolute or relative to `projectRoot`. In production, the adapter reads only the compiled configuration and assets; the source directory does not need to exist. In standalone development it loads Vite from `sourceRoot`; a supplied shared development entry takes precedence. Omitting `sourceRoot` preserves the previous `projectRoot`/`distDir` interpretation for existing integrations.
 
 Pass an absolute runtime-visible project root and build the client into the configured directory for production. Match the standalone Vite asset base to `assetBasePath`. With a shared development runtime, the Vite adapter automatically maps requests from the client’s `assetBasePath` to the shared Vite base, so public asset URLs remain identical in development and production. No application rewrite middleware is needed. Register the HTTP runtime in the same application. Unknown `/api` and asset paths return errors instead of the SPA document.
 
@@ -74,11 +76,23 @@ function createSharedDevelopment(projectRoot: string) {
   const runtime = new ViteDevelopmentRuntime({ root: projectRoot, configFile: "vite.development.config.ts" });
   // Runtime dependencies and backend settings remain separate factory arguments.
   return viteClient(runtime.entry({ root: "src/client" }), {
-    projectRoot, devMode: true, distDir: "dist/client",
+    projectRoot, sourceRoot: "src/client", devMode: true, distDir: "dist/client",
   });
 }
 ```
 
+
+For a client outside the shared root, use `runtime.externalEntry({ root: absoluteClientRoot })`. It returns the same development descriptor as `entry()` and builds the filesystem module URL automatically. Optional `html` and `module` paths default to `index.html` and `src/main.tsx`; they must remain relative to the client root. The external root must be absolute. The application still owns Vite's filesystem allowlist and must permit that source tree; constructing an entry does not grant filesystem access.
+
+```ts
+import { ViteDevelopmentRuntime } from "@kestreljs/framework/client";
+
+// Absolute paths and the shared Vite configuration belong to the application.
+function externalClient(projectRoot: string, absoluteClientRoot: string) {
+  const runtime = new ViteDevelopmentRuntime({ root: projectRoot, configFile: "vite.development.config.ts" });
+  return runtime.externalEntry({ root: absoluteClientRoot });
+}
+```
 
 ## Use cases still to document
 

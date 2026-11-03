@@ -172,6 +172,7 @@ app.register(new ClientProvider(
   viteClient({
     devMode: config.devMode,
     projectRoot: config.projectRoot,
+    sourceRoot: "src/client",
     distDir: "dist/client",
   }),
   { basePath: "/", assetBasePath: "/_client_assets/", excludedPaths: ["/api"] },
@@ -217,3 +218,13 @@ Potential evolutions include explicit receipts for additional package managers, 
 The Vite client adapter passes `WebClient.assetBasePath` to `ViteDevelopmentRuntime.mount(server, assetBasePath?)`. A supplied prefix is translated to the resolved shared Vite `config.base` before its middleware handles a request. Query strings are preserved. Requests outside the prefix pass through unchanged, and middleware fallthrough restores the original URL for Fastify routing and diagnostics. This mapping belongs to each client scope and does not mutate the shared Vite configuration or introduce another server lifecycle. Callers omitting the optional prefix retain direct middleware delivery, including framework-owned clients with filesystem development entries.
 
 Runtime tests use Fastify injection with a substituted Vite middleware to cover default and customized bases, application-selected prefixes, query strings, fallthrough and cleanup without starting a server. Applications retain integration checks for their configured logo and public asset paths. Arbitrary per-entry public directories remain a potential future extension; this mapping uses the shared runtime’s configured public directory.
+
+## Source and deployment paths
+
+With `sourceRoot` supplied, `projectRoot` is the stable application root. The adapter resolves source/config and compiled directories independently against it. Only standalone development selects the source root; production keeps the application root and loads cached Vite configuration without requiring source files. Shared development continues to use its injected runtime. Calls without `sourceRoot` retain legacy forwarding behavior.
+
+The installed `@fastify/vite` resolves an absolute `distDir` hint through its parent directory. The adapter supplies the compiled directory's `index.html` path as that hint, so callers consistently configure the directory containing `vite.config.json`. This dependency detail remains internal; regression tests exercise real production delivery from a temporary application whose source directory does not exist.
+
+`externalEntry()` validates an absolute root and relative HTML/module paths using the existing traversal checks. It normalizes filesystem separators and encodes spaces and URL delimiters in the Vite filesystem URL. Unlike `entry()`, its root need not be contained in the runtime root. Filesystem authorization remains Vite's `server.fs.allow` responsibility. Both APIs return the same descriptor, so adapters and lifecycle ownership remain unchanged.
+
+Future extensions may unify source-root and entry declarations or provide framework-owned source discovery helpers. Automatic filesystem allowlist expansion is deliberately outside the current API.
