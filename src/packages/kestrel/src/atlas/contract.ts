@@ -251,6 +251,8 @@ export interface AtlasResourceManifest {
   readonly labelSingular: string;
   readonly identity: string;
   readonly displayField: string;
+  /** Maximum identifiers accepted by the target readMany operation. */
+  readonly readManyBatchSize?: number;
   readonly sourceId: string;
   readonly recordActionsInList?: AtlasRecordActionsInList;
   readonly icon?: string;

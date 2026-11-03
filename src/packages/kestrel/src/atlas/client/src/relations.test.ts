@@ -114,6 +114,15 @@ const manifest: AtlasManifest = {
 };
 
 describe("atlas relation hydration", () => {
+  it("skips hidden relations and absent sparse values, and resolves indexed identities", () => {
+    const requests = createRelationHydrationRequests(manifest, {
+      ...articleResource, fields: [{ ...authorField, hidden: true }, reviewerField],
+    }, [{ authorId: "hidden" }, { reviewerIds: ["user-1", "user-1"] }, {}]);
+    expect(requests.map((request) => request.ids)).toEqual([["user-1"]]);
+    const indexed = new Map([["user", new Map([['string:"user-1"', { id: "user-1", name: "Ada" }]])]]);
+    expect(resolveRelationValue(authorField, "user-1", indexed, userResource)).toBe("Ada");
+    expect(resolveRelationValue(authorField, "gone", indexed, userResource)).toBe("gone");
+  });
   it("inherits record Action parameter metadata and prefers explicit overrides", () => {
     const action = {
       id: "assign",

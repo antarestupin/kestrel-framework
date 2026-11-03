@@ -1,4 +1,5 @@
-import { useQueries } from "@tanstack/react-query";
+import { loadRelationRecords, relationIdentifierKey, type RelationRecord } from "./relation_loader.js";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 
 import type {
   AtlasFieldManifest,
@@ -36,7 +37,7 @@ export function createRelationHydrationRequests(
   >();
 
   for (const field of resource.fields) {
-    if (field.relation === undefined) {
+    if (field.hidden || field.relation === undefined) {
       continue;
     }
 
@@ -76,7 +77,7 @@ export function resolveRelationValue(
   value: unknown,
   recordsByResource: ReadonlyMap<
     string,
-    readonly Readonly<Record<string, unknown>>[]
+    readonly RelationRecord[] | ReadonlyMap<string, RelationRecord>
   >,
   target?: AtlasResourceManifest,
 ): unknown {
@@ -88,11 +89,7 @@ export function resolveRelationValue(
 
   const targetRecords = recordsByResource.get(relation.resource) ?? [];
   const resolveOne = (identifier: unknown) => {
-    const record = targetRecords.find((candidate) =>
-      serializeIdentifier(target === undefined
-        ? undefined
-        : candidate[target.identity])
-      === serializeIdentifier(identifier));
+    const record = findRelationRecord(targetRecords, target?.identity, identifier);
 
     if (record === undefined) {
       return identifier;
@@ -118,7 +115,7 @@ export function resolveRelationReferences(
   value: unknown,
   recordsByResource: ReadonlyMap<
     string,
-    readonly Readonly<Record<string, unknown>>[]
+    readonly RelationRecord[] | ReadonlyMap<string, RelationRecord>
   >,
 ): readonly HydratedRelationReference[] {
   const relation = field.relation;
@@ -136,11 +133,7 @@ export function resolveRelationReferences(
     : [value];
 
   return values.map((identifier) => {
-    const record = targetRecords.find((candidate) =>
-      serializeIdentifier(target === undefined
-        ? undefined
-        : candidate[target.identity])
-      === serializeIdentifier(identifier));
+    const record = findRelationRecord(targetRecords, target?.identity, identifier);
     const targetIdentity = target === undefined || record === undefined
       ? undefined
       : record[target.identity];
@@ -162,12 +155,13 @@ export function resolveRelationReferences(
   });
 }
 
-/** Executes one readMany Query per target Resource for the visible records. */
+/** Loads visible relations in bounded batches, reusing per-identity cached records. */
 export function useRelationHydration(
   manifest: AtlasManifest,
   resource: AtlasResourceManifest,
   records: readonly Readonly<Record<string, unknown>>[],
 ) {
+  const client = useQueryClient();
   const requests = createRelationHydrationRequests(
     manifest,
     resource,
@@ -175,28 +169,24 @@ export function useRelationHydration(
   );
   const queries = useQueries({
     queries: requests.map((request) => ({
-      queryKey: [request.resource.id, "readMany", request.ids],
-      queryFn: async () => {
+      queryKey: [request.resource.id, "readMany", manifest.basePath, request.ids],
+      queryFn: () => loadRelationRecords(client, manifest.basePath, request.resource, request.ids, async (ids) => {
         const result = await executeAtlasOperation(
           manifest.basePath,
           request.resource.capabilities.readMany,
-          { ids: request.ids },
+          { ids },
         );
-
         if (!Array.isArray(result)) {
-          throw new TypeError(
-            "The Resource readMany operation returned an invalid result.",
-          );
+          throw new TypeError("The Resource readMany operation returned an invalid result.");
         }
-
         return result.filter(isRecord);
-      },
+      }),
     })),
   });
   const recordsByResource = new Map(
     requests.map((request, index) => [
       request.resource.id,
-      queries[index]?.data ?? [],
+      new Map((queries[index]?.data ?? []).map((row) => [serializeIdentifier(row[request.resource.identity]), row])),
     ]),
   );
 
@@ -223,5 +213,12 @@ export function useRelationHydration(
 }
 
 function serializeIdentifier(identifier: unknown): string {
-  return `${typeof identifier}:${JSON.stringify(identifier)}`;
+  return relationIdentifierKey(identifier);
+}
+
+/** Hook callers index each target once, avoiding a scan for every matrix cell. */
+function findRelationRecord(records: readonly RelationRecord[] | ReadonlyMap<string, RelationRecord>, identity: string | undefined, identifier: unknown) {
+  return Array.isArray(records)
+    ? records.find((row) => serializeIdentifier(identity === undefined ? undefined : row[identity]) === serializeIdentifier(identifier))
+    : (records as ReadonlyMap<string, RelationRecord>).get(serializeIdentifier(identifier));
 }

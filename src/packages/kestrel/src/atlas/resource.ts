@@ -348,6 +348,7 @@ function compileResource(
     labelSingular: options.labelSingular ?? singularize(options.label),
     identity: options.identity,
     displayField,
+    ...(options.readManyBatchSize === undefined ? {} : { readManyBatchSize: options.readManyBatchSize }),
     sourceId: options.source.id,
     ...(options.recordActionsInList === undefined
       ? {}

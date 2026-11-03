@@ -1,12 +1,15 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useLayoutEffect, useRef, useState } from "react";
-import type { AtlasResourceManifest } from "../../contract.js";
+import { FieldValue } from "./field_value.js";
+import { useRelationHydration } from "./relations.js";
+import type { AtlasManifest, AtlasResourceManifest } from "../../contract.js";
 import { atlasHistoryOutputSchema, type AtlasHistoryPage } from "../../history.js";
 import { executeAtlasOperation } from "./runtime.js";
 
 /** A sparse matrix deliberately leaves unchanged values blank. */
-export function HistoryMatrix({ basePath, resource, recordId }: {
-  basePath: string;
+export function HistoryMatrix({ manifest, resource, recordId, onOpenRelation }: {
+  manifest: AtlasManifest;
+  onOpenRelation: (resourceId: string, recordId: string) => void;
   resource: AtlasResourceManifest;
   recordId: string;
 }) {
@@ -18,7 +21,7 @@ export function HistoryMatrix({ basePath, resource, recordId }: {
     initialPageParam: undefined as string | undefined,
     enabled: open,
     queryFn: async ({ pageParam }) => atlasHistoryOutputSchema.parse(await executeAtlasOperation(
-      basePath, resource.capabilities.history!,
+      manifest.basePath, resource.capabilities.history!,
       { id: recordId, pageSize: 20, ...(pageParam === undefined ? {} : { before: pageParam }) },
     )),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
@@ -40,14 +43,17 @@ export function HistoryMatrix({ basePath, resource, recordId }: {
       {history.hasNextPage ? <button type="button" disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>Load older changes</button> : null}
       {history.data && events.length === 0 ? <p>No history recorded.</p> : null}
       <div className="history-viewport" ref={viewport} tabIndex={0} role="region" aria-label="Resource history">
-        <HistoryTable resource={resource} fields={fields} events={events} />
+        <HydratedHistoryTable manifest={manifest} resource={resource} fields={fields} events={events} onOpenRelation={onOpenRelation} />
       </div>
     </> : null}
   </details>;
 }
 
 /** Pure table renderer shared by the paginated panel and presentation tests. */
-export function HistoryTable({ resource, fields, events }: {
+export function HistoryTable({ resource, fields, events, relations, basePath, onOpenRelation }: {
+  relations?: ReturnType<typeof useRelationHydration>;
+  basePath?: string;
+  onOpenRelation?: (resourceId: string, recordId: string) => void;
   resource: AtlasResourceManifest;
   fields: readonly string[];
   events: AtlasHistoryPage["events"];
@@ -73,9 +79,44 @@ export function HistoryTable({ resource, fields, events }: {
           <tbody>{fields.filter((id) => !resource.fields.find((field) => field.id === id)?.hidden).map((id) => <tr key={id}>
             <th scope="row">{resource.fields.find((field) => field.id === id)?.label ?? id}</th>
             {events.map((event) => <td key={event.sequence}>{Object.hasOwn(event.values, id)
-              ? <pre>{event.values[id] === null ? "NULL" : event.values[id] === "" ? '\"\"' : typeof event.values[id] === "string" ? event.values[id] as string : JSON.stringify(event.values[id], null, 2)}</pre>
+              ? <HistoryValue resource={resource} id={id} value={event.values[id]} {...(relations === undefined ? {} : { relations })} {...(basePath === undefined ? {} : { basePath })} {...(onOpenRelation === undefined ? {} : { onOpenRelation })} />
               : null}</td>)}
           </tr>)}</tbody>
         </table>
   );
+}
+
+/** Hydrate only visible, allowlisted sparse values while the history panel is open. */
+function HydratedHistoryTable(properties: {
+  manifest: AtlasManifest;
+  resource: AtlasResourceManifest;
+  fields: readonly string[];
+  events: AtlasHistoryPage["events"];
+  onOpenRelation: (resourceId: string, recordId: string) => void;
+}) {
+  const { manifest, resource, fields, events } = properties;
+  const relations = useRelationHydration(manifest, {
+    ...resource, fields: resource.fields.filter((field) => fields.includes(field.id) && !field.hidden),
+  }, events.map((event) => event.values));
+  return <>
+    {relations.error ? <p role="alert">Some related labels could not be loaded. Identifiers are shown instead.</p> : null}
+    <HistoryTable {...properties} relations={relations} basePath={manifest.basePath} />
+  </>;
+}
+
+/** Preserve sparse-history markers before delegating ordinary values to list renderers. */
+function HistoryValue({ resource, id, value, relations, ...presentation }: {
+  resource: AtlasResourceManifest;
+  id: string;
+  value: unknown;
+  relations?: ReturnType<typeof useRelationHydration>;
+  basePath?: string;
+  onOpenRelation?: (resourceId: string, recordId: string) => void;
+}) {
+  if (value === null || value === "") return <pre>{value === null ? "NULL" : '\"\"'}</pre>;
+  const field = resource.fields.find((candidate) => candidate.id === id);
+  if (!field) return <pre>{typeof value === "string" ? value : JSON.stringify(value, null, 2)}</pre>;
+  return <FieldValue {...presentation} resource={resource} field={field}
+    value={relations?.resolve(field, value) ?? value}
+    relationReferences={relations?.references(field, value) ?? []} />;
 }

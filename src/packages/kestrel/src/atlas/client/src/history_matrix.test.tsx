@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { AtlasRendererRegistryProvider } from "./renderer_registry.js";
+import { resolveRelationReferences, resolveRelationValue } from "./relations.js";
+import type { AtlasManifest } from "../../contract.js";
 import { HistoryTable } from "./history_matrix.js";
 import type { AtlasResourceManifest } from "../../contract.js";
 
@@ -33,5 +36,28 @@ describe("history matrix", () => {
     expect(html).toContain('dateTime="2026-10-01Z"');
     expect(html).toContain("<div>update</div>");
     expect(html.indexOf("<div>insert</div>")).toBeLessThan(html.indexOf("<div>delete</div>"));
+  });
+});
+
+// Custom renderers and relation labels must match the normal list presentation.
+describe("history field presentation", () => {
+  it("uses the Resource field renderer and computed relation display labels", () => {
+    const origin = { ...resource, id: "article", fields: [
+      { id: "title", label: "Title", kind: "text" },
+      { id: "topicId", label: "Topic", kind: "relation", relation: { resource: "topic", cardinality: "one" } },
+    ] } as unknown as AtlasResourceManifest;
+    const target = { id: "topic", identity: "id", displayField: "__atlas_display" } as AtlasResourceManifest;
+    const manifest = { resources: [origin, target] } as unknown as AtlasManifest;
+    const loaded = new Map([["topic", [{ id: "t1", __atlas_display: "Current topic title" }]]]);
+    const html = renderToStaticMarkup(<AtlasRendererRegistryProvider registries={{ fields: {
+      "article.title": ({ value }) => <mark>{String(value).toUpperCase()}</mark>,
+    } }}><HistoryTable resource={origin} fields={["title", "topicId"]} basePath="/atlas" relations={{
+      error: undefined, isPending: false,
+      resolve: (field, value) => resolveRelationValue(field, value, loaded, target),
+      references: (field, value) => resolveRelationReferences(manifest, field, value, loaded),
+    }} events={[{ sequence: "1", changedAt: "2026-10-01Z", operation: "update", actor: null, reason: null, values: { title: "New title", topicId: "t1" } }]} /></AtlasRendererRegistryProvider>);
+    expect(html).toContain("<mark>NEW TITLE</mark>");
+    expect(html).toContain('href="/atlas/topic/t1"');
+    expect(html).toContain("Current topic title");
   });
 });
