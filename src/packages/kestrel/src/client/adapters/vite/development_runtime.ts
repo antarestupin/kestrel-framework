@@ -90,7 +90,7 @@ export class ViteDevelopmentRuntime {
   }
 
   /** Attaches the shared middleware to one encapsulated client scope. */
-  public async mount(server: FastifyInstance): Promise<void> {
+  public async mount(server: FastifyInstance, assetBasePath?: string): Promise<void> {
     if (this.mountedScopes.has(server)) {
       return;
     }
@@ -98,7 +98,23 @@ export class ViteDevelopmentRuntime {
     const vite = await this.getServer(server);
 
     await server.register(middie);
-    server.use(vite.middlewares);
+    if (assetBasePath === undefined) {
+      server.use(vite.middlewares);
+    } else {
+      // Translate the client's production prefix to this shared Vite server's base.
+      server.use((request, response, next) => {
+        const originalUrl = request.url;
+        if (originalUrl?.startsWith(assetBasePath)) {
+          const base = vite.config.base;
+          request.url = `${base}${originalUrl.slice(assetBasePath.length)}`;
+        }
+        vite.middlewares(request, response, (error?: unknown) => {
+          // Fallthrough must retain the original URL for routing and diagnostics.
+          request.url = originalUrl;
+          next(error);
+        });
+      });
+    }
     server.addHook("preClose", async () => this.close());
     this.mountedScopes.add(server);
   }

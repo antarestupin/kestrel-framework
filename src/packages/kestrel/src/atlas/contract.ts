@@ -1,3 +1,4 @@
+import type { AtlasBrandingOptions, AtlasThemeOptions } from "./appearance.js";
 import type { SvgIconDefinition } from "./icon_definition.js";
 
 /** JSON Schema subset transported to Atlas client. */
@@ -260,6 +261,8 @@ export interface AtlasResourceManifest {
 
 /** Complete configuration loaded before the client router is created. */
 export interface AtlasManifest {
+  readonly branding?: AtlasBrandingOptions;
+  readonly theme?: AtlasThemeOptions;
   readonly basePath: string;
   readonly title: string;
   readonly defaults: AtlasDefaultsManifest;

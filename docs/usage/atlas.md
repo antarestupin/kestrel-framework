@@ -8,6 +8,47 @@ Atlas is included in `@kestreljs/framework` under the `@kestreljs/framework/atla
 
 New projects include Atlas by default, both interactively and with `--yes` or redirected input; answer no or pass `--no-atlas` to omit it. The generated starter mounts an empty Atlas at `/admin` only in the local environment, with application-owned resource and exposure configuration. See [installation choices](./installation.md#choose-whether-to-include-atlas).
 
+## Customize colors and logo
+
+Set `branding` and `theme` on `defineAtlas()`. This configuration applies to navigation and the password-login page, independently of the delivery adapter. The application serves its own image assets; the following example assumes the two URLs are publicly available, including before authentication.
+
+```ts
+import { defineAtlas } from "@kestreljs/framework/atlas";
+
+export const administration = defineAtlas({
+  title: "Example Administration",
+  resources: [], // Replace with application-owned resources.
+  branding: {
+    logo: {
+      src: "/branding/symbol.svg",
+      alt: "Example",
+      darkSrc: "/branding/symbol-light.svg", // Optional dark-mode image.
+    },
+  },
+  theme: {
+    primaryColor: "#176b70", // Derives accents, focus, selection and control colors.
+    light: {
+      colors: {
+        background: "#f5f8f7",
+        sidebarBackground: "#123638",
+        sidebarText: "#eaf4f3",
+      },
+    },
+    dark: {
+      colors: { primary: "#79c9cc", background: "#101b1c" },
+    },
+  },
+});
+```
+
+All options are optional. Without a logo, Atlas displays the title's initial. Without `darkSrc`, the same image is used in both modes. Atlas automatically uses the logo as its favicon and switches it with the effective theme, including manual theme choices. Without a logo, Atlas leaves the document favicon unchanged. Images keep their own background and fit the existing mark area; prefer a compact symbol with adequate contrast against both the sidebar and login surface. URLs must be root-relative or HTTPS, and alternative text must be nonblank. Atlas does not upload or proxy images; missing assets remain browser image failures.
+
+Colors use six-digit hexadecimal notation. `primaryColor` generates light and dark palettes, including hover, focus, selection, sidebar accents and contrasting black or white text on filled controls. `light.colors` and `dark.colors` override individual semantic roles; omitted roles retain generated values or Atlas defaults. Overriding `primary` derives its associated colors for that scheme. Error and success colors remain independent. Explicit overrides take precedence, so applications remain responsible for contrast when overriding foreground/background pairs.
+
+The existing light/dark/system selector and stored user preference continue to work. Appearance is embedded in the initial HTML, including login HTML, and applied before React renders without fetching the protected resource manifest. Keep this configuration public and free of secrets. Invalid colors, unknown roles and unsupported logo URLs fail when Atlas is constructed.
+
+Use the exported `AtlasBrandingOptions`, `AtlasThemeOptions` and `AtlasColors` types for shared configuration. See the [appearance implementation contract](../implementation/atlas.md#visual-identity) for semantic roles and derivation details.
+
 ## Install Atlas with application access checks
 
 **Atlas does not restrict access when `authentication` and `access` are omitted.** Atlas declares its own HTTP access policies, so the HTTP runtime's general `defaultAccess` policy does not automatically protect it. Configure the boundary before exposing business resources or enabling Atlas in a deployment.

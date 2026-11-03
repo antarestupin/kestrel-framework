@@ -104,7 +104,7 @@ describe("ViteClientAdapter", () => {
       reply,
     } as never);
 
-    expect(mount).toHaveBeenCalledWith(server);
+    expect(mount).toHaveBeenCalledWith(server, client.assetBasePath);
     expect(transformHtml).toHaveBeenCalledWith(
       "/debates",
       expect.objectContaining({

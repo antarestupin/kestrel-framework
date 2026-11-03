@@ -1,3 +1,4 @@
+import { initializeAtlasAppearance, initializeAtlasFavicon } from "./appearance_runtime.js";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -16,6 +17,9 @@ async function bootstrapAtlas(): Promise<void> {
   }
 
   const clientConfig = readClientConfig(rootElement);
+  initializeAtlasAppearance(clientConfig.theme);
+  initializeAtlasFavicon(clientConfig.branding);
+  initializeAtlasTheme();
 
   try {
     if (
@@ -105,5 +109,4 @@ async function loadManifest(basePath: string): Promise<AtlasManifest> {
   return response.json() as Promise<AtlasManifest>;
 }
 
-initializeAtlasTheme();
 void bootstrapAtlas();

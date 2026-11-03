@@ -33,6 +33,11 @@ export function applyAtlasTheme(theme: AtlasTheme): void {
 
   document.documentElement.dataset.theme = resolvedTheme;
   document.documentElement.style.colorScheme = resolvedTheme;
+  // Activate one icon for the effective choice, rather than the OS preference alone.
+  document.querySelectorAll<HTMLLinkElement>("link[data-atlas-favicon]").forEach((icon) => {
+    icon.href = (resolvedTheme === "dark"
+      ? icon.dataset.atlasDarkFavicon : icon.dataset.atlasFavicon)!;
+  });
 }
 
 /** Initializes the document theme as early as possible during client startup. */

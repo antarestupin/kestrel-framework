@@ -24,12 +24,12 @@ export class ViteClientAdapter implements WebClientAdapter {
 
   public async setup(
     server: FastifyInstance,
-    _client: WebClient,
+    client: WebClient,
   ): Promise<WebClientRender> {
     if (this.options.devMode && this.options.development !== undefined) {
       const { runtime, entry } = this.options.development;
 
-      await runtime.mount(server);
+      await runtime.mount(server, client.assetBasePath);
 
       return async ({ request, reply }) => {
         const document = await runtime.transformHtml(

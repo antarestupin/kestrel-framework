@@ -46,7 +46,7 @@ describe("atlas theme", () => {
 
   it("resolves the system preference and updates the document scheme", () => {
     const documentElement = { dataset: {}, style: {} };
-    vi.stubGlobal("document", { documentElement });
+    vi.stubGlobal("document", { documentElement, querySelectorAll: () => [] });
     vi.stubGlobal("window", {
       matchMedia: vi.fn().mockReturnValue({ matches: true }),
     });
@@ -58,4 +58,15 @@ describe("atlas theme", () => {
       style: { colorScheme: "dark" },
     });
   });
+});
+
+it("updates the favicon when users explicitly switch the effective theme", () => {
+  const icon = { href: "", dataset: { atlasFavicon: "/logo.svg", atlasDarkFavicon: "/dark.svg" } };
+  vi.stubGlobal("document", {
+    documentElement: { dataset: {}, style: {} }, querySelectorAll: () => [icon],
+  });
+  applyAtlasTheme("dark");
+  expect(icon.href).toBe("/dark.svg");
+  applyAtlasTheme("light");
+  expect(icon.href).toBe("/logo.svg");
 });

@@ -218,6 +218,27 @@ function createTestAtlas(inheritControllerAccess = false, withLinks = false): At
 }
 
 describe("AtlasProvider", () => {
+  it("delivers appearance at mounting before any authenticated manifest request", async () => {
+    const server = Fastify();
+    const app = new App({});
+    const client = new TestAtlasClientAdapter();
+    const branding = { logo: { src: "/symbol.svg", alt: "Example" } };
+    const theme = { primaryColor: "#176b70" };
+    try {
+      app.register(new AtlasProvider(
+        defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+        { atlas: defineAtlas({ resources: [], branding, theme }) },
+      ));
+      for (const extension of app.httpExtensions.definitions) await extension.mount({ app, server });
+      await app.start();
+      await server.ready();
+      expect(client.setup.mock.calls[0]?.[2]).toMatchObject({ branding, theme });
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
   it.each([false, true])(
     "preserves the runtime default when delegating to a controller (inherited: %s)",
     async (inherited) => {

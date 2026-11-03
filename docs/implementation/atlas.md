@@ -19,6 +19,49 @@ The first implementation is code-first. No-code editing, external connectors and
 
 For application setup and task-oriented examples, see the [Atlas usage guide](../usage/atlas.md).
 
+## Visual identity
+
+`AtlasOptions` owns optional serializable `branding` and `theme` values. Construction validates and snapshots them. `Atlas.getManifest()` includes them for authenticated consumers; `AtlasProvider` also copies them into `AtlasClientConfig` so login does not depend on a protected manifest request. Delivery adapters transport these fields using the existing URI-encoded, inert HTML attribute. Applications own asset hosting; the browser resolves image URLs without a framework proxy or server-side fetch.
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Atlas as Atlas definition
+    participant Provider as AtlasProvider
+    participant Client as Browser bootstrap
+    App->>Atlas: defineAtlas with branding and theme
+    Atlas->>Atlas: Validate and snapshot appearance
+    Provider->>Atlas: Read public appearance
+    Provider->>Client: HTML with encoded client configuration
+    Client->>Client: Install scoped palette and resolve stored mode
+    Client->>Client: Render login or load authorized manifest
+```
+
+`appearance.ts` owns the browser-safe public types and semantic CSS-property mapping. It imports neither application configuration nor server infrastructure. Color input is restricted to six-digit hex; only allowlisted roles reach generated CSS. Logo sources allow root-relative or HTTPS URLs and reject whitespace, backslashes and markup delimiters. The framework renders image sources as React attributes, never raw SVG markup.
+
+`appearance_runtime.ts` derives both palettes once per document and installs rules scoped to `:root[data-theme="light"]` and `:root[data-theme="dark"]`. `theme_runtime.ts` continues to own mode resolution and persistence independently. Bootstrap installs appearance and the effective mode before rendering either screen. Subsequent mode changes and system preference events select the existing rules, without rebuilding palettes or reading application environment values.
+
+Primary derivation uses sRGB channel interpolation: dark primary mixes the configured color with 40% white, strong primary mixes with 20% black (light) or white (dark), hover mixes with 15% white for black foreground or black for white foreground, borders with 55% of the default surface, and accent surfaces with 90%/94% of the default surface. Filled controls choose whichever of black or white has higher WCAG relative-luminance contrast. Explicit scheme roles override generated values last. Surface overrides do not implicitly regenerate every other role; callers can supply the associated roles explicitly.
+
+| Roles | Purpose |
+| --- | --- |
+| `primary`, `primaryStrong`, `primaryHover`, `onPrimary`, `accentBorder` | Accent text, filled controls, hover and focus treatment |
+| `background`, `surface`, `surfaceSubtle`, `surfaceAccent`, `surfaceAccentHover` | Page, panels and selection surfaces |
+| `border`, `borderStrong` | Panel and control boundaries |
+| `heading`, `text`, `textControl`, `textMuted`, `textSubtle`, `textFaint` | Content hierarchy |
+| `sidebarBackground`, `sidebarText`, `sidebarHeading`, `sidebarMuted`, `sidebarBorder`, `sidebarHover`, `sidebarActiveText`, `sidebarAccent` | Navigation palette, independent of main content |
+| `logoBackground`, `logoText` | Initial fallback mark; image assets have a transparent container |
+| `dangerSurface`, `dangerBorder`, `dangerText`, `successSurface`, `successText` | Semantic feedback |
+| `overlay`, `shadow` | Overlay and shadow tint overrides |
+
+`initializeAtlasFavicon` installs a document icon from the configured logo before React renders. The existing theme application updates its URL to `darkSrc` in dark mode, falling back to `src`. With no logo it leaves favicons unchanged.
+
+`AtlasBrand` is shared by login and sidebar. Optional dark variants switch with the resolved document mode, rather than a separate system-media query, so an explicit user choice wins. Without configuration the shipped palette and title initial remain available. Appearance owns no timers or listeners; its resources are a document-scoped stylesheet and an optional favicon link; the existing theme selector owns and removes its system preference listener.
+
+Tests cover validation, snapshots, palette derivation, partial override inheritance, contrasting foreground selection, stylesheet installation, both logo placements and bootstrap delivery. Application tests cover application palette selection and delivery of its image assets.
+
+Deferred evolutions: configurable typography, spacing and radii; alternate wordmark layouts; image-load fallbacks; contrast diagnostics for arbitrary role pairs; per-tenant runtime appearance and a customizable default mode. These are not current API capabilities.
+
 ## Validation modes
 
 Catalog exposures inherit their action, HTTP controller or worker validation policy. Both operation and record-action gateways validate inputs with that policy, and mapped values are checked using the inner contract's policy.

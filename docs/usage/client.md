@@ -22,7 +22,7 @@ function mountClient<Config>(app: App<Config>, projectRoot: string, devMode: boo
 }
 ```
 
-Pass an absolute runtime-visible project root and build the client into the configured directory for production. Match the Vite asset base to `assetBasePath`. Register the HTTP runtime in the same application. Unknown `/api` and asset paths return errors instead of the SPA document.
+Pass an absolute runtime-visible project root and build the client into the configured directory for production. Match the standalone Vite asset base to `assetBasePath`. With a shared development runtime, the Vite adapter automatically maps requests from the client’s `assetBasePath` to the shared Vite base, so public asset URLs remain identical in development and production. No application rewrite middleware is needed. Register the HTTP runtime in the same application. Unknown `/api` and asset paths return errors instead of the SPA document.
 
 ## Generate a typed HTTP client
 

@@ -283,6 +283,8 @@ function createClientConfig(
   return {
     basePath: atlas.basePath,
     title: atlas.title,
+    ...(atlas.branding === undefined ? {} : { branding: atlas.branding }),
+    ...(atlas.theme === undefined ? {} : { theme: atlas.theme }),
     ...(authentication === undefined ? {} : { authentication }),
   };
 }

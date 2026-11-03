@@ -1,3 +1,4 @@
+export { type AtlasBrandingOptions, type AtlasThemeOptions, type AtlasColors } from "./appearance.js";
 export {
   atlasCollectionQuerySchema,
   atlasFilterOperatorSchema,

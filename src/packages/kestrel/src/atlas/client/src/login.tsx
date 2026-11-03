@@ -1,3 +1,4 @@
+import { AtlasBrand } from "./brand.js";
 import { type FormEvent, useState } from "react";
 
 import type { AtlasClientConfig } from "../../client_config.js";
@@ -56,9 +57,7 @@ export function AtlasLogin(
   return (
     <main className="login-page">
       <section aria-labelledby="login-title" className="login-panel">
-        <div aria-hidden="true" className="login-brand-mark">
-          {config.title.at(0)}
-        </div>
+        <AtlasBrand branding={config.branding} title={config.title} login />
         <p className="eyebrow">Atlas</p>
         <h1 id="login-title">Sign in to {config.title}</h1>
         <p className="login-description">

@@ -1,3 +1,4 @@
+import { AtlasBrand } from "./brand.js";
 import { useState } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
 
@@ -21,7 +22,7 @@ export function AtlasLayout({
     <div className="atlas-shell">
       <aside className="sidebar">
         <Link className="brand" to="/">
-          <span className="brand-mark">{manifest.title.at(0)}</span>
+          <AtlasBrand branding={manifest.branding} title={manifest.title} />
           <span>
             <strong>{manifest.title}</strong>
             <small>Atlas</small>

@@ -1,3 +1,4 @@
+import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -10,6 +11,41 @@ import type { ViteDevServer } from "vite";
 import { ViteDevelopmentRuntime } from "./development_runtime.js";
 
 describe("ViteDevelopmentRuntime", () => {
+  it.each(["/", "/development/"])("serves production asset URLs through the shared Vite base %s", async (base) => {
+    const server = Fastify();
+    const seen: string[] = [];
+    const close = vi.fn(async () => {});
+    const runtime = new ViteDevelopmentRuntime({ root: "/workspace", configFile: "vite.config.ts" }, {
+      createServer: async () => ({
+        config: { base }, close,
+        middlewares(request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse, next: () => void) {
+          seen.push(request.url!);
+          if (request.url === `${base}branding/symbol.svg?v=1`) {
+            response.setHeader("content-type", "image/svg+xml");
+            response.end("<svg/>");
+          } else next();
+        },
+      } as unknown as ViteDevServer),
+    });
+    try {
+      // The application-selected prefix need not be Kestrel's default.
+      await runtime.mount(server, "/site-assets/");
+      server.get("/site-assets/missing.svg", (request) => ({ url: request.url }));
+      server.get("/api/example", (request) => ({ url: request.url }));
+      const asset = await server.inject("/site-assets/branding/symbol.svg?v=1");
+      expect(asset.statusCode).toBe(200);
+      expect(asset.body).toBe("<svg/>");
+      expect(seen).toContain(`${base}branding/symbol.svg?v=1`);
+      expect((await server.inject("/site-assets/missing.svg")).json()).toEqual({ url: "/site-assets/missing.svg" });
+      expect((await server.inject("/api/example")).json()).toEqual({ url: "/api/example" });
+      expect(seen).toContain("/api/example");
+    } finally {
+      await server.close();
+      await runtime.close();
+    }
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("keeps Node watch stable until a real configuration dependency changes", async () => {
     const root = await mkdtemp(join(tmpdir(), "kestrel-vite-watch-"));
     const dependency = join(root, "settings.mjs");

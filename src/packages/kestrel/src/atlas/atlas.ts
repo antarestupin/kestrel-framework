@@ -1,3 +1,5 @@
+import { validateAtlasAppearance } from "./appearance.js";
+import type { AtlasBrandingOptions, AtlasThemeOptions } from "./appearance.js";
 import { safeParseSchema } from "../definitions/index.js";
 import {
   defineHttpAccessPolicy,
@@ -60,6 +62,8 @@ export interface AtlasNotificationsOptions {
 }
 
 export interface AtlasOptions {
+  readonly branding?: AtlasBrandingOptions;
+  readonly theme?: AtlasThemeOptions;
   readonly title?: string;
   readonly basePath?: string;
   readonly defaults?: AtlasDefaultsOptions;
@@ -75,6 +79,8 @@ export interface AtlasHttpMiddlewareOptions {
 
 /** Owns one Atlas definition and compiles its client manifest. */
 export class Atlas {
+  public readonly branding: AtlasBrandingOptions | undefined;
+  public readonly theme: AtlasThemeOptions | undefined;
   public readonly basePath: string;
   public readonly title: string;
   public readonly defaults: Required<AtlasDefaultsOptions>;
@@ -85,6 +91,10 @@ export class Atlas {
   private manifest?: AtlasManifest;
 
   public constructor(options: AtlasOptions) {
+    validateAtlasAppearance(options.branding, options.theme);
+    // Snapshot public appearance so later caller mutations cannot alter delivery.
+    this.branding = options.branding === undefined ? undefined : structuredClone(options.branding);
+    this.theme = options.theme === undefined ? undefined : structuredClone(options.theme);
     this.basePath = normalizeBasePath(
       options.basePath ?? DEFAULT_ATLAS_BASE_PATH,
     );
@@ -138,6 +148,8 @@ export class Atlas {
     this.manifest = {
       basePath: this.basePath,
       title: this.title,
+      ...(this.branding === undefined ? {} : { branding: this.branding }),
+      ...(this.theme === undefined ? {} : { theme: this.theme }),
       defaults: this.defaults,
       notifications: this.notifications,
       icons: icons.toManifest(),
