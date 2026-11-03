@@ -56,7 +56,8 @@ export function HistoryTable({ resource, fields, events }: {
         <table className="history-matrix" aria-label="Resource history">
           <thead><tr><th scope="col">Field</th>{events.map((event) => <th scope="col" key={event.sequence}>
             <time dateTime={event.changedAt}>{new Date(event.changedAt).toLocaleString()}</time>
-            <div>{event.operation} · #{event.sequence}</div>
+            {/* Sequence remains an internal event key and pagination cursor. */}
+            <div>{event.operation}</div>
           </th>)}</tr></thead>
           {/* Event metadata stays visible and separate from sparse business changes. */}
           <tbody className="history-metadata">

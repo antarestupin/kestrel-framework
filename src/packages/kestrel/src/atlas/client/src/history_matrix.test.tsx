@@ -27,6 +27,11 @@ describe("history matrix", () => {
     expect(html).not.toContain("<details");
     expect(html).not.toContain("<caption");
     expect(html).toContain('scope="row">Title');
-    expect(html.indexOf("#1")).toBeLessThan(html.indexOf("#3"));
+    expect(html).not.toContain("#1");
+    expect(html).not.toContain("#2");
+    expect(html).not.toContain("#3");
+    expect(html).toContain('dateTime="2026-10-01Z"');
+    expect(html).toContain("<div>update</div>");
+    expect(html.indexOf("<div>insert</div>")).toBeLessThan(html.indexOf("<div>delete</div>"));
   });
 });
