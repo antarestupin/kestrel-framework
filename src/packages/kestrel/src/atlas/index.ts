@@ -115,3 +115,5 @@ export type { ValidationMode, ValidationOptions } from "../definitions/index.js"
 export * from "./adapter_definition.js";
 
 export { viteAtlasClient } from "./adapters/client/definition.js";
+
+export { atlasHistoryInputSchema, atlasHistoryOutputSchema, type AtlasHistoryPage } from "./history.js";

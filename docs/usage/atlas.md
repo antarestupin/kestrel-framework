@@ -196,3 +196,23 @@ const resource = defineAtlasResource({
 Builders execute on the server after the normal authorized `read` operation, using its validated public output. They must be pure and synchronous, without additional data access or record mutation. Missing records skip all builders. Return `undefined` to omit a link; returning an invalid URL or throwing fails the read request as a server error rather than silently hiding a configuration problem. Only HTTP(S) URLs and same-origin absolute paths starting with a single `/` are accepted; encode record values when inserting them into path segments.
 
 The read gateway response retains its business `data` and `effects` and adds `recordLinks: [{ id, label, href }]` for Resources configured with links, including an empty array when no links apply. Functions and configuration closures are never serialized into the manifest. The standard UI displays links in declaration order in the record header, opening a new tab with `noopener noreferrer`. There is no additional link request, and list rows do not display these links. Cached links refresh with the record's normal read query. See the [implementation contract](../implementation/atlas.md#record-links) for boundaries and deferred extensions.
+
+## Show record history
+
+Add the optional `history` capability to show a collapsible **History** matrix on a record page. Rows are fields and columns are events, ordered oldest to newest. The panel loads on opening, initially shows the latest 20 events, and loads older columns on demand. Blank cells mean unchanged, `NULL` means an explicit null, and `""` means an empty string. Event headers include the operation and sequence. Actor and reason appear in two always-visible, visually distinct metadata rows above the business fields. Deletion events have no business values. Field labels reuse Resource metadata; hidden fields are omitted from presentation but must also be excluded by the server when sensitive.
+
+The application owns the history Action, its authorization and identity mapping. Use `atlasHistoryInputSchema` and `atlasHistoryOutputSchema` from `@kestreljs/framework/atlas` for the portable query contract. The input always uses `id` for the record route identity, independently from the Resource identity property. The output contains `fields`, newest-first `events` and nullable `nextCursor`; each event contains `sequence`, ISO `changedAt`, `operation`, nullable `actor` and `reason`, and a sparse `values` object.
+
+```ts
+import { defineAtlasResource } from "@kestreljs/framework/atlas";
+
+// source, capabilities and historyAction are application-owned and authorized.
+const resource = defineAtlasResource({
+  id: "article", label: "Articles", identity: "id", source,
+  capabilities: { ...capabilities, history: source.query(historyAction) },
+});
+```
+
+For `defineHistoryTable` storage, use the [database history reader](./database.md#read-sparse-history) inside the Action. Explicitly allowlist exposed fields and enforce record or tenant access on every call, including direct gateway calls. Current-record access does not automatically authorize old values. Reject missing current records if deleted-resource browsing is outside the application's policy. History failures remain local to the panel and can be retried. History queries refresh when the Resource query cache is invalidated after writes.
+
+An insertion can represent an initial baseline rather than the actual creation time. Without a baseline, earlier field values may be unknown; the matrix does not reconstruct or infer them. See [implementation and deferred extensions](../implementation/atlas.md#record-history-matrix).

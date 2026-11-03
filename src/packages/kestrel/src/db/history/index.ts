@@ -15,3 +15,5 @@ export {
   createHistoryTriggerRemovalSql,
   createHistoryTriggerSql,
 } from "./trigger_sql.js";
+
+export { readHistoryPage, type HistoryPageRequest } from "./reader.js";

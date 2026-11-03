@@ -784,3 +784,27 @@ sequenceDiagram
 The source and operation reference continue to own authorization, execution and output validation. The Resource owns URL construction and validation. The browser owns presentation and retains the complete read envelope in the query cache, exposing business data and link metadata separately to pages. Builders are synchronous and must not mutate records or perform data access. Missing records produce an empty link array without invoking builders; `undefined` omits individual links. Builder exceptions and invalid results fail the read request. URL validation permits HTTP(S) URLs or same-origin absolute paths, rejects protocol-relative URLs, backslashes, whitespace and control characters, and parses the URL before returning navigation metadata. Opening a link does not grant access to its destination, which retains its own authorization.
 
 Deferred: optional list visibility with batched resolution, asynchronous builders with explicit execution context, and per-link presentation options. These require separate contracts and are not available through the current API. See the [usage recipe](../usage/atlas.md#add-links-to-a-record-page).
+
+## Record history matrix
+
+The optional `capabilities.history` is a read exposure compiled into the same gateway allowlist as other Resource operations. It must be a Query accepting `id`; applications should declare the exported history input/output schemas to validate the complete portable contract. No table discovery or database access occurs in the Atlas browser. The database reader is independent from Atlas, and application Actions compose storage and access policy.
+
+```mermaid
+sequenceDiagram
+    participant Operator
+    participant Matrix
+    participant Gateway
+    participant Action
+    participant Reader
+    Operator->>Matrix: Expand History
+    Matrix->>Gateway: history(id, before, pageSize)
+    Gateway->>Action: Validate and execute authorized Query
+    Action->>Reader: Read selected fields for identity
+    Reader-->>Action: Newest-first sparse page
+    Action-->>Matrix: Validated portable events
+    Matrix->>Matrix: Reverse stream for chronological columns
+```
+
+React Query owns the paginated stream under `[resource.id, "history", recordId]`. Opening enables fetching; closing removes the table without discarding cached pages. The first view scrolls to the latest events. Prepending older columns preserves the visible position through the scroll-width delta. Field labels remain sticky. Actor and reason occupy a separate table body with a muted background and a stronger bottom border, remaining visible without disclosure controls. A record change remounts panel state. Read errors show a retry action without replacing the record detail. Hidden fields are suppressed defensively by the renderer, but visibility metadata is not server authorization.
+
+Presence in `values` determines whether a cell is rendered. It must never use nullish fallback or truthiness to infer changes. Sequence strings are preserved without number coercion; timestamps are presentation only. Baseline insertion events cannot be distinguished from original creations with the current storage metadata. Restore actions, arbitrary-date comparisons, actor hydration, deleted-record routes, column virtualization and batched history reads remain deferred.

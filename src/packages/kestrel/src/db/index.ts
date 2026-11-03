@@ -98,3 +98,5 @@ export {
   type PostgresPoolEvent,
   type PostgresPoolSnapshot,
 } from "./pool_runtime.js";
+
+export { readHistoryPage, type HistoryPageRequest } from "./history/index.js";

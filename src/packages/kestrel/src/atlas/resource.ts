@@ -95,6 +95,8 @@ export interface AtlasResourceCapabilities {
   readonly create?: AtlasOperationReference;
   readonly update?: AtlasOperationReference;
   readonly delete?: AtlasOperationReference;
+  /** Authorized sparse event stream for the record history matrix. */
+  readonly history?: AtlasOperationReference;
 }
 
 export interface AtlasResourceViewOptions {
@@ -257,6 +259,12 @@ export function defineAtlasResource<Read extends AtlasOperationReference>(
   validateRecordActions(options);
   validateFields(options);
   validateReadMany(options);
+  if (options.capabilities.history !== undefined && (
+    options.capabilities.history.effect !== "read"
+    || !getOperationInputNames(options.capabilities.history).includes("id")
+  )) {
+    throw new TypeError("Atlas history capability must reference a Query accepting an id input.");
+  }
 
   return {
     id: options.id,
@@ -321,6 +329,9 @@ function compileResource(
       : { recordActionsInList: options.recordActionsInList }),
     fields,
     capabilities: {
+      ...(options.capabilities.history === undefined ? {} : {
+        history: compileOperation(getCapabilityExposureId(options.id, "history"), options.capabilities.history),
+      }),
       list: compileOperation(
         getCapabilityExposureId(options.id, "list"),
         options.capabilities.list,

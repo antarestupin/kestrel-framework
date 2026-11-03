@@ -236,6 +236,8 @@ export interface AtlasResourceCapabilitiesManifest {
   readonly create?: AtlasOperationManifest;
   readonly update?: AtlasOperationManifest;
   readonly delete?: AtlasOperationManifest;
+  /** Optional authorized record event stream. */
+  readonly history?: AtlasOperationManifest;
 }
 
 /** Serializable resource definition consumed by Atlas UI. */

@@ -566,3 +566,9 @@ Application database integration tests use the application-configured test datab
 `PostgresDrizzleProvider` names the actual PostgreSQL/Drizzle boundary. `PostgresDrizzleConfig`, `postgresDrizzleConfigBase`, `PostgresDrizzleClient` and `PostgresDrizzleManager` are explicit public names. Supply `{ schema }` or `{ schema, createDatabase: (pool) => drizzle(pool, { schema }) }` as constructor options. Application subclasses are only needed for additional composition such as maintenance. A TypeORM integration requires its own infrastructure provider and compatible feature adapters.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+## Sparse history reading
+
+`readHistoryPage` resolves the definition attached to a history table, validates all identity keys and the explicit tracked-field selection, and projects only selected fields plus event metadata. The predicate combines every identity column and an optional strict `__sequence < before` bound. Descending sequence order matches the existing composite history index. The query requests one extra row to determine continuation without counting the stream.
+
+Each returned event contains only selected keys present in `__changedColumns`. Delete values are always empty. JSON normalization converts Dates and bigints into portable values while retaining explicit null, false, zero and empty strings. Sequence strings avoid JavaScript numeric precision loss. The reader borrows the supplied Drizzle executor and propagates database errors; it does not authorize access, modify data, open transactions or manage resources. Composite identities are supported, while batched entity reads and historical schema retention remain future extensions.

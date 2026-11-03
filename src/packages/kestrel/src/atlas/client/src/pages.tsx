@@ -1,3 +1,4 @@
+import { HistoryMatrix } from "./history_matrix.js";
 import {
   useMutation,
   useQuery,
@@ -519,6 +520,7 @@ export function ResourceRead({
               </div>
             ))}
           </dl>
+          {resource.capabilities.history === undefined ? null : <HistoryMatrix key={recordId} basePath={manifest.basePath} resource={resource} recordId={recordId} />}
           {(resource.relatedCollections ?? []).map((collection) => (
             <RelatedResourceCollection
               collection={collection}

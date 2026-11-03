@@ -338,3 +338,23 @@ For descriptions, custom SQL contributions, migration generation, seeding and lo
 `PostgresDrizzleProvider` names the actual PostgreSQL/Drizzle boundary. `PostgresDrizzleConfig`, `postgresDrizzleConfigBase`, `PostgresDrizzleClient` and `PostgresDrizzleManager` are explicit public names. Supply `{ schema }` or `{ schema, createDatabase: (pool) => drizzle(pool, { schema }) }` as constructor options. Application subclasses are only needed for additional composition such as maintenance. A TypeORM integration requires its own infrastructure provider and compatible feature adapters.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
+
+## Read sparse history
+
+Use `readHistoryPage` to inspect a `defineHistoryTable` event stream without reconstructing snapshots. The caller owns authorization and supplies every identity key, including tenant keys for composite identities. An explicit `fields` allowlist controls both the SQL projection and returned values.
+
+```ts
+import { readHistoryPage } from "@kestreljs/framework/db";
+
+// manager, articleHistory and articleId belong to the application.
+const page = await readHistoryPage(manager.database, articleHistory, {
+  identity: { id: articleId },
+  fields: ["title", "status"], // Expose only authorized tracked properties.
+  pageSize: 20,
+});
+// Pass page.nextCursor as `before` to retrieve older events.
+```
+
+Pages are newest first by `__sequence`, with at most 100 events (20 by default). Cursors are positive PostgreSQL bigint strings, preserving precision in JSON. Sparse `values` include changed allowlisted properties only, preserving explicit nulls. Deletions have empty values; Dates become ISO strings and bigints become strings, including nested JSON values. Actor and reason metadata are returned separately and require the same disclosure review as field values. Invalid tables, missing identities, unknown fields, invalid cursors and invalid page sizes fail before querying. Database errors propagate to the caller. No pool or transaction is created or owned by the reader.
+
+The reader uses keyset pagination, so newer insertions do not shift older page boundaries. Separate page reads are not a shared database snapshot. Restoring snapshots, archival schema evolution and batch entity streams remain deferred. See the [implementation contract](../implementation/database.md#sparse-history-reading).

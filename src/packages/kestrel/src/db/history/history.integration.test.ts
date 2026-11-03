@@ -1,3 +1,4 @@
+import { readHistoryPage } from "./reader.js";
 import { asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
@@ -133,6 +134,22 @@ afterAll(async () => {
 });
 
 describe("database history", () => {
+  it("reads real sparse events across stable cursor pages with explicit null and deletion", async () => {
+    const database = drizzle(pool);
+    const id = crypto.randomUUID();
+    await database.insert(records).values({ id, title: "First", content: "Original", updatedAt: new Date() });
+    await database.update(records).set({ content: null }).where(eq(records.id, id));
+    await database.delete(records).where(eq(records.id, id));
+    const request = { identity: { id }, fields: ["title", "content"], pageSize: 2 };
+    const latest = await readHistoryPage(database, recordHistory, request);
+    expect(latest.events.map((event) => event.operation)).toEqual(["delete", "update"]);
+    expect(latest.events.map((event) => event.values)).toEqual([{}, { content: null }]);
+    expect(latest.nextCursor).not.toBeNull();
+    const older = await readHistoryPage(database, recordHistory, { ...request, before: latest.nextCursor! });
+    expect(older.events.map((event) => event.values)).toEqual([{ title: "First", content: "Original" }]);
+    expect(older.nextCursor).toBeNull();
+  });
+
   it("ignores counter-only updates but records tracked changes, nulls and deletions", async () => {
     for (const history of [includedHistory, excludedHistory]) {
       const [definition] = getHistoryTableDefinitions({ history });

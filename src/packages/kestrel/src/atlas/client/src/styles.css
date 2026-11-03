@@ -254,3 +254,16 @@ td { color: var(--atlas-text-control); font-size: 14px; }
   /* Keep state changes immediate for users who request reduced motion. */
   .dialog-backdrop, .dialog-panel, .confirmation-panel, .notification, .notification-content { transition-duration: 0ms; }
 }
+
+/* Pin field labels while the sparse event stream scrolls horizontally. */
+.history-panel { padding: 1rem; border: 1px solid var(--atlas-border); border-radius: .5rem; }
+.history-panel > summary { cursor: pointer; font-weight: 600; }
+.history-viewport { overflow: auto; max-height: 36rem; margin-top: 1rem; }
+.history-matrix { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
+.history-matrix th, .history-matrix td { border: 1px solid var(--atlas-border); padding: .75rem; vertical-align: top; min-width: 12rem; max-width: 24rem; }
+.history-matrix th:first-child { position: sticky; left: 0; z-index: 1; background: var(--atlas-surface); }
+.history-matrix pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: inherit; }
+
+/* A muted background and separator distinguish event metadata from business fields. */
+.history-matrix .history-metadata th, .history-matrix .history-metadata td { background: var(--atlas-surface-subtle); color: var(--atlas-text-muted); font-size: .875rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.history-matrix .history-metadata tr:last-child > * { border-bottom: 2px solid var(--atlas-border-strong); }
