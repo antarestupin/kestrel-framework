@@ -101,7 +101,7 @@ const catalog = {
   sendMessage: sendMessageAction,
 };
 
-function createAtlas() {
+function createAtlas(textMaxLength?: number | false, resourceLimit?: number | false) {
   const source = defineCatalogAtlasSource({
     id: "application",
     actions: catalog,
@@ -113,6 +113,7 @@ function createAtlas() {
     source,
     identity: "id",
     recordActionsInList: "all",
+    ...(resourceLimit === undefined ? {} : { textMaxLength: resourceLimit }),
     capabilities: {
       list: source.query(catalog.list),
       read: source.query(catalog.get),
@@ -162,13 +163,29 @@ function createAtlas() {
   return defineAtlas({
     title: "Example Atlas workspace",
     basePath: "/management/",
-    defaults: { recordActionsInList: "none" },
+    defaults: { recordActionsInList: "none", ...(textMaxLength === undefined ? {} : { textMaxLength }) },
     notifications: { position: "top-right" },
     resources: [resource],
   });
 }
 
 describe("Atlas", () => {
+  it("serializes default and resource list text limits without losing false", () => {
+    expect(createAtlas().getManifest().defaults.textMaxLength).toBe(50);
+    expect(createAtlas(80, 100).getManifest()).toMatchObject({
+      defaults: { textMaxLength: 80 }, resources: [{ textMaxLength: 100 }],
+    });
+    expect(createAtlas(false, false).getManifest()).toMatchObject({
+      defaults: { textMaxLength: false }, resources: [{ textMaxLength: false }],
+    });
+    expect(createAtlas().getManifest().resources[0]).not.toHaveProperty("textMaxLength");
+  });
+
+  it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])("rejects invalid list limits: %s", (limit) => {
+    expect(() => createAtlas(limit)).toThrow("textMaxLength");
+    expect(() => createAtlas(undefined, limit)).toThrow("textMaxLength");
+  });
+
   it("compiles explicitly mapped resources into a serializable manifest", () => {
     const manifest = createAtlas().getManifest();
     const resource = manifest.resources[0]!;

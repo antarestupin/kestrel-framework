@@ -24,6 +24,9 @@ import type { AtlasLayoutProperties } from "./router-view.js";
 
 export interface AtlasFieldRendererProperties {
   readonly basePath?: string;
+  /** Only list presentation applies the inherited text limit. */
+  readonly context?: "list" | "record" | "history";
+  readonly textMaxLength?: number | false;
   readonly field: AtlasFieldManifest;
   readonly onOpenRelation?: (resourceId: string, recordId: string) => void;
   readonly relationReferences?: readonly HydratedRelationReference[];

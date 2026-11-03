@@ -884,6 +884,16 @@ The envelope's optional `display` contains positional labels and an explicit rec
 
 Deferred evolutions: typed Resource handles for cross-source field inference, authorized field projections and source-provided joined reads, multi-hop paths with bounded planning, explicit collection aggregations, request-wide reuse between ordinary relation hydration and display dependencies, targeted dependency-aware cache invalidation, and explicit labels for arbitrary Views. Ordinary browser relation hydration can still repeat a target read already used for a display dependency. A formatter does not grant search or sort semantics; those require source-defined collection operations.
 
+### Text presentation
+
+`AtlasDefaultsOptions.textMaxLength` defaults to 50 and is serialized in `AtlasDefaultsManifest`. Resource definitions preserve their optional override in `AtlasResourceManifest`, including `false`. Both boundaries reject numeric values that are not positive safe integers. Omitted Resource settings remain omitted so inheritance is explicit.
+
+The shared list table passes `context: "list"` and the manifest default into `FieldValue`. Its standard renderer resolves Resource override → manifest default → 50 using nullish inheritance, preserving `false`. Only text/email strings and relation labels are shortened, individually for plural relations. `truncateText` uses `Intl.Segmenter` graphemes with the ellipsis inside the limit. A shortened string is wrapped in a span with its original text as the native tooltip; relation links retain their destination and navigation handler. Record detail fields and history do not opt into list context and retain complete text. Record page headings resolve the same limit for the displayed Resource and render the full raw label through `DisplayText`, retaining its tooltip. Unrelated page headings remain unchanged. Identifiers and structured values bypass shortening.
+
+The gateway, display formatters, hydration caches and collection query inputs retain original values. Registry overrides receive original values and presentation metadata; Atlas never truncates a custom renderer's input. The containing table controls relation-label length, not the related Resource. Main lists, named views using the standard list renderer and related-record tables therefore share one presentation policy.
+
+Deferred evolutions: separate title limits, per-field limits, richer accessible tooltip components and an explicit renderer helper for custom field presentation. Custom view renderers must opt into the same context and pass the global default if they want standard list behavior.
+
 ### History field rendering and relation hydration
 
 The shared `field_value.tsx` module owns field renderer resolution for lists, record details and history, preserving the existing browser exports through `pages.tsx`. History first checks sparse property presence and reserves explicit `NULL` and empty-string markers; other values use the originating Resource field metadata and renderer registry. Fields absent from the Resource manifest keep the raw-value fallback.

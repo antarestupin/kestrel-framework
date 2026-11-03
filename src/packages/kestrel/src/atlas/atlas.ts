@@ -1,3 +1,4 @@
+import { validateTextMaxLength } from "./text_presentation.js";
 import { resolveDisplayLabels, validateDisplays } from "./display.js";
 import { validateAtlasAppearance } from "./appearance.js";
 import type { AtlasBrandingOptions, AtlasThemeOptions } from "./appearance.js";
@@ -59,6 +60,8 @@ export const DEFAULT_ATLAS_BASE_PATH = "/atlas";
 /** Defaults inherited by Resources and their controls. */
 export interface AtlasDefaultsOptions {
   readonly recordActionsInList?: AtlasRecordActionsInList;
+  /** Maximum visible list text and record label length including the ellipsis; false disables truncation. */
+  readonly textMaxLength?: number | false;
 }
 
 export interface AtlasNotificationsOptions {
@@ -109,7 +112,9 @@ export class Atlas {
       options.basePath ?? DEFAULT_ATLAS_BASE_PATH,
     );
     this.title = options.title?.trim() || "Atlas";
+    validateTextMaxLength(options.defaults?.textMaxLength);
     this.defaults = {
+      textMaxLength: options.defaults?.textMaxLength ?? 50,
       recordActionsInList: options.defaults?.recordActionsInList ?? "all",
     };
     this.notifications = {

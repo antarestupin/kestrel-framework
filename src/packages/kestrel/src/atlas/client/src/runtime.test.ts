@@ -157,7 +157,7 @@ describe("Atlas client runtime", () => {
     const manifest = {
       basePath: "/atlas",
       title: "Atlas",
-      defaults: { recordActionsInList: "all" as const },
+      defaults: { textMaxLength: 50, recordActionsInList: "all" as const },
       notifications: { position: "bottom-left" as const },
       icons: {},
       resources: [resource],
@@ -199,7 +199,7 @@ describe("Atlas client runtime", () => {
     const manifest = {
       basePath: "/atlas",
       title: "Atlas",
-      defaults: { recordActionsInList: "none" as const },
+      defaults: { textMaxLength: 50, recordActionsInList: "none" as const },
       notifications: { position: "bottom-left" as const },
       icons: {},
       resources: [],

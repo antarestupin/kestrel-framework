@@ -1,3 +1,4 @@
+import { validateTextMaxLength } from "./text_presentation.js";
 import {
   z,
   type ZodType,
@@ -179,6 +180,8 @@ export interface AtlasResourceOptions<Read extends AtlasOperationReference = Atl
   readonly views?: Readonly<Record<string, AtlasResourceView>>;
   readonly recordActions?: Readonly<Record<string, AtlasRecordAction>>;
   readonly recordActionsInList?: AtlasRecordActionsInList;
+  /** Maximum visible list text and record label length including the ellipsis; false disables truncation. */
+  readonly textMaxLength?: number | false;
   readonly fields?: Readonly<Record<string, AtlasFieldOptions>>;
 }
 
@@ -317,6 +320,7 @@ function compileResource(
     ...Object.keys(properties),
     ...Object.keys(options.fields ?? {}),
   ]);
+  validateTextMaxLength(options.textMaxLength);
   if (options.display !== undefined && options.displayField !== undefined) {
     throw new TypeError("Use either display or displayField, not both.");
   }
@@ -350,6 +354,7 @@ function compileResource(
     displayField,
     ...(options.readManyBatchSize === undefined ? {} : { readManyBatchSize: options.readManyBatchSize }),
     sourceId: options.source.id,
+    ...(options.textMaxLength === undefined ? {} : { textMaxLength: options.textMaxLength }),
     ...(options.recordActionsInList === undefined
       ? {}
       : { recordActionsInList: options.recordActionsInList }),

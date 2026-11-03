@@ -216,6 +216,8 @@ export interface AtlasRecordActionManifest {
 /** Kestrel defaults applied when a Resource or Action has no override. */
 export interface AtlasDefaultsManifest {
   readonly recordActionsInList: AtlasRecordActionsInList;
+  /** Default maximum list text and record label length; false disables truncation. */
+  readonly textMaxLength: number | false;
 }
 
 /** Presentation and structural metadata for one resource field. */
@@ -255,6 +257,7 @@ export interface AtlasResourceManifest {
   readonly readManyBatchSize?: number;
   readonly sourceId: string;
   readonly recordActionsInList?: AtlasRecordActionsInList;
+  readonly textMaxLength?: number | false;
   readonly icon?: string;
   readonly fields: readonly AtlasFieldManifest[];
   readonly capabilities: AtlasResourceCapabilitiesManifest;

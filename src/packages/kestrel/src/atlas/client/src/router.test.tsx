@@ -16,7 +16,7 @@ const operation: AtlasOperationManifest = {
 const manifest: AtlasManifest = {
   basePath: "/atlas",
   title: "Atlas",
-  defaults: { recordActionsInList: "all" },
+  defaults: { textMaxLength: 50, recordActionsInList: "all" },
   notifications: { position: "bottom-left" },
   icons: {},
   resources: [{

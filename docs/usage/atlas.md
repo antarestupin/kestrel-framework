@@ -272,12 +272,32 @@ Every history panel inherits this configuration. The Actor row uses the target's
 
 An insertion can represent an initial baseline rather than the actual creation time. Without a baseline, earlier field values may be unknown; the matrix does not reconstruct or infer them. See [implementation and deferred extensions](../implementation/atlas.md#record-history-matrix).
 
+## Configure text length
+
+Record page titles and standard resource lists, including related-record tables, shorten text and email fields and each relation label to 50 visible grapheme clusters, including the final `…`. Short values remain unchanged. Hovering a shortened value reveals its complete text through the native browser tooltip; detail fields and history retain complete values. Identifiers, dates, numbers, JSON and form inputs keep their existing rendering. Data, searching, sorting and server-computed labels are unchanged.
+
+```ts
+import { defineAtlas, defineAtlasResource } from "@kestreljs/framework/atlas";
+
+// The application supplies the Resource's source and capabilities.
+const article = defineAtlasResource({
+  id: "article", label: "Articles", identity: "id", source, capabilities,
+  textMaxLength: 100, // Override the global limit for this Resource's tables and record titles.
+});
+const atlas = defineAtlas({
+  defaults: { textMaxLength: 50 }, // Optional: 50 is Atlas's built-in default.
+  resources: [article],
+});
+```
+
+Resolution order is Resource, global `defaults`, then 50. Set `false` at either level to disable shortening; omit the setting or use `undefined` to inherit. Numeric limits must be positive safe integers; invalid settings fail during definition/construction. Record titles use the displayed Resource limit. Relation labels inherit the containing table's Resource limit, regardless of the target Resource's configuration. Application field renderers receive the original `value`, `context: "list"`, global `textMaxLength` and Resource metadata, and own their presentation. Keep computed labels complete unless deliberate shortening is required in every context; `truncateText` remains available for that purpose. See [presentation internals](../implementation/atlas.md#text-presentation).
+
 ## Configure record labels
 
 A Resource defaults to its identity. Use `display: "name"` for a direct field (`displayField` remains supported), or declare inputs and a synchronous formatter for a computed label. Do not combine `display` with `displayField`.
 
 ```ts
-import { defineAtlasResource, truncateText } from "@kestreljs/framework/atlas";
+import { defineAtlasResource } from "@kestreljs/framework/atlas";
 
 // The application supplies source, capabilities and the registered revision Resource.
 const article = defineAtlasResource({
@@ -293,7 +313,7 @@ const article = defineAtlasResource({
       code: "id", // Direct inputs may be combined with related fields.
     },
     format: ({ title }) => typeof title === "string"
-      ? truncateText(title, { maxLength: 20 }) : undefined,
+      ? title : undefined,
   },
 });
 ```

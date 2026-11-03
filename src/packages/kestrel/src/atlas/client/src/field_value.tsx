@@ -1,3 +1,6 @@
+import { resolveTextMaxLength } from "../../text_presentation.js";
+import { DisplayText } from "./display_text.js";
+
 import type { AtlasFieldRendererProperties } from "./renderer_registry.js";
 import { resolveAtlasRenderer, useAtlasRendererRegistries } from "./renderer_registry.js";
 import { getAtlasBasePath } from "./runtime.js";
@@ -20,11 +23,20 @@ export function FieldValue(properties: AtlasFieldRendererProperties) {
 /** Standard field renderer retained as the fallback for every field kind. */
 function StandardFieldValue({
   basePath,
+  context,
+  textMaxLength,
+  resource,
   field,
   onOpenRelation,
   relationReferences = [],
   value,
 }: AtlasFieldRendererProperties) {
+  // Keep source values intact and shorten only standard list presentation.
+  const limit = resolveTextMaxLength(resource, textMaxLength);
+  const renderText = (text: string) => (
+    <DisplayText text={text} maxLength={context === "list" ? limit : false} />
+  );
+
   if (value === null || value === undefined || value === "") {
     return <span className="empty-value">—</span>;
   }
@@ -52,7 +64,7 @@ function StandardFieldValue({
           const recordId = reference.recordId;
 
           if (recordId === undefined || basePath === undefined) {
-            return <span key={`${label}-${index}`}>{label}</span>;
+            return <span key={`${label}-${index}`}>{renderText(label)}</span>;
           }
 
           const href = `${getAtlasBasePath(basePath)}/${reference.resourceId}/${
@@ -70,7 +82,7 @@ function StandardFieldValue({
                 }
               }}
             >
-              {label}
+              {renderText(label)}
             </a>
           );
         })}
@@ -79,7 +91,11 @@ function StandardFieldValue({
   }
 
   if (field.kind === "relation" && Array.isArray(value)) {
-    return value.map(String).join(", ");
+    return value.map((item, index) => <span key={index}>{index > 0 ? ", " : ""}{renderText(String(item))}</span>);
+  }
+
+  if ((field.kind === "text" || field.kind === "email" || field.kind === "relation") && typeof value === "string") {
+    return renderText(value);
   }
 
   return typeof value === "object"

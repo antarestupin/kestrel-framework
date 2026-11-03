@@ -1,3 +1,5 @@
+import { resolveTextMaxLength } from "../../text_presentation.js";
+import { DisplayText } from "./display_text.js";
 import { FieldValue } from "./field_value.js";
 export { FieldValue } from "./field_value.js";
 import { HistoryMatrix } from "./history_matrix.js";
@@ -476,6 +478,7 @@ export function ResourceRead({
       <PageHeader
         eyebrow={resource.labelSingular}
         title={getResourceRecordLabel(resource, record, recordId)}
+        textMaxLength={resolveTextMaxLength(resource, manifest.defaults.textMaxLength)}
         actions={(
           <>
             <RecordLinks links={query.recordLinks} />
@@ -1439,6 +1442,8 @@ export function ResourceTable({
                   <td key={field.id}>
                     <FieldValue
                       basePath={manifest.basePath}
+                      context="list"
+                      textMaxLength={manifest.defaults.textMaxLength}
                       field={field}
                       onOpenRelation={onOpenRelation}
                       relationReferences={relations.references(
@@ -1950,16 +1955,19 @@ export function PageHeader({
   eyebrow,
   title,
   actions,
+  textMaxLength = false,
 }: {
   eyebrow: string;
   title: string;
   actions?: ReactNode;
+  /** Record titles opt into the shared presentation limit; other page headings stay intact. */
+  textMaxLength?: number | false;
 }) {
   return (
     <header className="page-heading">
       <div>
         <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
+        <h1><DisplayText text={title} maxLength={textMaxLength} /></h1>
       </div>
       {actions === undefined ? null : <div className="heading-actions">{actions}</div>}
     </header>
