@@ -52,7 +52,7 @@ class TestAtlasClientAdapter implements AtlasClientAdapter {
 const controllerMiddlewareRun = vi.fn();
 const workerHandler = vi.fn();
 
-function createTestAtlas(inheritControllerAccess = false, withLinks = false): Atlas {
+function createTestAtlas(inheritControllerAccess = false, withLinks = false, withDisplay = false): Atlas {
   const modelSchema = z.object({ id: z.string(), name: z.string() });
   const idSchema = modelSchema.pick({ id: true });
   const writeSchema = z.object({ name: z.string() });
@@ -156,6 +156,7 @@ function createTestAtlas(inheritControllerAccess = false, withLinks = false): At
         label: "Models",
         identity: "id",
         source,
+        ...(withDisplay ? { display: { select: { text: "name" }, format: ({ text }: Readonly<Record<string, unknown>>) => String(text).toUpperCase() } } : {}),
         ...(withLinks ? { recordLinks: {
           "public-page": { label: "Open public page", href: (record: { name: string }) => `/models/${encodeURIComponent(record.name)}` },
           hidden: { label: "Hidden", href: () => undefined },
@@ -626,6 +627,34 @@ describe("Atlas record link gateway", () => {
           recordLinks: id === "missing" ? [] : [{ id: "public-page", label: "Open public page", href: "/models/Hello%20world" }],
         });
       }
+    } finally {
+      await server.close();
+      await app.stop();
+    }
+  });
+});
+
+// Exercise the real gateway envelope independently of browser materialization.
+describe("Atlas display gateway", () => {
+  it("adds presentation after authorized reads while preserving business data and links", async () => {
+    const server = Fastify();
+    const app = new App({});
+    const client = new TestAtlasClientAdapter();
+    app.register(new AtlasProvider(
+      defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+      { atlas: createTestAtlas(false, true, true) },
+    ));
+    try {
+      for (const extension of app.httpExtensions.definitions) await extension.mount({ app, server });
+      await app.start();
+      const response = await server.inject({ method: "POST", url: "/management/api/operations/resource%3Amodel%3Aread", payload: { input: { id: "1" } } });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        data: { id: "1", name: "Hello world" },
+        display: { shape: "record", labels: ["HELLO WORLD"] },
+        recordLinks: [{ id: "public-page" }], effects: [],
+      });
+      expect(response.json().data).not.toHaveProperty("__atlas_display");
     } finally {
       await server.close();
       await app.stop();

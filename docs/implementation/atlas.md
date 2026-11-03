@@ -851,3 +851,35 @@ sequenceDiagram
 React Query owns the paginated stream under `[resource.id, "history", recordId]`. Opening enables fetching; closing removes the table without discarding cached pages. The first view scrolls to the latest events. Prepending older columns preserves the visible position through the scroll-width delta. Field labels remain sticky. Actor and reason occupy a separate table body with a muted background and a stronger bottom border, remaining visible without disclosure controls. A record change remounts panel state. Read errors show a retry action without replacing the record detail. Hidden fields are suppressed defensively by the renderer, but visibility metadata is not server authorization.
 
 Presence in `values` determines whether a cell is rendered. It must never use nullish fallback or truthiness to infer changes. Sequence strings are preserved without number coercion; timestamps are presentation only. Baseline insertion events cannot be distinguished from original creations with the current storage metadata. Restore actions, arbitrary-date comparisons, actor hydration, deleted-record routes, column virtualization and batched history reads remain deferred.
+
+## Computed record labels
+
+Status: implemented. See the [usage recipe](../usage/atlas.md#configure-record-labels).
+
+`display` accepts a field name or a server-only `select`/`format` definition. Legacy `displayField` remains supported, but conflicts with `display`. Computed selections are raw local fields or one-hop, to-one relation fields. They never resolve target display definitions recursively, so even cyclic Resource relations cannot cause recursive label loading. Atlas validates paths when composed; callback input values remain `unknown` across independent source contracts.
+
+The Resource compiler exposes a synthetic read-only `__atlas_display` field only in presentation metadata. This name is reserved in read output schemas. Formatter functions and selections are absent from the browser manifest. Read/list/readMany exposures carry a server-only display Resource association, as do specialized lookups (their target Resource) and explicit related-record queries (the collection Resource). Views with arbitrary output contracts remain outside automatic label resolution.
+
+```mermaid
+sequenceDiagram
+  participant Browser
+  participant Gateway
+  participant Source
+  participant Target
+  Browser->>Gateway: Execute Resource operation
+  Gateway->>Source: Execute with current authorization context
+  Source-->>Gateway: Validated business output
+  Gateway->>Gateway: Group and deduplicate selected relation identities
+  loop Each bounded batch per target Resource
+    Gateway->>Target: Execute authorized readMany internally
+    Target-->>Gateway: Validated raw records
+  end
+  Gateway->>Gateway: Format selected values synchronously
+  Gateway-->>Browser: data, effects, optional links, display labels
+```
+
+Independent target Resources load concurrently; batches for one target execute sequentially. `readManyBatchSize` defaults to 100 and must be a positive safe integer matching the source's input contract. There is no per-record fallback to `read`, cross-request server cache, SQL construction or authorization bypass. Maps index loaded records by typed identity; missing target records yield undefined inputs. The formatter must return a string or undefined synchronously. Empty labels fall back to identity, while thrown errors and source failures reject the gateway request. Source operations retain responsibility for their underlying SQL count and row-level visibility.
+
+The envelope's optional `display` contains positional labels and an explicit record/array/list shape. Business data is unchanged on the server. The browser validates label alignment and materializes the reserved field in its own record objects, allowing the existing title, first-column, relation and candidate renderers to share one contract. Existing relation-specific `displayField` overrides still select raw fields. Resource mutations invalidate queries belonging to all Atlas Resources to cover cross-Resource display dependencies; this is intentionally conservative.
+
+Deferred evolutions: typed Resource handles for cross-source field inference, authorized field projections and source-provided joined reads, multi-hop paths with bounded planning, explicit collection aggregations, request-wide reuse between ordinary relation hydration and display dependencies, targeted dependency-aware cache invalidation, and explicit labels for arbitrary Views. Ordinary browser relation hydration can still repeat a target read already used for a display dependency. A formatter does not grant search or sort semantics; those require source-defined collection operations.

@@ -168,6 +168,8 @@ export interface AtlasRecordLink {
 /** Uniform result returned by Atlas operation gateway. */
 export interface AtlasOperationResponse<Data = unknown> {
   readonly data: Data;
+  /** Labels are aligned with the validated business output, never merged on the server. */
+  readonly display?: { readonly labels: readonly string[]; readonly shape: "record" | "array" | "list" };
   readonly recordLinks?: readonly AtlasRecordLink[];
   readonly effects: readonly AtlasClientEffect[];
 }

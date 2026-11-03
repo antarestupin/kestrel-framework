@@ -149,6 +149,12 @@ export interface AtlasRecordLinkOptions<RecordData> {
   readonly href: (record: RecordData) => string | undefined;
 }
 
+/** Explicit inputs keep formatting synchronous and allow batched relation loading. */
+export interface AtlasDisplayOptions {
+  readonly select: Readonly<Record<string, string | { readonly relation: string; readonly field: string }>>;
+  readonly format: (values: Readonly<Record<string, unknown>>) => string | undefined;
+}
+
 export interface AtlasResourceOptions<Read extends AtlasOperationReference = AtlasOperationReference> {
   /** Optional sidebar section label; matching labels share one group. */
   readonly navigationGroup?: string;
@@ -161,6 +167,9 @@ export interface AtlasResourceOptions<Read extends AtlasOperationReference = Atl
   readonly identity: string;
   /** Selects the field used to represent one record in the standard UI. */
   readonly displayField?: string;
+  readonly display?: string | AtlasDisplayOptions;
+  /** Maximum identifiers sent to this Resource in one internal hydration call. */
+  readonly readManyBatchSize?: number;
   readonly capabilities: AtlasResourceCapabilities & { readonly read: Read };
   /** Server-only navigation built from the non-nullish public read output. */
   readonly recordLinks?: Readonly<Record<
@@ -178,6 +187,8 @@ export interface AtlasResource {
   readonly id: string;
   readonly sourceId: string;
   readonly icon?: SvgIconDefinition;
+  getDisplay?(): AtlasDisplayOptions | undefined;
+  readonly readManyBatchSize?: number;
   getOperationExposures(): readonly AtlasOperationExposure[];
   getRecordActions(): Readonly<Record<string, AtlasRecordAction>>;
   toManifest(): AtlasResourceManifest;
@@ -190,6 +201,9 @@ export interface AtlasOperationExposure {
   readonly inputSchema: ZodType;
   /** Resolves navigation only after this read exposure validates its output. */
   readonly resolveRecordLinks?: (record: unknown) => readonly AtlasRecordLink[];
+  /** Identifies the output Resource independently from input collection constraints. */
+  readonly displayResourceId?: string;
+  readonly displayShape?: "record" | "array" | "list";
   /** Selects the Resource whose collection field allowlist guards this input. */
   readonly collectionResourceId?: string;
   readonly collectionConstraints?: {
@@ -270,6 +284,8 @@ export function defineAtlasResource<Read extends AtlasOperationReference>(
     id: options.id,
     sourceId: options.source.id,
     ...(options.icon === undefined ? {} : { icon: options.icon }),
+    getDisplay: () => typeof options.display === "object" ? options.display : undefined,
+    readManyBatchSize: options.readManyBatchSize ?? 100,
     getOperationExposures: () => compileOperationExposures(options),
     getRecordActions: () => options.recordActions ?? {},
     toManifest: () => compileResource(options),
@@ -301,9 +317,18 @@ function compileResource(
     ...Object.keys(properties),
     ...Object.keys(options.fields ?? {}),
   ]);
-  const displayField = options.displayField ?? options.identity;
+  if (options.display !== undefined && options.displayField !== undefined) {
+    throw new TypeError("Use either display or displayField, not both.");
+  }
+  if (options.readManyBatchSize !== undefined && (!Number.isSafeInteger(options.readManyBatchSize) || options.readManyBatchSize < 1)) {
+    throw new TypeError("Atlas readManyBatchSize must be a positive safe integer.");
+  }
+  const displayField = typeof options.display === "object" ? "__atlas_display" : options.display ?? options.displayField ?? options.identity;
+  if ("__atlas_display" in properties || "__atlas_display" in (options.fields ?? {})) {
+    throw new TypeError("The __atlas_display field is reserved by Atlas.");
+  }
 
-  if (!(displayField in properties)) {
+  if (typeof options.display !== "object" && !(displayField in properties)) {
     throw new TypeError(
       `Atlas resource "${options.id}" display field "${displayField}" does not exist in its read output.`,
     );
@@ -327,7 +352,11 @@ function compileResource(
     ...(options.recordActionsInList === undefined
       ? {}
       : { recordActionsInList: options.recordActionsInList }),
-    fields,
+    fields: typeof options.display === "object"
+      ? [compileField(options.id, displayField, { type: "string" }, writableFields, {
+        label: "Label", kind: "text", readOnly: true,
+      }), ...fields]
+      : fields,
     capabilities: {
       ...(options.capabilities.history === undefined ? {} : {
         history: compileOperation(getCapabilityExposureId(options.id, "history"), options.capabilities.history),
@@ -384,6 +413,11 @@ function compileOperationExposures<Read extends AtlasOperationReference>(
         capability === "readMany" ? "read-many" : capability,
       ),
       reference,
+      ...(["read", "readMany", "list"].includes(capability) ? {
+        displayResourceId: options.id,
+        displayShape: capability === "read" ? "record" as const
+          : capability === "readMany" ? "array" as const : "list" as const,
+      } : {}),
       ...(capability === "read" && options.recordLinks !== undefined
         ? { resolveRecordLinks: (record: unknown) => resolveRecordLinks(options.recordLinks!, record) }
         : {}),
@@ -423,6 +457,8 @@ function compileOperationExposures<Read extends AtlasOperationReference>(
           && relatedRecords.query !== undefined
         ? [{
           id: getRelatedRecordsExposureId(options.id, fieldId),
+          displayResourceId: options.id,
+          displayShape: "list" as const,
           reference: relatedRecords.query,
           inputSchema: relatedRecords.query.inputSchema,
         }]
@@ -471,6 +507,8 @@ function createRelationLookupExposure(
     id,
     reference: lookup,
     inputSchema: lookup.inputSchema,
+    displayResourceId: relation.resource,
+    displayShape: "list",
     collectionResourceId: relation.resource,
     collectionConstraints: {
       firstPageOnly: true,

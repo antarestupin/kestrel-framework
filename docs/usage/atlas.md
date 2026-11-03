@@ -257,3 +257,37 @@ const resource = defineAtlasResource({
 For `defineHistoryTable` storage, use the [database history reader](./database.md#read-sparse-history) inside the Action. Explicitly allowlist exposed fields and enforce record or tenant access on every call, including direct gateway calls. Current-record access does not automatically authorize old values. Reject missing current records if deleted-resource browsing is outside the application's policy. History failures remain local to the panel and can be retried. History queries refresh when the Resource query cache is invalidated after writes.
 
 An insertion can represent an initial baseline rather than the actual creation time. Without a baseline, earlier field values may be unknown; the matrix does not reconstruct or infer them. See [implementation and deferred extensions](../implementation/atlas.md#record-history-matrix).
+
+## Configure record labels
+
+A Resource defaults to its identity. Use `display: "name"` for a direct field (`displayField` remains supported), or declare inputs and a synchronous formatter for a computed label. Do not combine `display` with `displayField`.
+
+```ts
+import { defineAtlasResource, truncateText } from "@kestreljs/framework/atlas";
+
+// The application supplies source, capabilities and the registered revision Resource.
+const article = defineAtlasResource({
+  id: "article", label: "Articles", identity: "id", source, capabilities,
+  fields: {
+    revisionId: {
+      relation: { resource: "revision", cardinality: "one", relatedRecords: false },
+    },
+  },
+  display: {
+    select: {
+      title: { relation: "revisionId", field: "title" },
+      code: "id", // Direct inputs may be combined with related fields.
+    },
+    format: ({ title }) => typeof title === "string"
+      ? truncateText(title, { maxLength: 20 }) : undefined,
+  },
+});
+```
+
+Selections reference raw fields, not another Resource's computed label. Relation selections require an explicitly declared `one` relation; the field may itself be nullable. Values are typed as `unknown` because targets may belong to independent sources; narrow them in the formatter. Unknown fields and invalid relations fail Atlas compilation. Keep formatters pure and synchronous: they receive only selected values, without an execution context. Returning `undefined` or an empty string falls back to the record identity. Missing or inaccessible records omitted by `readMany` also produce missing inputs; operation rejection and formatter exceptions propagate as failures.
+
+The gateway resolves labels for `read`, `list`, `readMany`, specialized relation lookups and explicit related-record queries. It deduplicates identifiers per target Resource and invokes authorized `readMany` operations internally, without another browser request for the computed label. Set `readManyBatchSize` on a target Resource when its source accepts fewer or more than the default 100 identifiers. Each batch passes normal input/output validation and source middleware. The source remains responsible for efficient SQL or remote I/O within that operation. Ordinary relation hydration remains a separate browser operation.
+
+Labels appear in page titles, a read-only first list column, relation values and autocomplete candidates. Computed labels do not automatically become searchable, filterable or sortable; implement those operations explicitly in the source. Mutations invalidate Atlas Resource queries so labels based on other Resources refresh as well. External changes require the usual refetch. `truncateText` counts grapheme clusters, includes the ellipsis within the limit and requires a positive integer maximum.
+
+See [display resolution internals](../implementation/atlas.md#computed-record-labels) for execution boundaries and future optimizations.

@@ -1,3 +1,4 @@
+export { truncateText } from "./display_text.js";
 export { type AtlasBrandingOptions, type AtlasThemeOptions, type AtlasColors } from "./appearance.js";
 export {
   atlasCollectionQuerySchema,
@@ -59,6 +60,7 @@ export {
 } from "./contract.js";
 export {
   defineAtlasResource,
+  type AtlasDisplayOptions,
   type AtlasFieldOptions,
   type AtlasRelationOptions,
   type AtlasRelationLookupOptions,

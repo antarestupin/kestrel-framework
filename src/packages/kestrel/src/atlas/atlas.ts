@@ -1,3 +1,4 @@
+import { resolveDisplayLabels, validateDisplays } from "./display.js";
 import { validateAtlasAppearance } from "./appearance.js";
 import type { AtlasBrandingOptions, AtlasThemeOptions } from "./appearance.js";
 import { safeParseSchema } from "../definitions/index.js";
@@ -45,6 +46,8 @@ interface RecordActionInvocation {
 }
 
 interface OperationInvocation {
+  readonly displayResourceId?: string | undefined;
+  readonly displayShape?: "record" | "array" | "list" | undefined;
   readonly resolveRecordLinks?: AtlasOperationExposure["resolveRecordLinks"];
   readonly inputSchema: ZodType;
   readonly reference: AtlasOperationReference;
@@ -125,6 +128,7 @@ export class Atlas {
       this.resources,
       this.getManifest().resources,
     );
+    validateDisplays(this.resources);
     this.recordActions = compileRecordActionAllowlist(this.resources);
   }
 
@@ -217,13 +221,17 @@ export class Atlas {
             });
           }
 
+          const executor = createCatalogOperationExecutor({ execution, request, reply, defaultAccess });
           const response = await invocation.reference.execute(
             parsedInput.data,
-            createCatalogOperationExecutor({ execution, request, reply, defaultAccess }),
+            executor,
           );
-          return invocation.resolveRecordLinks === undefined ? response : {
+          const display = invocation.displayResourceId === undefined ? undefined
+            : await resolveDisplayLabels(this.resources, invocation.displayResourceId, response.data, executor, invocation.displayShape);
+          return {
             ...response,
-            recordLinks: invocation.resolveRecordLinks(response.data),
+            ...(display === undefined ? {} : { display }),
+            ...(invocation.resolveRecordLinks === undefined ? {} : { recordLinks: invocation.resolveRecordLinks(response.data) }),
           };
         },
       }),
@@ -473,6 +481,8 @@ function compileOperationAllowlist(
           collectionResource.fields,
           exposure.collectionConstraints,
         ),
+      displayResourceId: exposure.displayResourceId,
+      displayShape: exposure.displayShape,
       reference: exposure.reference,
       resolveRecordLinks: exposure.resolveRecordLinks,
     });

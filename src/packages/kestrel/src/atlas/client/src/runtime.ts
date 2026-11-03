@@ -241,5 +241,17 @@ async function executeGatewayRequest<Output>(
     );
   }
 
+  // Materialize presentation only in browser-owned records, leaving server contracts intact.
+  if (isRecord(body.display) && Array.isArray(body.display.labels)) {
+    const data = body.data;
+    const records = body.display.shape === "array" ? data
+      : body.display.shape === "list" && isRecord(data) ? data.items : [data];
+    if (!Array.isArray(records) || records.length !== body.display.labels.length) throw new TypeError("Invalid Atlas display metadata.");
+    const labels = body.display.labels;
+    records.forEach((record, index) => {
+      if (!isRecord(record) || typeof labels[index] !== "string") throw new TypeError("Invalid Atlas display label.");
+      record.__atlas_display = labels[index];
+    });
+  }
   return body as unknown as AtlasOperationResponse<Output>;
 }

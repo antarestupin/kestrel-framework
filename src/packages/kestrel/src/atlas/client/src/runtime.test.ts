@@ -54,6 +54,17 @@ describe("Atlas client runtime", () => {
     );
   });
 
+  it.each(["record", "array", "list"])("materializes %s labels without another HTTP request", async (shape) => {
+    const row = { id: "one" };
+    const data = shape === "array" ? [row] : shape === "list" ? { items: [row] } : row;
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data, effects: [], display: { shape, labels: ["Formatted"] } }), { headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetch);
+    const result = await executeAtlasOperation<any>("/atlas", operation);
+    const record = shape === "array" ? result[0] : shape === "list" ? result.items[0] : result;
+    expect(record).toEqual({ id: "one", __atlas_display: "Formatted" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("retains gateway failure details", async () => {
     vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       new Response(JSON.stringify({ error: "Not found" }), {

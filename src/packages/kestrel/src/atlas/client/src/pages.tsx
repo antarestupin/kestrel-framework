@@ -452,7 +452,8 @@ export function ResourceRead({
       { [resource.identity]: recordId },
     ),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: [resource.id] });
+      // Labels can depend on records in another Resource.
+      await queryClient.invalidateQueries({ predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]) });
       onDeleted();
     },
   });
@@ -859,7 +860,8 @@ export function RecordActionForm({
       // Let dialog hosts close immediately once the Action has succeeded.
       onSuccess(response);
       // Every record Action can affect the record, main list and Resource Views.
-      await queryClient.invalidateQueries({ queryKey: [resource.id] });
+      // Labels can depend on records in another Resource.
+      await queryClient.invalidateQueries({ predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]) });
     },
   });
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1518,7 +1520,8 @@ function RowRecordActions({
     ),
     onSuccess: async () => {
       // Refresh every collection and View that may contain the deleted record.
-      await queryClient.invalidateQueries({ queryKey: [resource.id] });
+      // Labels can depend on records in another Resource.
+      await queryClient.invalidateQueries({ predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]) });
     },
   });
   const deleteRecord = async () => {
@@ -1705,7 +1708,8 @@ function RecordActionControl({
     ),
     onSuccess: async (response) => {
       // Refresh the record, main list and every View owned by this Resource.
-      await queryClient.invalidateQueries({ queryKey: [resource.id] });
+      // Labels can depend on records in another Resource.
+      await queryClient.invalidateQueries({ predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]) });
       const redirect = getAtlasRedirectPath(
         manifest,
         response.effects,
