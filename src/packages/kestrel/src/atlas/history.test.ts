@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineAction } from "../actions/index.js";
 import { atlasHistoryInputSchema, atlasHistoryOutputSchema } from "./history.js";
-import { defineAtlasResource, defineCatalogAtlasSource } from "./index.js";
+import { defineAtlas, defineAtlasResource, defineCatalogAtlasSource } from "./index.js";
 
 function fixture() {
   const read = defineAction({ name: "entry.read", input: z.object({ id: z.string() }), output: z.object({ id: z.string() }).nullable(), handler: () => null });
@@ -14,6 +14,16 @@ function fixture() {
   return { options, history, source };
 }
 describe("Atlas history capability", () => {
+  it("validates and snapshots one global actor Resource without changing default manifests", () => {
+    const { options } = fixture();
+    const resources = [defineAtlasResource(options)];
+    expect(defineAtlas({ resources }).getManifest().history).toBeUndefined();
+    expect(() => defineAtlas({ resources, history: { actor: { resource: "missing" } } })).toThrow("not registered");
+    const history = { actor: { resource: "entry" } };
+    const atlas = defineAtlas({ resources, history });
+    history.actor.resource = "changed";
+    expect(atlas.getManifest().history).toEqual({ actor: { resource: "entry" } });
+  });
   it("exposes only explicitly configured history through the standard query gateway", async () => {
     const { options, source, history } = fixture();
     expect(defineAtlasResource(options).getOperationExposures().some((item) => item.id.endsWith(":history"))).toBe(false);

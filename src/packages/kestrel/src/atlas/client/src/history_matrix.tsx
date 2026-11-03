@@ -1,8 +1,9 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useLayoutEffect, useRef, useState } from "react";
+import { createHistoryRelationContext } from "./history_relations.js";
 import { FieldValue } from "./field_value.js";
 import { useRelationHydration } from "./relations.js";
-import type { AtlasManifest, AtlasResourceManifest } from "../../contract.js";
+import type { AtlasFieldManifest, AtlasManifest, AtlasResourceManifest } from "../../contract.js";
 import { atlasHistoryOutputSchema, type AtlasHistoryPage } from "../../history.js";
 import { executeAtlasOperation } from "./runtime.js";
 
@@ -50,7 +51,8 @@ export function HistoryMatrix({ manifest, resource, recordId, onOpenRelation }: 
 }
 
 /** Pure table renderer shared by the paginated panel and presentation tests. */
-export function HistoryTable({ resource, fields, events, relations, basePath, onOpenRelation }: {
+export function HistoryTable({ resource, fields, events, relations, basePath, onOpenRelation, actorField }: {
+  actorField?: AtlasFieldManifest;
   relations?: ReturnType<typeof useRelationHydration>;
   basePath?: string;
   onOpenRelation?: (resourceId: string, recordId: string) => void;
@@ -69,7 +71,13 @@ export function HistoryTable({ resource, fields, events, relations, basePath, on
           <tbody className="history-metadata">
             <tr>
               <th scope="row">Actor</th>
-              {events.map((event) => <td key={event.sequence}>{event.actor ?? "Unknown"}</td>)}
+              {events.map((event) => <td key={event.sequence}>{event.actor === null ? "Unknown" : actorField === undefined ? event.actor : <FieldValue
+                field={actorField} resource={resource}
+                value={relations?.resolve(actorField, event.actor) ?? event.actor}
+                relationReferences={relations?.references(actorField, event.actor) ?? []}
+                {...(basePath === undefined ? {} : { basePath })}
+                {...(onOpenRelation === undefined ? {} : { onOpenRelation })}
+              />}</td>)}
             </tr>
             <tr>
               <th scope="row">Reason</th>
@@ -95,12 +103,11 @@ function HydratedHistoryTable(properties: {
   onOpenRelation: (resourceId: string, recordId: string) => void;
 }) {
   const { manifest, resource, fields, events } = properties;
-  const relations = useRelationHydration(manifest, {
-    ...resource, fields: resource.fields.filter((field) => fields.includes(field.id) && !field.hidden),
-  }, events.map((event) => event.values));
+  const context = createHistoryRelationContext(manifest, resource, fields, events);
+  const relations = useRelationHydration(manifest, context.resource, context.records);
   return <>
     {relations.error ? <p role="alert">Some related labels could not be loaded. Identifiers are shown instead.</p> : null}
-    <HistoryTable {...properties} relations={relations} basePath={manifest.basePath} />
+    <HistoryTable {...properties} {...(context.actorField === undefined ? {} : { actorField: context.actorField })} relations={relations} basePath={manifest.basePath} />
   </>;
 }
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { AtlasRendererRegistryProvider } from "./renderer_registry.js";
 import { resolveRelationReferences, resolveRelationValue } from "./relations.js";
 import type { AtlasManifest } from "../../contract.js";
+import { createHistoryRelationContext } from "./history_relations.js";
 import { HistoryTable } from "./history_matrix.js";
 import type { AtlasResourceManifest } from "../../contract.js";
 
@@ -59,5 +60,26 @@ describe("history field presentation", () => {
     expect(html).toContain("<mark>NEW TITLE</mark>");
     expect(html).toContain('href="/atlas/topic/t1"');
     expect(html).toContain("Current topic title");
+  });
+});
+
+// Actor presentation follows the globally selected application Resource.
+describe("history actor presentation", () => {
+  it("uses computed labels and links, preserves unknown actors and falls back for deleted targets", () => {
+    const target = { id: "person", identity: "id", displayField: "__atlas_display" } as AtlasResourceManifest;
+    const manifest = { history: { actor: { resource: "person" } }, resources: [resource, target] } as unknown as AtlasManifest;
+    const events = ["p1", "gone", null].map((actor, index) => ({ sequence: String(index), changedAt: "2026-11-03T00:00:00Z", operation: "update" as const, actor, reason: null, values: {} }));
+    const context = createHistoryRelationContext(manifest, resource, [], events);
+    const loaded = new Map([["person", [{ id: "p1", __atlas_display: "Ada <Admin>" }]]]);
+    const html = renderToStaticMarkup(<HistoryTable resource={resource} fields={[]} events={events}
+      actorField={context.actorField!} basePath="/atlas" relations={{
+        error: undefined, isPending: false,
+        resolve: (field, value) => resolveRelationValue(field, value, loaded, target),
+        references: (field, value) => resolveRelationReferences(manifest, field, value, loaded),
+      }} />);
+    expect(html).toContain('href="/atlas/person/p1"');
+    expect(html).toContain("Ada &lt;Admin&gt;");
+    expect(html).toContain(">gone</a>");
+    expect(html).toContain("Unknown");
   });
 });

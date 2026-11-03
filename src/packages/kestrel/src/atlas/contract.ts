@@ -263,8 +263,14 @@ export interface AtlasResourceManifest {
   readonly recordActions: readonly AtlasRecordActionManifest[];
 }
 
+/** Application-owned actor identity shared by every Resource history. */
+export interface AtlasHistoryManifest {
+  readonly actor?: { readonly resource: string };
+}
+
 /** Complete configuration loaded before the client router is created. */
 export interface AtlasManifest {
+  readonly history?: AtlasHistoryManifest;
   readonly branding?: AtlasBrandingOptions;
   readonly theme?: AtlasThemeOptions;
   readonly basePath: string;

@@ -21,6 +21,7 @@ import { workerClientDependency } from "../workers/index.js";
 import { z, type ZodType } from "zod";
 import type {
   AtlasManifest,
+  AtlasHistoryManifest,
   AtlasNotificationPosition,
   AtlasRelatedCollectionManifest,
   AtlasRelatedRecordsFeaturesManifest,
@@ -64,7 +65,11 @@ export interface AtlasNotificationsOptions {
   readonly position?: AtlasNotificationPosition;
 }
 
+/** Shared history presentation; the application owns the target Resource. */
+export type AtlasHistoryOptions = AtlasHistoryManifest;
+
 export interface AtlasOptions {
+  readonly history?: AtlasHistoryOptions;
   readonly branding?: AtlasBrandingOptions;
   readonly theme?: AtlasThemeOptions;
   readonly title?: string;
@@ -82,6 +87,7 @@ export interface AtlasHttpMiddlewareOptions {
 
 /** Owns one Atlas definition and compiles its client manifest. */
 export class Atlas {
+  public readonly history: AtlasHistoryOptions | undefined;
   public readonly branding: AtlasBrandingOptions | undefined;
   public readonly theme: AtlasThemeOptions | undefined;
   public readonly basePath: string;
@@ -96,6 +102,7 @@ export class Atlas {
   public constructor(options: AtlasOptions) {
     validateAtlasAppearance(options.branding, options.theme);
     // Snapshot public appearance so later caller mutations cannot alter delivery.
+    this.history = options.history === undefined ? undefined : structuredClone(options.history);
     this.branding = options.branding === undefined ? undefined : structuredClone(options.branding);
     this.theme = options.theme === undefined ? undefined : structuredClone(options.theme);
     this.basePath = normalizeBasePath(
@@ -147,11 +154,16 @@ export class Atlas {
     }));
 
     validateResourceRelations(compiledResources);
+    // Actor resolution uses a registered Resource, never a framework-owned user model.
+    if (this.history?.actor !== undefined && !compiledResources.some((resource) => resource.id === this.history!.actor!.resource)) {
+      throw new TypeError(`Atlas history actor resource "${this.history.actor.resource}" is not registered.`);
+    }
     const resources = compileRelatedCollections(compiledResources);
 
     this.manifest = {
       basePath: this.basePath,
       title: this.title,
+      ...(this.history === undefined ? {} : { history: this.history }),
       ...(this.branding === undefined ? {} : { branding: this.branding }),
       ...(this.theme === undefined ? {} : { theme: this.theme }),
       defaults: this.defaults,

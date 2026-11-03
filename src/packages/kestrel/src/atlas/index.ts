@@ -25,6 +25,7 @@ export {
   defineAtlas,
   joinAtlasPath,
   type AtlasOptions,
+  type AtlasHistoryOptions,
 } from "./atlas.js";
 export {
   type AtlasFieldKind,
@@ -36,6 +37,7 @@ export {
   type AtlasCollectionSort,
   type AtlasFilterOperator,
   type AtlasManifest,
+  type AtlasHistoryManifest,
   type AtlasNotificationPosition,
   type AtlasNotificationsManifest,
   type AtlasOperationEffect,

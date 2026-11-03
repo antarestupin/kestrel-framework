@@ -256,6 +256,20 @@ const resource = defineAtlasResource({
 
 For `defineHistoryTable` storage, use the [database history reader](./database.md#read-sparse-history) inside the Action. Explicitly allowlist exposed fields and enforce record or tenant access on every call, including direct gateway calls. Current-record access does not automatically authorize old values. Reject missing current records if deleted-resource browsing is outside the application's policy. History failures remain local to the panel and can be retried. History queries refresh when the Resource query cache is invalidated after writes.
 
+Configure actor resolution once on Atlas when history actor strings identify records of an application-owned Resource:
+
+```ts
+import { defineAtlas } from "@kestreljs/framework/atlas";
+
+// personResource and articleResources are application-owned Atlas Resources.
+const atlas = defineAtlas({
+  history: { actor: { resource: "person" } }, // Must match a registered Resource ID.
+  resources: [personResource, ...articleResources],
+});
+```
+
+Every history panel inherits this configuration. The Actor row uses the target's current `displayField` or computed `display`, with a link to its record. Authors share deduplicated, bounded `readMany` batches and the relation cache with business relations to the same Resource. The application must write actor values matching that Resource's identity input contract and authorize the target reads. A null actor displays `Unknown`; missing records retain their identifiers. Without configuration, actor strings stay plain text. Invalid target Resource IDs fail during Atlas construction. No storage or history-output change is needed. Mixed actor identity kinds and per-Resource overrides remain deferred.
+
 An insertion can represent an initial baseline rather than the actual creation time. Without a baseline, earlier field values may be unknown; the matrix does not reconstruct or infer them. See [implementation and deferred extensions](../implementation/atlas.md#record-history-matrix).
 
 ## Configure record labels
