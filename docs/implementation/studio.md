@@ -61,6 +61,16 @@ For application setup and task-oriented examples, see the [Studio usage guide](.
 
 ## Design and implementation
 
+### Visual palette
+
+Studio defines its semantic colors in `src/packages/kestrel/src/studio/client/src/styles.css`. Its light and dark palettes follow the documentation brand: terracotta accents (`#a64224` in light mode and `#ed9d79` in dark mode), white or warm charcoal backgrounds, and warm neutral surfaces, borders and text. Extensions consume the shell variables without depending on documentation styles. Danger, success, log severity and database schema colors retain their functional palettes; layout and system-theme selection are independent of branding.
+
+A shared brand-token source for documentation and Studio remains a possible future improvement if palette changes become frequent. The current mapping keeps the browser library independent of the documentation application.
+
+The sidebar uses the standalone Kestrel SVG mark in `client/src/branding/kestrel-mark.svg`, bundled through Vite so it follows the configured asset base in development and packaged delivery. Keep its artwork synchronized with `src/apps/docs/static/img/kestrel-mark.svg`; the local copy avoids a browser-library dependency on the documentation application. Its transparent 38px footprint preserves the sidebar layout.
+
+### Extension composition
+
 Server extensions remain declarative until the HTTP workload mounts. Studio validates identifiers, route paths, navigation sections and external URLs, deduplicates icons into the manifest, then registers extension JSON APIs through the common HTTP controller manager. The generic browser shell knows only page kinds and dynamically loads extension-owned renderer chunks.
 
 Shared server/client data lives in transport-neutral contracts. Browser modules never import server extension definitions, and Kestrel extensions receive required catalogs or sources explicitly rather than discovering application modules.

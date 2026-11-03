@@ -11,6 +11,7 @@ import { CatalogIcon, Icon } from "./ui/icon.js";
 import { getStudioPageRenderer } from "./extensions.js";
 import { buildStudioNavigation } from "./navigation.js";
 import { StudioPageHeader } from "./page.js";
+import kestrelMark from "./branding/kestrel-mark.svg";
 
 interface StudioLayoutProperties {
   manifest: StudioManifest;
@@ -23,11 +24,9 @@ export function StudioLayout({ manifest }: StudioLayoutProperties) {
     <div className="studio-shell">
       <aside className="sidebar">
         <Link className="brand" to="/">
-          <span className="brand-mark">S</span>
-          <span>
-            <strong>Studio</strong>
-            <small>Development tools</small>
-          </span>
+          {/* Bundle the standalone Kestrel mark with Studio for every asset base. */}
+          <img className="brand-mark" src={kestrelMark} alt="Kestrel" width={38} height={38} />
+          <strong>Kestrel Studio</strong>
         </Link>
 
         <nav aria-label="Studio extensions">

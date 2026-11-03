@@ -6,48 +6,49 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 
-  /* Shared semantic colors let Studio extensions follow the system theme. */
-  --studio-background: #0b0d12;
-  --studio-background-glow: rgb(86 68 170 / 12%);
-  --studio-sidebar-background: rgb(13 15 21 / 90%);
-  --studio-surface: #101219;
-  --studio-surface-subtle: #12141b;
-  --studio-surface-raised-start: #11141b;
-  --studio-surface-raised-end: #0e1016;
-  --studio-surface-accent: #1b1728;
-  --studio-surface-accent-strong: #1c192b;
-  --studio-surface-accent-gradient-start: #1c1829;
-  --studio-surface-accent-gradient-end: #12101a;
+  /* Match the documentation's terracotta accents and warm surfaces across extensions. */
+  /* Functional danger, success, and log colors keep their diagnostic meaning. */
+  --studio-background: #211b18;
+  --studio-background-glow: rgb(237 157 121 / 8%);
+  --studio-sidebar-background: rgb(43 35 31 / 90%);
+  --studio-surface: #2b231f;
+  --studio-surface-subtle: #302722;
+  --studio-surface-raised-start: #302722;
+  --studio-surface-raised-end: #2b231f;
+  --studio-surface-accent: #482c21;
+  --studio-surface-accent-strong: #513226;
+  --studio-surface-accent-gradient-start: #482c21;
+  --studio-surface-accent-gradient-end: #2b231f;
   --studio-surface-danger: #151116;
-  --studio-border: #222630;
-  --studio-border-subtle: #20232c;
-  --studio-border-muted: #252832;
-  --studio-border-accent: #393052;
-  --studio-border-accent-strong: #3a3257;
+  --studio-border: #4b3930;
+  --studio-border-subtle: #42332c;
+  --studio-border-muted: #544036;
+  --studio-border-accent: #624638;
+  --studio-border-accent-strong: #805843;
   --studio-border-danger: #593438;
-  --studio-divider: #1d2028;
-  --studio-control-border: #2b2e38;
-  --studio-control-hover-border: #675ca3;
-  --studio-control-hover-background: #1b1830;
+  --studio-divider: #42332c;
+  --studio-control-border: #624638;
+  --studio-control-hover-border: #ed9d79;
+  --studio-control-hover-background: #482c21;
   --studio-danger-hover-border: #704047;
   --studio-danger-hover-background: #28171b;
   --studio-success-border: #315044;
   --studio-success-background: #12251e;
-  --studio-text: #e8eaf0;
-  --studio-heading: #f5f5f8;
-  --studio-text-strong: #e5e6ea;
-  --studio-text-muted: #8e94a4;
-  --studio-text-subtle: #7f8696;
-  --studio-text-faint: #737989;
-  --studio-nav-text: #9ba1b1;
-  --studio-nav-label: #666c7c;
-  --studio-nav-icon: #6f7585;
-  --studio-accent: #8571ec;
-  --studio-accent-strong: #a99bf3;
-  --studio-accent-muted: #635d79;
+  --studio-text: #eee6e0;
+  --studio-heading: #faf4ef;
+  --studio-text-strong: #f3eae3;
+  --studio-text-muted: #c4b5aa;
+  --studio-text-subtle: #b5a397;
+  --studio-text-faint: #b5a397;
+  --studio-nav-text: #c4b5aa;
+  --studio-nav-label: #b5a397;
+  --studio-nav-icon: #b5a397;
+  --studio-accent: #ed9d79;
+  --studio-accent-strong: #f9d4c2;
+  --studio-accent-muted: #c4a08d;
   --studio-danger-text: #bd858b;
-  --studio-control-text: #858b99;
-  --studio-control-hover-text: #c2b8fa;
+  --studio-control-text: #c4b5aa;
+  --studio-control-hover-text: #f9d4c2;
   --studio-danger-hover-text: #e69aa3;
   --studio-success-text: #68cfa0;
   --studio-log-meta: #696f7e;
@@ -57,56 +58,53 @@
   --studio-log-info: #70b7d8;
   --studio-log-warn: #d8b36b;
   --studio-log-error: #df7e89;
-  --studio-mark-border: #6e5ad7;
-  --studio-mark-start: #6753ce;
-  --studio-mark-end: #3b2e7d;
-  --studio-mark-shadow: rgb(88 67 188 / 25%);
 }
 
 @media (prefers-color-scheme: light) {
+  /* Use the documentation's light palette while preserving functional colors. */
   :root {
     color-scheme: light;
-    --studio-background: #f7f7fb;
-    --studio-background-glow: rgb(105 82 210 / 10%);
-    --studio-sidebar-background: rgb(252 252 255 / 90%);
+    --studio-background: #ffffff;
+    --studio-background-glow: rgb(166 66 36 / 5%);
+    --studio-sidebar-background: rgb(250 248 246 / 90%);
     --studio-surface: #ffffff;
-    --studio-surface-subtle: #f4f3f9;
+    --studio-surface-subtle: #faf8f6;
     --studio-surface-raised-start: #ffffff;
-    --studio-surface-raised-end: #f7f6fa;
-    --studio-surface-accent: #f1edff;
-    --studio-surface-accent-strong: #eeeafd;
-    --studio-surface-accent-gradient-start: #f3efff;
-    --studio-surface-accent-gradient-end: #fbfaff;
+    --studio-surface-raised-end: #faf8f6;
+    --studio-surface-accent: #fbe9e0;
+    --studio-surface-accent-strong: #f6ded2;
+    --studio-surface-accent-gradient-start: #fbe9e0;
+    --studio-surface-accent-gradient-end: #faf8f6;
     --studio-surface-danger: #fff7f8;
-    --studio-border: #dedee8;
-    --studio-border-subtle: #e3e3eb;
-    --studio-border-muted: #d9d9e4;
-    --studio-border-accent: #d3c9f3;
-    --studio-border-accent-strong: #cabdf1;
+    --studio-border: #e8ded8;
+    --studio-border-subtle: #eee5df;
+    --studio-border-muted: #dfd0c7;
+    --studio-border-accent: #e6c9bb;
+    --studio-border-accent-strong: #d5ac98;
     --studio-border-danger: #e5bfc4;
-    --studio-divider: #e6e5ed;
-    --studio-control-border: #d6d4df;
-    --studio-control-hover-border: #9384cf;
-    --studio-control-hover-background: #eeeafd;
+    --studio-divider: #e8ded8;
+    --studio-control-border: #d8c6ba;
+    --studio-control-hover-border: #a64224;
+    --studio-control-hover-background: #fbe9e0;
     --studio-danger-hover-border: #cf8b94;
     --studio-danger-hover-background: #fff0f2;
     --studio-success-border: #8fc6ac;
     --studio-success-background: #edf9f2;
-    --studio-text: #292b33;
-    --studio-heading: #17181d;
-    --studio-text-strong: #24262d;
-    --studio-text-muted: #5f6472;
-    --studio-text-subtle: #666b78;
-    --studio-text-faint: #747987;
-    --studio-nav-text: #565b68;
-    --studio-nav-label: #777b87;
-    --studio-nav-icon: #858996;
-    --studio-accent: #6650c8;
-    --studio-accent-strong: #5942bd;
-    --studio-accent-muted: #8177a4;
+    --studio-text: #302923;
+    --studio-heading: #211b18;
+    --studio-text-strong: #29211c;
+    --studio-text-muted: #6c625c;
+    --studio-text-subtle: #6c625c;
+    --studio-text-faint: #6c625c;
+    --studio-nav-text: #6c625c;
+    --studio-nav-label: #6c625c;
+    --studio-nav-icon: #6c625c;
+    --studio-accent: #a64224;
+    --studio-accent-strong: #742e19;
+    --studio-accent-muted: #8a6654;
     --studio-danger-text: #a64f5a;
-    --studio-control-text: #626775;
-    --studio-control-hover-text: #5942bd;
+    --studio-control-text: #6c625c;
+    --studio-control-hover-text: #742e19;
     --studio-danger-hover-text: #a94450;
     --studio-success-text: #287b55;
     --studio-log-meta: #737886;
@@ -116,10 +114,6 @@
     --studio-log-info: #28769a;
     --studio-log-warn: #926f22;
     --studio-log-error: #ad4653;
-    --studio-mark-border: #6e5ad7;
-    --studio-mark-start: #806ce3;
-    --studio-mark-end: #5542a7;
-    --studio-mark-shadow: rgb(88 67 188 / 18%);
   }
 }
 
@@ -189,34 +183,19 @@ button {
   text-decoration: none;
 }
 
+/* Preserve the brand footprint while displaying the transparent Kestrel artwork. */
 .brand-mark {
-  display: grid;
+  display: block;
+  flex: 0 0 auto;
   width: 38px;
   height: 38px;
-  place-items: center;
-  border: 1px solid var(--studio-mark-border);
-  border-radius: 11px;
-  color: #ffffff;
-  background: linear-gradient(145deg, var(--studio-mark-start), var(--studio-mark-end));
-  box-shadow: 0 10px 28px var(--studio-mark-shadow);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-weight: 500;
-}
-
-.brand strong,
-.brand small {
-  display: block;
+  object-fit: contain;
 }
 
 .brand strong {
+  display: block;
   font-size: 14px;
   letter-spacing: 0.02em;
-}
-
-.brand small {
-  margin-top: 1px;
-  color: var(--studio-text-muted);
-  font-size: 11px;
 }
 
 .nav-section {
