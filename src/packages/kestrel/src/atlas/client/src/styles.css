@@ -126,8 +126,12 @@ button, .button { cursor: pointer; }
 .hero h1, .page-heading h1 { color: var(--atlas-heading); font-size: clamp(30px, 4vw, 44px); letter-spacing: -.035em; margin: 6px 0 10px; }
 .hero p:last-child { color: var(--atlas-text-subtle); font-size: 18px; line-height: 1.6; }
 .eyebrow { color: var(--atlas-accent); font-size: 12px; font-weight: 800; letter-spacing: .12em; margin: 0; text-transform: uppercase; }
-.page-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 28px; }
-.heading-actions, .form-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+/* Let long titles wrap while moving the complete control row below on narrow layouts. */
+.page-heading { align-items: center; display: flex; flex-wrap: wrap; gap: 18px; justify-content: space-between; margin-bottom: 28px; }
+.page-heading > :first-child { flex: 1 1 20rem; min-width: 0; overflow-wrap: anywhere; }
+.heading-actions { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 10px; }
+.heading-actions .button { white-space: nowrap; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .resource-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .resource-card { align-items: center; background: var(--atlas-surface); border: 1px solid var(--atlas-border); border-radius: 12px; display: flex; gap: 14px; padding: 20px; text-decoration: none; }
 .resource-card:hover { border-color: var(--atlas-accent); box-shadow: 0 8px 24px var(--atlas-shadow); }
@@ -289,3 +293,8 @@ td { color: var(--atlas-text-control); font-size: 14px; }
 :root[data-theme="dark"] .brand-image-light { display: none; }
 :root[data-theme="dark"] .brand-image-dark { display: block; }
 .button.primary:hover:not(:disabled) { background: var(--atlas-primary-hover); border-color: var(--atlas-primary-hover); }
+
+/* Constrain long link lists to the viewport while retaining readable, wrapping labels. */
+.record-links-menu { max-height: min(360px, var(--available-height)); max-width: min(360px, calc(100vw - 24px)); overflow-y: auto; }
+.record-links-menu .action-menu-item { overflow-wrap: anywhere; text-decoration: none; }
+.record-links-menu .action-menu-item svg { flex-shrink: 0; }

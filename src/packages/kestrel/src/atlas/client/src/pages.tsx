@@ -2078,12 +2078,35 @@ function requireCapability<T>(operation: T | undefined): T {
   return operation;
 }
 
-/** Navigation resolved by the server from the current record. */
+/** Keep record navigation compact regardless of the number of resolved links. */
 export function RecordLinks({ links }: { links: readonly AtlasRecordLink[] }) {
-  return <>{links.map((link) => (
-    <a className="button" href={link.href} key={link.id} target="_blank" rel="noopener noreferrer">
+  if (links.length === 0) return null;
+
+  return (
+    <div className="action-menu">
+      <Menu.Root>
+        <Menu.Trigger className="button">
+          <Icon name="actions" />
+          Links
+        </Menu.Trigger>
+        <Menu.Portal keepMounted>
+          <Menu.Positioner align="end" className="action-menu-positioner" side="bottom" sideOffset={6}>
+            <Menu.Popup className="action-menu-list record-links-menu" aria-label="Record links">
+              {links.map((link) => <RecordLinkItem key={link.id} link={link} />)}
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
+    </div>
+  );
+}
+
+/** Preserve native link navigation, including modifier clicks and new-tab access. */
+export function RecordLinkItem({ link }: { link: AtlasRecordLink }) {
+  return (
+    <Menu.Item className="action-menu-item" render={<a href={link.href} target="_blank" rel="noopener noreferrer" />}>
       <Icon name="external-link" />
       {link.label}
-    </a>
-  ))}</>;
+    </Menu.Item>
+  );
 }

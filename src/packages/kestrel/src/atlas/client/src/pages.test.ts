@@ -1,3 +1,4 @@
+import { Menu } from "@base-ui/react/menu";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
@@ -13,6 +14,7 @@ import {
   getNextSorting,
   readFormValue,
   RecordLinks,
+  RecordLinkItem,
 } from "./pages.js";
 
 describe("atlas record Action dialogs", () => {
@@ -96,12 +98,29 @@ describe("atlas operation forms", () => {
 });
 
 describe("Atlas record link navigation", () => {
-  it("renders resolved links in a protected new tab and omits empty links", () => {
-    const html = renderToStaticMarkup(createElement(RecordLinks, { links: [{ id: "publicPage", label: "Open public page", href: "/spaces/test" }] }));
+  it("groups even a single link behind one menu trigger and omits empty menus", () => {
+    for (const count of [1, 50]) {
+      const links = Array.from({ length: count }, (_, index) => ({ id: `link-${index}`, label: `Open page ${index}`, href: `/spaces/${index}` }));
+      const html = renderToStaticMarkup(createElement(RecordLinks, { links }));
+      expect(html).toContain("Links");
+      expect(html).toContain('aria-haspopup="menu"');
+      expect(html.match(/<button/g)).toHaveLength(1);
+      expect(html).not.toContain("Open page");
+    }
+    expect(renderToStaticMarkup(createElement(RecordLinks, { links: [] }))).toBe("");
+  });
+
+  it("keeps menu entries as native links opening protected new tabs", () => {
+    const html = renderToStaticMarkup(createElement(Menu.Root, { defaultOpen: true },
+      createElement(RecordLinkItem, {
+        link: { id: "public-page", label: "Open public page", href: "/spaces/test" },
+      }),
+    ));
+    expect(html).toContain('<a ');
+    expect(html).toContain('role="menuitem"');
     expect(html).toContain('href="/spaces/test"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
     expect(html).toContain("Open public page");
-    expect(renderToStaticMarkup(createElement(RecordLinks, { links: [] }))).toBe("");
   });
 });

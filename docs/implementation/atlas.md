@@ -821,12 +821,15 @@ sequenceDiagram
     Builder-->>Gateway: Ordered visible links
   end
   Gateway-->>UI: data, effects, optional recordLinks
-  UI->>UI: Render new-tab navigation in header
+  UI->>UI: Render Links menu in header
 ```
 
 The source and operation reference continue to own authorization, execution and output validation. The Resource owns URL construction and validation. The browser owns presentation and retains the complete read envelope in the query cache, exposing business data and link metadata separately to pages. Builders are synchronous and must not mutate records or perform data access. Missing records produce an empty link array without invoking builders; `undefined` omits individual links. Builder exceptions and invalid results fail the read request. URL validation permits HTTP(S) URLs or same-origin absolute paths, rejects protocol-relative URLs, backslashes, whitespace and control characters, and parses the URL before returning navigation metadata. Opening a link does not grant access to its destination, which retains its own authorization.
 
 Deferred: optional list visibility with batched resolution, asynchronous builders with explicit execution context, and per-link presentation options. These require separate contracts and are not available through the current API. See the [usage recipe](../usage/atlas.md#add-links-to-a-record-page).
+
+
+Record navigation uses the same Base UI menu primitives as record Actions, in a separate `Links` menu. Native anchor menu items preserve keyboard navigation, modifier clicks and new-tab behavior. An empty resolved list omits the trigger, while a single link still uses the menu for consistent presentation. The popup has a viewport-bounded height, vertical scrolling and wrapping labels so long lists do not expand the record header. Header controls stay on one horizontal row: long titles wrap in their own flexible column, and narrow layouts move the entire control row below the title. Per-link presentation options remain deferred.
 
 ## Record history matrix
 
