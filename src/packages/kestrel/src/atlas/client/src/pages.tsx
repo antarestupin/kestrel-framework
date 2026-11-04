@@ -1583,8 +1583,13 @@ function RecordActionsMenu({
     AtlasRecordActionManifest | undefined
   >();
 
-  // Read-only resources without domain commands do not need an empty action menu.
-  if (actions.length === 0 && resource.capabilities.update === undefined && resource.capabilities.delete === undefined) return null;
+  // Edit belongs to this menu only when its caller supplies the callback.
+  const canEdit = onEdit !== undefined && resource.capabilities.update !== undefined;
+  const canDelete = resource.capabilities.delete !== undefined;
+  const hasStandardActions = canEdit || canDelete;
+
+  // Hide empty menus, including detail pages whose Edit button lives in the header.
+  if (actions.length === 0 && !hasStandardActions) return null;
 
   return (
     <div className="action-menu">
@@ -1612,16 +1617,17 @@ function RecordActionsMenu({
                   resource={resource}
                 />
               ))}
-              {actions.length === 0
+              {/* Separate groups only when both contain visible entries. */}
+              {actions.length === 0 || !hasStandardActions
                 ? null
                 : <div className="action-menu-divider" role="separator" />}
-              {onEdit === undefined || resource.capabilities.update === undefined ? null : (
+              {!canEdit ? null : (
                 <Menu.Item className="action-menu-item" onClick={onEdit}>
                   <Icon name="edit" />
                   Edit
                 </Menu.Item>
               )}
-              {resource.capabilities.delete === undefined ? null : <OperationControl
+              {!canDelete ? null : <OperationControl
                 icon="delete"
                 label={deletePending ? "Deleting…" : "Delete"}
                 onExecute={onDelete}
