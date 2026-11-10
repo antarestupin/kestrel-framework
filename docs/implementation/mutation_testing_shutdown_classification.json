@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "App.stop, dispose, finishAndDispose and runShutdownBoundary; excludes App.start implementation, ApplicationShutdown and other app modules from mutation",
+  "report": "artifacts/mutation/shutdown/mutation.json",
+  "scopeMutants": 117,
+  "counts": {
+    "Killed": 114,
+    "Survived": 3,
+    "NoCoverage": 0,
+    "Timeout": 0,
+    "RuntimeError": 0
+  },
+  "review": "complete",
+  "scorePolicy": "Keep all mutants visible and keep raw Stryker score 97.44%; no exclusions or adjusted score. Numeric sample IDs are descriptive, not stable keys.",
+  "fingerprintInputs": {
+    "src/packages/kestrel/src/app/app.ts": "6daed1a25a704a9ac378362e3ea438c312b0072f0318f33daf320c78f581d770",
+    "src/packages/kestrel/src/app/shutdown_contract.test.ts": "516bc2ff960d182edabe8febe436ef3a63c474626888175b8f149447c1c1d96e",
+    "src/packages/kestrel/src/app/shutdown_errors.test.ts": "ed215c4adfb1102dd1624b2dc68d38d54694adba85e58716ee0acde7ba177c5e",
+    "stryker.config.mjs": "674a131653b186cc2a50a5e4d1f9e3d5803e8737858753b760af4a1631832963",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/mutation-profile.mjs": "d4771c1ca6775ccc15910744632f1f66b124c2adfa473c8d450d0259e436e930",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72",
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033"
+  },
+  "remaining": [
+    {
+      "sampleId": "24",
+      "file": "src/packages/kestrel/src/app/app.ts",
+      "method": "finishAndDispose",
+      "location": {
+        "end": {
+          "column": 27,
+          "line": 577
+        },
+        "start": {
+          "column": 5,
+          "line": 577
+        }
+      },
+      "original": "this.shutdown.begin();",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "status": "Survived",
+      "classification": "equivalent under current lifecycle invariants",
+      "basis": "redundant initialization",
+      "proof": "finishAndDispose reaches ApplicationShutdown.wait (during startup) or App.stop before any externally supplied cleanup work. Both begin the same idempotent deadline. Removing this initial call does not remove deadline ownership. Assumes the unmodified ApplicationShutdown implementation; no instruction-level clock guarantee is asserted.",
+      "reviewAgainWhen": "Lifecycle state transitions, promise ownership, deadline initialization or error aggregation changes."
+    },
+    {
+      "sampleId": "30",
+      "file": "src/packages/kestrel/src/app/app.ts",
+      "method": "finishAndDispose",
+      "location": {
+        "end": {
+          "column": 50,
+          "line": 582
+        },
+        "start": {
+          "column": 9,
+          "line": 582
+        }
+      },
+      "original": "this.lifecycle.startPromise !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "classification": "equivalent under current lifecycle invariants",
+      "basis": "state invariant",
+      "proof": "start now publishes startPromise before finishStart sets bootstrapping or ready. Those private states are written only by finishStart; the promise is never cleared. Whenever the following state condition is true, startPromise is already defined.",
+      "reviewAgainWhen": "Lifecycle state transitions, promise ownership, deadline initialization or error aggregation changes."
+    },
+    {
+      "sampleId": "105",
+      "file": "src/packages/kestrel/src/app/app.ts",
+      "method": "finishAndDispose",
+      "location": {
+        "end": {
+          "column": 26,
+          "line": 655
+        },
+        "start": {
+          "column": 9,
+          "line": 655
+        }
+      },
+      "original": "errors.length > 1",
+      "mutatorName": "EqualityOperator",
+      "replacement": "errors.length >= 1",
+      "status": "Survived",
+      "classification": "equivalent under current lifecycle invariants",
+      "basis": "unreachable distinguishing case",
+      "proof": "The immediately preceding errors.length === 1 branch throws. On reaching this comparison, the private array length cannot be 1, so >1 and >=1 coincide. There is no callback or await between the two branches.",
+      "reviewAgainWhen": "Lifecycle state transitions, promise ownership, deadline initialization or error aggregation changes."
+    }
+  ]
+}

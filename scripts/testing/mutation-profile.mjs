@@ -10,7 +10,7 @@ export function mutationArguments(args) {
   if (remaining[0] === "--mode") {
     remaining.shift();
     mode = remaining.shift();
-    if (!["fast", "component", "static-sample"].includes(mode)) throw new Error("Unknown mutation mode.");
+    if (!["fast", "component", "static-sample", "shutdown"].includes(mode)) throw new Error("Unknown mutation mode.");
     if (mode === "component") {
       component = remaining.shift();
       if (!component || !/^[a-z][a-z0-9_]*$/u.test(component)
@@ -23,7 +23,18 @@ export function mutationArguments(args) {
       throw new Error("Profile scope and static policy cannot be overridden; use test:mutation for custom runs.");
     }
   }
-  return { mode, component, args: remaining, budgetMs: mode === "static-sample" ? 600_000 : undefined };
+  // Every named assessment profile is bounded; the explicit full/custom command stays opt-in.
+  return { mode, component, args: remaining, budgetMs: mode === "full" ? undefined : 600_000 };
+}
+
+/** Freeze the comparison scope to stop, disposal and shutdown error collection. */
+export function shutdownPatterns() {
+  const file = "app/app.ts";
+  const lines = readFileSync(new URL(file, sourceRoot), "utf8").split("\n");
+  const start = lines.findIndex((line) => line.includes("public stop(): Promise<void>"));
+  const end = lines.findIndex((line) => line.includes("public runInObservationContext<"));
+  if (start < 0 || end <= start) throw new Error("Application shutdown boundaries disappeared.");
+  return [`src/packages/kestrel/src/${file}:${start + 1}-${end}`];
 }
 
 /** Select small import-time declarations across three different dependency graphs. */

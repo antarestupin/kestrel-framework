@@ -3,14 +3,16 @@ import { EventEmitter } from "node:events";
 import { rm } from "node:fs/promises";
 import test from "node:test";
 
-import { mutationArguments, staticSamplePatterns } from "./mutation-profile.mjs";
+import { mutationArguments, shutdownPatterns, staticSamplePatterns } from "./mutation-profile.mjs";
 import { runMutation } from "./mutation.mjs";
 
 test("profiles preserve Stryker flags and require a bounded existing component", () => {
   assert.deepEqual(mutationArguments(["--mode", "fast", "--incremental"]), {
-    mode: "fast", component: undefined, args: ["--incremental"], budgetMs: undefined,
+    mode: "fast", component: undefined, args: ["--incremental"], budgetMs: 600_000,
   });
   assert.equal(mutationArguments(["--mode", "component", "di"]).component, "di");
+  assert.equal(mutationArguments(["--mode", "component", "di"]).budgetMs, 600_000);
+  assert.equal(mutationArguments(["--incremental"]).budgetMs, undefined);
   for (const component of [undefined, "../app", "*", "unknown_component"]) {
     assert.throws(() => mutationArguments(["--mode", "component", ...component ? [component] : []]));
   }
@@ -18,16 +20,19 @@ test("profiles preserve Stryker flags and require a bounded existing component",
   assert.throws(() => mutationArguments(["--mode", "component", "di", "--mutate=src/**"]));
   assert.equal(mutationArguments(["--mode", "static-sample"]).budgetMs, 600_000);
   assert.equal(staticSamplePatterns().length, 9);
+  assert.equal(mutationArguments(["--mode", "shutdown"]).budgetMs, 600_000);
+  assert.match(shutdownPatterns()[0], /^src\/packages\/kestrel\/src\/app\/app\.ts:\d+-\d+$/u);
 });
 
-test("the sample deadline checkpoints Stryker and still cleans owned resources", async () => {
+for (const [mode, scope] of [["static-sample", []], ["shutdown", []], ["fast", []], ["component", ["di"]]]) {
+test(`the ${mode} deadline checkpoints Stryker and still cleans owned resources`, async () => {
   let interrupted = false;
   let cleaned = false;
-  const code = await runMutation(["--mode", "static-sample"], {
+  const code = await runMutation(["--mode", mode, ...scope], {
     environment: {}, signals: new EventEmitter(), budgetMs: 10,
     spawnChild(_executable, args, options) {
       assert.deepEqual(args.slice(1), ["run"]);
-      assert.equal(options.env.KESTREL_MUTATION_MODE, "static-sample");
+      assert.equal(options.env.KESTREL_MUTATION_MODE, mode);
       const child = new EventEmitter();
       child.kill = (signal) => {
         assert.equal(signal, "SIGINT");
@@ -45,12 +50,13 @@ test("the sample deadline checkpoints Stryker and still cleans owned resources",
   assert.equal(code, 130);
   assert.equal(cleaned, true);
 });
+}
 
 test("profiles isolate reports and caches and only fast mode suppresses static activation", async () => {
   const previousMode = process.env.KESTREL_MUTATION_MODE;
   const previousComponent = process.env.KESTREL_MUTATION_COMPONENT;
   try {
-    for (const mode of ["fast", "component", "static-sample"]) {
+    for (const mode of ["fast", "component", "static-sample", "shutdown"]) {
       process.env.KESTREL_MUTATION_MODE = mode;
       process.env.KESTREL_MUTATION_COMPONENT = mode === "component" ? "di" : "";
       const { default: config } = await import(`../../stryker.config.mjs?profile-test=${mode}`);
@@ -61,6 +67,7 @@ test("profiles isolate reports and caches and only fast mode suppresses static a
       assert.equal(config.thresholds.break, null);
       if (mode === "component") assert.equal(config.mutate[0], "src/packages/kestrel/src/di/**/*.{ts,tsx}");
       if (mode === "static-sample") assert.equal(config.mutate.filter((pattern) => !pattern.startsWith("!")).length, 9);
+      if (mode === "shutdown") assert.deepEqual(config.mutate.filter((pattern) => !pattern.startsWith("!")), shutdownPatterns());
     }
   } finally {
     if (previousMode === undefined) delete process.env.KESTREL_MUTATION_MODE;

@@ -59,7 +59,7 @@ Some reference pages also preserve historical specifications and illustrative co
 
 - [Logging](./logging.md) · [Usage](../usage/logging.md)
 - [Observability](./observability.md) · [Usage](../usage/observability.md)
-- [Testing](./testing.md) · [Usage](../usage/testing.md)
+- [Testing](./testing.md) · [Usage](../usage/testing.md) · [Mutation coverage inventory](./mutation_testing_inventory.md)
 - [Utilities](./utilities.md) · [Usage](../usage/utilities.md)
 
 ## Design records and future work

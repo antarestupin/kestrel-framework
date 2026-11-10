@@ -93,6 +93,8 @@ See [configuration](./configuration.md), [HTTP](./http.md), and [background work
 
 ## Bound application shutdown
 
+Repeated and reentrant lifecycle requests join the in-flight operation. A synchronous listener can request disposal during bootstrap or stopping without starting a second disposal sequence. Let the owning runtime await completion; an asynchronous lifecycle listener must not await its own `start()`, `stop()` or `dispose()` operation, because that operation is waiting for the listener itself.
+
 Pass `shutdown: { timeoutMs: 30_000, drainMs: 20_000 }` to `new App(config, options)` to allocate one shutdown budget. Both values are milliseconds; `timeoutMs` must be positive and `drainMs` must be between zero and the total. These are also the defaults. The first application or transport stop starts the deadline; later `stop()` and `dispose()` calls do not renew it. Always call `dispose()` after runtime completion, including errors.
 
 Stopping rejects new application executions and requests registered transport drains. Existing scopes retain their borrowed dependencies until they finish. At `drainMs`, `execution.signal` and the injectable `executionSignalDependency` abort. Forward that signal to outbound HTTP and other cooperative operations; arbitrary JavaScript and already-started storage work cannot be forcibly cancelled by a Promise deadline. Workers and scheduled tasks combine it with their existing handler signal; workflow activity transports receive it too. Existing workload stop policies may request cancellation earlier.

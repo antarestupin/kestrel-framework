@@ -329,6 +329,8 @@ Logger activation uses the finalized boot plan and retains a delegating facade b
 
 ## Shared shutdown deadline
 
+Lifecycle operations publish their in-flight promises before invoking synchronous listeners. A listener which requests startup, stop or disposal again joins the already-owned operation: disposal requested during bootstrap waits for startup, stopping listeners cannot observe an early completed stop, and reentrant disposal cannot duplicate shutdown boundaries. State transitions still occur synchronously at their original entry points. Asynchronous listeners must not await the same lifecycle operation that is awaiting that listener; that would create a circular wait.
+
 `ApplicationShutdown` belongs to the app layer and receives configuration through `AppOptions.shutdown`; it does not read environment variables. A monotonic deadline starts at the first stop. Runtimes register their drain callbacks before admitting work. `App.stop()` changes admission state, requests all registered drains and bounds stopping listeners. Runtime owners await their own drains, while `App.dispose()` also awaits registered transport drains before scopes and shared infrastructure. Runtime failure causes and cleanup failures are retained together.
 
 ```mermaid

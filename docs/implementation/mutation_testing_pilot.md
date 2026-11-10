@@ -1,6 +1,6 @@
 # Mutation testing pilot: first baseline
 
-[Testing implementation](./testing.md#mutation-testing-pilot) · [Usage](../usage/testing.md#run-the-mutation-testing-pilot)
+[Testing implementation](./testing.md#mutation-testing-pilot) · [Contributor guide](../contributing/mutation-testing.md#run-the-mutation-testing-pilot)
 
 This document records the historical adapter/circuit pilot. The current [framework-wide configuration](./testing.md#framework-mutation-testing) includes all framework components and integration suites, with no score threshold. The former 88% floor and pilot scores below no longer describe the current command. The last pilot reports were preserved as `artifacts/mutation/before-framework-scope.json` and `before-framework-scope.html`; subsequent targeted reports do not establish a framework-wide score.
 

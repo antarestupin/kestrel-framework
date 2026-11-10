@@ -1,6 +1,6 @@
 # Framework mutation assessment
 
-[Testing reference](./testing.md#framework-mutation-testing) · [Running mutation tests](../usage/testing.md#run-framework-mutation-testing) · [Historical pilot](./mutation_testing_pilot.md)
+[Testing reference](./testing.md#framework-mutation-testing) · [Running mutation tests](../contributing/mutation-testing.md#run-framework-mutation-testing) · [Historical pilot](./mutation_testing_pilot.md) · [Lot inventory](./mutation_testing_inventory.md)
 
 ## Assessment status
 
@@ -45,6 +45,59 @@ The original HTML/JSON reports and measurement are archived under `artifacts/mut
 The remaining `RuntimeError` is classified as **runtime-invalid schema construction**, not as a surviving behavior mutation or a test-infrastructure failure. Its fingerprint is `src/packages/kestrel/src/throttling/configuration.ts`, line 34, columns 12–45, `ObjectLiteral`, replacement `{}` (sample ID `13`, which is not a stable identifier). It removes `strategy: z.literal("reject")` from the first `z.object` option. Zod then reports `Invalid discriminated union option at index "0"` when import-time configuration parsing prepares the test modules, before individual test assertions run.
 
 Keep this mutation visible with its original Stryker status and exclude it from the score using Stryker's existing error handling. Do not convert it to `Killed`, add an ignore directive, or alter production code to normalize the report. On future sample runs, match the source expression/location, mutator and replacement, then inspect the reason again: this classification applies only while the missing discriminator causes the initialization error. A different reason, such as unavailable infrastructure, requires investigation rather than automatic acceptance. The current report has a separate classification record at `artifacts/mutation/static-sample/classification.json`; the Stryker report itself is unchanged.
+
+## Bounded application shutdown comparison
+
+On November 10, 2026, `npm run test:mutation:shutdown -- --incremental --force` assessed `App.stop`, `dispose`, `finishAndDispose` and `runShutdownBoundary`, retaining all dependent framework suites and static/hybrid mutations. The profile selects anchored method boundaries in `app/app.ts` and automatically stops mutation work after ten minutes, including the initial tests, using the existing checkpoint and resource-cleanup mechanism. Each comparison run started fresh with zero cached outcomes reused. Reports and cache live under `artifacts/mutation/shutdown/`.
+
+Six memory-only regression cases were added in `app/shutdown_errors.test.ts`: ordinary rejections from runtime listeners, transport drain, shutdown listeners and observation flush; simultaneous failures across those phases; and concurrent stop callers blocked on one runtime listener. They assert original-cause preservation, continued cleanup, exactly-once resource disposal, terminal state and absence of a deadline error. The concurrent-stop case uses an explicit gate and an event-loop turn, not elapsed-time thresholds. Cleanup releases the gate and owned resources in finally blocks. Production behavior was unchanged.
+
+| Result | Before | After |
+| --- | --- | --- |
+| Mutants | 117 | 117 |
+| Killed | 65 | 75 |
+| Survived | 37 | 29 |
+| NoCoverage | 15 | 13 |
+| Timeout / errors | 0 / 0 | 0 / 0 |
+| Raw score | 55.56% | 64.10% |
+| Score over covered mutants | 63.73% | 72.12% |
+| Baseline tests | 707 | 713 |
+| Stryker elapsed time | 96 seconds | 98 seconds |
+
+All 117 source/location/mutator/replacement fingerprints and production source text match across reports. The eight former survivors now killed remove the cached stop-promise return (two variants) or ordinary error collection for runtime stopping, transport draining and observation flushing (six variants). Two previously uncovered mutations remove collection of asynchronous shutdown-listener errors; both are now killed. Every original kill remains a kill. The remaining 29 survivors and 13 uncovered mutations are still visible and have not been blanket-classified as equivalent. Further review can distinguish diagnostic-only changes, overlapping fallback checks and missing startup/disposal or completion-listener scenarios.
+
+Before reports are archived in `artifacts/mutation/shutdown-before-tests/`; `artifacts/mutation/shutdown/comparison.json` records the ten exact transitions. Both runs completed under their individual ten-minute budgets. These are local runtime observations rather than a controlled performance comparison; other validation briefly overlapped the second run. The complete regular suite passes 1,679 tests, the 31 infrastructure checks pass and the build passes. No global mutation threshold was added.
+
+### Shutdown review completed
+
+The November 10 follow-up reviewed all 29 surviving and 13 uncovered mutations from the preceding shutdown run. It added 24 cases in `app/shutdown_contract.test.ts` and strengthened the existing aggregate-error assertion. Scenarios include disposal during both startup states and failed startup, stop-only transport drain, pre-start stop behavior, synchronous and asynchronous completion failures, queued shutdown work after a synchronous listener error, child completion tasks, task/event sealing, deadline cancellation, exact timeout phases, and reentrant lifecycle calls. A custom preconfigured event bus also verifies that ordinary cleanup failure and coordinator expiry are both retained. It advances the monotonic-clock reading and uses the public coordinator's `wait()` to model a budget consumed by synchronous cleanup; no private coordinator error state is modified.
+
+Three regression cases failed against the prior implementation: bootstrap callbacks could request disposal before `startPromise` was assigned and release resources during boot; a synchronous stopping listener could receive an already-resolved nested `stop()`; reentrant disposal could dispatch shutdown twice and encounter a closed event scope. `start`, `stop` and `dispose` now publish their in-flight promises before executing synchronous callbacks. State transitions remain synchronous. These changes fix observable lifecycle ownership defects; they are not exclusions introduced to improve a score. A separate once-bootstrap-listener case protects reentrant `start()` from duplicate provider boot.
+
+| Result | Before review | Reviewed result |
+| --- | --- | --- |
+| Mutants | 117 | 117 |
+| Killed | 75 | 114 |
+| Survived | 29 | 3 |
+| NoCoverage | 13 | 0 |
+| Timeout / errors | 0 / 0 | 0 / 0 |
+| Raw and covered score | 64.10% / 72.12% | 97.44% / 97.44% |
+| Baseline tests | 713 | 737 |
+| Stryker elapsed | 98 seconds | 58 seconds |
+
+Both runs use the same anchored method scope, but production source changed, so they are not identical mutation corpora despite equal totals. Comparing method, normalized original expression, operator, replacement and occurrence matches 114 sites. All 42 formerly surviving/uncovered sites match: 26 survivors and all 13 uncovered sites are now killed, leaving three equivalents. Every matched original kill remains killed. Three body-level mutation expressions changed with the promise-publication fix; their new variants are killed as well. The final fresh run reused zero results, retained all 80 static/hybrid mutations and completed within its ten-minute budget. No kills relied on a Vitest test timeout. Timings are local observations with some validation overlap, not a performance benchmark.
+
+The [durable classification](./mutation_testing_shutdown_classification.json) records the three residual mutants, source/test/configuration hashes and assumptions:
+
+| Current sample ID | Equivalent change | Control-flow justification |
+| --- | --- | --- |
+| 24 | Remove `finishAndDispose`'s initial `shutdown.begin()` | The first startup wait or `stop()` initializes the same idempotent coordinator before external cleanup work. |
+| 30 | Treat `startPromise !== undefined` as always true during disposal | The private `bootstrapping`/`ready` states imply a startup promise published before `finishStart`; the promise is never cleared. |
+| 105 | Change `errors.length > 1` to `>= 1` | The preceding `length === 1` branch already throws, with no intervening callback or await. |
+
+These classifications apply under the recorded lifecycle invariants, not arbitrary private-state modification. Re-review them when state transitions, coordinator initialization or error aggregation change. They remain visible as survivors; the raw score is not adjusted to 100% and no score gate is introduced. The deadline fallback is **not** equivalent: the custom event-bus failure scenario kills both its omitted-push and false-condition mutations, so the guard is preserved.
+
+The initial review baseline is archived under `artifacts/mutation/shutdown-before-review/`. Current reports remain under `artifacts/mutation/shutdown/`, with `review-comparison.json` for site transitions and `classification.json` for the residuals. Validation passes all 1,703 regular tests and the build. The inventory marks the shutdown evidence reviewed; the parent `app` lot remains partial. Mutation of `App.start` itself, `ApplicationShutdown`, process terminal policy and other application modules is outside this particular scope, even though some of their contracts are exercised by these regression tests.
 
 ## Historical execution and interpretation
 

@@ -15,7 +15,9 @@ export default {
   // Keep the introduction first and outside the feature categories.
   guides: ['introduction', 'README', 'usage/README', 'usage/installation', ...categories('usage')],
   advanced: [
-    'contributing', 'implementation/README', 'implementation/distribution', 'implementation/documentation',
+    // Repository assessment workflows belong with contributor documentation, outside usage.
+    { type: 'category', label: 'Contributing', items: ['contributing', 'contributing/mutation-testing'] },
+    'implementation/README', 'implementation/distribution', 'implementation/documentation',
     ...categories('implementation'),
     { type: 'category', label: 'Design records and future work', items: [
       'atlas_specs', 'authorization-integration', 'stack', 'workers_specs', 'workflows_specs', 'native_logging_plan', 'monitoring', 'beacon',

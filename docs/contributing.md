@@ -34,6 +34,10 @@ npm run test:ai
 
 At the repository root, `npm run test` and `npm run test:ai` run framework and playground unit/integration tests, excluding the slower application-generator scenarios; `test:ai` uses compact output. Use `npm run test:unit` for unit tests without Docker, `npm run test:integration` for database adapters, `npm run test:generator` for the creator without Docker, or `npm run test:all` for all three groups. Run the generator group whenever changing the creator or its template. The devcontainer reuses the repository service definitions.
 
+## Framework mutation testing
+
+Use the [mutation-testing contributor guide](contributing/mutation-testing.md) for Stryker profiles, ten-minute budgets, isolated test infrastructure, incremental reports and the framework coverage inventory. These repository checks assess framework tests; they are separate from testing an application that uses Kestrel.
+
 ## Integration-test infrastructure
 
 Run `npm run infra:up` and `npm run infra:prepare` in the framework repository. PostgreSQL initialization creates `kestrel_test` without resetting existing data. The Compose service separately creates `kestrel_playground`. Framework suites own and clean up their test tables or schemas; Redis test contexts use logical database 2 and unique key prefixes, and never flush the shared database.

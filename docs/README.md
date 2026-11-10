@@ -14,6 +14,6 @@ Start with [installation and application creation](./usage/installation.md), the
 
 Usage guides describe the implemented API in this checkout. Plans and historical specifications are collected under [design records and future work](./implementation/README.md#design-records-and-future-work), with their status stated explicitly. Guarantees and limitations that affect application correctness remain in the usage guides.
 
-For checkout setup, local package consumption, and maintainer commands, see [contributing and framework development](./contributing.md). Package architecture is described in [distribution internals](./implementation/distribution.md).
+For checkout setup, local package consumption, and maintainer commands, see [contributing and framework development](./contributing.md). The [mutation-testing contributor guide](./contributing/mutation-testing.md) covers Stryker assessments of the framework. Package architecture is described in [distribution internals](./implementation/distribution.md).
 
 Atlas is Kestrel’s public administration library: see its [usage guide](./usage/atlas.md) and [implementation reference](./implementation/atlas.md).

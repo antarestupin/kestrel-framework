@@ -432,7 +432,10 @@ export class App<
       ));
     }
 
-    this.lifecycle.startPromise = this.finishStart();
+    // Publish ownership before synchronous bootstrap listeners can call start/dispose again.
+    const starting = Promise.withResolvers<void>();
+    this.lifecycle.startPromise = starting.promise;
+    void this.finishStart().then(starting.resolve, starting.reject);
 
     return this.lifecycle.startPromise;
   }
@@ -542,11 +545,14 @@ export class App<
     }
 
     this.lifecycle.currentState = "stopping";
+    // Synchronous stopping listeners may reenter stop or dispose before dispatch returns.
+    const stopping = Promise.withResolvers<void>();
+    this.lifecycle.stopPromise = stopping.promise;
     this.shutdown.requestDrain();
-    this.lifecycle.stopPromise = (async () => {
+    void (async () => {
       this.eventBus.dispatch(runtimeStoppingEvent, {});
       await this.shutdown.wait("runtime stopping listeners", () => this.tasks.wait());
-    })();
+    })().then(stopping.resolve, stopping.reject);
 
     return this.lifecycle.stopPromise;
   }
@@ -556,7 +562,10 @@ export class App<
    */
   public async dispose(): Promise<void> {
     if (this.lifecycle.disposePromise === undefined) {
-      this.lifecycle.disposePromise = this.finishAndDispose();
+      // A reentrant dispose must join this sequence rather than dispatch shutdown twice.
+      const disposing = Promise.withResolvers<void>();
+      this.lifecycle.disposePromise = disposing.promise;
+      void this.finishAndDispose().then(disposing.resolve, disposing.reject);
     }
 
     await this.lifecycle.disposePromise;

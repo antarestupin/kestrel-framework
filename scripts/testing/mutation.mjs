@@ -69,7 +69,7 @@ export async function runMutation(args, {
     child = spawnChild(process.execPath, [cli, "run", ...args], { stdio: "inherit", env: childEnvironment, detached: true });
     signals.on("SIGINT", interrupt);
     signals.on("SIGTERM", terminate);
-    // A bounded sample saves a partial incremental report, then stops the owned group
+    // A bounded profile saves a partial incremental report, then stops the owned group
     // if Stryker cannot finish its graceful checkpoint. Database cleanup still runs.
     if (budgetMs ?? profile.budgetMs) deadline = setTimeout(() => {
       console.info("Mutation time budget reached; saving partial results.");

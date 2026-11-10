@@ -1,0 +1,395 @@
+{
+  "updated": "2026-11-10",
+  "sourceRoot": "src/packages/kestrel/src",
+  "excludes": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.d.ts",
+    "testing/postgres.ts",
+    "testing/redis.ts",
+    "workers/testing/**"
+  ],
+  "scopeMeaning": "Candidate TS/TSX sources, including type-only/re-export files; source counts are not mutant counts or line coverage.",
+  "globalReference": {
+    "state": "incomplete-historical",
+    "date": "2026-11-09",
+    "recorded": 18525,
+    "generated": 42816,
+    "report": "artifacts/mutation/checkpoint-stopped-by-user.json",
+    "limits": "Superseded tests and incomplete static assessment; do not merge with current slice reports."
+  },
+  "lots": [
+    {
+      "id": "actions",
+      "scope": "actions/**/*",
+      "sourceFiles": 9,
+      "state": "not-assessed",
+      "focus": "Validation, CRUD repository contracts, cursor and page pagination",
+      "evidence": []
+    },
+    {
+      "id": "app",
+      "scope": "app/**/*",
+      "sourceFiles": 11,
+      "state": "partial",
+      "focus": "Startup, execution ownership and catalog pending; shutdown slice reviewed (three equivalents)",
+      "evidence": [
+        "app-shutdown"
+      ]
+    },
+    {
+      "id": "atlas",
+      "scope": "atlas/**/*",
+      "sourceFiles": 51,
+      "state": "not-assessed",
+      "focus": "Collections, routing, actions/responses, rendering and adapters",
+      "evidence": []
+    },
+    {
+      "id": "authentication",
+      "scope": "authentication/**/*",
+      "sourceFiles": 44,
+      "state": "partial",
+      "focus": "Sessions, account state, passwords, HTTP; configuration sample assessed",
+      "evidence": [
+        "configuration-sample"
+      ]
+    },
+    {
+      "id": "authorization",
+      "scope": "authorization/**/*",
+      "sourceFiles": 23,
+      "state": "not-assessed",
+      "focus": "Positive and negative decisions, permission refresh and scoped stores",
+      "evidence": []
+    },
+    {
+      "id": "background",
+      "scope": "background/**/*",
+      "sourceFiles": 4,
+      "state": "not-assessed",
+      "focus": "Runtime admission, drain and failure propagation",
+      "evidence": []
+    },
+    {
+      "id": "cache",
+      "scope": "cache/**/*",
+      "sourceFiles": 24,
+      "state": "not-assessed",
+      "focus": "Memory, PostgreSQL and Redis contracts; expiry and pruning",
+      "evidence": []
+    },
+    {
+      "id": "cli",
+      "scope": "cli/**/*",
+      "sourceFiles": 8,
+      "state": "not-assessed",
+      "focus": "Parsing, dispatch and exit/signals; subprocess observation limit",
+      "evidence": []
+    },
+    {
+      "id": "client",
+      "scope": "client/**/*",
+      "sourceFiles": 10,
+      "state": "not-assessed",
+      "focus": "Client generation and development/build adapters",
+      "evidence": []
+    },
+    {
+      "id": "concurrency",
+      "scope": "concurrency/**/*",
+      "sourceFiles": 4,
+      "state": "not-assessed",
+      "focus": "Queue, batch and cancellation contracts",
+      "evidence": []
+    },
+    {
+      "id": "configuration",
+      "scope": "configuration/**/*",
+      "sourceFiles": 1,
+      "state": "not-assessed",
+      "focus": "Parsing and composition contracts",
+      "evidence": []
+    },
+    {
+      "id": "controllers",
+      "scope": "controllers/**/*",
+      "sourceFiles": 2,
+      "state": "not-assessed",
+      "focus": "Contract/type exports; establish whether runtime mutations exist",
+      "evidence": []
+    },
+    {
+      "id": "database",
+      "scope": "database/**/*",
+      "sourceFiles": 8,
+      "state": "not-assessed",
+      "focus": "Seeder and legacy/public database contracts",
+      "evidence": []
+    },
+    {
+      "id": "db",
+      "scope": "db/**/*",
+      "sourceFiles": 33,
+      "state": "partial",
+      "focus": "Provider, pools, repositories, history and counters; configuration sample assessed",
+      "evidence": [
+        "configuration-sample"
+      ]
+    },
+    {
+      "id": "definitions",
+      "scope": "definitions/**/*",
+      "sourceFiles": 5,
+      "state": "not-assessed",
+      "focus": "Definition validation and composition",
+      "evidence": []
+    },
+    {
+      "id": "di",
+      "scope": "di/**/*",
+      "sourceFiles": 5,
+      "state": "partial",
+      "focus": "Container/scopes; historical adapter-lifecycle pilot",
+      "evidence": [
+        "adapter-circuit-pilot"
+      ]
+    },
+    {
+      "id": "email",
+      "scope": "email/**/*",
+      "sourceFiles": 34,
+      "state": "not-assessed",
+      "focus": "Composition, rendering, transport failures and adapter ownership",
+      "evidence": []
+    },
+    {
+      "id": "errors",
+      "scope": "errors/**/*",
+      "sourceFiles": 4,
+      "state": "not-assessed",
+      "focus": "Public errors and error handling",
+      "evidence": []
+    },
+    {
+      "id": "events",
+      "scope": "events/**/*",
+      "sourceFiles": 4,
+      "state": "not-assessed",
+      "focus": "Dispatch, asynchronous failures, scopes and close semantics",
+      "evidence": []
+    },
+    {
+      "id": "http",
+      "scope": "http/**/*",
+      "sourceFiles": 28,
+      "state": "not-assessed",
+      "focus": "Routing, validation, access and lifecycle through injection",
+      "evidence": []
+    },
+    {
+      "id": "lock",
+      "scope": "lock/**/*",
+      "sourceFiles": 22,
+      "state": "not-assessed",
+      "focus": "Ownership, fencing, renewal and partial batch failures across adapters",
+      "evidence": []
+    },
+    {
+      "id": "log",
+      "scope": "log/**/*",
+      "sourceFiles": 13,
+      "state": "not-assessed",
+      "focus": "Redaction, formatting, filtering and transport ownership",
+      "evidence": []
+    },
+    {
+      "id": "middleware",
+      "scope": "middleware/**/*",
+      "sourceFiles": 2,
+      "state": "not-assessed",
+      "focus": "Composition and error propagation",
+      "evidence": []
+    },
+    {
+      "id": "observability",
+      "scope": "observability/**/*",
+      "sourceFiles": 15,
+      "state": "not-assessed",
+      "focus": "Context, buffering, redaction and flush/disposal",
+      "evidence": []
+    },
+    {
+      "id": "outbound_http",
+      "scope": "outbound_http/**/*",
+      "sourceFiles": 17,
+      "state": "not-assessed",
+      "focus": "Retries, budgets, abort, middleware and dependency failures",
+      "evidence": []
+    },
+    {
+      "id": "scheduled_tasks",
+      "scope": "scheduled_tasks/**/*",
+      "sourceFiles": 19,
+      "state": "not-assessed",
+      "focus": "Reservation ownership, extendLease, scheduler and adapters",
+      "evidence": []
+    },
+    {
+      "id": "scheduling",
+      "scope": "scheduling/**/*",
+      "sourceFiles": 4,
+      "state": "not-assessed",
+      "focus": "Clock, scheduling and cancellation primitives",
+      "evidence": []
+    },
+    {
+      "id": "studio",
+      "scope": "studio/**/*",
+      "sourceFiles": 95,
+      "state": "not-assessed",
+      "focus": "Server/extensions, client state, routing and rendering",
+      "evidence": []
+    },
+    {
+      "id": "testing",
+      "scope": "testing/**/*",
+      "sourceFiles": 1,
+      "state": "assessment-complete-review-pending",
+      "focus": "Public HTTP policy helper; PostgreSQL/Redis fixtures excluded",
+      "evidence": [
+        "testing-component"
+      ]
+    },
+    {
+      "id": "throttling",
+      "scope": "throttling/**/*",
+      "sourceFiles": 34,
+      "state": "partial",
+      "focus": "Admission, leased inspection/reconciliation and adapters; historical circuits pilot",
+      "evidence": [
+        "configuration-sample",
+        "adapter-circuit-pilot"
+      ]
+    },
+    {
+      "id": "tokens",
+      "scope": "tokens/**/*",
+      "sourceFiles": 31,
+      "state": "not-assessed",
+      "focus": "Issuance, lookup, expiry, revocation and adapter consistency",
+      "evidence": []
+    },
+    {
+      "id": "ui",
+      "scope": "ui/**/*",
+      "sourceFiles": 0,
+      "state": "no-runtime-sources",
+      "focus": "Empty source directory in this checkout; retain explicit inventory entry",
+      "evidence": []
+    },
+    {
+      "id": "utils",
+      "scope": "utils/**/*",
+      "sourceFiles": 5,
+      "state": "not-assessed",
+      "focus": "Codecs, identifiers, catalog and boundary validation",
+      "evidence": []
+    },
+    {
+      "id": "workers",
+      "scope": "workers/**/*",
+      "sourceFiles": 23,
+      "state": "not-assessed",
+      "focus": "Delivery, retries, scheduler, publication and adapters",
+      "evidence": []
+    },
+    {
+      "id": "workflows",
+      "scope": "workflows/**/*",
+      "sourceFiles": 38,
+      "state": "not-assessed",
+      "focus": "Split serialization/definitions, runtime, scheduler and adapters before large runs",
+      "evidence": []
+    }
+  ],
+  "evidence": [
+    {
+      "id": "configuration-sample",
+      "date": "2026-11-10",
+      "components": [
+        "authentication",
+        "db",
+        "throttling"
+      ],
+      "extent": "Nine selected import-time declarations, not complete configuration files",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 17,
+        "Survived": 0,
+        "RuntimeError": 1
+      },
+      "seconds": 15,
+      "report": "artifacts/mutation/static-sample/mutation.json",
+      "analysis": "mutation_testing_framework.md#configuration-regression-tests-before-and-after",
+      "limits": "One runtime-invalid discriminated union classified; no component-wide score."
+    },
+    {
+      "id": "app-shutdown",
+      "date": "2026-11-10",
+      "components": [
+        "app"
+      ],
+      "extent": "App.stop, dispose, finishAndDispose and runShutdownBoundary",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 114,
+        "Survived": 3,
+        "NoCoverage": 0
+      },
+      "seconds": 58,
+      "report": "artifacts/mutation/shutdown/mutation.json",
+      "analysis": "mutation_testing_framework.md#shutdown-review-completed",
+      "limits": "Shutdown slice reviewed: three equivalents retained, no uncovered mutations. App.start implementation, ApplicationShutdown/process policy and the rest of app remain outside the mutation scope. Re-review after lifecycle/coordinator changes.",
+      "classification": "mutation_testing_shutdown_classification.json"
+    },
+    {
+      "id": "adapter-circuit-pilot",
+      "date": "2026-11-09",
+      "components": [
+        "di",
+        "throttling"
+      ],
+      "extent": "Historical adapter lifecycle and circuit ranges",
+      "assessment": "historical",
+      "review": "historical",
+      "counts": {
+        "Killed": 326,
+        "Survived": 34
+      },
+      "seconds": 55,
+      "report": "artifacts/mutation/before-framework-scope.json",
+      "analysis": "mutation_testing_pilot.md",
+      "limits": "Older selected suites and source revision; not a current full-component reference."
+    },
+    {
+      "id": "testing-component",
+      "date": "2026-11-10",
+      "components": [
+        "testing"
+      ],
+      "extent": "All eligible testing component source (HTTP access helper)",
+      "assessment": "complete",
+      "review": "pending",
+      "counts": {
+        "RuntimeError": 1
+      },
+      "seconds": 6,
+      "report": "artifacts/mutation/component-testing/mutation.json",
+      "analysis": "mutation_testing_inventory.md",
+      "limits": "Initialization error has not been classified; completion does not mean validated behavior."
+    }
+  ]
+}
