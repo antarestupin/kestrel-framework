@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "LockManager.extendMany and validateExtensionBatch in lock/lock_manager.ts, through unmodified public runExclusiveMany composition. Other acquisition, handle, heartbeat and adapter implementations are dependencies rather than mutated sources.",
+  "command": "npm run test:mutation:lock-renewal",
+  "budgetMs": 600000,
+  "report": "artifacts/mutation/lock-renewal/mutation.json",
+  "beforeReport": "artifacts/mutation/lock-renewal-before-tests/mutation.json",
+  "scopeMutants": 77,
+  "counts": {
+    "NoCoverage": 3,
+    "Killed": 72,
+    "Survived": 2
+  },
+  "review": "complete with documented handle-composition limitation",
+  "scorePolicy": "Keep the two conditionally equivalent survivors and three uncovered defensive/invariant diagnostics visible. Raw score remains 93.51%, covered score 97.30%; no exclusions, adjusted score or gate. Unsupported/custom handle substitution is outside this assessment.",
+  "remaining": [
+    {
+      "sampleId": "21",
+      "file": "src/packages/kestrel/src/lock/lock_manager.ts",
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 445
+        },
+        "start": {
+          "column": 46,
+          "line": 443
+        }
+      },
+      "original": "{\n        throw new TypeError(\"LockManager received an unsupported lock handle.\");\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "classification": "uncovered defensive unsupported-handle branch",
+      "proof": "The unsupported-handle branch is not reached by the unmodified manager-produced-handle flow described for sample 20. Emptying its rejection can change behavior for externally substituted handles; do not classify this as an unconditional equivalent. No unsupported subclass or private invocation is added solely to cover the branch.",
+      "reviewAgainWhen": "External or custom handles become supported or the manager's handle ownership/factory contract changes."
+    },
+    {
+      "sampleId": "23",
+      "file": "src/packages/kestrel/src/lock/lock_manager.ts",
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 444
+        },
+        "start": {
+          "column": 29,
+          "line": 444
+        }
+      },
+      "original": "\"LockManager received an unsupported lock handle.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "classification": "uncovered defensive unsupported-handle diagnostic",
+      "proof": "The diagnostic belongs to the same unreachable-under-current-composition branch as sample 21. A different message could be observable for unsupported external handles, which this assessment does not claim to validate. The original status is retained without exclusions.",
+      "reviewAgainWhen": "External/custom handles or subclass overrides become part of the supported assessment domain."
+    },
+    {
+      "sampleId": "43",
+      "file": "src/packages/kestrel/src/lock/lock_manager.ts",
+      "location": {
+        "end": {
+          "column": 70,
+          "line": 472
+        },
+        "start": {
+          "column": 25,
+          "line": 472
+        }
+      },
+      "original": "\"Lost lock extension unexpectedly succeeded.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "classification": "uncovered invariant-failure diagnostic",
+      "proof": "The preceding lock.completeExtension(attempt, undefined) always throws LockLostError in the unmodified LockHandleImpl. Its catch returns that error from the map callback. The later Lost lock extension unexpectedly succeeded throw cannot execute under this implementation. The new ownership-loss test verifies both per-handle LockLostError causes and observations. No internal method replacement is introduced to force this impossible success.",
+      "reviewAgainWhen": "LockHandleImpl.completeExtension changes its undefined-result semantics or custom internal handles are introduced."
+    },
+    {
+      "sampleId": "12",
+      "file": "src/packages/kestrel/src/lock/lock_manager.ts",
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 435
+        },
+        "start": {
+          "column": 11,
+          "line": 435
+        }
+      },
+      "original": "errors.length > 1",
+      "mutatorName": "EqualityOperator",
+      "replacement": "errors.length >= 1",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "equivalent under preceding single-error branch",
+      "proof": "The immediately preceding errors.length === 1 branch throws the sole reason. Without an intervening callback or await, the next comparison sees only zero or at least two errors. > 1 and >= 1 therefore make the same decision. The new successful fallback and multiple-rejection cases exercise both outcomes.",
+      "reviewAgainWhen": "The error aggregation branches are reordered, callbacks are inserted between them or the collection can change between comparisons."
+    },
+    {
+      "sampleId": "20",
+      "file": "src/packages/kestrel/src/lock/lock_manager.ts",
+      "location": {
+        "end": {
+          "column": 44,
+          "line": 443
+        },
+        "start": {
+          "column": 11,
+          "line": 443
+        }
+      },
+      "original": "!(lock instanceof LockHandleImpl)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 10,
+      "classification": "equivalent for manager-produced handles; defensive extension boundary retained",
+      "proof": "The unmodified runExclusiveMany calls acquireMany, which constructs each handle through this manager's createHandle as LockHandleImpl. No ordinary public adapter return can supply another handle implementation. Disabling this instanceof rejection therefore does not change the assessed composition. Subclasses overriding acquireMany, runtime method replacement or forged handles are outside this assessment; this is not a claim that the rejection is redundant for every extension.",
+      "reviewAgainWhen": "LockManager accepts external handles, its handle factory changes, or overriding acquireMany to return custom handles becomes a supported extension contract."
+    }
+  ],
+  "productionBugs": "No defect observed in the unchanged production implementation. The baseline gaps were missing distinctions in error propagation, per-handle observations, lease publication, validation and all-settled fallback cleanup.",
+  "testsAdded": {
+    "file": "src/packages/kestrel/src/lock/batch_renewal.test.ts",
+    "cases": 10,
+    "targetedValidation": "44 tests passed across batch_renewal.test.ts and lock_manager.test.ts; fake heartbeat timers are restored and handler completion gates always released."
+  },
+  "commitSuggestion": "test: cover lock batch renewal failures and cleanup",
+  "detectionLimits": "No Killed outcome relies on a Vitest test timeout in the final report, and no native Stryker Timeout is recorded. Four earlier progress-only detections were strengthened into direct cancellation/error assertions by releasing the fallback handler independently. Unsupported/custom handle substitution remains outside this assessment.",
+  "timeoutDrivenDetections": [],
+  "historicalTimeoutImprovement": {
+    "beforeStrengthening": {
+      "timeoutDrivenKills": 4,
+      "detectionDetails": [
+        {
+          "sampleId": "5",
+          "file": "src/packages/kestrel/src/lock/lock_manager.ts",
+          "location": {
+            "end": {
+              "column": 22,
+              "line": 428
+            },
+            "start": {
+              "column": 58,
+              "line": 427
+            }
+          },
+          "original": "(lock) =>\n        lock.extend()",
+          "mutatorName": "ArrowFunction",
+          "replacement": "() => undefined",
+          "status": "Killed",
+          "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+          "testsCompleted": 1,
+          "classification": "Vitest test-timeout detection; lost progress/cancellation propagation",
+          "proof": "The existing falls back to all individual extensions for a lock batch case waits for the handler abort signal. This mutation suppresses fallback extension or the single-rejection propagation, so the heartbeat does not abort the waiting handler and Vitest reaches its 5000ms test timeout. This detects loss of progress/cancellation, not a direct value assertion, and is not a native Stryker Timeout status."
+        },
+        {
+          "sampleId": "7",
+          "file": "src/packages/kestrel/src/lock/lock_manager.ts",
+          "location": {
+            "end": {
+              "column": 30,
+              "line": 431
+            },
+            "start": {
+              "column": 11,
+              "line": 431
+            }
+          },
+          "original": "errors.length === 1",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Killed",
+          "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+          "testsCompleted": 3,
+          "classification": "Vitest test-timeout detection; lost progress/cancellation propagation",
+          "proof": "The existing falls back to all individual extensions for a lock batch case waits for the handler abort signal. This mutation suppresses fallback extension or the single-rejection propagation, so the heartbeat does not abort the waiting handler and Vitest reaches its 5000ms test timeout. This detects loss of progress/cancellation, not a direct value assertion, and is not a native Stryker Timeout status."
+        },
+        {
+          "sampleId": "8",
+          "file": "src/packages/kestrel/src/lock/lock_manager.ts",
+          "location": {
+            "end": {
+              "column": 30,
+              "line": 431
+            },
+            "start": {
+              "column": 11,
+              "line": 431
+            }
+          },
+          "original": "errors.length === 1",
+          "mutatorName": "EqualityOperator",
+          "replacement": "errors.length !== 1",
+          "status": "Killed",
+          "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+          "testsCompleted": 1,
+          "classification": "Vitest test-timeout detection; lost progress/cancellation propagation",
+          "proof": "The existing falls back to all individual extensions for a lock batch case waits for the handler abort signal. This mutation suppresses fallback extension or the single-rejection propagation, so the heartbeat does not abort the waiting handler and Vitest reaches its 5000ms test timeout. This detects loss of progress/cancellation, not a direct value assertion, and is not a native Stryker Timeout status."
+        },
+        {
+          "sampleId": "9",
+          "file": "src/packages/kestrel/src/lock/lock_manager.ts",
+          "location": {
+            "end": {
+              "column": 8,
+              "line": 433
+            },
+            "start": {
+              "column": 32,
+              "line": 431
+            }
+          },
+          "original": "{\n        throw errors[0];\n      }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Killed",
+          "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+          "testsCompleted": 1,
+          "classification": "Vitest test-timeout detection; lost progress/cancellation propagation",
+          "proof": "The existing falls back to all individual extensions for a lock batch case waits for the handler abort signal. This mutation suppresses fallback extension or the single-rejection propagation, so the heartbeat does not abort the waiting handler and Vitest reaches its 5000ms test timeout. This detects loss of progress/cancellation, not a direct value assertion, and is not a native Stryker Timeout status."
+        }
+      ]
+    },
+    "afterStrengthening": {
+      "timeoutDrivenKills": 0,
+      "validation": "The existing fallback test now releases its handler independently, then directly asserts cancellation, LockLostError and identity with the abort reason. It no longer hangs when a mutation suppresses error propagation.",
+      "currentStatusReasons": {
+        "5": "expected [ 1970-01-01T00:00:01.000Z, \u2026(1) ] to deeply equal [ 1970-01-01T00:00:02.000Z, \u2026(1) ]",
+        "7": "expected false to be true // Object.is equality",
+        "8": "expected true to be false // Object.is equality",
+        "9": "expected false to be true // Object.is equality"
+      }
+    }
+  },
+  "seconds": 8,
+  "baselineTests": 142,
+  "fingerprintInputs": {
+    "src/packages/kestrel/src/lock/lock_manager.ts": "28582550c30980b838ee7be8235d36370237a92ba7c75ab3fb57613d21fc2a97",
+    "src/packages/kestrel/src/lock/batch_renewal.test.ts": "62df9e762832bdd995e7f7aa1d5b7ff79d2197eef47a977a8cdf02c208daa819",
+    "src/packages/kestrel/src/lock/lock_manager.test.ts": "66bc2111bd148dacb56e80676df62cfa79bb7531cbaf0095e09ae002d535c323",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "scripts/testing/mutation-profile.mjs": "418810ef489c1abf69c88c0253b562cddcb89081b8a0937074104b8158531bfe",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72",
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033"
+  },
+  "reportHash": "877096fe6811cf7d705ae41d721b667cfbc2801814feca129cbd705204e02f58"
+}

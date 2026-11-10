@@ -1,0 +1,441 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "budgetMs": 600000,
+  "newTestCases": 74,
+  "productionChanges": false,
+  "bugsFound": false,
+  "scorePolicy": "Informational scores only, no exclusions or gate; selected scopes rather than framework scores. Native callback failures now have direct assertions; bounded-work distinctions and four lost-progress kills remain explicit.",
+  "fingerprintInputs": {
+    "src/packages/kestrel/src/authorization/manager.test.ts": "ae71bcc25a1d449b6c586e2e5d5c0a59a1f899ca6ee05560bc870f497dc58955",
+    "src/packages/kestrel/src/authentication/mechanisms/password/hashers/argon2id/hasher_contract.test.ts": "bf7d92c2becc395c7c40a5eb6f3c2bd329f2197e9dbeae93735e0927a07bac3f",
+    "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "aac1c1fabbca980105fa9af09ead255758734bb5acb23afe08ff20dd41569d3a",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.test.ts": "ef2474390edf3e78dd28d150caecef3013f12c6687c9ffe838b82bf725e59ca9",
+    "src/packages/kestrel/src/throttling/adapters/leased/inspection.test.ts": "414b9539dc36332d43d61a18dab598f44e25508114ce63a0aae068d58b84f9f5",
+    "src/packages/kestrel/src/lock/batch_renewal.test.ts": "62df9e762832bdd995e7f7aa1d5b7ff79d2197eef47a977a8cdf02c208daa819",
+    "src/packages/kestrel/src/lock/lock_manager.test.ts": "66bc2111bd148dacb56e80676df62cfa79bb7531cbaf0095e09ae002d535c323",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/mutation-profile.mjs": "418810ef489c1abf69c88c0253b562cddcb89081b8a0937074104b8158531bfe",
+    "scripts/testing/mutation.mjs": "62ff8561ff9407b83e9072b81e88465c3c24984255af6313885edb8d37082c84",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72",
+    "scripts/testing/setup.mjs": "dd6ef46a7cf2e948d03774c89e3e11b51477c1bc75081ae73aad8ea2b6e49ed5",
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033",
+    "src/packages/kestrel/src/authentication/mechanisms/password/hashers/argon2id/native_errors.test.ts": "4954577887b1922f2694c928a5bee80947e2efcca417e19048c90a909bbb6d5a"
+  },
+  "lots": [
+    {
+      "id": "authorization-decisions",
+      "command": "npm run test:mutation:authorization-decisions",
+      "mutants": 33,
+      "before": {
+        "Killed": 31,
+        "Survived": 2
+      },
+      "after": {
+        "Killed": 33
+      },
+      "seconds": {
+        "before": 11,
+        "after": 11
+      },
+      "baselineTests": {
+        "before": 9,
+        "after": 13
+      },
+      "sameProductionSource": true,
+      "sameMutationFingerprints": true,
+      "allPriorKillsPreserved": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/authorization-decisions/mutation.json",
+      "beforeReport": "artifacts/mutation/authorization-decisions-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/authorization-decisions-before-tests/mutation.json": "ab0daa24e3dc1433e8b8666529db363e5432cf10c47289206dd5066368faefcf",
+        "artifacts/mutation/authorization-decisions/mutation.json": "ecaa4fb02c63f6d30ea79c7ec3f9a7a5eca3ff24870aa9c09607d343c283e030"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/authorization/manager.ts": "5b7f60659ee70c6472bb6e9ec513f41eb9865cc696795f99ae24aa0744d71289"
+      },
+      "transitions": [
+        {
+          "before": "Killed",
+          "after": "Killed",
+          "count": 31
+        },
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 2
+        }
+      ],
+      "remaining": []
+    },
+    {
+      "id": "password-verification",
+      "command": "npm run test:mutation:password-verification",
+      "mutants": 231,
+      "before": {
+        "NoCoverage": 12,
+        "Killed": 150,
+        "Survived": 69
+      },
+      "after": {
+        "NoCoverage": 1,
+        "Killed": 210,
+        "Survived": 20
+      },
+      "seconds": {
+        "before": 29,
+        "after": 36
+      },
+      "baselineTests": {
+        "before": 40,
+        "after": 84
+      },
+      "sameProductionSource": true,
+      "sameMutationFingerprints": true,
+      "allPriorKillsPreserved": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 4,
+      "report": "artifacts/mutation/password-verification/mutation.json",
+      "beforeReport": "artifacts/mutation/password-verification-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/password-verification-before-tests/mutation.json": "44b732d5a5e54b07c5b8fe08fcd57604ba7da3cd93a9e5154b139feb30d9d29e",
+        "artifacts/mutation/password-verification/mutation.json": "c38b54f3f8b0386162712f4857f811e92ce773c9e9a34fd43a4a5a5d81a1cb6e",
+        "artifacts/mutation/password-verification-before-native-errors/mutation.json": "c1dd692d7f8e81d79c082950f571f361e3ec5da614f1c0fbb77aa87d3fc0b631"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/authentication/mechanisms/password/hashers/argon2id/hasher.ts": "ec4ae8380f0151d624e3ce63d1a9b5df6918fad0b919c8a80d87d0bbee1205ed"
+      },
+      "transitions": [
+        {
+          "before": "NoCoverage",
+          "after": "NoCoverage",
+          "count": 1
+        },
+        {
+          "before": "Killed",
+          "after": "Killed",
+          "count": 150
+        },
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 51
+        },
+        {
+          "before": "Survived",
+          "after": "Survived",
+          "count": 18
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Killed",
+          "count": 9
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Survived",
+          "count": 2
+        }
+      ],
+      "remaining": [],
+      "classification": "mutation_testing_password_verification_classification.json",
+      "nativeErrorFollowUp": {
+        "date": "2026-11-10",
+        "command": "npm run test:mutation:password-verification",
+        "budgetMs": 600000,
+        "seconds": 36,
+        "baselineTests": 84,
+        "sameProductionSource": true,
+        "sameMutationFingerprints": true,
+        "allPriorKillsPreserved": true,
+        "previousReport": "artifacts/mutation/password-verification-before-native-errors/mutation.json",
+        "countsBefore": {
+          "NoCoverage": 3,
+          "Killed": 207,
+          "Survived": 21
+        },
+        "countsAfter": {
+          "NoCoverage": 1,
+          "Killed": 210,
+          "Survived": 20
+        },
+        "directAssertionKills": [
+          {
+            "sampleId": "85",
+            "file": "src/packages/kestrel/src/authentication/mechanisms/password/hashers/argon2id/hasher.ts",
+            "location": {
+              "end": {
+                "column": 25,
+                "line": 161
+              },
+              "start": {
+                "column": 11,
+                "line": 161
+              }
+            },
+            "mutatorName": "ConditionalExpression",
+            "replacement": "false",
+            "before": "Survived",
+            "after": "Killed",
+            "statusReason": "expected { \u2026(1) } to deeply equal { \u2026(1) }",
+            "testsCompleted": 15,
+            "killedBy": [
+              "60"
+            ]
+          },
+          {
+            "sampleId": "87",
+            "file": "src/packages/kestrel/src/authentication/mechanisms/password/hashers/argon2id/hasher.ts",
+            "location": {
+              "end": {
+                "column": 8,
+                "line": 163
+              },
+              "start": {
+                "column": 27,
+                "line": 161
+              }
+            },
+            "mutatorName": "BlockStatement",
+            "replacement": "{}",
+            "before": "NoCoverage",
+            "after": "Killed",
+            "statusReason": "expected undefined to deeply equal { \u2026(1) }",
+            "testsCompleted": 1,
+            "killedBy": [
+              "60"
+            ]
+          },
+          {
+            "sampleId": "88",
+            "file": "src/packages/kestrel/src/authentication/mechanisms/password/hashers/argon2id/hasher.ts",
+            "location": {
+              "end": {
+                "column": 23,
+                "line": 162
+              },
+              "start": {
+                "column": 9,
+                "line": 162
+              }
+            },
+            "mutatorName": "CallExpression",
+            "replacement": ";",
+            "before": "NoCoverage",
+            "after": "Killed",
+            "statusReason": "expected undefined to deeply equal { \u2026(1) }",
+            "testsCompleted": 1,
+            "killedBy": [
+              "60"
+            ]
+          }
+        ],
+        "vitestTimeoutKillsForTargetedMutants": 0,
+        "tests": "src/packages/kestrel/src/authentication/mechanisms/password/hashers/argon2id/native_errors.test.ts",
+        "method": "Scoped Vitest module mock with resetModules/doUnmock cleanup, microtask callback, one event-loop drain and exact original-error/settlement assertions; fresh real-provider round trip after cleanup. No production seam or Node global replacement.",
+        "allExecutedMutantsCompletedTests": true,
+        "limits": "Four unrelated lost-success-progress kills still use Vitest deadlines; bounded-work distinctions remain unobserved by output-only assertions. Final timing overlapped the full ordinary suite; not a performance comparison."
+      }
+    },
+    {
+      "id": "postgres-ownership",
+      "command": "npm run test:mutation:postgres-ownership",
+      "mutants": 14,
+      "before": {
+        "Survived": 14
+      },
+      "after": {
+        "Killed": 14
+      },
+      "seconds": {
+        "before": 13,
+        "after": 7
+      },
+      "baselineTests": {
+        "before": 400,
+        "after": 405
+      },
+      "sameProductionSource": true,
+      "sameMutationFingerprints": true,
+      "allPriorKillsPreserved": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/postgres-ownership/mutation.json",
+      "beforeReport": "artifacts/mutation/postgres-ownership-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/postgres-ownership-before-tests/mutation.json": "3b44e41d36409b5a648d7a9b3b26e1fe6bab4e9227c5b57a42569b0973d365a3",
+        "artifacts/mutation/postgres-ownership/mutation.json": "4c9302cc7b4203eb585d1f6d8917400d540f9da9fc21359eda1f38abed466231"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts": "7ff8ce2405375284a62b46ee13668f579246b2c2f39ee72a6e0f48454b407a84",
+        "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "bc6c2cca7ca574cf3e493695648fd9e70254ad4d907acc15666eaba23429d7d2"
+      },
+      "transitions": [
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 14
+        }
+      ],
+      "remaining": []
+    },
+    {
+      "id": "throttling-inspection",
+      "command": "npm run test:mutation:throttling-inspection",
+      "mutants": 47,
+      "before": {
+        "Survived": 47
+      },
+      "after": {
+        "Killed": 46,
+        "Survived": 1
+      },
+      "seconds": {
+        "before": 31,
+        "after": 7
+      },
+      "baselineTests": {
+        "before": 326,
+        "after": 341
+      },
+      "sameProductionSource": true,
+      "sameMutationFingerprints": true,
+      "allPriorKillsPreserved": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/throttling-inspection/mutation.json",
+      "beforeReport": "artifacts/mutation/throttling-inspection-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/throttling-inspection-before-tests/mutation.json": "e6dc9b0e2f2eaab4391bf760e6e2dfc56472b073d0c24f99f9481bcf58423352",
+        "artifacts/mutation/throttling-inspection/mutation.json": "1d6e5af353f6fcb325f20ebb6670d281393e26c91d07123858ed5acd1bc12802"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/throttling/adapters/leased/adapter.ts": "458e2a51192cb02ad44f6d994db1e621250dc0e8df8c2755efcdd4606c1b0216"
+      },
+      "transitions": [
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 46
+        },
+        {
+          "before": "Survived",
+          "after": "Survived",
+          "count": 1
+        }
+      ],
+      "remaining": [
+        {
+          "file": "src/packages/kestrel/src/throttling/adapters/leased/adapter.ts",
+          "id": "9",
+          "mutatorName": "ArrayDeclaration",
+          "replacement": "new Array()",
+          "status": "Survived",
+          "static": false,
+          "testsCompleted": 12,
+          "duration": 5.393834999999967,
+          "coveredBy": [
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
+            "11",
+            "12",
+            "13"
+          ],
+          "location": {
+            "end": {
+              "column": 74,
+              "line": 176
+            },
+            "start": {
+              "column": 21,
+              "line": 176
+            }
+          },
+          "classification": "equivalent preallocation for dense request batches",
+          "proof": "Replacing new Array(requests.length) with new Array() changes only initial capacity: every dense request gets an index assigned locally or through authoritative index mapping. Authoritative result length is checked before mapping and failures reject. Empty input returns an empty array in both cases. Sparse arrays, custom forEach overrides and allocation-failure behavior are outside the ordinary dense-batch contract; no performance/allocation guarantee is claimed."
+        }
+      ]
+    },
+    {
+      "id": "lock-renewal",
+      "command": "npm run test:mutation:lock-renewal",
+      "mutants": 77,
+      "before": {
+        "NoCoverage": 27,
+        "Killed": 31,
+        "Survived": 19
+      },
+      "after": {
+        "NoCoverage": 3,
+        "Killed": 72,
+        "Survived": 2
+      },
+      "seconds": {
+        "before": 16,
+        "after": 8
+      },
+      "baselineTests": {
+        "before": 132,
+        "after": 142
+      },
+      "sameProductionSource": true,
+      "sameMutationFingerprints": true,
+      "allPriorKillsPreserved": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/lock-renewal/mutation.json",
+      "beforeReport": "artifacts/mutation/lock-renewal-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/lock-renewal-before-tests/mutation.json": "4720c9eb6fd894cea11cf5234fce0190adab7bd00826a7efe311bf8ffcfc466c",
+        "artifacts/mutation/lock-renewal/mutation.json": "877096fe6811cf7d705ae41d721b667cfbc2801814feca129cbd705204e02f58"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/lock/lock_manager.ts": "28582550c30980b838ee7be8235d36370237a92ba7c75ab3fb57613d21fc2a97"
+      },
+      "transitions": [
+        {
+          "before": "NoCoverage",
+          "after": "NoCoverage",
+          "count": 3
+        },
+        {
+          "before": "Killed",
+          "after": "Killed",
+          "count": 31
+        },
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 18
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Killed",
+          "count": 23
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Survived",
+          "count": 1
+        },
+        {
+          "before": "Survived",
+          "after": "Survived",
+          "count": 1
+        }
+      ],
+      "remaining": [],
+      "classification": "mutation_testing_lock_renewal_classification.json"
+    }
+  ]
+}

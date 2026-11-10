@@ -22,11 +22,25 @@ npm run test:mutation:component -- di --incremental
 npm run test:mutation:static-sample -- --incremental --force
 # Assess application stop/disposal/error collection with the same ten-minute budget.
 npm run test:mutation:shutdown -- --incremental --force
+# Assess account/session management, including all manager validation and renewal helpers.
+npm run test:mutation:authentication-sessions
 ```
 
-Component names are top-level directories under `src/packages/kestrel/src`; invalid names fail before provisioning databases. Dependent tests from other components remain eligible through Vitest's import graph. All named profiles (`fast`, `component`, `static-sample` and `shutdown`) have an automatic ten-minute budget per execution, including their initial instrumented tests. The explicit full/custom `test:mutation` command retains its existing unbounded behavior. The shutdown scope includes `App.stop`, disposal and shutdown error collection; it retains static and hybrid mutants and all dependent framework suites. At the deadline the wrapper requests a checkpoint, forcibly stops a stalled Stryker process group after five more seconds, and cleans owned databases. Cleanup can extend beyond the mutation budget. A budget stop exits nonzero with partial results; it does not produce a completed assessment.
+Component names are top-level directories under `src/packages/kestrel/src`; invalid names fail before provisioning databases. Dependent tests from other components remain eligible through Vitest's import graph. All named profiles have an automatic ten-minute budget per execution, including their initial instrumented tests. The explicit full/custom `test:mutation` command retains its existing unbounded behavior. The shutdown scope includes `App.stop`, disposal and shutdown error collection. The authentication-sessions scope selects the entire `authentication/manager.ts` file, including claims, token and expiration helpers. Both retain static and hybrid mutants and all dependent framework suites. At the deadline the wrapper requests a checkpoint, forcibly stops a stalled Stryker process group after five more seconds, and cleans owned databases. Cleanup can extend beyond the mutation budget. A budget stop exits nonzero with partial results; it does not produce a completed assessment.
 
-Reports and incremental caches are separate: `artifacts/mutation/fast/`, `artifacts/mutation/component-<name>/`, `artifacts/mutation/static-sample/` and `artifacts/mutation/shutdown/`. The existing full command and its original reports remain unchanged. Use `--incremental --force` after configuration, infrastructure or dependency changes. The static sample also records Stryker events under its `events/` directory for examining baseline timing and individual outcomes. See the [static sample findings](../implementation/mutation_testing_framework.md#bounded-static-sample).
+Reports and incremental caches are separate: `artifacts/mutation/fast/`, `artifacts/mutation/component-<name>/`, `artifacts/mutation/static-sample/`, `artifacts/mutation/shutdown/` and `artifacts/mutation/authentication-sessions/`. The existing full command and its original reports remain unchanged. Use `--incremental --force` after configuration, infrastructure or dependency changes. The static sample also records Stryker events under its `events/` directory for examining baseline timing and individual outcomes. See the [static sample findings](../implementation/mutation_testing_framework.md#bounded-static-sample).
+
+Focused behavioral profiles retain static mutants, use separate report/cache directories named after the profile, and share the ten-minute budget:
+
+| Command | Mutated scope |
+| --- | --- |
+| `npm run test:mutation:authorization-decisions` | Entire authorization manager, including `allOf`/`anyOf` evaluation |
+| `npm run test:mutation:password-verification` | Entire Argon2id hasher, including verification limits and pepper propagation |
+| `npm run test:mutation:postgres-ownership` | Workflow PostgreSQL `retryTask` and scheduled-task PostgreSQL `extendLease` |
+| `npm run test:mutation:throttling-inspection` | Leased throttling `reconcile` and `inspectMany` |
+| `npm run test:mutation:lock-renewal` | Lock-manager `extendMany` and extension-batch validation |
+
+These are selected sublots, not complete parent-component assessments. Range profiles resolve method/function anchors from the current source and fail if a boundary disappears. Preserve the previous report before changing tests; run fresh references for before/after comparisons. See the [security and coordination assessment](../implementation/mutation_testing_framework.md#security-and-coordination-follow-up).
 
 From the repository root, prepare the dedicated PostgreSQL and Redis test infrastructure, then validate the instrumented test run before starting a complete mutation assessment:
 

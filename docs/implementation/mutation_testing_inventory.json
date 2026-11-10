@@ -50,18 +50,22 @@
       "scope": "authentication/**/*",
       "sourceFiles": 44,
       "state": "partial",
-      "focus": "Sessions, account state, passwords, HTTP; configuration sample assessed",
+      "focus": "Account/session manager and Argon2id hasher reviewed with documented limits; adapters, HTTP and other authentication sources pending",
       "evidence": [
-        "configuration-sample"
+        "configuration-sample",
+        "authentication-sessions",
+        "password-verification"
       ]
     },
     {
       "id": "authorization",
       "scope": "authorization/**/*",
       "sourceFiles": 23,
-      "state": "not-assessed",
-      "focus": "Positive and negative decisions, permission refresh and scoped stores",
-      "evidence": []
+      "state": "partial",
+      "focus": "Decision manager reviewed; requirement builders, scoped stores and other authorization sources pending",
+      "evidence": [
+        "authorization-decisions"
+      ]
     },
     {
       "id": "background",
@@ -191,9 +195,11 @@
       "id": "lock",
       "scope": "lock/**/*",
       "sourceFiles": 22,
-      "state": "not-assessed",
-      "focus": "Ownership, fencing, renewal and partial batch failures across adapters",
-      "evidence": []
+      "state": "partial",
+      "focus": "Batch renewal and extension validation reviewed with handle-composition limit; acquisition, handle and adapter sources pending",
+      "evidence": [
+        "lock-renewal"
+      ]
     },
     {
       "id": "log",
@@ -231,9 +237,11 @@
       "id": "scheduled_tasks",
       "scope": "scheduled_tasks/**/*",
       "sourceFiles": 19,
-      "state": "not-assessed",
-      "focus": "Reservation ownership, extendLease, scheduler and adapters",
-      "evidence": []
+      "state": "partial",
+      "focus": "PostgreSQL extendLease reviewed; reservation lifecycle, scheduler and other adapter operations pending",
+      "evidence": [
+        "postgres-ownership"
+      ]
     },
     {
       "id": "scheduling",
@@ -266,10 +274,11 @@
       "scope": "throttling/**/*",
       "sourceFiles": 34,
       "state": "partial",
-      "focus": "Admission, leased inspection/reconciliation and adapters; historical circuits pilot",
+      "focus": "Leased inspection/reconciliation reviewed; admission, other lease methods and adapters pending",
       "evidence": [
         "configuration-sample",
-        "adapter-circuit-pilot"
+        "adapter-circuit-pilot",
+        "throttling-inspection"
       ]
     },
     {
@@ -308,9 +317,11 @@
       "id": "workflows",
       "scope": "workflows/**/*",
       "sourceFiles": 38,
-      "state": "not-assessed",
-      "focus": "Split serialization/definitions, runtime, scheduler and adapters before large runs",
-      "evidence": []
+      "state": "partial",
+      "focus": "PostgreSQL retryTask reviewed; serialization, runtime, scheduler and other adapter operations pending",
+      "evidence": [
+        "postgres-ownership"
+      ]
     }
   ],
   "evidence": [
@@ -356,6 +367,28 @@
       "classification": "mutation_testing_shutdown_classification.json"
     },
     {
+      "id": "authentication-sessions",
+      "date": "2026-11-10",
+      "components": [
+        "authentication"
+      ],
+      "extent": "Entire authentication/manager.ts, including completion, resolution, revocation, claims, tokens and renewal helpers",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 140,
+        "Survived": 4,
+        "NoCoverage": 2,
+        "Timeout": 0,
+        "RuntimeError": 0
+      },
+      "seconds": 35,
+      "report": "artifacts/mutation/authentication-sessions/mutation.json",
+      "analysis": "mutation_testing_framework.md#authentication-account-and-session-review",
+      "classification": "mutation_testing_authentication_sessions_classification.json",
+      "limits": "Four equivalent survivors retained; two uncovered decoder-catch mutants reviewed separately. One changes exceptional decoder failure behavior outside ordinary primitive-string decoding. Adapters, mechanisms, proof construction and HTTP are not mutated in this scope; authentication stays partial."
+    },
+    {
       "id": "adapter-circuit-pilot",
       "date": "2026-11-09",
       "components": [
@@ -390,6 +423,102 @@
       "report": "artifacts/mutation/component-testing/mutation.json",
       "analysis": "mutation_testing_inventory.md",
       "limits": "Initialization error has not been classified; completion does not mean validated behavior."
+    },
+    {
+      "id": "authorization-decisions",
+      "date": "2026-11-10",
+      "components": [
+        "authorization"
+      ],
+      "extent": "Entire authorization/manager.ts",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 33
+      },
+      "seconds": 11,
+      "report": "artifacts/mutation/authorization-decisions/mutation.json",
+      "analysis": "mutation_testing_framework.md#security-and-coordination-follow-up",
+      "classification": "mutation_testing_security_coordination_classification.json",
+      "limits": "No residuals in this manager scope; rest of authorization remains unassessed."
+    },
+    {
+      "id": "password-verification",
+      "date": "2026-11-10",
+      "components": [
+        "authentication"
+      ],
+      "extent": "Entire authentication/mechanisms/password/hashers/argon2id/hasher.ts",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 1,
+        "Killed": 210,
+        "Survived": 20
+      },
+      "seconds": 36,
+      "report": "artifacts/mutation/password-verification/mutation.json",
+      "analysis": "mutation_testing_framework.md#security-and-coordination-follow-up",
+      "classification": "mutation_testing_password_verification_classification.json",
+      "limits": "Native callback error propagation now covered through scoped import mocking with direct settlement assertions. Remaining equivalents, bounded-work distinctions and unconstrained literals stay visible; four unrelated kills use Vitest progress timeouts. Other authentication sources remain outside scope."
+    },
+    {
+      "id": "postgres-ownership",
+      "date": "2026-11-10",
+      "components": [
+        "workflows",
+        "scheduled_tasks"
+      ],
+      "extent": "PostgreSQL workflow retryTask and scheduled-task extendLease methods",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 14
+      },
+      "seconds": 7,
+      "report": "artifacts/mutation/postgres-ownership/mutation.json",
+      "analysis": "mutation_testing_framework.md#security-and-coordination-follow-up",
+      "classification": "mutation_testing_security_coordination_classification.json",
+      "limits": "SQL/Lua semantic mutation is not systematic; direct ownership predicate tests accompany all 14 kills. Other adapter operations and parent components remain outside scope."
+    },
+    {
+      "id": "throttling-inspection",
+      "date": "2026-11-10",
+      "components": [
+        "throttling"
+      ],
+      "extent": "LeasedRateLimitAdapter.reconcile and inspectMany",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 46,
+        "Survived": 1
+      },
+      "seconds": 7,
+      "report": "artifacts/mutation/throttling-inspection/mutation.json",
+      "analysis": "mutation_testing_framework.md#security-and-coordination-follow-up",
+      "classification": "mutation_testing_security_coordination_classification.json",
+      "limits": "One equivalent preallocation survivor under ordinary dense request batches; other leased-adapter methods and parent sources outside scope."
+    },
+    {
+      "id": "lock-renewal",
+      "date": "2026-11-10",
+      "components": [
+        "lock"
+      ],
+      "extent": "LockManager.extendMany and validateExtensionBatch",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 3,
+        "Killed": 72,
+        "Survived": 2
+      },
+      "seconds": 8,
+      "report": "artifacts/mutation/lock-renewal/mutation.json",
+      "analysis": "mutation_testing_framework.md#security-and-coordination-follow-up",
+      "classification": "mutation_testing_lock_renewal_classification.json",
+      "limits": "Two conditional equivalents and three dormant defensive/invariant diagnostics retained. Custom handle substitution outside the assessment. Final run has zero timeout-driven kills; other lock sources outside scope."
     }
   ]
 }

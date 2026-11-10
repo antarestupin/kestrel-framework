@@ -126,6 +126,45 @@ afterAll(async () => {
 });
 
 describe("PostgresScheduledTaskAdapter", () => {
+  it("extends only the matching task reservation using PostgreSQL time", async () => {
+    const firstToken = "00000000-0000-4000-8000-000000000001";
+    const secondToken = "00000000-0000-4000-8000-000000000002";
+    const otherToken = "00000000-0000-4000-8000-000000000003";
+    // Two runs share one task while a third has another owner: both WHERE predicates matter.
+    await client.query(`
+      INSERT INTO scheduled_task_run (reservation_token, task_id, scheduled_at, expires_at, trigger)
+      VALUES
+        ($1, 'maintenance', now(), now() + interval '1 minute', 'scheduled'),
+        ($2, 'maintenance', now(), now() + interval '1 minute', 'manual'),
+        ($3, 'other-task', now(), now() + interval '1 minute', 'scheduled')
+    `, [firstToken, secondToken, otherToken]);
+    const before = await client.query("SELECT * FROM scheduled_task_run ORDER BY reservation_token");
+    const leaseMs = 180_000;
+    const lowerClock = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+    await expect(adapter.extendLease({ taskId: "maintenance", reservationToken: firstToken, leaseMs })).resolves.toBe(true);
+    const after = await client.query("SELECT *, statement_timestamp() AS observed_at FROM scheduled_task_run ORDER BY reservation_token");
+    const { observed_at: observedAt, ...extended } = after.rows[0]!;
+    expect(extended).toEqual({ ...before.rows[0], expires_at: expect.any(Date) });
+    expect(extended.expires_at.getTime()).toBeGreaterThan(before.rows[0]!.expires_at.getTime());
+    // Bracket the server's clock instead of sleeping or relying on the host clock.
+    expect(extended.expires_at.getTime()).toBeGreaterThanOrEqual(lowerClock.getTime() + leaseMs);
+    expect(extended.expires_at.getTime()).toBeLessThanOrEqual(observedAt.getTime() + leaseMs);
+    expect(after.rows.slice(1).map(({ observed_at: _observedAt, ...run }) => run)).toEqual(before.rows.slice(1));
+  });
+
+  it("rejects mismatched or stale leases without altering any run", async () => {
+    const currentToken = "00000000-0000-4000-8000-000000000001";
+    const staleToken = "00000000-0000-4000-8000-000000000099";
+    await client.query(`
+      INSERT INTO scheduled_task_run (reservation_token, task_id, scheduled_at, expires_at, trigger)
+      VALUES ($1, 'maintenance', now(), now() + interval '1 minute', 'scheduled')
+    `, [currentToken]);
+    const before = await client.query("SELECT * FROM scheduled_task_run");
+    await expect(adapter.extendLease({ taskId: "other-task", reservationToken: currentToken, leaseMs: 180_000 })).resolves.toBe(false);
+    await expect(adapter.extendLease({ taskId: "maintenance", reservationToken: staleToken, leaseMs: 180_000 })).resolves.toBe(false);
+    expect((await client.query("SELECT * FROM scheduled_task_run")).rows).toEqual(before.rows);
+  });
+
   it("reconciles, reserves and completes an occurrence", async () => {
     const scheduledAt = new Date("2020-01-01T00:00:00.000Z");
     const nextScheduledAt = new Date("2030-01-01T00:00:00.000Z");

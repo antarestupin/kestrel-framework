@@ -409,23 +409,29 @@ describe("LockManager", () => {
     adapter.extendResults.set("test:second", undefined);
     const locks = createManager(adapter);
     const started = deferred();
+    const finish = deferred();
+    let handlerSignal: AbortSignal | undefined;
     const operation = locks.runExclusiveMany(
       ["first", "second"],
       async (_handles, { signal }) => {
+        handlerSignal = signal;
         started.resolve();
-        await new Promise<void>((resolve) => signal.addEventListener(
-          "abort",
-          () => resolve(),
-          { once: true },
-        ));
+        await finish.promise;
       },
-    );
-    const outcome = expect(operation).rejects.toBeInstanceOf(LockLostError);
+    ).then(() => undefined, (error: unknown) => error);
     await started.promise;
 
-    await vi.advanceTimersByTimeAsync(500);
+    try {
+      await vi.advanceTimersByTimeAsync(500);
+    } finally {
+      // Close the handler independently of cancellation so lost error propagation fails directly.
+      finish.resolve();
+    }
 
-    await outcome;
+    const error = await operation;
+    expect(handlerSignal?.aborted).toBe(true);
+    expect(error).toBeInstanceOf(LockLostError);
+    expect(error).toBe(handlerSignal?.reason);
     expect(adapter.extendRequests).toHaveLength(2);
     expect(adapter.releaseRequests).toHaveLength(2);
   });

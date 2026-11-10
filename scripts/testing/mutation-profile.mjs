@@ -10,7 +10,7 @@ export function mutationArguments(args) {
   if (remaining[0] === "--mode") {
     remaining.shift();
     mode = remaining.shift();
-    if (!["fast", "component", "static-sample", "shutdown"].includes(mode)) throw new Error("Unknown mutation mode.");
+    if (!["fast", "component", "static-sample", "shutdown", "authentication-sessions", ...Object.keys(focusedProfiles)].includes(mode)) throw new Error("Unknown mutation mode.");
     if (mode === "component") {
       component = remaining.shift();
       if (!component || !/^[a-z][a-z0-9_]*$/u.test(component)
@@ -51,5 +51,33 @@ export function staticSamplePatterns() {
       if (line < 0) throw new Error(`Static sample declaration disappeared: ${file}: ${anchor}`);
       return `src/packages/kestrel/src/${file}:${line + 1}-${line + 1}`;
     });
+  });
+}
+
+// Keep each behavioral lot independent so reports and ten-minute budgets stay comparable.
+const focusedProfiles = {
+  "authorization-decisions": [["authorization/manager.ts"]],
+  "password-verification": [["authentication/mechanisms/password/hashers/argon2id/hasher.ts"]],
+  "postgres-ownership": [
+    ["workflows/adapters/postgres/adapter.ts", "public async retryTask(", "public async reserveActivityDispatches("],
+    ["scheduled_tasks/adapters/postgres/adapter.ts", "public async extendLease(", "public async pruneExpiredRuns("],
+  ],
+  "throttling-inspection": [["throttling/adapters/leased/adapter.ts", "public reconcile(", "public allocateLeases("]],
+  "lock-renewal": [
+    ["lock/lock_manager.ts", "private async extendMany(", "private async tryAcquireMany("],
+    ["lock/lock_manager.ts", "function validateExtensionBatch(", "/** Mutable internal implementation"],
+  ],
+};
+
+/** Resolve anchored ranges after source edits; fail closed if a boundary disappears. */
+export function focusedPatterns(mode) {
+  return focusedProfiles[mode]?.map(([file, startAnchor, endAnchor]) => {
+    const prefix = `src/packages/kestrel/src/${file}`;
+    if (startAnchor === undefined) return prefix;
+    const lines = readFileSync(new URL(file, sourceRoot), "utf8").split("\n");
+    const start = lines.findIndex((line) => line.includes(startAnchor));
+    const end = lines.findIndex((line, index) => index > start && line.includes(endAnchor));
+    if (start < 0 || end <= start) throw new Error(`Mutation lot boundaries disappeared: ${mode}: ${file}`);
+    return `${prefix}:${start + 1}-${end}`;
   });
 }

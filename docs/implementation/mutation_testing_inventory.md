@@ -23,8 +23,8 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `actions` | 9 | Not assessed | Validation, CRUD repository contracts, cursor and page pagination | — |
 | `app` | 11 | Partial / selected evidence | Startup, execution ownership and catalog pending; shutdown slice reviewed (three equivalents) | `app-shutdown` |
 | `atlas` | 51 | Not assessed | Collections, routing, actions/responses, rendering and adapters | — |
-| `authentication` | 44 | Partial / selected evidence | Sessions, account state, passwords, HTTP; configuration sample assessed | `configuration-sample` |
-| `authorization` | 23 | Not assessed | Positive and negative decisions, permission refresh and scoped stores | — |
+| `authentication` | 44 | Partial / selected evidence | Account/session manager and Argon2id hasher reviewed with documented limits; adapters, HTTP and other authentication sources pending | `configuration-sample`, `authentication-sessions`, `password-verification` |
+| `authorization` | 23 | Partial / selected evidence | Decision manager reviewed; requirement builders, scoped stores and other authorization sources pending | `authorization-decisions` |
 | `background` | 4 | Not assessed | Runtime admission, drain and failure propagation | — |
 | `cache` | 24 | Not assessed | Memory, PostgreSQL and Redis contracts; expiry and pruning | — |
 | `cli` | 8 | Not assessed | Parsing, dispatch and exit/signals; subprocess observation limit | — |
@@ -40,23 +40,23 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `errors` | 4 | Not assessed | Public errors and error handling | — |
 | `events` | 4 | Not assessed | Dispatch, asynchronous failures, scopes and close semantics | — |
 | `http` | 28 | Not assessed | Routing, validation, access and lifecycle through injection | — |
-| `lock` | 22 | Not assessed | Ownership, fencing, renewal and partial batch failures across adapters | — |
+| `lock` | 22 | Partial / selected evidence | Batch renewal and extension validation reviewed with handle-composition limit; acquisition, handle and adapter sources pending | `lock-renewal` |
 | `log` | 13 | Not assessed | Redaction, formatting, filtering and transport ownership | — |
 | `middleware` | 2 | Not assessed | Composition and error propagation | — |
 | `observability` | 15 | Not assessed | Context, buffering, redaction and flush/disposal | — |
 | `outbound_http` | 17 | Not assessed | Retries, budgets, abort, middleware and dependency failures | — |
-| `scheduled_tasks` | 19 | Not assessed | Reservation ownership, extendLease, scheduler and adapters | — |
+| `scheduled_tasks` | 19 | Partial / selected evidence | PostgreSQL extendLease reviewed; reservation lifecycle, scheduler and other adapter operations pending | `postgres-ownership` |
 | `scheduling` | 4 | Not assessed | Clock, scheduling and cancellation primitives | — |
 | `studio` | 95 | Not assessed | Server/extensions, client state, routing and rendering | — |
 | `testing` | 1 | Assessment complete; review pending | Public HTTP policy helper; PostgreSQL/Redis fixtures excluded | `testing-component` |
-| `throttling` | 34 | Partial / selected evidence | Admission, leased inspection/reconciliation and adapters; historical circuits pilot | `configuration-sample`, `adapter-circuit-pilot` |
+| `throttling` | 34 | Partial / selected evidence | Leased inspection/reconciliation reviewed; admission, other lease methods and adapters pending | `configuration-sample`, `adapter-circuit-pilot`, `throttling-inspection` |
 | `tokens` | 31 | Not assessed | Issuance, lookup, expiry, revocation and adapter consistency | — |
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
 | `utils` | 5 | Not assessed | Codecs, identifiers, catalog and boundary validation | — |
 | `workers` | 23 | Not assessed | Delivery, retries, scheduler, publication and adapters | — |
-| `workflows` | 38 | Not assessed | Split serialization/definitions, runtime, scheduler and adapters before large runs | — |
+| `workflows` | 38 | Partial / selected evidence | PostgreSQL retryTask reviewed; serialization, runtime, scheduler and other adapter operations pending | `postgres-ownership` |
 
-The current total is 28 not-assessed lots, five partially assessed lots, one completed assessment awaiting review, and one lot without candidate sources. These are manual assessment states; no completion percentage is derived from them.
+The current total is 24 not-assessed lots, nine partially assessed lots, one completed assessment awaiting review, and one lot without candidate sources. These are manual assessment states; no completion percentage is derived from them.
 
 ## Evidence ledger
 
@@ -78,6 +78,14 @@ Recorded outcomes: 114 Killed, 3 Survived, 0 NoCoverage; elapsed 58 seconds. Loc
 
 Shutdown slice reviewed: the three surviving mutants are equivalent under the documented invariants. No uncovered mutation remains. `App.start` itself, `ApplicationShutdown`, process terminal policy and the rest of `app` remain outside this mutation scope; the parent lot stays partial. Re-review after lifecycle/coordinator changes.
 
+### authentication-sessions
+
+2026-11-10; components: `authentication`. Scope: Entire `authentication/manager.ts`, including private claims, token and renewal helpers. Assessment: **complete**; review: **complete with a documented input-domain limitation**.
+
+Recorded outcomes: 140 Killed, 4 Survived, 2 NoCoverage, no timeout or error; elapsed 35 seconds. Local report: `artifacts/mutation/authentication-sessions/mutation.json`. [Analysis](mutation_testing_framework.md#authentication-account-and-session-review) · [Residual classification](mutation_testing_authentication_sessions_classification.json).
+
+The four survivors are equivalent under current snapshot, Zod and return-value invariants. Two decoder-catch mutants remain uncovered for ordinary primitive-string inputs; one would change exceptional decoder failure behavior and is not equivalent. Raw score remains 95.89%; no exclusions or gate. Adapters, mechanisms, proof construction, HTTP and the remaining authentication sources are outside this mutation scope, so the parent stays partial.
+
 ### adapter-circuit-pilot
 
 2026-11-09; components: `di`, `throttling`. Scope: Historical adapter lifecycle and circuit ranges. Assessment: **historical**; review: **historical**.
@@ -93,6 +101,22 @@ Older selected suites and source revision; not a current full-component referenc
 Recorded outcomes: 1 RuntimeError; elapsed 6 seconds. Local report: `artifacts/mutation/component-testing/mutation.json`. [Analysis](mutation_testing_inventory.md).
 
 Initialization error has not been classified; completion does not mean validated behavior.
+
+## Security and coordination selected-lot evidence
+
+All five profiles below completed fresh before/after assessments on November 10, 2026, retaining static mutants and enforcing a ten-minute budget per execution. Production sources and all 402 selected mutation fingerprints are unchanged between references and final runs. Every previous kill is preserved. Assessment and residual review are complete **with the stated limitations**; no parent component is promoted to reviewed.
+
+| Evidence | Scope | Final Killed / Survived / NoCoverage | Seconds | Review limit |
+| --- | --- | --- | ---: | --- |
+| `authorization-decisions` | Entire authorization manager | 33 / 0 / 0 | 11 | Other authorization sources pending |
+| `password-verification` | Entire Argon2id hasher | 210 / 20 / 1 | 36 | Native errors covered; bounded-work distinctions and four unrelated progress-timeout kills remain |
+| `postgres-ownership` | Workflow `retryTask`, scheduled-task `extendLease` | 14 / 0 / 0 | 7 | Direct predicate tests supplement SQL AST mutation; other adapter methods pending |
+| `throttling-inspection` | Leased `reconcile`, `inspectMany` | 46 / 1 / 0 | 7 | Equivalent preallocation for dense batches; rest of adapter pending |
+| `lock-renewal` | Batch renewal and validation | 72 / 2 / 3 | 8 | Dormant custom-handle diagnostics; no final timeout-driven kills |
+
+The Argon2id native-error follow-up adds three controlled callback-failure cases without production changes. Its pre-follow-up report is archived at `artifacts/mutation/password-verification-before-native-errors/mutation.json`. The same 231 fingerprints move one Survived and two NoCoverage mutations to direct assertion kills; all other statuses are unchanged. The current 21 residuals comprise ten equivalents, six bounded-work distinctions and five unconstrained literals. [Native-error analysis](mutation_testing_framework.md#argon2id-native-error-propagation).
+
+Reports and reference archives use `artifacts/mutation/<evidence>/` and `artifacts/mutation/<evidence>-before-tests/`. [Before/after analysis](mutation_testing_framework.md#security-and-coordination-follow-up) · [Comparison and input hashes](mutation_testing_security_coordination_classification.json) · [Argon2id residuals](mutation_testing_password_verification_classification.json) · [Lock residuals](mutation_testing_lock_renewal_classification.json) · [PostgreSQL predicate analysis](mutation_testing_postgres_ownership.md).
 
 ## Historical global campaign
 

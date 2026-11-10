@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { rm } from "node:fs/promises";
 import test from "node:test";
 
-import { mutationArguments, shutdownPatterns, staticSamplePatterns } from "./mutation-profile.mjs";
+import { focusedPatterns, mutationArguments, shutdownPatterns, staticSamplePatterns } from "./mutation-profile.mjs";
 import { runMutation } from "./mutation.mjs";
 
 test("profiles preserve Stryker flags and require a bounded existing component", () => {
@@ -21,10 +21,11 @@ test("profiles preserve Stryker flags and require a bounded existing component",
   assert.equal(mutationArguments(["--mode", "static-sample"]).budgetMs, 600_000);
   assert.equal(staticSamplePatterns().length, 9);
   assert.equal(mutationArguments(["--mode", "shutdown"]).budgetMs, 600_000);
+  assert.equal(mutationArguments(["--mode", "authentication-sessions"]).budgetMs, 600_000);
   assert.match(shutdownPatterns()[0], /^src\/packages\/kestrel\/src\/app\/app\.ts:\d+-\d+$/u);
 });
 
-for (const [mode, scope] of [["static-sample", []], ["shutdown", []], ["fast", []], ["component", ["di"]]]) {
+for (const [mode, scope] of [...["authorization-decisions", "password-verification", "postgres-ownership", "throttling-inspection", "lock-renewal"].map((mode) => [mode, []]), ["static-sample", []], ["shutdown", []], ["authentication-sessions", []], ["fast", []], ["component", ["di"]]]) {
 test(`the ${mode} deadline checkpoints Stryker and still cleans owned resources`, async () => {
   let interrupted = false;
   let cleaned = false;
@@ -56,7 +57,7 @@ test("profiles isolate reports and caches and only fast mode suppresses static a
   const previousMode = process.env.KESTREL_MUTATION_MODE;
   const previousComponent = process.env.KESTREL_MUTATION_COMPONENT;
   try {
-    for (const mode of ["fast", "component", "static-sample", "shutdown"]) {
+    for (const mode of ["fast", "component", "static-sample", "shutdown", "authentication-sessions", "authorization-decisions", "password-verification", "postgres-ownership", "throttling-inspection", "lock-renewal"]) {
       process.env.KESTREL_MUTATION_MODE = mode;
       process.env.KESTREL_MUTATION_COMPONENT = mode === "component" ? "di" : "";
       const { default: config } = await import(`../../stryker.config.mjs?profile-test=${mode}`);
@@ -65,9 +66,14 @@ test("profiles isolate reports and caches and only fast mode suppresses static a
       assert.equal(config.incrementalFile, `${directory}/incremental.json`);
       assert.equal(config.jsonReporter.fileName, `${directory}/mutation.json`);
       assert.equal(config.thresholds.break, null);
+      if (focusedPatterns(mode)) {
+        assert.deepEqual(config.mutate.filter((pattern) => !pattern.startsWith("!")), focusedPatterns(mode));
+        assert.equal(mutationArguments(["--mode", mode]).budgetMs, 600_000);
+      }
       if (mode === "component") assert.equal(config.mutate[0], "src/packages/kestrel/src/di/**/*.{ts,tsx}");
       if (mode === "static-sample") assert.equal(config.mutate.filter((pattern) => !pattern.startsWith("!")).length, 9);
       if (mode === "shutdown") assert.deepEqual(config.mutate.filter((pattern) => !pattern.startsWith("!")), shutdownPatterns());
+      if (mode === "authentication-sessions") assert.equal(config.mutate[0], "src/packages/kestrel/src/authentication/manager.ts");
     }
   } finally {
     if (previousMode === undefined) delete process.env.KESTREL_MUTATION_MODE;

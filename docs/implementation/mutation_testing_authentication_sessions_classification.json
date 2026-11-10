@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Entire authentication/manager.ts; adapters, proof construction, mechanisms and HTTP are dependencies, not mutated sources in this lot.",
+  "command": "npm run test:mutation:authentication-sessions",
+  "budgetMs": 600000,
+  "report": "artifacts/mutation/authentication-sessions/mutation.json",
+  "beforeReport": "artifacts/mutation/authentication-sessions-before-tests/mutation.json",
+  "scopeMutants": 146,
+  "counts": {
+    "NoCoverage": 2,
+    "Killed": 140,
+    "Survived": 4
+  },
+  "review": "complete with documented input-domain limitation",
+  "baselineTests": {
+    "before": 38,
+    "after": 69
+  },
+  "seconds": {
+    "before": 37,
+    "after": 35
+  },
+  "scorePolicy": "Keep four equivalents visible as Survived and two decoder-handler mutations as NoCoverage. Raw score 95.89%, covered score 97.22%; no exclusions, adjusted score or blocking gate. One defensive mutant is non-equivalent outside ordinary string decoding.",
+  "fingerprintInputs": {
+    "src/packages/kestrel/src/authentication/manager.ts": "02a0dcb8582b79582231b5a0114c0296c0a3ac56050c67e6d9a8b73c4b294c21",
+    "src/packages/kestrel/src/authentication/manager.test.ts": "40912de5ebbb984f087d66865dc7bb71ebd5765b55a00b52dd2d8ecc5f2f7a0d",
+    "src/packages/kestrel/src/authentication/manager_contract.test.ts": "8ca24d4885f7ab512c9f63c818b72908d0860822a6fa4b97b19453c85048a89e",
+    "src/packages/kestrel/src/authentication/stores.ts": "ed9e6a405e7d9374063067bd8f67376ab54da9acc593cfe6ce72dc59a49c5ba9",
+    "src/packages/kestrel/src/authentication/adapters/memory/adapter.ts": "acfac571d165937a9f344c2779ff576150f00232f4843290eb7b4ebab52e3219",
+    "stryker.config.mjs": "d0811ae625b5bec45a7b0de00a37f3f6097195ded69f51c98b2feecfa3c76c79",
+    "scripts/testing/mutation-profile.mjs": "cf8d3ce8d038f6faff76aa334dab311b713e45ae0a9426ad1ff7be5375b80d4f",
+    "scripts/testing/mutation.mjs": "62ff8561ff9407b83e9072b81e88465c3c24984255af6313885edb8d37082c84",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72",
+    "scripts/testing/setup.mjs": "dd6ef46a7cf2e948d03774c89e3e11b51477c1bc75081ae73aad8ea2b6e49ed5",
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033",
+    "node_modules/zod/v4/core/parse.js": "fb05b91ec260f3f484f7c00a177b6126ceb8fd1b09dc90b1200afdffd4d98efd"
+  },
+  "reportHashes": {
+    "artifacts/mutation/authentication-sessions-before-tests/mutation.json": "61608deefd71aa56e6db7e4908bf367edd547b9f971a0fc0e9199303228a5661",
+    "artifacts/mutation/authentication-sessions/mutation.json": "a435d50092af1185c7eced6bec29cbfbb11422f6b90c3cff01d06215a397bb18"
+  },
+  "comparison": {
+    "date": "2026-11-10",
+    "scope": "authentication/manager.ts (entire file)",
+    "sameProductionSource": true,
+    "sameMutationFingerprints": true,
+    "mutants": 146,
+    "before": {
+      "NoCoverage": 12,
+      "Killed": 93,
+      "Survived": 41
+    },
+    "after": {
+      "NoCoverage": 2,
+      "Killed": 140,
+      "Survived": 4
+    },
+    "transitions": [
+      {
+        "before": "NoCoverage",
+        "after": "NoCoverage",
+        "count": 2
+      },
+      {
+        "before": "Killed",
+        "after": "Killed",
+        "count": 93
+      },
+      {
+        "before": "Survived",
+        "after": "Killed",
+        "count": 39
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Killed",
+        "count": 8
+      },
+      {
+        "before": "Survived",
+        "after": "Survived",
+        "count": 2
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Survived",
+        "count": 2
+      }
+    ],
+    "allExecutedMutantsCompletedTests": true,
+    "vitestTimeoutKills": 0
+  },
+  "remaining": [
+    {
+      "sampleId": "124",
+      "file": "src/packages/kestrel/src/authentication/manager.ts",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 294
+        },
+        "start": {
+          "column": 11,
+          "line": 292
+        }
+      },
+      "original": "{\n    return false;\n  }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "classification": "uncovered decoder error handler; observationally equivalent fallback",
+      "proof": "For primitive string inputs, Buffer.from(token, base64url) tolerates malformed encoding and does not take this catch in normal supported operation. If an exceptional decoder failure occurs, emptying the catch returns undefined instead of false; the sole consumer negates the result, so both reject before storage access."
+    },
+    {
+      "sampleId": "125",
+      "file": "src/packages/kestrel/src/authentication/manager.ts",
+      "location": {
+        "end": {
+          "column": 17,
+          "line": 293
+        },
+        "start": {
+          "column": 12,
+          "line": 293
+        }
+      },
+      "original": "false",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "true",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "classification": "uncovered defensive branch outside ordinary string decoding",
+      "proof": "The token API accepts primitive strings; invalid base64url characters are tolerated by Buffer.from and then rejected by length/canonicalization. A decode throw requires unsupported runtime argument types, a replaced global decoder or an exceptional runtime/resource failure. Returning true would differ on such a throw, so this mutant is not classified equivalent. No global decoder fault is mocked merely to improve the score. Revisit if resolve accepts unknown inputs or the decoder contract changes."
+    },
+    {
+      "sampleId": "42",
+      "file": "src/packages/kestrel/src/authentication/manager.ts",
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 159
+        },
+        "start": {
+          "column": 9,
+          "line": 159
+        }
+      },
+      "original": "combinedResolution?.account",
+      "mutatorName": "OptionalChaining",
+      "replacement": "combinedResolution.account",
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "equivalent under current snapshot control flow",
+      "proof": "The combined branch is reached only after isSessionActive(session, now) succeeds. A defined session obtained from combinedResolution?.session implies a defined combinedResolution. The separate-store branch does not evaluate combinedResolution.account. Removing only this optional chain cannot change the public result for a conforming snapshot."
+    },
+    {
+      "sampleId": "74",
+      "file": "src/packages/kestrel/src/authentication/manager.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 210
+        },
+        "start": {
+          "column": 26,
+          "line": 208
+        }
+      },
+      "original": "{\n      return undefined;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "equivalent under the Zod safeParse failure contract",
+      "proof": "Emptying the rejection block is the same fallthrough as mutant 73: undefined data is rejected by assertClaimsSize and caught. The schema-invalid persisted-claims test executes this block and still returns anonymous access."
+    },
+    {
+      "sampleId": "73",
+      "file": "src/packages/kestrel/src/authentication/manager.ts",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 208
+        },
+        "start": {
+          "column": 9,
+          "line": 208
+        }
+      },
+      "original": "!result.success",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 16,
+      "classification": "equivalent under the Zod safeParse failure contract",
+      "proof": "A failed safeParseAsync result has no data property. Without the early rejection, assertClaimsSize(undefined) throws because JSON.stringify(undefined) is undefined. The existing catch still returns undefined. No storage read/write or callback is added on that fallback path."
+    },
+    {
+      "sampleId": "77",
+      "file": "src/packages/kestrel/src/authentication/manager.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 217
+        },
+        "start": {
+          "column": 13,
+          "line": 215
+        }
+      },
+      "original": "{\n      return undefined;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "equivalent implicit undefined return",
+      "proof": "The catch is the last block of parseClaims. Removing its explicit return undefined makes the async function fall through to the same resolved undefined. The oversized persisted-claims test executes this catch."
+    }
+  ],
+  "reviewAgainWhen": "Re-review after manager control flow, Zod failure result shape, JSON claims handling, store snapshot contract, token input type or Node Buffer decoding changes. Exceptional decoder failures remain outside this behavioral assessment."
+}

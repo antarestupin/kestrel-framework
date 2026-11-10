@@ -99,6 +99,96 @@ These classifications apply under the recorded lifecycle invariants, not arbitra
 
 The initial review baseline is archived under `artifacts/mutation/shutdown-before-review/`. Current reports remain under `artifacts/mutation/shutdown/`, with `review-comparison.json` for site transitions and `classification.json` for the residuals. Validation passes all 1,703 regular tests and the build. The inventory marks the shutdown evidence reviewed; the parent `app` lot remains partial. Mutation of `App.start` itself, `ApplicationShutdown`, process terminal policy and other application modules is outside this particular scope, even though some of their contracts are exercised by these regression tests.
 
+## Authentication account and session review
+
+On November 10, 2026, `npm run test:mutation:authentication-sessions` assessed the entire `authentication/manager.ts` file, including proof completion, session resolution, revocation, principal construction, claims validation, canonical token validation and renewal/expiration helpers. Both reference and final runs were fresh, used two workers, retained static/hybrid activation and had a ten-minute budget including baseline tests. Neither reached the deadline. Adapter implementations, password mechanisms, proof construction and HTTP are dependencies rather than mutated sources in this lot.
+
+The new `manager_contract.test.ts` adds 31 deterministic, memory-only public-contract cases. They cover disabling an account after proof creation and session issuance, missing accounts/subjects, security-version invalidation in separate and combined lookups, snapshot ownership, account-isolated revocation with count/reason/time, canonical tokens before storage access, valid UTF-8 claims at and beyond the byte limit, schema-invalid or oversized persisted claims, non-serializable claims, touch coalescing and its exact boundary, capped renewal, revocation racing with touch, and idle/absolute expiry boundaries. Rejection cases assert no session creation or renewal where appropriate. No production code changed and no HTTP listener is started.
+
+The absolute-expiry cases deliberately keep idle expiry later and remain below the touch interval. `CreateStoredSession` accepts independent deadlines: memory creation, PostgreSQL insertion and the session table do not require idle expiry to precede absolute expiry. Sessions imported through that public contract must still respect their hard deadline. This distinguishes the manager's absolute check without private-state modification or a conditional-touch rejection masking the result. The tests therefore demonstrate a missing distinction, rather than assuming that the absolute check is redundant because manager-issued sessions normally have capped idle deadlines.
+
+| Result | Before | After review |
+| --- | --- | --- |
+| Mutants | 146 | 146 |
+| Killed | 93 | 140 |
+| Survived | 41 | 4 |
+| NoCoverage | 12 | 2 |
+| Timeout / errors | 0 / 0 | 0 / 0 |
+| Raw / covered score | 63.70% / 69.40% | 95.89% / 97.22% |
+| Baseline tests | 38 | 69 |
+| Stryker elapsed | 37 seconds | 35 seconds |
+
+All 146 file/location/operator/replacement fingerprints and production source contents match exactly between these reports. Every original kill remains killed; 39 former survivors and eight formerly uncovered mutants are now killed. Two former survivors remain equivalent survivors, two formerly uncovered paths are now executed equivalent survivors, and the two decoder-catch mutations remain uncovered. All executed mutants completed at least one test; no kill relies on a Vitest timeout. An intermediate 28-case run recorded 138 Killed, 6 Survived and 2 NoCoverage in 36 seconds; the final three absolute-deadline cases kill the last two material survivors. These local timings are observations rather than a performance benchmark; the intermediate run overlapped the build.
+
+The [durable classification](./mutation_testing_authentication_sessions_classification.json) includes exact fingerprints, report/input hashes, transitions and re-review conditions:
+
+| Sample ID | Status | Classification |
+| --- | --- | --- |
+| 42 | Survived | Removing `combinedResolution?.account`'s optional chain is equivalent: this branch follows an active session obtained from the same defined snapshot. |
+| 73, 74 | Survived | Removing the failed-schema early return is equivalent with the current Zod result contract: absent `data` reaches `assertClaimsSize(undefined)`, which throws and is caught, still returning anonymous access. |
+| 77 | Survived | Removing the final catch's explicit `return undefined` leaves the same implicit async return. |
+| 124 | NoCoverage | Emptying the token-decoder catch returns `undefined` rather than `false`; its sole negated consumer still refuses the token. The catch is not reached by ordinary primitive-string decoding. |
+| 125 | NoCoverage | Returning `true` from that catch would change exceptional failure behavior, so this is **not equivalent**. Ordinary primitive strings, including malformed base64url, do not trigger a decoder exception. Unsupported runtime argument types and exceptional decoder/resource failures remain outside this assessment. |
+
+Keep the four survivors and both uncovered statuses visible. No decoder mock, unsupported argument cast, ignore directive, adjusted score or blocking threshold is added to normalize the report. Re-review after changes to the manager's control flow, Zod failure shape, claims encoding, snapshot contract, token input type or Node decoder. Deliberate decoder fault injection and a possible runtime `unknown`-input contract are deferred; this result does not establish behavior for those cases.
+
+Before reports and hashes are archived under `artifacts/mutation/authentication-sessions-before-tests/`; final reports, `review-comparison.json` and `classification.json` live under `artifacts/mutation/authentication-sessions/`. Validation passes 1,734 ordinary tests, framework typechecking and the build. The inventory records this manager sublot as reviewed with its limitation; the authentication component remains partial. The password verification and positive `allOf` cases were subsequently assessed in the [security and coordination follow-up](#security-and-coordination-follow-up). Adapter contracts, HTTP and other authentication modules still require their own assessments.
+
+## Security and coordination follow-up
+
+On November 10, 2026, five bounded profiles assessed the four planned workstreams: authorization decisions, password verification, PostgreSQL ownership operations, and coordination (split into leased throttling inspection and lock batch renewal). Each profile has its own reports/cache and a ten-minute budget including baseline tests. All reference/final runs were fresh, retained static activation, completed below that budget and cleaned their run-owned databases. Scores remain informational with no exclusions or blocking gate.
+
+| Profile | Before Killed / Survived / NoCoverage | After Killed / Survived / NoCoverage | Raw score before → after | Seconds before → after | Baseline tests before → after |
+| --- | --- | --- | --- | --- | --- |
+| `authorization-decisions` | 31 / 2 / 0 | 33 / 0 / 0 | 93.94% → 100% | 11 → 11 | 9 → 13 |
+| `password-verification` | 150 / 69 / 12 | 210 / 20 / 1 | 64.94% → 90.91% | 29 → 36 | 40 → 84 |
+| `postgres-ownership` | 0 / 14 / 0 | 14 / 0 / 0 | 0% → 100% | 13 → 7 | 400 → 405 |
+| `throttling-inspection` | 0 / 47 / 0 | 46 / 1 / 0 | 0% → 97.87% | 31 → 7 | 326 → 341 |
+| `lock-renewal` | 31 / 19 / 27 | 72 / 2 / 3 | 40.26% → 93.51% | 16 → 8 | 132 → 142 |
+
+These are selected-scope results, not framework or whole-component scores. All 402 file/location/operator/replacement fingerprints and production file contents match between reference and final reports. Every original kill remains killed, and every executed final mutant completes at least one test. There are no Stryker Timeout, compilation-error or runtime-error statuses. Some baseline tests are related across components; their counts should not be summed or interpreted as exactly the added cases. Timings are local observations, not a controlled performance benchmark. Intermediate runs overlapped small targeted checks; the final lock test improvement explains its shorter duration.
+
+### Tests and observed behavior
+
+The initial changes add 71 cases and strengthen one existing lock test; the native-error follow-up below adds three more cases. No production implementation changed and **no production bug was demonstrated**: the new tests distinguish previously undetected mutations from behavior that was already correct.
+
+- **Authorization:** four cases cover fully granted `allOf` through both `check` and `require`, nested conjunction/disjunction, denial reasons, immutable decision identity and private permission snapshots. Both original material survivors are killed. Scope: the entire `authorization/manager.ts` file; requirement builders, provider/scoped stores and middleware implementations are not mutated.
+- **Passwords:** 37 cases use real correct-password hashes at and immediately above five small verification budgets, verify matching/wrong/absent pepper, reject missing encoding anchors, validate generation settings and memory/lane boundaries, exercise native-valid hashes below Kestrel salt/tag minimums, and check reusable dummy hashes. Scope: the entire Argon2id hasher file. Small native costs keep the fixtures bounded; no production dependency or crypto mock is introduced.
+- **PostgreSQL ownership:** five cases exercise activity retry dates, reservation clearing, stale/cross-task tokens, non-activity rejection and isolated server-clock lease extension. Scope: only workflow `retryTask` and scheduled-task `extendLease`. [Direct predicate assertions](./mutation_testing_postgres_ownership.md) supplement syntax-tree mutation: killing SQL literal mutations does not systematically challenge SQL/Lua semantics.
+- **Throttling:** 15 cases cover authoritative reconciliation, unavailable capabilities/failures, local/exact mixed ordering, exact inspection on the same key as a warm local grant, advisory non-consumption, expired/exhausted leases, fractional inclusive tolerance, incomplete results and inspection after close. Scope: only leased `reconcile`/`inspectMany`; their unmodified helpers remain dependencies.
+- **Locks:** ten cases cover rejected/incomplete/extra/mismatched/reordered extension batches, per-handle outcomes, ownership loss, publication of renewed leases, handler cancellation, cleanup and settlement of every fallback operation. Scope: only `extendMany` and `validateExtensionBatch`. An existing fallback test now releases its handler independently and asserts cancellation/error propagation, replacing four timeout-driven detections with direct assertions. Other acquisition/heartbeat/handle/adapter implementations are not mutated.
+
+### Residuals and observation limits
+
+The [comparison record](./mutation_testing_security_coordination_classification.json) contains input/report hashes and per-lot transitions. [Password classifications](./mutation_testing_password_verification_classification.json) and [lock classifications](./mutation_testing_lock_renewal_classification.json) retain exact expressions and re-review conditions. Numeric IDs below describe this report and are not stable identifiers.
+
+- **Authorization and PostgreSQL:** no residual mutants in these declared scopes. Parent components remain partially assessed.
+- **Throttling:** one survivor (ID 9) removes initial array preallocation. For ordinary dense request batches, all output indexes are filled locally or after a checked authoritative result count, so this does not change returned results. Sparse arrays/custom iteration and allocation-failure behavior are outside that classification. No capacity/performance guarantee is asserted.
+- **Locks:** two survivors are equivalent under the current control flow and original manager-produced-handle composition: `errors.length > 1` after an earlier single-error throw, and the internal-handle type check. Three uncovered mutations concern the dormant unsupported-handle rejection/diagnostic and an impossible-success diagnostic after `completeExtension(undefined)` always throws. Substituted/custom handles are outside the assessment; these dormant guards are not all unconditional equivalents. The final report has zero timeout-driven kills.
+- **Passwords:** the initial 24 residuals comprised 10 semantic equivalents, six bounded-work distinctions, five unconstrained literals (four diagnostic messages and the private dummy password), and three native callback-failure mutations. The latter three are now killed by the [native-error follow-up](#argon2id-native-error-propagation). The bounded-work distinctions preserve accept/reject outcomes but may decode or validate more before rejecting; the overall encoded-size cap still applies. They are **not** strict work equivalences. The initial callback-failure limitation has been closed with controlled module-level fault injection, without inducing resource exhaustion or changing production code.
+
+Four final password `Killed` outcomes (IDs 75, 83, 89, 90) rely on Vitest's five-second deadline: the mutation leaves a derivation promise pending. They detect lost progress, not a particular value assertion, and are recorded separately from Stryker Timeout statuses. No timeout-driven kill remains in the other four profiles. Do not present all password kills as assertion detections or all residuals as equivalents.
+
+All residual statuses remain visible, with no ignores or adjusted 100% score. Re-review after changes to the recorded source/test/configuration inputs and the native crypto, optional-secret, encoded-length or manager-handle contracts. The inventory now records nine partial primary components and 24 not-assessed components; this work does not certify the rest of any touched component. Validation passes 1,805 ordinary tests, framework typechecking, the framework/playground build and the Stryker infrastructure checks. An initial ordinary-suite attempt overlapped the build and temporarily lost generated playground imports; the sequential rerun passed.
+
+### Argon2id native error propagation
+
+The fresh profile completed in 36 seconds, below its ten-minute budget including the baseline, with no Stryker timeout or runtime/compilation error. Its timing overlapped the ordinary test suite and is not a performance comparison. The follow-up adds three cases in `native_errors.test.ts`, covering `hash`, `verify` and `getDummyHash`. Each uses a valid real hash, loads a fresh hasher through Vitest with only its `node:crypto` import mocked, and delivers a native callback failure asynchronously. After draining the injected callback and promise continuations through one event-loop turn, it asserts that the operation has settled with the exact original error. Missing rejection is an immediate failed settlement assertion, not a five-second test timeout. `finally` removes the mock and resets the module cache; a fresh import then performs a real hash/verification round trip. Node's crypto globals are not modified, and the ordinary suite verifies `--no-isolate` compatibility.
+
+The archived pre-follow-up report is `artifacts/mutation/password-verification-before-native-errors/mutation.json`. The fresh complete profile keeps the same 231 mutation fingerprints and unchanged production file. It moves the error-condition mutant (85) from Survived to Killed and the omitted rejection block/call (87, 88) from NoCoverage to Killed. All three are killed by direct assertions in the new test file. Every previous kill is preserved; no other status changes.
+
+| Result | Before native-error cases | After |
+| --- | --- | --- |
+| Killed | 207 | 210 |
+| Survived | 21 | 20 |
+| NoCoverage | 3 | 1 |
+| Raw / covered score | 89.61% / 90.79% | 90.91% / 91.30% |
+| Baseline tests | 81 | 84 |
+
+The remaining 21 mutations comprise ten equivalents, six bounded-work distinctions and five unconstrained literals. The only NoCoverage mutation is the decoded-length rejection block already bounded by the encoded-field guards. Four unrelated success-path promise mutations still rely on Vitest progress timeouts; the new three failure-path kills do not. No ignored mutation, score adjustment or blocking gate is introduced.
+
+No production bug was demonstrated: the current implementation already preserved native errors. Only tests and evidence changed. Validation passes 1,808 ordinary tests, framework typechecking and the framework/playground build. The dedicated classification and inventory record the current results and exact report/input hashes. The bounded-work observations remain outside output-only assertions; the callback-error propagation limitation is resolved.
+
 ## Historical execution and interpretation
 
 The first full-scope attempts exposed two execution constraints: cumulative coverage metadata can exhaust a non-isolated runner's heap, and repeated runner startup dominates many small mutation runs. Deterministic projects containing at most six non-isolated test files were an intermediate workaround that passed the complete instrumented baseline. Their checkpoints remain historical observations.
@@ -127,6 +217,8 @@ The resumed unmodified baseline passed all 1,633 tests in 19 seconds at 21:07:47
 
 ## Highest-priority behavioral gaps
 
+**Historical observations:** shutdown, account/session management and the four security/coordination follow-ups now have reviewed selected-scope evidence above. The descriptions below explain the original findings; use the inventory and current follow-up sections for remaining scope and limitations.
+
 ### Application shutdown and concurrent stop
 
 Several mutations remove ordinary failure collection from shutdown phases in `app/app.ts`, or let a second `stop()` caller return before the existing stop promise settles. Existing deadline tests do not distinguish every ordinary rejection because the deadline coordinator retains its own error separately.
@@ -137,25 +229,27 @@ Add ordinary rejection tests for each phase, asserting cause preservation, conti
 
 ### Authentication account state and positive authorization
 
+**Manager follow-up completed:** the [account/session review](#authentication-account-and-session-review) now covers disabled accounts and account-wide revocation. The [security and coordination follow-up](#security-and-coordination-follow-up) also covers the password-verification and authorization cases. The observations below explain the original gaps, not current pending tasks.
+
 Mutations of `authentication/manager.ts` can remove the active-account check when completing trusted proof or resolving an existing session. Independent public-API probes confirm that the current implementation refuses a disabled account, while the exact mutations create a session or authenticate the old session. Add account invalidation between proof creation and completion, and disable an account after issuing a valid session. Assert refusal and absence of a new session write.
 
-The `allOf` authorization branch also needs a positive case with every required permission granted. An exact mutation rejecting this branch survives the current tests, while an independent probe distinguishes it from the correct implementation. Keep denial cases, and assert both successful evaluation and successful enforcement for the fully granted case.
+The original `allOf` authorization tests lacked a positive case with every required permission granted. An exact mutation rejecting this branch survived those tests. The follow-up now asserts successful evaluation and enforcement alongside denial cases and kills this mutation.
 
 Account-wide revocation is uncovered at the manager boundary. Test two sessions for one account and a session for another, checking account isolation, returned count, supplied reason and clock value. Claims-size tests should use valid variable-sized UTF-8 data at and immediately beyond the byte limit, rather than relying on schema-invalid values to reject before the size check.
 
-Argon2id verification limits need stronger fixtures. The five parameter-budget cases use nonmatching zero-filled tags, so a mutant can perform the otherwise forbidden derivation and still return false for the password; `needsRehash()` also remains true because the stored parameters differ. Generate valid hashes just above small configured verification limits and verify rejection with the correct password, alongside checks that expensive derivation is avoided. The encoded-length limit already has a valid-hash fixture. Separately test that a peppered hash verifies only with the configured pepper: the current hasher tests do not exercise pepper propagation. These are missing regression distinctions, not observed violations in the current implementation.
+The original Argon2id parameter-budget cases used nonmatching zero-filled tags, so bypassing a resource guard could still return false for the password. The follow-up now uses valid hashes at and above small limits and exercises pepper propagation. Bounded-work distinctions and native callback fault handling remain separately classified; the added fixtures do not establish all resource-failure behavior.
 
 ### Database-backed ownership and lease operations
 
-`workflows/adapters/postgres/adapter.ts` has no observed coverage for `retryTask()`, although `retryExecution()` is exercised. Add an activity reservation with a current token, verify the future availability time and cleared reservation, and verify rejection for stale tokens and non-activity tasks.
+The historical campaign lacked observed `retryTask()` coverage while exercising `retryExecution()`. The selected PostgreSQL follow-up now verifies the future availability time, cleared reservation and rejection of stale/cross-task tokens and non-activity tasks.
 
-`scheduled_tasks/adapters/postgres/adapter.ts` has no observed coverage for `extendLease()`. Verify that the expiration advances only for the matching task and reservation token, that stale reservations return false, and that another reservation remains unchanged. These operations directly support scheduler ownership and deserve tests ahead of cosmetic survivors.
+The historical campaign also lacked observed `extendLease()` coverage. The follow-up now verifies server-clock expiration, matching task/token ownership and preservation of unrelated reservations. Other scheduler ownership operations remain outside that scope.
 
 ### Leased throttling and partial lock failures
 
-The leased throttling adapter's `reconcile()` forwarding and `inspectMany()` paths are uncovered. Cover mixed exact/leased requests and result order, a locally available lease, expired or exhausted leases falling back to authoritative inspection, the fractional-cost boundary, unsupported capabilities and incomplete authoritative results. Verify reconciliation arguments and the returned authoritative result.
+The original leased throttling inspection/reconciliation gaps are covered by the focused follow-up above, including mixed exact/leased ordering, warm-key exact requests, local capacity, expiry/exhaustion, fractional tolerance, unsupported capabilities and authoritative results. Other lease admission and lifecycle operations remain outside that mutation scope.
 
-The lock manager's batch-extension failure paths need backend rejection and malformed/incomplete-result cases. Assertions should show that all pending attempts settle, affected handlers receive cancellation and owned resources are released. Testing only a successful extension leaves compensation behavior unconstrained.
+The original lock batch-extension failure gaps are now covered by backend rejection, malformed/incomplete results, settlement, cancellation and release assertions. The final assessment retains the documented handle-composition limitation and does not extend to every lock-manager or adapter method.
 
 ## Other useful gaps
 
@@ -178,6 +272,6 @@ Some session-expiration checks overlap valid adapter invariants. Review their ex
 
 The initial coverage pass reports 10,144 uncovered mutations. Studio accounts for 3,591 and Atlas for 1,967, together 5,558 (54.8%) of that volume. Workflow code contributes 1,195, throttling 697 and scheduled tasks 417. These numbers describe observed coverage gaps in this source scope; they are not a risk ranking and may change when test infrastructure or instrumentation changes.
 
-First add the confirmed shutdown and authentication/authorization scenarios, including password-verification budgets, then the database-backed retry/lease and coordination failure cases. Follow with faithful CRUD fakes and boundary tests. Treat browser interaction coverage and subprocess instrumentation as explicit workstreams: adding Node assertions alone cannot necessarily close those observation gaps. Pure collection, routing and API-response helpers can already receive focused Node tests. Keep every source component visible while investigating them.
+Shutdown, account/session management and the four security/coordination follow-ups now have reviewed selected-scope evidence above. Keep the documented residual limitations visible, then continue with the remaining adapter operations, faithful CRUD fakes and boundary cases below. Follow with faithful CRUD fakes and boundary tests. Treat browser interaction coverage and subprocess instrumentation as explicit workstreams: adding Node assertions alone cannot necessarily close those observation gaps. Pure collection, routing and API-response helpers can already receive focused Node tests. Keep every source component visible while investigating them.
 
 There is no blocking mutation-score threshold. A meaningful future gate needs a completed reproducible campaign, separate review of static initialization errors and timeouts, and classification of material survivors. The original adapter/circuit pilot score is not comparable to this expanded scope. Pending work includes a complete fresh campaign under the optimized runner and guarded worker isolation, broader runtime measurements, subprocess coverage, browser interactions and TypeScript-checker compatibility. Do not merge historical checkpoint statuses into that fresh result merely because source mutations still have matching identifiers.

@@ -1,4 +1,4 @@
-import { shutdownPatterns, staticSamplePatterns } from "./scripts/testing/mutation-profile.mjs";
+import { focusedPatterns, shutdownPatterns, staticSamplePatterns } from "./scripts/testing/mutation-profile.mjs";
 
 const mode = process.env.KESTREL_MUTATION_MODE ?? "full";
 const component = process.env.KESTREL_MUTATION_COMPONENT;
@@ -15,8 +15,10 @@ export default {
   // Generated output is unnecessary for source-only suites and can change during builds.
   ignorePatterns: ["**/dist/**", "**/assets/**", "artifacts/**", "coverage/**", ".git/**"],
   mutate: [
-    ...(mode === "shutdown" ? shutdownPatterns() : mode === "static-sample" ? staticSamplePatterns()
-      : [`src/packages/kestrel/src/${mode === "component" ? `${component}/` : ""}**/*.{ts,tsx}`]),
+    // Keep the accounts/session assessment reproducible, including all manager helpers.
+    ...(focusedPatterns(mode) ?? (mode === "authentication-sessions" ? ["src/packages/kestrel/src/authentication/manager.ts"]
+      : mode === "shutdown" ? shutdownPatterns() : mode === "static-sample" ? staticSamplePatterns()
+      : [`src/packages/kestrel/src/${mode === "component" ? `${component}/` : ""}**/*.{ts,tsx}`])),
     "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
     "!src/packages/kestrel/src/**/*.d.ts",
     // These connection fixtures are repository test infrastructure, not framework behavior.

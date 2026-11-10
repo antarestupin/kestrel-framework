@@ -403,6 +403,51 @@ afterAll(async () => {
 });
 
 describe("PostgresWorkflowAdapter", () => {
+  it("retries only the owned activity and preserves unrelated reservations", async () => {
+    const firstId = "00000000-0000-4000-8000-000000000001";
+    const secondId = "00000000-0000-4000-8000-000000000002";
+    const firstToken = "00000000-0000-4000-8000-000000000011";
+    const secondToken = "00000000-0000-4000-8000-000000000012";
+    const reservedAt = new Date("2026-01-01T00:00:00.000Z");
+    const retryAt = new Date("2035-01-01T00:00:00.000Z");
+    const error = { name: "TransientError", message: "Retry the activity." };
+    // Persist two owned reservations so an omitted ID/token predicate cannot hide behind an empty table.
+    await client.query(`
+      INSERT INTO workflow_task (
+        id, execution_id, kind, attempt, available_at, reserved_at, reservation_token
+      ) VALUES
+        ($1, 'retry-first', 'activity', 3, $3, $3, $4),
+        ($2, 'retry-second', 'activity', 4, $3, $3, $5)
+    `, [firstId, secondId, reservedAt, firstToken, secondToken]);
+    const before = await client.query("SELECT * FROM workflow_task ORDER BY id");
+
+    // A real token belonging to another task must not authorize this task's retry.
+    await expect(adapter.retryTask({ taskId: firstId, reservationToken: secondToken, retryAt, error })).resolves.toBe(false);
+    expect((await client.query("SELECT * FROM workflow_task ORDER BY id")).rows).toEqual(before.rows);
+    await expect(adapter.retryTask({ taskId: firstId, reservationToken: firstToken, retryAt, error })).resolves.toBe(true);
+    const after = await client.query("SELECT * FROM workflow_task ORDER BY id");
+    expect(after.rows).toEqual([
+      { ...before.rows[0], available_at: retryAt, reserved_at: null, reservation_token: null },
+      before.rows[1],
+    ]);
+    // Once ownership is relinquished, the old reservation cannot move the task again.
+    await expect(adapter.retryTask({ taskId: firstId, reservationToken: firstToken, retryAt: reservedAt, error })).resolves.toBe(false);
+    expect((await client.query("SELECT * FROM workflow_task ORDER BY id")).rows).toEqual(after.rows);
+    await expect(adapter.retryTask({ taskId: "00000000-0000-4000-8000-000000000099", reservationToken: secondToken, retryAt, error })).resolves.toBe(false);
+  });
+
+  it.each(["timer", "workflow"])("refuses retryTask for an owned %s reservation", async (kind) => {
+    const taskId = "00000000-0000-4000-8000-000000000001";
+    const reservationToken = "00000000-0000-4000-8000-000000000011";
+    await client.query(`
+      INSERT INTO workflow_task (id, execution_id, kind, reserved_at, reservation_token)
+      VALUES ($1, 'retry-non-activity', $2, now(), $3)
+    `, [taskId, kind, reservationToken]);
+    const before = await client.query("SELECT * FROM workflow_task");
+    await expect(adapter.retryTask({ taskId, reservationToken, retryAt: new Date("2035-01-01T00:00:00.000Z"), error: { name: "TransientError", message: "Retry the activity." } })).resolves.toBe(false);
+    expect((await client.query("SELECT * FROM workflow_task")).rows).toEqual(before.rows);
+  });
+
   it("loads activations with schema-qualified production tables", async () => {
     const schemaAdapter = new PostgresWorkflowAdapter(
       database,
