@@ -151,3 +151,81 @@ describe("pagination action contracts", () => {
     ).toThrow(z.ZodError);
   });
 });
+
+// Configuration defaults must satisfy the same numeric contract as explicit page input.
+describe("numbered pagination configuration regressions", () => {
+  it.each(["defaultPageSize", "maxPageSize"] as const)("rejects unsafe %s configuration", (field) => {
+    const unsafe = Number.MAX_SAFE_INTEGER + 1;
+    expect(() => createPaginationInputSchema({ defaultPageSize: 1, maxPageSize: unsafe, [field]: unsafe })).toThrow(TypeError);
+  });
+});
+
+// Opting into unbounded reads must leave omitted input bounded and explicitly validated.
+describe("numbered pagination boundary contracts", () => {
+  it("keeps a bounded first-page default when all-results reads are enabled", () => {
+    const schema = createPaginationInputSchema({ allowAll: true, defaultPageSize: 7, maxPageSize: 10 });
+    expect(schema.parse(undefined)).toEqual({ type: "page", page: 1, pageSize: 7 });
+    expect(schema.parse({ type: "page" })).toEqual({ type: "page", page: 1, pageSize: 7 });
+    expect(schema.parse({ type: "all" })).toEqual({ type: "all" });
+  });
+
+  for (const field of ["defaultPageSize", "maxPageSize"] as const) {
+    it.each([0, -1, 1.5, NaN, Infinity])(`rejects invalid ${field} %s`, (value) => {
+      expect(() => createPaginationInputSchema({ [field]: value })).toThrow(TypeError);
+    });
+  }
+
+  it("accepts equal one-item bounds and the largest safe numbered size", () => {
+    const smallest = createPaginationInputSchema({ defaultPageSize: 1, maxPageSize: 1 });
+    expect(smallest.parse(undefined)).toEqual({ type: "page", page: 1, pageSize: 1 });
+    const largest = createPaginationInputSchema({ defaultPageSize: Number.MAX_SAFE_INTEGER, maxPageSize: Number.MAX_SAFE_INTEGER });
+    expect(largest.parse(undefined)).toEqual({ type: "page", page: 1, pageSize: Number.MAX_SAFE_INTEGER });
+    expect(largest.parse({ type: "page", pageSize: Number.MAX_SAFE_INTEGER }).pageSize).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("rejects a configured default larger than its maximum", () => {
+    expect(() => createPaginationInputSchema({ defaultPageSize: 11, maxPageSize: 10 })).toThrow(TypeError);
+  });
+
+  it("accepts the inclusive maximum and rejects invalid explicit page values", () => {
+    const schema = createPaginationInputSchema({ defaultPageSize: 3, maxPageSize: 10 });
+    expect(schema.parse({ type: "page", page: 1, pageSize: 10 })).toEqual({ type: "page", page: 1, pageSize: 10 });
+    for (const value of [0, -1, 1.5, NaN, Infinity, "2"]) {
+      expect(schema.safeParse({ type: "page", page: value, pageSize: 3 }).success).toBe(false);
+      expect(schema.safeParse({ type: "page", page: 1, pageSize: value }).success).toBe(false);
+    }
+    expect(schema.safeParse({ type: "page", pageSize: 11 }).success).toBe(false);
+  });
+
+  it("rejects invalid controller page fields while accepting the one-item boundary", () => {
+    expect(paginationControllerInputSchema.parse({ page: "1", pageSize: "1" })).toEqual({ page: 1, pageSize: 1 });
+    for (const value of ["0", "-1", "1.5", "no", ""]) {
+      expect(paginationControllerInputSchema.safeParse({ page: value }).success).toBe(false);
+      expect(paginationControllerInputSchema.safeParse({ pageSize: value }).success).toBe(false);
+    }
+    expect(paginationControllerInputSchema.safeParse({ pageSize: "101" }).success).toBe(false);
+  });
+
+  it("validates numbered output metadata and every item", () => {
+    const schema = createPaginatedOutputSchema(z.string());
+    const result = { items: ["first"], pageInfo: { type: "page", page: 1, pageSize: 1, hasNextPage: false } };
+    expect(schema.parse(result)).toEqual(result);
+    expect(schema.safeParse({ ...result, items: [1] }).success).toBe(false);
+    for (const pageInfo of [
+      { ...result.pageInfo, page: 0 }, { ...result.pageInfo, pageSize: 0 },
+      { ...result.pageInfo, page: 1.5 }, { ...result.pageInfo, pageSize: 1.5 },
+      { ...result.pageInfo, hasNextPage: "false" },
+    ]) expect(schema.safeParse({ ...result, pageInfo }).success).toBe(false);
+  });
+
+  it("removes transport-only fields while preserving passthrough action filters", async () => {
+    const source = z.object({ category: z.string(), pagination: createPaginationInputSchema() }).passthrough();
+    const action = defineAction({ name: "record.filtered", input: source, output: source, handler: (value) => value }).derive(mapPaginationInput);
+    const app = new App({});
+    try {
+      expect(await app.get(action).run({ category: "selected", page: "2", pageSize: "3", customFilter: "retained" })).toStrictEqual({
+        category: "selected", customFilter: "retained", pagination: { type: "page", page: 2, pageSize: 3 },
+      });
+    } finally { await app.dispose(); }
+  });
+});

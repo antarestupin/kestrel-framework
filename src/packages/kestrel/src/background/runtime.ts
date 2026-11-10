@@ -64,7 +64,9 @@ export class BackgroundRuntime<Config> {
         return completions.length === 0 ? undefined : Promise.race(completions);
       },
       stop: async () => {
-        const results = await Promise.allSettled([...started].reverse().map((runtime) => runtime.stop()));
+        // Convert synchronous callback failures into rejections before settling
+        // the complete drain set, so one callback cannot skip later peers.
+        const results = await Promise.allSettled([...started].reverse().map((runtime) => Promise.resolve().then(() => runtime.stop())));
         const failures = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
         if (failures.length > 0) throw new AggregateError(failures, "Background workload shutdown failed.");
       },

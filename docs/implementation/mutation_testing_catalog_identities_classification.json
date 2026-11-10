@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Only the cliControllers and workers DefinitionCatalogRegistry initializer objects in app/catalog.ts, including getIdentity and identityName. Other catalog traversal/projection code and DefinitionCatalogRegistry are unmutated dependencies.",
+  "command": "npm run test:mutation:catalog-identities",
+  "budgetMs": 600000,
+  "report": "artifacts/mutation/catalog-identities/mutation.json",
+  "beforeReport": "artifacts/mutation/catalog-identities-before-tests/mutation.json",
+  "scopeMutants": 6,
+  "counts": {
+    "Killed": 4,
+    "Survived": 2
+  },
+  "beforeCounts": {
+    "Survived": 6
+  },
+  "seconds": {
+    "before": 15,
+    "after": 13
+  },
+  "baselineTests": {
+    "before": 784,
+    "after": 788
+  },
+  "newTestCases": 4,
+  "productionChanges": false,
+  "bugsFound": false,
+  "review": "complete with unconstrained diagnostic label residuals",
+  "sameProductionSource": true,
+  "sameMutationFingerprints": true,
+  "allPriorKillsPreserved": true,
+  "allExecutedMutantsCompletedTests": true,
+  "vitestTimeoutKills": 0,
+  "protectionOnlyKills": 0,
+  "sourceAndTestHashes": {
+    "src/packages/kestrel/src/app/catalog.ts": "6ce1bb592f3c4b4b02211e5bb584cb4583c99c952cf7982b77438b45557b40a7",
+    "src/packages/kestrel/src/app/catalog_identities.test.ts": "3cea743a2c71c1b1bdc46f705ecab51b801fe8aac5e3c5370198310af04fc752",
+    "src/packages/kestrel/src/definitions/catalog_registry.ts": "37c0843c52f0d18ab3e0c208d8be7fc52495af66b3f5bdb26275d7711f4894ed"
+  },
+  "reportHashes": {
+    "artifacts/mutation/catalog-identities-before-tests/mutation.json": "ae45c020d36bc896cc802a1ebf4b8c5e3a12533e211e91b26bb5d65bdb349d87",
+    "artifacts/mutation/catalog-identities/mutation.json": "f96665568cf431435b87c9fb5d1f11dc30d24fba4adc7351ad0ebcd9d0814e66"
+  },
+  "transitions": [
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 4
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 2
+    }
+  ],
+  "remaining": [
+    {
+      "sampleId": "2",
+      "file": "src/packages/kestrel/src/app/catalog.ts",
+      "location": {
+        "end": {
+          "column": 35,
+          "line": 157
+        },
+        "start": {
+          "column": 19,
+          "line": 157
+        }
+      },
+      "original": "\"CLI controller\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 392,
+      "classification": "unconstrained category label in duplicate-identity diagnostic",
+      "reason": "The registry still computes the same runtime command/queue identity, refuses duplicate definitions with TypeError before replacing an existing registration, and accepts distinct identities. Only the human-readable category label in the duplicate-identity error becomes empty. This is an observable text change, not strict equivalence, but exact category wording is not a documented stable API contract. Tests intentionally assert rejection and preserved registry state rather than pinning that label for the score.",
+      "reviewAgainWhen": "A stable category-labelled diagnostic contract is introduced or runtime identity selection/registry composition changes."
+    },
+    {
+      "sampleId": "5",
+      "file": "src/packages/kestrel/src/app/catalog.ts",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 162
+        },
+        "start": {
+          "column": 19,
+          "line": 162
+        }
+      },
+      "original": "\"Worker queue\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 392,
+      "classification": "unconstrained category label in duplicate-identity diagnostic",
+      "reason": "The registry still computes the same runtime command/queue identity, refuses duplicate definitions with TypeError before replacing an existing registration, and accepts distinct identities. Only the human-readable category label in the duplicate-identity error becomes empty. This is an observable text change, not strict equivalence, but exact category wording is not a documented stable API contract. Tests intentionally assert rejection and preserved registry state rather than pinning that label for the score.",
+      "reviewAgainWhen": "A stable category-labelled diagnostic contract is introduced or runtime identity selection/registry composition changes."
+    }
+  ],
+  "scorePolicy": "Keep both StringLiteral survivors visible; raw and covered score remains 66.67%. No ignores, adjusted score, or blocking gate. Rejection, identity selection and retained registry state are tested; exact category text is unconstrained.",
+  "limitations": "A rejected single-definition contribution preserves its prior registry state; these tests do not promise atomic rollback of an arbitrary multi-definition contribution. Full AppCatalog traversal, projections, DefinitionCatalogRegistry and app lifecycle are outside this selected mutation scope."
+}

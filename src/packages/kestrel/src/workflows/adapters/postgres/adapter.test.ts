@@ -29,6 +29,8 @@ import type {
 import { createPostgresTestPool } from "../../../testing/postgres.js";
 import {
   WorkflowConcurrencyConflictError,
+  WorkflowExecutionConflictError,
+  WorkflowExecutionNotFoundError,
   WorkflowJournalConflictError,
 } from "../../errors.js";
 import type { WorkflowExecutionError } from "../../errors.js";
@@ -403,6 +405,407 @@ afterAll(async () => {
 });
 
 describe("PostgresWorkflowAdapter", () => {
+  it("wakes a resumed waiting root after its previous activation was consumed", async () => {
+    await adapter.start(startRequest("resume-waiting"));
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(task), executionId: "resume-waiting", expectedRevision: 0, commands: [], outcome: { status: "waiting" } });
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["resume-waiting"])).rows).toEqual([]);
+    await adapter.setPaused("resume-waiting", true);
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["resume-waiting"])).rows).toEqual([]);
+    expect(await adapter.setPaused("resume-waiting", false)).toBe(true);
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["resume-waiting"])).rows).toMatchObject([{ kind: "workflow" }]);
+  });
+
+  it("keeps parent completion order and root identity when terminating a child with descendants", async () => {
+    await adapter.start(startRequest("ordered-parent"));
+    const parent = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(parent), executionId: "ordered-parent", expectedRevision: 0,
+      commands: [{ kind: "child", sequence: 0, target: "child.run", payload: { version: 1, input: null, executionId: "first-child" } }, { kind: "child", sequence: 1, target: "child.run", payload: { version: 1, input: null, executionId: "second-child" } }], outcome: { status: "waiting" } });
+    const children = await adapter.reserveTasks({ kinds: ["workflow"], limit: 10, leaseMs: 1_000 });
+    const first = children.find(({ executionId }) => executionId === "first-child")!;
+    const second = children.find(({ executionId }) => executionId === "second-child")!;
+    await adapter.commitActivation({ ...toRef(first), executionId: "first-child", expectedRevision: 0, commands: [], outcome: { status: "completed", output: { done: true } } });
+    await adapter.commitActivation({ ...toRef(second), executionId: "second-child", expectedRevision: 0,
+      commands: [{ kind: "child", sequence: 0, target: "grandchild.run", payload: { version: 1, input: null, executionId: "grandchild" } }], outcome: { status: "waiting" } });
+    expect(await adapter.forceTerminate("second-child", "ordered operator stop")).toBe(true);
+    const completions = (await adapter.getHistory("ordered-parent")).filter(({ type }) => type === "command-completed");
+    expect(completions).toMatchObject([{ sequence: 0, completionOrder: 0 }, { sequence: 1, completionOrder: 1, error: { name: "WorkflowExecutionTerminatedError", message: 'Child workflow "second-child" was terminated: ordered operator stop' } }]);
+    expect(await adapter.get("ordered-parent")).toMatchObject({ status: "queued", revision: 4 });
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["ordered-parent"])).rows).toMatchObject([{ kind: "workflow" }]);
+    expect((await adapter.get("grandchild"))?.status).toBe("terminated");
+  });
+
+  it("notifies a waiting parent when its capacity-pending child is cancelled", async () => {
+    const concurrency = { keyed: { key: "pending-child-key", limit: 1, conflict: "enqueue" as const, scope: "execution" as const } };
+    await adapter.start({ ...startRequest("child-key-holder"), workflowName: "child.run", concurrency });
+    await adapter.start(startRequest("pending-child-parent"));
+    const tasks = await adapter.reserveTasks({ kinds: ["workflow"], limit: 10, leaseMs: 1_000 });
+    const parent = tasks.find(({ executionId }) => executionId === "pending-child-parent")!;
+    await adapter.commitActivation({ ...toRef(parent), executionId: "pending-child-parent", expectedRevision: 0,
+      commands: [{ kind: "child", sequence: 0, target: "first-child.run", payload: { version: 1, input: null, executionId: "already-completed-child" } }, { kind: "child", sequence: 1, target: "child.run", payload: { version: 1, input: null, executionId: "capacity-pending-child", concurrency } }], outcome: { status: "waiting" } });
+    const firstChild = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(firstChild), executionId: "already-completed-child", expectedRevision: 0, commands: [], outcome: { status: "completed" } });
+    expect((await adapter.get("capacity-pending-child"))?.status).toBe("pending");
+    expect(await adapter.requestCancellation("capacity-pending-child")).toBe(true);
+    expect(await adapter.get("pending-child-parent")).toMatchObject({ status: "queued", revision: 4 });
+    const history = await adapter.getHistory("pending-child-parent");
+    expect(history.at(-1)).toMatchObject({ type: "command-completed", sequence: 1, completionOrder: 1, error: { name: "WorkflowCancellationError", message: 'Child workflow "capacity-pending-child" was cancelled.', details: { executionId: "capacity-pending-child" } } });
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["pending-child-parent"])).rows).toMatchObject([{ kind: "workflow" }]);
+    expect(await adapter.requestCancellation("capacity-pending-child")).toBe(false);
+    expect(await adapter.getHistory("pending-child-parent")).toEqual(history);
+  });
+
+  it("keeps a failed parent immutable when cancellation immediately closes its pending child", async () => {
+    const concurrency = { keyed: { key: "failed-parent-child-key", limit: 1, conflict: "enqueue" as const, scope: "execution" as const } };
+    await adapter.start({ ...startRequest("failed-parent-holder"), workflowName: "child.run", concurrency });
+    await adapter.start(startRequest("failed-pending-parent"));
+    const tasks = await adapter.reserveTasks({ kinds: ["workflow"], limit: 10, leaseMs: 1_000 });
+    const parent = tasks.find(({ executionId }) => executionId === "failed-pending-parent")!;
+    await adapter.commitActivation({ ...toRef(parent), executionId: "failed-pending-parent", expectedRevision: 0,
+      commands: [{ kind: "child", sequence: 0, target: "child.run", payload: { version: 1, input: null, executionId: "failed-parent-pending-child", concurrency } }], outcome: { status: "failed", error: { name: "ParentFailure", message: "failed before child admission" } } });
+    expect(await adapter.get("failed-parent-pending-child")).toMatchObject({ status: "cancelled", cancellationRequested: true });
+    expect(await adapter.get("failed-pending-parent")).toMatchObject({ status: "failed", revision: 1, error: { message: "failed before child admission" } });
+    expect((await adapter.getHistory("failed-pending-parent")).filter(({ type }) => type === "command-completed")).toEqual([]);
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["failed-pending-parent"])).rows).toEqual([]);
+  });
+
+  it("cancels a paused pending root once without admitting it or altering its key holder", async () => {
+    const concurrency = { keyed: { key: "cancel-pending-key", limit: 1, conflict: "enqueue" as const, scope: "execution" as const } };
+    await adapter.start({ ...startRequest("cancel-key-holder"), concurrency });
+    await adapter.start({ ...startRequest("cancel-pending"), concurrency });
+    await adapter.start({ ...startRequest("cancel-pending-peer"), concurrency });
+    await adapter.setPaused("cancel-pending", true);
+    const holder = await adapter.get("cancel-key-holder");
+    const lower = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+    expect(await adapter.requestCancellation("cancel-pending")).toBe(true);
+    const upper = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+    const cancelled = (await adapter.get("cancel-pending"))!;
+    expect(cancelled).toMatchObject({ status: "cancelled", cancellationRequested: true, concurrencyAdmitted: false, revision: 1 });
+    expect(cancelled).not.toHaveProperty("pausedAt");
+    expect(cancelled.completedAt!.getTime()).toBeGreaterThanOrEqual(lower.getTime());
+    expect(cancelled.completedAt!.getTime()).toBeLessThanOrEqual(upper.getTime());
+    const history = await adapter.getHistory("cancel-pending");
+    expect(history).toMatchObject([{ type: "cancellation-requested", eventIndex: 0 }]);
+    expect(await adapter.requestCancellation("cancel-pending")).toBe(false);
+    expect(await adapter.setPaused("cancel-pending", true)).toBe(false);
+    expect(await adapter.forceTerminate("cancel-pending", "different reason")).toBe(false);
+    expect(await adapter.get("cancel-pending")).toEqual(cancelled);
+    expect(await adapter.getHistory("cancel-pending")).toEqual(history);
+    expect(await adapter.get("cancel-key-holder")).toEqual(holder);
+    expect((await adapter.get("cancel-pending-peer"))?.status).toBe("pending");
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["cancel-pending"])).rows).toEqual([]);
+  });
+
+  it("pauses and resumes idempotently while keeping capacity-pending roots without tasks", async () => {
+    const concurrency = { keyed: { key: "paused-key", limit: 1, conflict: "enqueue" as const, scope: "execution" as const } };
+    await adapter.start({ ...startRequest("pause-holder"), concurrency });
+    await adapter.start({ ...startRequest("pause-pending"), concurrency });
+    expect(await adapter.setPaused("pause-holder", true)).toBe(true);
+    const paused = await adapter.get("pause-holder");
+    expect(paused?.pausedAt).toBeInstanceOf(Date);
+    expect(await adapter.setPaused("pause-holder", true)).toBe(false);
+    expect(await adapter.get("pause-holder")).toEqual(paused);
+    expect(await adapter.reserveTasks({ kinds: ["workflow"], limit: 10, leaseMs: 1_000 })).toEqual([]);
+    expect(await adapter.setPaused("pause-holder", false)).toBe(true);
+    const resumed = await adapter.get("pause-holder");
+    expect(resumed).not.toHaveProperty("pausedAt");
+    expect(await adapter.setPaused("pause-holder", false)).toBe(false);
+    expect(await adapter.get("pause-holder")).toEqual(resumed);
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["pause-holder"])).rows).toHaveLength(1);
+    await adapter.setPaused("pause-pending", true);
+    expect(await adapter.setPaused("pause-pending", false)).toBe(true);
+    expect((await adapter.get("pause-pending"))?.status).toBe("pending");
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["pause-pending"])).rows).toEqual([]);
+  });
+
+  it("propagates cooperative cancellation to open children and removes local activity/timer work", async () => {
+    await adapter.start(startRequest("cancel-parent"));
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(task), executionId: "cancel-parent", expectedRevision: 0,
+      commands: [{ kind: "activity", sequence: 0, target: "activity.run", payload: null }, { kind: "timer", sequence: 1, target: "timer", payload: { durationMs: 60_000 } }, { kind: "child", sequence: 2, target: "child.run", payload: { version: 1, input: null, executionId: "cancel-child" } }], outcome: { status: "waiting" },
+    });
+    await adapter.start(startRequest("cancel-unrelated"));
+    const unrelatedTask = (await adapter.reserveTasks({ kinds: ["workflow"], limit: 10, leaseMs: 1_000 })).find(({ executionId }) => executionId === "cancel-unrelated")!;
+    await adapter.commitActivation({ ...toRef(unrelatedTask), executionId: "cancel-unrelated", expectedRevision: 0,
+      commands: [{ kind: "activity", sequence: 0, target: "activity.run", payload: null }, { kind: "timer", sequence: 1, target: "timer", payload: { durationMs: 60_000 } }], outcome: { status: "waiting" } });
+    const unrelated = await adapter.get("cancel-unrelated");
+    const unrelatedTasks = (await client.query("SELECT * FROM workflow_task WHERE execution_id = $1 ORDER BY id", ["cancel-unrelated"])).rows;
+    expect(unrelatedTasks).toHaveLength(2);
+    await adapter.setPaused("cancel-parent", true);
+    await adapter.setPaused("cancel-child", true);
+    expect(await adapter.requestCancellation("cancel-parent")).toBe(true);
+    expect(await adapter.get("cancel-parent")).toMatchObject({ status: "queued", cancellationRequested: true, revision: 4 });
+    expect(await adapter.get("cancel-parent")).not.toHaveProperty("pausedAt");
+    expect(await adapter.get("cancel-child")).toMatchObject({ status: "queued", cancellationRequested: true });
+    expect(await adapter.get("cancel-child")).not.toHaveProperty("pausedAt");
+    const tasks = (await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["cancel-parent"])).rows;
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.kind).toBe("workflow");
+    const history = await adapter.getHistory("cancel-parent");
+    expect(history.at(-1)).toMatchObject({ type: "cancellation-requested", eventIndex: 3 });
+    expect(await adapter.requestCancellation("cancel-parent")).toBe(false);
+    expect(await adapter.getHistory("cancel-parent")).toEqual(history);
+    expect(await adapter.get("cancel-unrelated")).toEqual(unrelated);
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1 ORDER BY id", ["cancel-unrelated"])).rows).toEqual(unrelatedTasks);
+  });
+
+  it("terminates descendants and outbox/local work while admitting the next keyed execution", async () => {
+    const concurrency = { keyed: { key: "terminate-key", limit: 1, conflict: "enqueue" as const, scope: "execution" as const } };
+    await outboxAdapter.start({ ...startRequest("terminate-parent"), concurrency });
+    await outboxAdapter.start({ ...startRequest("terminate-peer"), concurrency });
+    const [task] = await outboxAdapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 });
+    await outboxAdapter.commitActivation({ ...toRef(task!), executionId: "terminate-parent", expectedRevision: 0,
+      commands: [{ kind: "activity", sequence: 0, target: "activity.run", payload: null }, { kind: "timer", sequence: 1, target: "timer", payload: { durationMs: 60_000 } }, { kind: "child", sequence: 2, target: "child.run", payload: { version: 1, input: null, executionId: "terminate-child" } }], outcome: { status: "waiting" },
+    });
+    await adapter.start({ ...startRequest("terminate-unrelated"), workflowName: "other.run" });
+    const unrelated = await adapter.get("terminate-unrelated");
+    await adapter.setPaused("terminate-parent", true);
+    expect((await client.query("SELECT * FROM workflow_dispatch_outbox WHERE execution_id = $1", ["terminate-parent"])).rows).toHaveLength(1);
+    const lower = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+    expect(await adapter.forceTerminate("terminate-parent", "operator stop")).toBe(true);
+    const upper = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+    const terminated = (await adapter.get("terminate-parent"))!;
+    expect(terminated).toMatchObject({ status: "terminated", concurrencyAdmitted: false, error: { name: "WorkflowExecutionTerminatedError", message: "operator stop" } });
+    expect(terminated).not.toHaveProperty("pausedAt");
+    expect(terminated.completedAt!.getTime()).toBeGreaterThanOrEqual(lower.getTime());
+    expect(terminated.completedAt!.getTime()).toBeLessThanOrEqual(upper.getTime());
+    expect(await adapter.get("terminate-child")).toMatchObject({ status: "terminated", concurrencyAdmitted: false, error: { message: "operator stop" } });
+    expect(await adapter.get("terminate-peer")).toMatchObject({ status: "queued", concurrencyAdmitted: true });
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id IN ($1,$2)", ["terminate-parent", "terminate-child"])).rows).toEqual([]);
+    expect((await client.query("SELECT * FROM workflow_dispatch_outbox WHERE execution_id = $1", ["terminate-parent"])).rows).toEqual([]);
+    expect(await adapter.get("terminate-unrelated")).toEqual(unrelated);
+    expect(await adapter.forceTerminate("terminate-parent", "another reason")).toBe(false);
+    expect(await adapter.get("terminate-parent")).toEqual(terminated);
+  });
+
+  it("notifies a waiting parent once when an operator terminates its child", async () => {
+    await adapter.start(startRequest("waiting-parent"));
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(task), executionId: "waiting-parent", expectedRevision: 0,
+      commands: [{ kind: "child", sequence: 0, target: "child.run", payload: { version: 1, input: null, executionId: "terminated-child" } }], outcome: { status: "waiting" },
+    });
+    expect(await adapter.forceTerminate("terminated-child", "child operator stop")).toBe(true);
+    expect(await adapter.get("waiting-parent")).toMatchObject({ status: "queued", revision: 2 });
+    const history = await adapter.getHistory("waiting-parent");
+    expect(history.at(-1)).toMatchObject({ type: "command-completed", eventIndex: 1, sequence: 0, completionOrder: 0, error: { name: "WorkflowExecutionTerminatedError", details: { executionId: "terminated-child" } } });
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["waiting-parent"])).rows).toHaveLength(1);
+    expect(await adapter.forceTerminate("terminated-child", "repeat" )).toBe(false);
+    expect(await adapter.getHistory("waiting-parent")).toEqual(history);
+  });
+
+  it("rejects missing operational roots and preserves completed/failed terminal rows", async () => {
+    await expect(adapter.setPaused("missing-root", true)).rejects.toBeInstanceOf(WorkflowExecutionNotFoundError);
+    await expect(adapter.requestCancellation("missing-root")).rejects.toBeInstanceOf(WorkflowExecutionNotFoundError);
+    await expect(adapter.forceTerminate("missing-root")).rejects.toBeInstanceOf(WorkflowExecutionNotFoundError);
+    for (const status of ["completed", "failed"] as const) {
+      const id = `closed-${status}`;
+      await adapter.start(startRequest(id));
+      const task = await reserveOne("workflow");
+      await adapter.commitActivation({ ...toRef(task), executionId: id, expectedRevision: 0, commands: [], outcome: status === "failed" ? { status, error: { name: "Failure", message: "original" } } : { status, output: { done: true } } });
+      const before = await adapter.get(id);
+      expect(await adapter.setPaused(id, true)).toBe(false);
+      expect(await adapter.requestCancellation(id)).toBe(false);
+      expect(await adapter.forceTerminate(id, "new reason")).toBe(false);
+      expect(await adapter.get(id)).toEqual(before);
+    }
+  });
+
+  it("terminates open descendants even when their failed parent is already terminal", async () => {
+    await adapter.start(startRequest("terminal-parent"));
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(task), executionId: "terminal-parent", expectedRevision: 0,
+      commands: [{ kind: "child", sequence: 0, target: "child.run", payload: { version: 1, input: null, executionId: "open-child" } }],
+      outcome: { status: "failed", error: { name: "ParentFailure", message: "Parent failed before child compensation." } },
+    });
+    const parentBefore = await adapter.get("terminal-parent");
+    expect(await adapter.get("open-child")).toMatchObject({ status: "queued", cancellationRequested: true });
+    // The boolean describes whether the selected root changed; descendants must still be closed.
+    expect(await adapter.forceTerminate("terminal-parent", "operator escalation")).toBe(false);
+    expect(await adapter.get("terminal-parent")).toEqual(parentBefore);
+    expect(await adapter.get("open-child")).toMatchObject({ status: "terminated", error: { name: "WorkflowExecutionTerminatedError", message: "operator escalation" } });
+    expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["open-child"])).rows).toEqual([]);
+  });
+
+  it("rejects missing or nonfailed retry sources, invalid IDs and unrelated reused targets without writes", async () => {
+    const sourceId = "retry-validation-source";
+    await adapter.start(startRequest(sourceId));
+    const before = (await client.query("SELECT * FROM workflow_execution ORDER BY id")).rows;
+    const retry = { sourceExecutionId: sourceId, executionId: "retry-validation-target", workflowVersion: 2 };
+    await expect(adapter.retryExecution({ ...retry, sourceExecutionId: "missing-source" })).rejects.toBeInstanceOf(WorkflowExecutionNotFoundError);
+    await expect(adapter.retryExecution(retry)).rejects.toBeInstanceOf(TypeError);
+    await expect(adapter.retryExecution({ ...retry, executionId: "" })).rejects.toBeInstanceOf(TypeError);
+    expect((await client.query("SELECT * FROM workflow_execution ORDER BY id")).rows).toEqual(before);
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(task), executionId: sourceId, expectedRevision: 0, commands: [], outcome: { status: "failed", error: { name: "Failure", message: "Failed source." } } });
+    // Validate against a retriable source so its status cannot mask an invalid target ID.
+    await expect(adapter.retryExecution({ ...retry, executionId: "" })).rejects.toBeInstanceOf(TypeError);
+    await adapter.start(startRequest("unrelated-retry-target"));
+    const existing = (await client.query("SELECT * FROM workflow_execution ORDER BY id")).rows;
+    await expect(adapter.retryExecution({ ...retry, executionId: "unrelated-retry-target" })).rejects.toBeInstanceOf(WorkflowExecutionConflictError);
+    expect((await client.query("SELECT * FROM workflow_execution ORDER BY id")).rows).toEqual(existing);
+  });
+
+  for (const input of [null, { legacy: true }]) {
+    it(`retries a legacy absent input snapshot with ${JSON.stringify(input)} input`, async () => {
+      const sourceId = "retry-legacy-source";
+      await adapter.start({ ...startRequest(sourceId), input });
+      const task = await reserveOne("workflow");
+      await adapter.commitActivation({ ...toRef(task), executionId: sourceId, expectedRevision: 0, commands: [], outcome: { status: "failed", error: { name: "Failure", message: "Legacy source failed." } } });
+      // Old rows predate the initial snapshot column; their persisted input remains authoritative.
+      await client.query("UPDATE workflow_execution SET initial_input = NULL WHERE id = $1", [sourceId]);
+      const result = await adapter.retryExecution({ sourceExecutionId: sourceId, executionId: "retry-legacy-target", workflowVersion: 2 });
+      expect(result.execution.input).toEqual(input);
+      const stored = (await client.query("SELECT initial_input FROM workflow_execution WHERE id = $1", ["retry-legacy-target"])).rows[0]!;
+      expect(stored.initial_input).toEqual({ value: input });
+    });
+  }
+
+  it("admits a keyed retry when capacity is free and persists its original input snapshot", async () => {
+    const sourceId = "retry-free-capacity";
+    const concurrency = { keyed: { key: "available-key", limit: 1, conflict: "return-existing" as const, scope: "execution" as const } };
+    await adapter.start({ ...startRequest(sourceId), concurrency });
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(task), executionId: sourceId, expectedRevision: 0, commands: [], outcome: { status: "failed", error: { name: "Failure", message: "Source failed." } } });
+    const retry = await adapter.retryExecution({ sourceExecutionId: sourceId, executionId: "retry-admitted", workflowVersion: 2 });
+    expect(retry.execution).toMatchObject({ status: "queued", concurrencyAdmitted: true, input: startRequest(sourceId).input, concurrency });
+    const stored = (await client.query("SELECT initial_input FROM workflow_execution WHERE id = $1", ["retry-admitted"])).rows[0]!;
+    expect(stored.initial_input).toEqual({ value: startRequest(sourceId).input });
+    const activation = await reserveOne("workflow");
+    expect(activation.executionId).toBe("retry-admitted");
+    expect(activation.kind).toBe("workflow");
+  });
+
+  it("releases only matching task generations in request order and preserves unrelated reservations", async () => {
+    for (const executionId of ["release-first", "release-second", "release-unrelated"]) await adapter.start(startRequest(executionId));
+    const tasks = await adapter.reserveTasks({ kinds: ["workflow"], limit: 3, leaseMs: 60_000 });
+    const [first, second, unrelated] = tasks;
+    const before = (await client.query("SELECT * FROM workflow_task ORDER BY id")).rows;
+    const unrelatedExecution = await adapter.get(unrelated!.executionId);
+    const lower = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+    const changed = await adapter.releaseTasks([
+      { taskId: "00000000-0000-4000-8000-000000000099", reservationToken: first!.reservationToken },
+      { taskId: first!.id, reservationToken: second!.reservationToken },
+      toRef(second!), toRef(first!), toRef(second!),
+    ]);
+    expect(changed).toEqual([toRef(second!), toRef(first!)]);
+    const upper = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+    const after = (await client.query("SELECT * FROM workflow_task ORDER BY id")).rows;
+    for (const task of [first!, second!]) {
+      const row = after.find((row) => row.id === task.id)!;
+      expect(row).toEqual({ ...before.find((row) => row.id === task.id), available_at: expect.any(Date), reserved_at: null, reservation_token: null });
+      expect(row.available_at.getTime()).toBeGreaterThanOrEqual(lower.getTime());
+      expect(row.available_at.getTime()).toBeLessThanOrEqual(upper.getTime());
+      const execution = (await adapter.get(task.executionId))!;
+      expect(execution.status).toBe("queued");
+      expect(execution.updatedAt.getTime()).toBeGreaterThanOrEqual(lower.getTime());
+      expect(execution.updatedAt.getTime()).toBeLessThanOrEqual(upper.getTime());
+    }
+    expect(after.find((row) => row.id === unrelated!.id)).toEqual(before.find((row) => row.id === unrelated!.id));
+    expect(await adapter.get(unrelated!.executionId)).toEqual(unrelatedExecution);
+  });
+
+  it("extends only matching generations using server time while retaining ownership and execution state", async () => {
+    for (const executionId of ["extend-first", "extend-second", "extend-unrelated"]) await adapter.start(startRequest(executionId));
+    const tasks = await adapter.reserveTasks({ kinds: ["workflow"], limit: 3, leaseMs: 60_000 });
+    const [first, second, unrelated] = tasks;
+    const before = (await client.query("SELECT * FROM workflow_task ORDER BY id")).rows;
+    const executions = [];
+    for (const { executionId } of tasks) executions.push(await adapter.get(executionId));
+    const lower = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+    expect(await adapter.extendTaskLeases([
+      { taskId: first!.id, reservationToken: second!.reservationToken, leaseMs: 1_000 },
+      { taskId: "00000000-0000-4000-8000-000000000099", reservationToken: first!.reservationToken, leaseMs: 1_000 },
+      { ...toRef(second!), leaseMs: 3_000 }, { ...toRef(first!), leaseMs: 1 },
+    ])).toEqual([toRef(second!), toRef(first!)]);
+    const upper = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+    const after = (await client.query("SELECT * FROM workflow_task ORDER BY id")).rows;
+    for (const [task, leaseMs] of [[first!, 1], [second!, 3_000]] as const) {
+      const row = after.find((row) => row.id === task.id)!;
+      expect(row).toEqual({ ...before.find((row) => row.id === task.id), available_at: expect.any(Date) });
+      expect(row.available_at.getTime()).toBeGreaterThanOrEqual(lower.getTime() + leaseMs);
+      expect(row.available_at.getTime()).toBeLessThanOrEqual(upper.getTime() + leaseMs);
+    }
+    expect(after.find((row) => row.id === unrelated!.id)).toEqual(before.find((row) => row.id === unrelated!.id));
+    const afterExecutions = [];
+    for (const { executionId } of tasks) afterExecutions.push(await adapter.get(executionId));
+    expect(afterExecutions).toEqual(executions);
+  });
+
+  it("releases non-workflow tasks without changing the waiting execution", async () => {
+    await adapter.start(startRequest("release-commands"));
+    const activation = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(activation), executionId: "release-commands", expectedRevision: 0,
+      commands: [{ kind: "activity", sequence: 0, target: "activity.run", payload: null }, { kind: "timer", sequence: 1, target: "timer", payload: { durationMs: 0 } }], outcome: { status: "waiting" },
+    });
+    const tasks = await adapter.reserveTasks({ kinds: ["activity", "timer"], limit: 2, leaseMs: 60_000 });
+    expect(new Set(tasks.map(({ kind }) => kind))).toEqual(new Set(["activity", "timer"]));
+    const before = await adapter.get("release-commands");
+    expect(await adapter.releaseTasks(tasks.map(toRef))).toEqual(tasks.map(toRef));
+    expect(await adapter.get("release-commands")).toEqual(before);
+  });
+
+  it("handles empty reservation batches without changing stored tasks", async () => {
+    await adapter.start(startRequest("empty-mutations"));
+    await reserveOne("workflow");
+    const before = (await client.query("SELECT * FROM workflow_task ORDER BY id")).rows;
+    expect(await adapter.releaseTasks([])).toEqual([]);
+    expect(await adapter.extendTaskLeases([])).toEqual([]);
+    expect((await client.query("SELECT * FROM workflow_task ORDER BY id")).rows).toEqual(before);
+  });
+
+  for (const leaseMs of [0, -1, 0.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+    it(`rejects invalid owned task lease ${leaseMs} without changing its row`, async () => {
+      await adapter.start(startRequest("invalid-extension"));
+      const task = await reserveOne("workflow");
+      const before = (await client.query("SELECT * FROM workflow_task ORDER BY id")).rows;
+      await expect(adapter.extendTaskLeases([{ ...toRef(task), leaseMs }])).rejects.toThrow(TypeError);
+      expect((await client.query("SELECT * FROM workflow_task ORDER BY id")).rows).toEqual(before);
+    });
+  }
+
+  for (const conflict of ["enqueue", "reject", "return-existing"] as const) {
+    for (const scope of ["execution", "active-work"] as const) {
+      it(`creates a distinct operator retry under ${scope} ${conflict} keyed admission`, async () => {
+        const sourceId = "retry-policy-source";
+        const concurrency = { definitionLimit: 3, keyed: { key: "retry-policy-key", limit: 1, conflict, scope } };
+        await adapter.start({ ...startRequest(sourceId), concurrency });
+        const task = await reserveOne("workflow");
+        await adapter.commitActivation({ ...toRef(task), executionId: sourceId, expectedRevision: 0, commands: [], outcome: { status: "failed", error: { name: "TransientError", message: "Retry the execution." } } });
+        await adapter.start({ ...startRequest("retry-policy-active"), concurrency });
+        const sourceBefore = await adapter.get(sourceId);
+        const activeBefore = await adapter.get("retry-policy-active");
+        const retried = await adapter.retryExecution({ sourceExecutionId: sourceId, executionId: "retry-policy-target", workflowVersion: 2 });
+        expect(retried).toMatchObject({ created: true, execution: {
+          executionId: "retry-policy-target", rootExecutionId: "retry-policy-target", retryOfExecutionId: sourceId,
+          workflowVersion: 2, input: startRequest(sourceId).input, concurrency,
+          status: scope === "execution" ? "pending" : "queued", concurrencyAdmitted: scope !== "execution",
+        } });
+        expect(await adapter.get("retry-policy-target")).toEqual(retried.execution);
+        expect(await adapter.get(sourceId)).toEqual(sourceBefore);
+        expect(await adapter.get("retry-policy-active")).toEqual(activeBefore);
+        expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["retry-policy-target"])).rows).toHaveLength(scope === "execution" ? 0 : 1);
+        expect(await adapter.retryExecution({ sourceExecutionId: sourceId, executionId: "retry-policy-target", workflowVersion: 3 }))
+          .toEqual({ created: false, execution: retried.execution });
+      });
+    }
+  }
+
+  it("retries the original null input after a failed continued generation", async () => {
+    const sourceId = "retry-original-null";
+    await adapter.start({ ...startRequest(sourceId), input: null });
+    const first = await reserveOne("workflow");
+    // The initial input is present and null, rather than a legacy missing snapshot.
+    await expect(adapter.continueAsNew({ ...toRef(first), executionId: sourceId, expectedRevision: 0, workflowVersion: 2, input: { nextGeneration: true } })).resolves.toBe(true);
+    const continued = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(continued), executionId: sourceId, expectedRevision: 0, commands: [], outcome: { status: "failed", error: { name: "Failure", message: "The continued generation failed." } } });
+    const sourceBefore = await adapter.get(sourceId);
+    const retried = await adapter.retryExecution({ sourceExecutionId: sourceId, executionId: "retry-original-null-target", workflowVersion: 3 });
+    expect(retried.execution.input).toBeNull();
+    expect(retried.execution.historyGeneration).toBe(1);
+    expect(retried.execution.workflowVersion).toBe(3);
+    expect(await adapter.get(sourceId)).toEqual(sourceBefore);
+  });
+
   it("retries only the owned activity and preserves unrelated reservations", async () => {
     const firstId = "00000000-0000-4000-8000-000000000001";
     const secondId = "00000000-0000-4000-8000-000000000002";

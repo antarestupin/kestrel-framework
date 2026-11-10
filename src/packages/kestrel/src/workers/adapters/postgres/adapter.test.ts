@@ -195,6 +195,7 @@ describe("PostgresWorkerAdapter", () => {
 
   it.each([
     { size: 100, commands: 1 },
+    { size: 1_000, commands: 1 },
     { size: 1_001, commands: 4 },
   ])("publishes $size ordinary jobs in $commands SQL commands with IDs in input order", async ({ size, commands }) => {
     const queries: string[] = [];
@@ -527,4 +528,133 @@ describe("PostgresWorkerAdapter", () => {
       state: "pending",
     }]);
   });
+
+  for (const operation of ["ack", "retry", "defer", "deadLetter", "release", "extendLease"] as const) {
+    it(`applies ${operation} only to the current matching reservation and leaves peer rows unchanged`, async () => {
+      const executionId = "00000000-0000-4000-8000-000000000001";
+      await adapter.enqueue([
+        { queue: "ownership", payload: "first", identity: "owned-first", groupId: "owned-group", correlation: { namespace: "test", id: "owned-first" }, executionId },
+        { queue: "ownership", payload: "second" },
+      ]);
+      const reserve = { queues: [{ queue: "ownership", reservationLimit: 2, allowOverflow: true }], totalLimit: 2, leaseMs: 60_000 };
+      const previous = await adapter.reserve(reserve);
+      // Expire the first generation through the fixture clock, then acquire real new tokens.
+      await client.query("UPDATE worker_job SET available_at = statement_timestamp() - interval '1 second'");
+      const current = await adapter.reserve(reserve);
+      const first = current.find((job) => job.payload === "first")!;
+      const second = current.find((job) => job.payload === "second")!;
+      const oldFirst = previous.find((job) => job.payload === "first")!;
+      const before = (await client.query("SELECT * FROM worker_job ORDER BY id")).rows;
+      const later = new Date("2035-01-01T00:00:00.000Z");
+      const error = { name: "StorageFixtureError", message: "retry fixture" };
+      const request = (jobId: string, reservationToken: string) => ({ jobId, reservationToken, retryAt: later, availableAt: later, leaseMs: 300_000, error });
+      const lowerClock = (await client.query("SELECT statement_timestamp() AS now")).rows[0]!.now as Date;
+      const changed = await adapter[operation]([
+        request(oldFirst.id, oldFirst.reservationToken), request(first.id, first.reservationToken),
+        request(second.id, first.reservationToken), request("00000000-0000-4000-8000-000000000099", first.reservationToken),
+      ]);
+      expect(changed).toEqual([{ jobId: first.id, reservationToken: first.reservationToken }]);
+      const after = (await client.query("SELECT *, statement_timestamp() AS observed_at FROM worker_job ORDER BY id")).rows;
+      const rows = after.map(({ observed_at: _observed, ...row }) => row);
+      expect(rows.find((row) => row.id === second.id)).toEqual(before.find((row) => row.id === second.id));
+      const updated = rows.find((row) => row.id === first.id);
+      if (operation === "ack" || operation === "deadLetter") {
+        expect(updated).toBeUndefined();
+      } else {
+        expect(updated?.payload).toBe("first");
+        expect(updated?.identity).toBe("owned-first");
+        expect(updated?.attempt).toBe(operation === "defer" ? 1 : 2);
+        if (operation === "extendLease" || operation === "release") {
+          // Bracket PostgreSQL time rather than sleeping or trusting the host clock.
+          const delta = operation === "extendLease" ? 300_000 : 0;
+          const observedAt = after.find((row) => row.id === first.id)!.observed_at as Date;
+          expect(updated?.available_at.getTime()).toBeGreaterThanOrEqual(lowerClock.getTime() + delta);
+          expect(updated?.available_at.getTime()).toBeLessThanOrEqual(observedAt.getTime() + delta);
+        } else expect(updated?.available_at).toEqual(later);
+        expect(updated?.state).toBe(operation === "extendLease" ? "reserved" : "pending");
+        expect(updated?.reservation_token).toBe(operation === "extendLease" ? first.reservationToken : null);
+        expect(updated?.reserved_at).toEqual(operation === "extendLease" ? first.reservedAt : null);
+        if (operation === "retry") expect(updated?.last_error).toEqual(error);
+      }
+      if (operation === "deadLetter") expect((await client.query("SELECT * FROM worker_dead_letter_queue")).rows).toMatchObject([{
+        original_job_id: first.id, identity: "owned-first", payload: "first", correlation: { namespace: "test", id: "owned-first" }, group_id: "owned-group", execution_id: executionId, attempt: 2, error,
+      }]);
+    });
+  }
+
+  it("returns no changes for empty mutation batches", async () => {
+    for (const operation of ["ack", "retry", "defer", "deadLetter", "release", "extendLease"] as const) {
+      expect(await adapter[operation]([])).toEqual([]);
+    }
+    expect((await client.query("SELECT * FROM worker_job")).rows).toEqual([]);
+    expect((await client.query("SELECT * FROM worker_dead_letter_queue")).rows).toEqual([]);
+  });
+
+
+  it("exposes reserved timestamp fields as real Date values", async () => {
+    await adapter.enqueue([{ queue: "date-contract", payload: "value" }]);
+    const [job] = await adapter.reserve({ queues: [{ queue: "date-contract", reservationLimit: 1, allowOverflow: true }], totalLimit: 1, leaseMs: 60_000 });
+    expect(job!.availableAt).toBeInstanceOf(Date);
+    expect(job!.reservedAt).toBeInstanceOf(Date);
+    expect(job!.createdAt).toBeInstanceOf(Date);
+    expect(job!.availableAt.getTime() - job!.reservedAt.getTime()).toBe(60_000);
+    // SQL NULL must become absent optional metadata; leaking null correlation
+    // would make the scheduler treat an ordinary job as a correlated delivery.
+    expect(job!.identity).toBeUndefined();
+    expect(job!.correlation).toBeUndefined();
+    expect(job!.groupId).toBeUndefined();
+    expect(job!.executionId).toBeUndefined();
+  });
+
+  it("preserves all publication metadata through reservation", async () => {
+    const request = { queue: "metadata", payload: { value: 1 }, identity: "logical", groupId: "group", executionId: "00000000-0000-4000-8000-000000000001", correlation: { namespace: "owner", id: "correlation" } };
+    await adapter.enqueue([request]);
+    const [job] = await adapter.reserve({ queues: [{ queue: "metadata", reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 60_000 });
+    expect(job).toMatchObject(request);
+    expect(job!.attempt).toBe(1);
+  });
+
+  it.each(["queue", "groupId", "executionId", "payload", "correlation"] as const)("rejects identity reuse with a different %s atomically", async (key) => {
+    const request = { queue: "identity", payload: { value: 1 }, identity: "logical", groupId: "group", executionId: "00000000-0000-4000-8000-000000000001", correlation: { namespace: "owner", id: "correlation" } };
+    const [id] = await adapter.enqueue([request]);
+    expect(await adapter.enqueue([request])).toEqual([id]);
+    const value = key === "payload" ? { value: 2 } : key === "correlation" ? { namespace: "owner", id: "other" } : key === "executionId" ? "00000000-0000-4000-8000-000000000002" : "other";
+    await expect(adapter.enqueue([{ queue: "new", payload: null }, { ...request, [key]: value }])).rejects.toBeInstanceOf(WorkerJobIdentityConflictError);
+    expect((await client.query("SELECT id FROM worker_job")).rows).toEqual([{ id }]);
+  });
+
+  it("avoids database work for empty publication, reservation and queue inspection", async () => {
+    const queries: string[] = [];
+    const counting = createCountingAdapter(queries);
+    expect(await counting.enqueue([])).toEqual([]);
+    expect(await counting.reserve({ queues: [], totalLimit: 1, leaseMs: 100 })).toEqual([]);
+    expect(await counting.listReadyQueues([])).toEqual([]);
+    expect(await counting.listQueueStatistics([])).toEqual([]);
+    expect(queries).toEqual([]);
+  });
+
+  it("lists only requested enabled queues with available jobs and resumes a paused queue", async () => {
+    await adapter.enqueue([
+      { queue: "ready", payload: 1 }, { queue: "ready", payload: 2 },
+      { queue: "paused", payload: 3 }, { queue: "other", payload: 4 },
+      { queue: "future", payload: 5, availableAt: new Date("2035-01-01T00:00:00.000Z") },
+    ]);
+    await adapter.setQueueEnabled("paused", false);
+    const queues = ["ready", "paused", "future", "empty"];
+    expect(await adapter.listReadyQueues(queues)).toEqual(["ready"]);
+    await adapter.setQueueEnabled("paused", true);
+    expect(await adapter.listReadyQueues(queues)).toEqual(expect.arrayContaining(["ready", "paused"]));
+    expect(await adapter.listReadyQueues(queues)).toHaveLength(2);
+  });
+
+  it.each(["totalLimit", "leaseMs", "reservationLimit"] as const)("rejects invalid reservation %s before running SQL", async (key) => {
+    const queries: string[] = [];
+    const counting = createCountingAdapter(queries);
+    for (const value of [0, -1, 1.5, NaN, Infinity]) {
+      const request = { queues: [{ queue: "valid", reservationLimit: key === "reservationLimit" ? value : 1, allowOverflow: true }], totalLimit: key === "totalLimit" ? value : 1, leaseMs: key === "leaseMs" ? value : 100 };
+      await expect(counting.reserve(request)).rejects.toBeInstanceOf(TypeError);
+    }
+    expect(queries).toEqual([]);
+  });
+
 });

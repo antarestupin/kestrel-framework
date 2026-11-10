@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "ExecutionContext.replaceDiagnosticEntry and replaceEntry; normalizeDestinations; getDiagnosticSizeBytes. Other normalization, lifetime/sealing, app and integration sources are dependencies rather than mutated scope.",
+  "command": "npm run test:mutation:execution-diagnostics",
+  "budgetMs": 600000,
+  "beforeReport": "artifacts/mutation/execution-diagnostics-before-tests/mutation.json",
+  "report": "artifacts/mutation/execution-diagnostics/mutation.json",
+  "scopeMutants": 39,
+  "beforeCounts": {
+    "NoCoverage": 2,
+    "Killed": 33,
+    "Survived": 4
+  },
+  "counts": {
+    "Killed": 38,
+    "Survived": 1
+  },
+  "seconds": {
+    "before": 22,
+    "after": 21
+  },
+  "baselineTests": {
+    "before": 949,
+    "after": 966
+  },
+  "newTestCases": 8,
+  "productionChanges": false,
+  "bugsFound": false,
+  "review": "complete; one unconstrained diagnostic message retained",
+  "scorePolicy": "Keep the surviving diagnostic-text mutant visible. Raw/covered score 97.44%; no exclusions, adjusted score or blocking threshold.",
+  "sameProductionSource": true,
+  "sameMutationFingerprints": true,
+  "allPriorKillsPreserved": true,
+  "allExecutedMutantsCompletedTests": true,
+  "vitestTimeoutKills": 0,
+  "zeroCompletedExecutedMutants": [],
+  "mutantFingerprintsSha256": "dfca7bd2f838a16e63b49dd2b3f35a03e9df7251d94a1dec38710aa8494f1e8e",
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 33
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 4
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 1
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Survived",
+      "count": 1
+    }
+  ],
+  "beforeFingerprintInputs": {
+    "scripts/testing/mutation-profile.mjs": "505ab10b11d3208302779ae45a4d44d1a6ca6744f690a85396b7bef51524d4cf",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "src/packages/kestrel/src/app/execution_context.ts": "a5e684e396cc3fed28535a6fb48d699c88fd30ca3967caa571dd8efb6476da9f",
+    "src/packages/kestrel/src/app/execution_context.test.ts": "2e19163ac747a9f43785e3bfc3ff5f5112cbc47967ecb3330fceddb7e2b87c4c"
+  },
+  "fingerprintInputsAtReview": {
+    "src/packages/kestrel/src/app/execution_context.ts": "a5e684e396cc3fed28535a6fb48d699c88fd30ca3967caa571dd8efb6476da9f",
+    "src/packages/kestrel/src/app/execution_context.test.ts": "2e19163ac747a9f43785e3bfc3ff5f5112cbc47967ecb3330fceddb7e2b87c4c",
+    "src/packages/kestrel/src/app/execution_diagnostics_contract.test.ts": "d23f3d285036cca0986af05cf0b4305c8b4340b442fdebbb5bb3c90f0c46ea2d",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "scripts/testing/mutation-profile.mjs": "d73d1d776489b45236c2d22d63076198bb2b99b4d1822274a259234fcf5da65e",
+    "scripts/testing/mutation.mjs": "62ff8561ff9407b83e9072b81e88465c3c24984255af6313885edb8d37082c84",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72",
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033"
+  },
+  "reportHashes": {
+    "artifacts/mutation/execution-diagnostics-before-tests/mutation.json": "f5b6594c304dbbff7449c631ee27abf6874c574be8d32aa92ab6c883d2176249",
+    "artifacts/mutation/execution-diagnostics/mutation.json": "8ba0c3ccbd30db90907f814c4ee044fec60847fc5ff0a78f9d989352d364dcc2"
+  },
+  "remaining": [
+    {
+      "sampleId": "35",
+      "file": "src/packages/kestrel/src/app/execution_context.ts",
+      "location": {
+        "end": {
+          "column": 77,
+          "line": 294
+        },
+        "start": {
+          "column": 9,
+          "line": 294
+        }
+      },
+      "original": "`Unknown execution context diagnostic destination \"${destination}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "unconstrained diagnostic text",
+      "proof": "The unknown-destination guard still throws TypeError before publishing an entry or charging diagnostic bytes. Only its human-readable message becomes empty. New set/append cases execute this rejection and assert atomic state/budget preservation. Exact diagnostic wording is not a declared stable contract; no string assertion is added solely to kill this mutation.",
+      "reviewAgainWhen": "The diagnostic message or unsupported destination name becomes an explicitly stable public error contract."
+    }
+  ],
+  "testCoverageNotes": "Eight fixed-value public-contract cases use explicit complete-member UTF-8 budgets (10/11 bytes), aggregate budget (20/21 bytes), exact accumulated append (16 bytes), replacement/released budgets, internal identity and unknown runtime destinations. Related baseline suites also include other contemporaneous test additions, so baseline-test delta is not the count of added diagnostic cases.",
+  "deferred": "The rest of ExecutionContext normalization, app lifecycle and integration sources remain outside this selected assessment. Reassess any literal diagnostic message if it becomes a stable contract."
+}

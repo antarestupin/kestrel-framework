@@ -105,7 +105,8 @@ export function cron(
     expression,
     {
       currentDate: date,
-      ...(options.timeZone === undefined ? {} : { tz: options.timeZone }),
+      // Keep application schedules independent of the host process timezone.
+      tz: options.timeZone ?? "UTC",
     },
   ).next().toDate();
 
@@ -160,6 +161,6 @@ function validateCron(
   // Parsing eagerly keeps invalid task definitions from reaching bootstrap.
   CronExpressionParser.parse(expression, {
     currentDate: new Date(0),
-    ...(options.timeZone === undefined ? {} : { tz: options.timeZone }),
+    tz: options.timeZone ?? "UTC",
   });
 }

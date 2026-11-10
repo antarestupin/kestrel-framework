@@ -124,6 +124,11 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
 
   private readonly terminalWaiters = new Map<string, Set<TerminalWaiter>>();
 
+  private readonly pendingExecutionRetries = new Map<string, {
+    readonly sourceExecutionId: string;
+    readonly result: Promise<StartWorkflowExecutionResult>;
+  }>();
+
   private readonly histories = new Map<string, WorkflowHistoryEvent[]>();
 
   private readonly historyArchives = new Map<string, WorkflowHistoryArchive[]>();
@@ -797,9 +802,9 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       execution.status = "cancelled";
       execution.completedAt = now;
       execution.updatedAt = now;
-      this.resolveTerminalWaiters(execution);
       this.completeParentCommand(execution, now);
       this.releaseConcurrency(execution, now);
+      this.resolveTerminalWaiters(execution);
       return true;
     }
 
@@ -847,7 +852,11 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     reason = "Terminated by an operator.",
   ): Promise<boolean> {
     const execution = this.getRequiredExecution(executionId);
-    if (isTerminalWorkflowStatus(execution.status)) return false;
+    if (isTerminalWorkflowStatus(execution.status)) {
+      // An already closed root can still own children awaiting cancellation.
+      this.terminateOpenChildren(executionId, reason);
+      return false;
+    }
 
     const now = this.now();
     execution.status = "terminated";
@@ -859,14 +868,49 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     for (const [dispatchId, dispatch] of this.dispatches) {
       if (dispatch.executionId === executionId) this.dispatches.delete(dispatchId);
     }
-    this.resolveTerminalWaiters(execution);
     this.completeParentCommand(execution, now);
     this.terminateOpenChildren(executionId, reason);
     this.releaseConcurrency(execution, now);
+    // Waiters observe the final terminal snapshot after the retained permit is released.
+    this.resolveTerminalWaiters(execution);
     return true;
   }
 
   public async retryExecution(
+    request: RetryWorkflowExecutionRequest,
+  ): Promise<StartWorkflowExecutionResult> {
+    // Keep cleanup tied to the acquired identity even if caller-owned input changes later.
+    const { executionId, sourceExecutionId, workflowVersion } = request;
+    const pending = this.pendingExecutionRetries.get(executionId);
+    if (pending !== undefined) {
+      if (pending.sourceExecutionId !== sourceExecutionId) {
+        throw new WorkflowExecutionConflictError(executionId);
+      }
+      const result = await pending.result;
+      return { execution: cloneExecution(result.execution), created: false };
+    }
+
+    // Publish ownership before starting work: ID generation can synchronously
+    // reenter, and start() publishes a target before its retry link is ready.
+    const completion = Promise.withResolvers<StartWorkflowExecutionResult>();
+    const entry = { sourceExecutionId, result: completion.promise };
+    this.pendingExecutionRetries.set(executionId, entry);
+    const clear = () => {
+      if (this.pendingExecutionRetries.get(executionId) === entry) {
+        this.pendingExecutionRetries.delete(executionId);
+      }
+    };
+    void this.createRetriedExecution({ executionId, sourceExecutionId, workflowVersion }).then((result) => {
+      clear();
+      completion.resolve(result);
+    }, (error: unknown) => {
+      clear();
+      completion.reject(error);
+    });
+    return completion.promise;
+  }
+
+  private async createRetriedExecution(
     request: RetryWorkflowExecutionRequest,
   ): Promise<StartWorkflowExecutionResult> {
     validateExecutionId(request.executionId);
@@ -882,16 +926,22 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       return { execution: cloneExecution(existing), created: false };
     }
 
+    // An operator retry owns a new identity even when ordinary starts reject
+    // or return an existing keyed execution. Admission still waits for capacity.
+    const concurrency = source.concurrency === undefined
+      ? undefined
+      : cloneConcurrency(source.concurrency);
+    if (concurrency?.keyed !== undefined) concurrency.keyed.conflict = "enqueue";
     const result = await this.start({
       executionId: request.executionId,
       workflowName: source.workflowName,
       workflowVersion: request.workflowVersion,
       input: cloneWorkflowPayload(this.initialInputs.get(source.executionId)!),
-      ...(source.concurrency === undefined
-        ? {}
-        : { concurrency: cloneConcurrency(source.concurrency) }),
+      ...(concurrency === undefined ? {} : { concurrency }),
     });
     const created = this.getRequiredExecution(result.execution.executionId);
+    // The admission override is transient; retain the original policy for audit and later retries.
+    if (source.concurrency !== undefined) created.concurrency = cloneConcurrency(source.concurrency);
     created.retryOfExecutionId = source.executionId;
     return { execution: cloneExecution(created), created: result.created };
   }
@@ -1155,27 +1205,27 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       }
       execution.completedAt = now;
       this.deleteExecutionTasks(execution.executionId);
-      this.resolveTerminalWaiters(execution);
       this.completeParentCommand(execution, now);
       this.cancelOpenChildren(execution.executionId);
       this.releaseConcurrency(execution, now);
+      this.resolveTerminalWaiters(execution);
     } else if (outcome.status === "cancelled") {
       execution.completedAt = now;
       this.deleteExecutionTasks(execution.executionId);
-      this.resolveTerminalWaiters(execution);
       this.completeParentCommand(execution, now);
       this.cancelOpenChildren(execution.executionId);
       this.releaseConcurrency(execution, now);
+      this.resolveTerminalWaiters(execution);
     } else if (outcome.status === "failed" || outcome.status === "blocked") {
       execution.error = cloneWorkflowError(outcome.error);
 
       if (outcome.status === "failed") {
         execution.completedAt = now;
         this.deleteExecutionTasks(execution.executionId);
-        this.resolveTerminalWaiters(execution);
         this.completeParentCommand(execution, now);
         this.cancelOpenChildren(execution.executionId);
         this.releaseConcurrency(execution, now);
+        this.resolveTerminalWaiters(execution);
       }
     }
   }
@@ -1564,12 +1614,18 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
   }
 
   private terminateOpenChildren(parentExecutionId: string, reason: string): void {
-    for (const child of this.executions.values()) {
-      if (
-        child.parentExecutionId === parentExecutionId
-        && !isTerminalWorkflowStatus(child.status)
-      ) {
-        void this.forceTerminate(child.executionId, reason);
+    const pending = [parentExecutionId];
+    const visited = new Set<string>();
+
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      for (const child of this.executions.values()) {
+        if (child.parentExecutionId !== current) continue;
+        // Closed intermediate children must not hide still-open descendants.
+        if (isTerminalWorkflowStatus(child.status)) pending.push(child.executionId);
+        else void this.forceTerminate(child.executionId, reason);
       }
     }
   }

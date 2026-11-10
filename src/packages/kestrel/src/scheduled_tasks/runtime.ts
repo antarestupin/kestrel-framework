@@ -106,7 +106,8 @@ export class ScheduledTaskRuntime<Config> {
   public async start(selection?: ScheduledTaskSelection): Promise<void> {
     if (this.stopPromise !== undefined) throw new Error("Scheduled task runtime has stopped.");
     this.scheduler ??= this.buildScheduler(selection);
-    this.startPromise ??= this.scheduler.start();
+    // Publish startup ownership before invoking adapters that can synchronously reenter start.
+    this.startPromise ??= Promise.resolve().then(() => this.scheduler!.start());
     await this.startPromise;
   }
 

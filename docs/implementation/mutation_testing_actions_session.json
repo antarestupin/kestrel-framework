@@ -1,0 +1,376 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-10",
+  "startedAt": "2026-11-10T12:48:15Z",
+  "globalDeadline": "2026-11-10T13:18:15Z",
+  "executionBudgetMs": 600000,
+  "newTestCases": 145,
+  "productionChanges": [
+    "src/packages/kestrel/src/actions/pagination.ts"
+  ],
+  "bug": "Unsafe configured numbered defaults bypassed their own safe-integer input validation; fixed with Number.isSafeInteger.",
+  "policy": "Fresh runs retain static activation; no exclusions, adjusted score or blocking gate. Scopes overlap: the selected CRUD/pagination files are included in component-actions and counters must not be added.",
+  "sharedInputs": {
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "scripts/testing/mutation-profile.mjs": "be936c5fed703b450ec608f18b6d0f94d7ff2c8839a9ca9b9a30c0d5c8c602fe",
+    "scripts/testing/mutation-profile.test.mjs": "11fbfc56b4411d4a2823aba444715bcd7fd587feee1e56fbb42a2ba52dfd1f47",
+    "scripts/testing/mutation.mjs": "62ff8561ff9407b83e9072b81e88465c3c24984255af6313885edb8d37082c84",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72"
+  },
+  "lots": [
+    {
+      "id": "actions-crud-pagination",
+      "command": "npm run test:mutation:actions-crud-pagination",
+      "assessment": "complete",
+      "review": "complete with documented residual contracts",
+      "mutants": 176,
+      "before": {
+        "NoCoverage": 8,
+        "Killed": 142,
+        "Survived": 26
+      },
+      "after": {
+        "Killed": 168,
+        "Survived": 8
+      },
+      "seconds": {
+        "before": 85,
+        "after": 70
+      },
+      "baselineTests": {
+        "before": 780,
+        "after": 823
+      },
+      "sameProductionSourceAndFingerprints": false,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/actions-crud-pagination/mutation.json",
+      "beforeReport": "artifacts/mutation/actions-crud-pagination-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/actions-crud-pagination/mutation.json": "f0b4f0d75ec8f8711e1286c66526c4ec1b06bd0f40c665b0466c72713e0bf96d",
+        "artifacts/mutation/actions-crud-pagination-before-tests/mutation.json": "c48405ecf7f0d2fc87640c42c94fc1332312e11f93da6c071b531fddcf55fe30"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/actions/cursor_pagination.ts": "97a5a05f0f7de668a0e3321e4e861a8d3dedd999e47c9742b588ba149017fb4c",
+        "src/packages/kestrel/src/actions/model_actions.ts": "a9db9ac5587959ddb78054a3235d82a762383e1a61a130ff4082559475530741",
+        "src/packages/kestrel/src/actions/pagination.ts": "affffd10677f7b77d06c35d25bc2bcbfac5d5ce027b64c32be5b0ae7bee3e5fe"
+      },
+      "classification": "mutation_testing_actions_classification.json",
+      "comparisonPolicy": "Use the source-change-aware 169-site comparison in the slice classification; seven variants change on each side with the numbered option fix."
+    },
+    {
+      "id": "component-actions",
+      "command": "npm run test:mutation:component -- actions",
+      "assessment": "complete",
+      "review": "complete with documented residual contracts",
+      "mutants": 238,
+      "before": {
+        "NoCoverage": 4,
+        "Killed": 212,
+        "Survived": 22
+      },
+      "after": {
+        "Killed": 226,
+        "Survived": 12
+      },
+      "seconds": {
+        "before": 130,
+        "after": 100
+      },
+      "baselineTests": {
+        "before": 978,
+        "after": 1001
+      },
+      "sameProductionSourceAndFingerprints": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/component-actions/mutation.json",
+      "beforeReport": "artifacts/mutation/component-actions-before-collection-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/component-actions/mutation.json": "e7bb5fe3716e584d0f3c1eb99e0ef5d7fc65a90c77d81ccfc5e7417013b26303",
+        "artifacts/mutation/component-actions-before-collection-tests/mutation.json": "553b194ab828422c22eade88dfd88052164ca8469a6b12af7c0c60e18be056db"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/actions/collection.ts": "d975bfed94d877064cbca1d3edc787e08090e14bdac6b359c8a3d375550ec05f",
+        "src/packages/kestrel/src/actions/action.ts": "60fceb84c22406833e1c398c07bd88e6edf945784b7dd9747fa88dd47d5753b8",
+        "src/packages/kestrel/src/actions/cursor_pagination.ts": "97a5a05f0f7de668a0e3321e4e861a8d3dedd999e47c9742b588ba149017fb4c",
+        "src/packages/kestrel/src/actions/input_mapping.ts": "7a26b9a5c775f24c5258f5d0b4cc1fe171484478b5ea891c37da73e45cd16b08",
+        "src/packages/kestrel/src/actions/model_actions.ts": "a9db9ac5587959ddb78054a3235d82a762383e1a61a130ff4082559475530741",
+        "src/packages/kestrel/src/actions/pagination.ts": "affffd10677f7b77d06c35d25bc2bcbfac5d5ce027b64c32be5b0ae7bee3e5fe",
+        "src/packages/kestrel/src/actions/runner.ts": "b7f57b1ecb6b862e1c3632d492795937d547f4666b73ac1a1c4160ec96bfed77",
+        "src/packages/kestrel/src/actions/middleware.ts": "7a86a7e7517d24ebdce56ea3da021d51b3a99633a09abb539216226b1278159c"
+      },
+      "classification": "mutation_testing_actions_component_classification.json",
+      "transitions": [
+        {
+          "before": "Killed",
+          "after": "Killed",
+          "count": 212
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Killed",
+          "count": 2
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Survived",
+          "count": 2
+        },
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 12
+        },
+        {
+          "before": "Survived",
+          "after": "Survived",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": "cache-pruning",
+      "command": "npm run test:mutation:cache-pruning",
+      "assessment": "complete",
+      "review": "complete with documented residual contracts",
+      "mutants": 58,
+      "before": {
+        "NoCoverage": 4,
+        "Survived": 17,
+        "Killed": 37
+      },
+      "after": {
+        "Killed": 51,
+        "Survived": 7
+      },
+      "seconds": {
+        "before": 12,
+        "after": 13
+      },
+      "baselineTests": {
+        "before": 83,
+        "after": 101
+      },
+      "sameProductionSourceAndFingerprints": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/cache-pruning/mutation.json",
+      "beforeReport": "artifacts/mutation/cache-pruning-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/cache-pruning/mutation.json": "7556fd089208a67585e50517220b985b3ce8ae26dc02ce7cfce4c6c90fb70e41",
+        "artifacts/mutation/cache-pruning-before-tests/mutation.json": "d142ddd0be092f051165326cc2e49889c18b673ab40cff1d51f181d640c9a48b"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/cache/adapters/memory/adapter.ts": "2d2cbe2f064d15381960900ae6e2a50ac01f425e62e3fda7892ee458aec1c851",
+        "src/packages/kestrel/src/cache/adapters/postgres/adapter.ts": "0a220e49127d9f3787bbdec1f73bdcbf3ba4c62ca0d2fbad9f3a2506ad289e7d"
+      },
+      "classification": "mutation_testing_cache_pruning_classification.json",
+      "transitions": [
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 12
+        },
+        {
+          "before": "Killed",
+          "after": "Killed",
+          "count": 37
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Survived",
+          "count": 2
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Killed",
+          "count": 2
+        },
+        {
+          "before": "Survived",
+          "after": "Survived",
+          "count": 5
+        }
+      ]
+    },
+    {
+      "id": "execution-diagnostics",
+      "command": "npm run test:mutation:execution-diagnostics",
+      "assessment": "complete",
+      "review": "complete with documented residual contracts",
+      "mutants": 39,
+      "before": {
+        "NoCoverage": 2,
+        "Killed": 33,
+        "Survived": 4
+      },
+      "after": {
+        "Killed": 38,
+        "Survived": 1
+      },
+      "seconds": {
+        "before": 22,
+        "after": 21
+      },
+      "baselineTests": {
+        "before": 949,
+        "after": 966
+      },
+      "sameProductionSourceAndFingerprints": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/execution-diagnostics/mutation.json",
+      "beforeReport": "artifacts/mutation/execution-diagnostics-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/execution-diagnostics/mutation.json": "8ba0c3ccbd30db90907f814c4ee044fec60847fc5ff0a78f9d989352d364dcc2",
+        "artifacts/mutation/execution-diagnostics-before-tests/mutation.json": "f5b6594c304dbbff7449c631ee27abf6874c574be8d32aa92ab6c883d2176249"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/app/execution_context.ts": "a5e684e396cc3fed28535a6fb48d699c88fd30ca3967caa571dd8efb6476da9f"
+      },
+      "classification": "mutation_testing_execution_diagnostics_classification.json",
+      "transitions": [
+        {
+          "before": "Killed",
+          "after": "Killed",
+          "count": 33
+        },
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 4
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Killed",
+          "count": 1
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Survived",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "catalog-identities",
+      "command": "npm run test:mutation:catalog-identities",
+      "assessment": "complete",
+      "review": "complete with documented residual contracts",
+      "mutants": 6,
+      "before": {
+        "Survived": 6
+      },
+      "after": {
+        "Killed": 4,
+        "Survived": 2
+      },
+      "seconds": {
+        "before": 15,
+        "after": 13
+      },
+      "baselineTests": {
+        "before": 784,
+        "after": 788
+      },
+      "sameProductionSourceAndFingerprints": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/catalog-identities/mutation.json",
+      "beforeReport": "artifacts/mutation/catalog-identities-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/catalog-identities/mutation.json": "f96665568cf431435b87c9fb5d1f11dc30d24fba4adc7351ad0ebcd9d0814e66",
+        "artifacts/mutation/catalog-identities-before-tests/mutation.json": "ae45c020d36bc896cc802a1ebf4b8c5e3a12533e211e91b26bb5d65bdb349d87"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/app/catalog.ts": "6ce1bb592f3c4b4b02211e5bb584cb4583c99c952cf7982b77438b45557b40a7"
+      },
+      "classification": "mutation_testing_catalog_identities_classification.json",
+      "transitions": [
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 4
+        },
+        {
+          "before": "Survived",
+          "after": "Survived",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "atlas-collection-query",
+      "command": "npm run test:mutation:atlas-collection-query",
+      "assessment": "complete",
+      "review": "complete with documented residual contracts",
+      "mutants": 162,
+      "before": {
+        "NoCoverage": 8,
+        "Killed": 93,
+        "Survived": 61
+      },
+      "after": {
+        "Killed": 156,
+        "Survived": 6
+      },
+      "seconds": {
+        "before": 15,
+        "after": 18
+      },
+      "baselineTests": {
+        "before": 32,
+        "after": 85
+      },
+      "sameProductionSourceAndFingerprints": true,
+      "allExecutedMutantsCompletedTests": true,
+      "vitestTimeoutKills": 0,
+      "report": "artifacts/mutation/atlas-collection-query/mutation.json",
+      "beforeReport": "artifacts/mutation/atlas-collection-query-before-tests/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/atlas-collection-query/mutation.json": "a5a2a245dc7e57e37510236ab3c352ec25c8a97564a831ef468012593f9f44f7",
+        "artifacts/mutation/atlas-collection-query-before-tests/mutation.json": "44b6fc031a1554428a16827fe89e12285968e5e7d58c3ec475e7eb8f46bf255b"
+      },
+      "sourceHashes": {
+        "src/packages/kestrel/src/atlas/client/src/collection.ts": "60421106262cb4a1bba70724d79659c3f60f1a2d8437eb028d14d0dbbb96c617"
+      },
+      "classification": "mutation_testing_atlas_collection_classification.json",
+      "transitions": [
+        {
+          "before": "Killed",
+          "after": "Killed",
+          "count": 93
+        },
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 55
+        },
+        {
+          "before": "Survived",
+          "after": "Survived",
+          "count": 6
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Killed",
+          "count": 8
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "test:ai": "1953 tests passed in 261 files, --no-isolate",
+    "build:ai": "framework and playground passed",
+    "frameworkTypecheck": "passed",
+    "docs:build": "passed",
+    "mutationInfrastructure": "45 checks passed",
+    "check:mutation-inventory": "35 lots / 631 candidate sources aligned",
+    "diffCheck": "passed"
+  },
+  "completedAt": "2026-11-10T13:14:15Z",
+  "elapsedMinutesApprox": 26
+}

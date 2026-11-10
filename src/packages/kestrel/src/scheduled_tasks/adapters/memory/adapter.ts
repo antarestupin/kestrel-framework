@@ -280,7 +280,8 @@ export class MemoryScheduledTaskAdapter implements ScheduledTaskAdapter {
     }
 
     if (run.trigger === "manual") {
-      state.manualRunRequestedAt = laterDate(
+      // Restore the earliest still-unhandled request, matching ordinary coalescing and PostgreSQL.
+      state.manualRunRequestedAt = earlierDate(
         state.manualRunRequestedAt,
         run.scheduledAt,
       );

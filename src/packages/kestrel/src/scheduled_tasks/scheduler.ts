@@ -86,6 +86,8 @@ export class ScheduledTaskScheduler<Config> {
 
   private stopRequested = false;
 
+  private starting = false;
+
   private initializePromise: Promise<void> | undefined;
 
   private admissionCycle: Promise<readonly Promise<void>[]> | undefined;
@@ -116,21 +118,25 @@ export class ScheduledTaskScheduler<Config> {
 
   /** Reconciles definitions and starts admission polling until stopped. */
   public async start(): Promise<void> {
-    if (this.loopPromise !== undefined) {
+    if (this.loopPromise !== undefined || this.starting) {
       throw new Error("The scheduled task scheduler is already running.");
     }
 
-    await this.initialize();
-    if (this.stopRequested) return;
-    this.handlerAbortController = new AbortController();
-    this.loopAbortController = new AbortController();
-    this.loopPromise = this.runLoop(this.loopAbortController.signal)
-      .finally(() => {
-        this.loopPromise = undefined;
-        this.loopAbortController = undefined;
-      });
-    this.pollingLifetime = this.loopPromise;
-    void this.loopPromise.catch(() => undefined);
+    // Claim startup before reconciliation can yield to another start/stop caller.
+    this.starting = true;
+    try {
+      await this.initialize();
+      if (this.stopRequested) return;
+      this.handlerAbortController = new AbortController();
+      this.loopAbortController = new AbortController();
+      this.loopPromise = this.runLoop(this.loopAbortController.signal)
+        .finally(() => {
+          this.loopPromise = undefined;
+          this.loopAbortController = undefined;
+        });
+      this.pollingLifetime = this.loopPromise;
+      void this.loopPromise.catch(() => undefined);
+    } finally { this.starting = false; }
   }
 
   /** Stops admission, aborts cooperative handlers and drains active runs. */
@@ -138,7 +144,12 @@ export class ScheduledTaskScheduler<Config> {
     this.stopRequested = true;
     this.loopAbortController?.abort();
     this.handlerAbortController.abort();
-    try { await this.loopPromise; }
+    try {
+      // Startup and one-shot admission can own adapter operations before a loop exists.
+      await this.initializePromise?.catch(() => undefined);
+      await this.admissionCycle?.catch(() => undefined);
+      await this.loopPromise;
+    }
     finally { await Promise.allSettled([...this.activeInvocations]); }
   }
 
@@ -151,7 +162,8 @@ export class ScheduledTaskScheduler<Config> {
   }
 
   private initialize(): Promise<void> {
-    this.initializePromise ??= this.reconcile();
+    // Reconciliation may synchronously call back into admission; publish its owner first.
+    this.initializePromise ??= Promise.resolve().then(() => this.reconcile());
     return this.initializePromise;
   }
 
@@ -203,12 +215,14 @@ export class ScheduledTaskScheduler<Config> {
   }
 
   private async executeAdmissionCycle(): Promise<readonly Promise<void>[]> {
+    if (this.stopRequested) return [];
     const capacity = this.options.slots - this.activeInvocations.size;
     if (capacity <= 0 || this.resolvedTasks.length === 0) {
       return [];
     }
 
     const statesByTask = await this.loadStates();
+    if (this.stopRequested) return [];
     const now = this.now();
     const candidates = this.resolvedTasks.flatMap((resolved) => {
       const state = statesByTask.get(resolved.task.id);
@@ -230,6 +244,7 @@ export class ScheduledTaskScheduler<Config> {
 
     // Admission is serialized per cycle so slot accounting stays deterministic.
     for (const candidate of candidates) {
+      if (this.stopRequested) break;
       const started = await this.tryStart(
         candidate.resolved,
         candidate.scheduledAt,
@@ -288,6 +303,18 @@ export class ScheduledTaskScheduler<Config> {
     }
 
     const lock = await this.acquireOverlapLock(resolved);
+    let lockOwned = lock !== undefined;
+    const releaseLock = async () => {
+      if (lockOwned) {
+        lockOwned = false;
+        await lock!.release();
+      }
+    };
+
+    if (this.stopRequested) {
+      await releaseLock();
+      return undefined;
+    }
 
     if (resolved.coordination === "distributed" && task.overlap !== "parallel") {
       if (lock === undefined) {
@@ -302,10 +329,19 @@ export class ScheduledTaskScheduler<Config> {
       const result = await adapter.reserve(request);
 
       if (result.status !== "reserved") {
-        await lock?.release();
+        await releaseLock();
         return undefined;
       }
 
+      if (this.stopRequested) {
+        // Undo a late reservation instead of handing a stopped scheduler new work.
+        try { await adapter.release(result.reservation); }
+        finally { await releaseLock(); }
+        return undefined;
+      }
+
+      // The invocation now owns lock release, including its failure paths.
+      lockOwned = false;
       const invocation = this.runInvocation(resolved, result.reservation, lock)
         .catch((error: unknown) => {
           // Invocation errors are contained so one task cannot stop admission.
@@ -327,7 +363,7 @@ export class ScheduledTaskScheduler<Config> {
       });
       return { invocation };
     } catch (error) {
-      await lock?.release();
+      await releaseLock();
       throw error;
     }
   }
@@ -353,13 +389,30 @@ export class ScheduledTaskScheduler<Config> {
     reservation: ScheduledTaskReservation,
     lock: LockHandle | undefined,
   ): Promise<void> {
+    let error: unknown;
+    let failed = false;
+    // Failure presence is separate from its value: JavaScript can throw undefined or null.
+    const captureFailure = (failure: unknown): void => {
+      if (!failed) {
+        failed = true;
+        error = failure;
+      }
+    };
+    // Ownership failure cancels this invocation without cancelling sibling tasks.
+    const invocationAbort = new AbortController();
+    const signal = AbortSignal.any([this.executionSignal, invocationAbort.signal]);
     const maintenance = this.keepOwnershipAlive(
       resolved.adapter,
       reservation,
       lock,
+      signal,
+      (failure) => {
+        // AbortSignal normalizes undefined; retain the backend's raw cause separately.
+        captureFailure(failure);
+        invocationAbort.abort(failure);
+      },
     );
     let execution: ExecutionScope<Config> | undefined;
-    let error: unknown;
     let completedAt = this.now();
     let deferredDelayMs: number | undefined;
 
@@ -397,14 +450,15 @@ export class ScheduledTaskScheduler<Config> {
             resolved.task.dependencies,
           );
           await resolved.task.handler(dependencies, {
-            signal: this.executionSignal,
+            signal,
             scheduledAt: reservation.scheduledAt,
             trigger: reservation.trigger,
             deferNextRun: deferral.deferNextRun,
           });
+          if (invocationAbort.signal.aborted) throw invocationAbort.signal.reason;
           outcome = "success";
         } catch (handlerError) {
-          error = handlerError;
+          captureFailure(handlerError);
         } finally {
           completedAt = this.now();
           deferredDelayMs = deferral.delayMs;
@@ -414,7 +468,7 @@ export class ScheduledTaskScheduler<Config> {
               operation: resolved.task.id,
               transport: "scheduled-task",
               ...getExecutionObservationContext(execution!.context),
-              ...(error === undefined
+              ...(!failed
                 ? {}
                 : getExecutionObservationError(error)),
             },
@@ -427,7 +481,7 @@ export class ScheduledTaskScheduler<Config> {
         }
       });
     } catch (executionError) {
-      error ??= executionError;
+      captureFailure(executionError);
       completedAt = this.now();
       if (execution !== undefined) {
         // Disposal is idempotent when the observed callback already reached it.
@@ -437,7 +491,7 @@ export class ScheduledTaskScheduler<Config> {
       try {
         await maintenance.close();
       } catch (maintenanceError) {
-        error ??= maintenanceError;
+        captureFailure(maintenanceError);
       }
       const nextScheduledAt = reservation.trigger === "scheduled"
         && resolved.task.schedule.kind === "loop"
@@ -457,23 +511,23 @@ export class ScheduledTaskScheduler<Config> {
           completedAt,
           ...(nextScheduledAt === undefined ? {} : { nextScheduledAt }),
           ...(postponeUntil === undefined ? {} : { postponeUntil }),
-          outcome: error === undefined ? "success" : "failure",
-          ...(error === undefined
+          outcome: failed ? "failure" : "success",
+          ...(!failed
             ? {}
             : { error: serializeScheduledTaskError(error) }),
         });
       } catch (completionError) {
-        error ??= completionError;
+        captureFailure(completionError);
       }
 
       try {
         await lock?.release();
       } catch (releaseError) {
-        error ??= releaseError;
+        captureFailure(releaseError);
       }
     }
 
-    if (error !== undefined) {
+    if (failed) {
       this.reportError(error);
     }
   }
@@ -482,10 +536,12 @@ export class ScheduledTaskScheduler<Config> {
     adapter: ScheduledTaskAdapter,
     reservation: ScheduledTaskReservation,
     lock: LockHandle | undefined,
+    signal: AbortSignal,
+    onFailure: (error: unknown) => void,
   ): { close(): Promise<void> } {
     let activeExtension: Promise<unknown> | undefined;
     let extensionError: unknown;
-    const signal = this.executionSignal;
+    let extensionFailed = false;
     const stop = () => clearInterval(interval);
     const interval = setInterval(() => {
       if (signal.aborted) { stop(); return; }
@@ -493,16 +549,29 @@ export class ScheduledTaskScheduler<Config> {
         return;
       }
 
-      activeExtension = Promise.all([
-        adapter.extendLease({
-          taskId: reservation.taskId,
-          reservationToken: reservation.reservationToken,
-          leaseMs: this.options.leaseMs,
+      const attempt = (operation: () => Promise<unknown>) => Promise.resolve()
+        .then(operation)
+        .catch((error: unknown) => {
+          // Concurrent renewals retain their first failure even when it is nullish.
+          if (!extensionFailed) {
+            extensionFailed = true;
+            extensionError = error;
+          }
+          onFailure(error);
+          throw error;
+        });
+      // Detect lost ownership promptly, but retain every in-flight renewal until close.
+      activeExtension = Promise.allSettled([
+        attempt(async () => {
+          const owned = await adapter.extendLease({
+            taskId: reservation.taskId,
+            reservationToken: reservation.reservationToken,
+            leaseMs: this.options.leaseMs,
+          });
+          if (!owned) throw new Error(`Scheduled task reservation ownership was lost for "${reservation.taskId}".`);
         }),
-        lock?.extend(this.options.leaseMs),
-      ]).catch((error: unknown) => {
-        extensionError = error;
-      }).finally(() => {
+        attempt(async () => lock?.extend(this.options.leaseMs)),
+      ]).then(() => undefined).finally(() => {
         activeExtension = undefined;
       });
     }, Math.max(1, Math.floor(this.options.leaseMs / 2)));
@@ -515,7 +584,7 @@ export class ScheduledTaskScheduler<Config> {
         clearInterval(interval);
         signal.removeEventListener("abort", stop);
         await activeExtension;
-        if (extensionError !== undefined) {
+        if (extensionFailed) {
           throw extensionError;
         }
       },

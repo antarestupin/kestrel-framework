@@ -44,10 +44,10 @@ interface ReservationRow {
   group_id: string | null;
   execution_id: string | null;
   attempt: number;
-  available_at: Date;
-  reserved_at: Date;
+  available_at: Date | string;
+  reserved_at: Date | string;
   reservation_token: string;
-  created_at: Date;
+  created_at: Date | string;
 }
 
 interface ReservationReferenceRow {
@@ -605,10 +605,12 @@ function mapReservedJob(row: ReservationRow): ReservedJob {
     ...(row.group_id === null ? {} : { groupId: row.group_id }),
     ...(row.execution_id === null ? {} : { executionId: row.execution_id }),
     attempt: row.attempt,
-    availableAt: row.available_at,
-    reservedAt: row.reserved_at,
+    // Raw Drizzle execution can return timestamp text rather than driver Date
+    // objects; handlers must receive the Date contract advertised by ReservedJob.
+    availableAt: new Date(row.available_at),
+    reservedAt: new Date(row.reserved_at),
     reservationToken: row.reservation_token,
-    createdAt: row.created_at,
+    createdAt: new Date(row.created_at),
   };
 }
 

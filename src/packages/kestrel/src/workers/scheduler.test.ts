@@ -132,7 +132,7 @@ describe("WorkerScheduler", () => {
   ])("keeps correlated ACKs behind slow persistence (size $size, failure $fail)", async ({ size, fail }) => {
     vi.useFakeTimers();
     const app = await createStartedApp();
-    const started = Promise.withResolvers<void>();
+    let started = false;
     const finish = Promise.withResolvers<void>();
     let cycle: Promise<unknown> | undefined;
     try {
@@ -155,7 +155,7 @@ describe("WorkerScheduler", () => {
         ackBufferSize: size,
         ackFlushIntervalMs: 10,
         completeCorrelatedJob: async () => {
-          started.resolve();
+          started = true;
           await finish.promise;
           if (fail) throw new Error("result store unavailable");
         },
@@ -164,7 +164,10 @@ describe("WorkerScheduler", () => {
         (count) => ({ count }),
         (error: unknown) => ({ error }),
       );
-      await started.promise;
+      // Assert the handoff begins after the current async turn instead of
+      // waiting forever when a broken execution path never reaches the sink.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(started).toBe(true);
       // Neither a full batch, its timer, nor shutdown may acknowledge a result
       // that has not reached its destination yet.
       await vi.advanceTimersByTimeAsync(20);
@@ -988,7 +991,7 @@ describe("WorkerScheduler", () => {
       namespace: "workers",
       now: () => now,
     });
-    const handoffStarted = Promise.withResolvers<void>();
+    let handoffStarted = false;
     const finishHandoff = Promise.withResolvers<void>();
     let cycle: Promise<unknown> | undefined;
     try {
@@ -1025,7 +1028,7 @@ describe("WorkerScheduler", () => {
         leaseMs: 1_000,
         throttling,
         completeCorrelatedJob: async () => {
-          handoffStarted.resolve();
+          handoffStarted = true;
           await finishHandoff.promise;
         },
       });
@@ -1033,7 +1036,8 @@ describe("WorkerScheduler", () => {
       cycle = scheduler.runOnce().catch((error: unknown) => error).finally(() => {
         settled = true;
       });
-      await handoffStarted.promise;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(handoffStarted).toBe(true);
       await vi.advanceTimersByTimeAsync(600);
       expect(settled).toBe(false);
       expect(extend).toHaveBeenCalledOnce();

@@ -74,4 +74,21 @@ describe("WorkerDeferralBuffer", () => {
     expect(persisted).not.toHaveBeenCalled();
     await expect(buffer.flush()).resolves.toBeUndefined();
   });
+
+  it("aggregates every failed deferral chunk without confirming persistence", async () => {
+    const adapter = new MemoryWorkerAdapter();
+    const first = new Error("first chunk failed");
+    const second = new Error("second chunk failed");
+    const defer = vi.spyOn(adapter, "defer").mockRejectedValueOnce(first).mockRejectedValueOnce(second);
+    const onDeferred = vi.fn();
+    const persisted = vi.fn();
+    const buffer = new WorkerDeferralBuffer(adapter, { maxSize: 1, flushIntervalMs: 1_000, onDeferred });
+    buffer.enqueue([request("first", 100), request("second", 200)], persisted);
+    await expect(buffer.flush()).rejects.toMatchObject({ errors: [first, second] });
+    expect(defer).toHaveBeenCalledTimes(2);
+    expect(onDeferred).not.toHaveBeenCalled();
+    expect(persisted).not.toHaveBeenCalled();
+    await expect(buffer.flush()).resolves.toBeUndefined();
+  });
+
 });

@@ -1919,7 +1919,11 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         concurrencyAdmitted = count < source.concurrencyKeyLimit;
       }
 
-      const originalInput = source.initialInput?.value ?? source.input ?? null;
+      // A present snapshot may deliberately contain null. Only legacy rows
+      // without a snapshot fall back to the current generation's input.
+      const originalInput = source.initialInput === null
+        ? source.input ?? null
+        : source.initialInput.value;
       const [created] = await transaction.insert(this.executionsTable).values({
         id: request.executionId,
         workflowName: source.workflowName,
@@ -2368,6 +2372,45 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
           transaction,
           execution,
         );
+        // A capacity-pending child has no activation that could report its
+        // terminal cancellation later. Complete its parent's command now.
+        if (execution.parentExecutionId !== null && execution.parentCommandSequence !== null) {
+          const [parent] = await transaction.select()
+            .from(this.executionsTable)
+            .where(eq(this.executionsTable.id, execution.parentExecutionId))
+            .for("update");
+          if (parent !== undefined && !isTerminalWorkflowStatus(parent.status)) {
+            const [{ count = 0 } = {}] = await transaction.select({
+              count: sql<number>`count(*)::integer`,
+            }).from(this.historyTable).where(and(
+              eq(this.historyTable.executionId, parent.id),
+              eq(this.historyTable.type, "command-completed"),
+            ));
+            const [completion] = await transaction.insert(this.historyTable).values({
+              executionId: parent.id,
+              eventIndex: parent.revision,
+              type: "command-completed",
+              commandSequence: execution.parentCommandSequence,
+              completionOrder: count,
+              error: {
+                name: "WorkflowCancellationError",
+                message: `Child workflow "${execution.id}" was cancelled.`,
+                details: { executionId: execution.id },
+              },
+            }).onConflictDoNothing().returning({ eventIndex: this.historyTable.eventIndex });
+            if (completion !== undefined) {
+              await transaction.update(this.executionsTable).set({
+                revision: parent.revision + 1,
+                status: "queued",
+                updatedAt: sql`statement_timestamp()`,
+              }).where(eq(this.executionsTable.id, parent.id));
+              await transaction.insert(this.tasksTable).values({
+                executionId: parent.id,
+                kind: "workflow",
+              }).onConflictDoNothing();
+            }
+          }
+        }
       }
 
       if (currentId === rootExecutionId) rootChanged = true;

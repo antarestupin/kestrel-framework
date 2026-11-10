@@ -247,3 +247,7 @@ const outboundFetch = createOutboundFetch({
 
 const response = await outboundFetch("https://weather.example/forecast");
 ```
+
+Retry backoff respects `maxDelayMs` after applying jitter for transport failures as well as retryable HTTP responses. `Retry-After` delays are capped by the same maximum; a configured logical deadline still bounds the complete operation.
+
+Long retry delays are split into Node-compatible timer intervals without shortening the logical backoff. Caller cancellation releases the current interval and prevents another attempt.

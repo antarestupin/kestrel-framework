@@ -23,6 +23,8 @@ const fields = paginationControllerInputSchema.parse({ page: "2", pageSize: "20"
 const mapped = mapPaginationControllerInput(fields);
 ```
 
+Numbered page-size options must be positive safe integers, with `defaultPageSize <= maxPageSize`. Invalid configuration fails when the schema is created, so omitted input and explicitly supplied page sizes follow the same numeric contract.
+
 Pass a validated pagination value to `repository.findAll(pagination)`. Without an argument, `findAll()` selects `all`; public model-list actions instead default to the first bounded page. `pageInfo.hasNextPage` avoids an implicit count query; totals are not returned by default.
 
 For conventional CRUD, compose `defineModelListAction` with `defineModelListActionHttpController` or `defineModelListActionCliController`. For an existing action accepting `{ pagination, ...filters }`, `action.derive(mapPaginationInput)` exposes flat `page` and `pageSize` fields while retaining filters.

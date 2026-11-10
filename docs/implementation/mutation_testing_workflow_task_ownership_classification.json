@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Memory and PostgreSQL releaseTasks/extendTaskLeases plus generation-owned mutation helpers; retryExecution changes elsewhere in those files are outside this scope.",
+  "command": "npm run test:mutation:workflow-task-ownership",
+  "budgetMs": 600000,
+  "report": "artifacts/mutation/workflow-task-ownership/mutation.json",
+  "beforeReport": "artifacts/mutation/workflow-task-ownership-before-two-hour-tests/mutation.json",
+  "scopeMutants": 75,
+  "beforeCounts": {
+    "NoCoverage": 29,
+    "Killed": 30,
+    "Survived": 16
+  },
+  "counts": {
+    "Killed": 71,
+    "Survived": 4
+  },
+  "seconds": {
+    "before": 16,
+    "after": 19
+  },
+  "baselineTests": {
+    "before": 139,
+    "after": 179
+  },
+  "newTestCases": 21,
+  "productionChangesInScope": false,
+  "sourceComparison": "Whole adapter files changed because retry bugs were fixed between these runs. All 75 selected original-expression/operator/replacement/occurrence fingerprints match despite shifted lines; do not claim identical whole-file sources.",
+  "allPriorKillsPreserved": true,
+  "allExecutedMutantsCompletedTests": true,
+  "vitestTimeoutKills": 0,
+  "review": "complete with empty-transaction work/failure-observation limitation",
+  "remaining": [
+    {
+      "sampleId": "19",
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 80,
+          "line": 965
+        },
+        "start": {
+          "column": 29,
+          "line": 965
+        }
+      },
+      "original": "\"Workflow task leaseMs must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The invalid owned lease is still rejected with TypeError and no mutation. Emptying only its message changes human-readable wording, not the documented error type or reservation outcome; exact wording is not pinned."
+    },
+    {
+      "sampleId": "59",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 80,
+          "line": 1981
+        },
+        "start": {
+          "column": 29,
+          "line": 1981
+        }
+      },
+      "original": "\"Workflow task leaseMs must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The invalid owned lease is still rejected with TypeError and no mutation. Emptying only its message changes human-readable wording, not the documented error type or reservation outcome; exact wording is not pinned."
+    },
+    {
+      "sampleId": "65",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 2173
+        },
+        "start": {
+          "column": 9,
+          "line": 2173
+        }
+      },
+      "original": "reservations.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "same healthy-store result with empty-transaction work and failure-observation difference",
+      "reason": "Without the zero-reservation shortcut, an empty transaction still returns an empty changed-reference list and modifies no rows. It nevertheless opens BEGIN/COMMIT, consumes a connection and may surface storage failure that the original shortcut avoids. This is not strict work/failure equivalence. Preserve the guard; output-only tests do not establish no-I/O behavior."
+    },
+    {
+      "sampleId": "67",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 2175
+        },
+        "start": {
+          "column": 36,
+          "line": 2173
+        }
+      },
+      "original": "{\n      return [];\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "same healthy-store result with empty-transaction work and failure-observation difference",
+      "reason": "Without the zero-reservation shortcut, an empty transaction still returns an empty changed-reference list and modifies no rows. It nevertheless opens BEGIN/COMMIT, consumes a connection and may surface storage failure that the original shortcut avoids. This is not strict work/failure equivalence. Preserve the guard; output-only tests do not establish no-I/O behavior."
+    }
+  ],
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 30
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 15
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 26
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Survived",
+      "count": 3
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 1
+    }
+  ],
+  "reportHashes": {
+    "artifacts/mutation/workflow-task-ownership-before-two-hour-tests/mutation.json": "8b3e68262b1f2edc043bd5bff0710e265ce5aecca6440dce77c572a9831ba403",
+    "artifacts/mutation/workflow-task-ownership/mutation.json": "788dce2b9bc3be21ed4b50359b657825cdfac33edb7e0d35041771a3ddfbaf37"
+  },
+  "sourceHashesAtReview": {
+    "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "33f944e9a2722257c3a14d7f7d2bdc6009b36e82633a774f94e18874316802d6",
+    "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "9249d00f0e7a6b6565f6b7a8ebb36f881c7f679f941413c41f45ab0f9dbb3a8c"
+  },
+  "executedTestSourceHashes": {
+    "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+    "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "ffd0aee2c882ec1dc424d43041b3c8577dc786a9200643a1b14417b89436630c",
+    "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+    "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+    "src/packages/kestrel/src/workflows/adapters/memory/retry_execution.test.ts": "5503843ffbc4982c4e4cfa60330dd81647c3b80e9ef90d55e6ef66d7de831034",
+    "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+    "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+    "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+    "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+    "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+    "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+    "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+    "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+    "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+    "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+    "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+    "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+    "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+  },
+  "currentTestHashesAtReview": {
+    "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+    "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "304a07286131eddb55e5775f2edef6a6346791ba3f3a5db41cf0ff9811ab07d4"
+  },
+  "inputRevisionLimit": "Current PostgreSQL test file includes four later retry-only cases not present in this ownership run. The report embeds the executed test sources; executedTestSourceHashes record that exact run. Current-at-review hashes are not claimed as the executed input revision.",
+  "tests": "21 public adapter cases cover mixed missing/cross-task/stale generations, input-order changed references, duplicate releases, exact owned mutation, empty batches, non-workflow state preservation, lease bounds and server-clock bracketing. Physical row/snapshot assertions supplement the TypeScript SQL AST mutation scope.",
+  "scorePolicy": "Keep four survivors visible; raw and covered score 94.67%, no exclusions or blocking threshold. No systematic SQL/Lua predicate mutation claim.",
+  "reviewAgainWhen": "Re-review after reservation semantics, empty-operation no-I/O contract, SQL transaction behavior, adapter source/test/configuration or driver changes.",
+  "laterChangesOutsideScope": "After this ownership run and review snapshot, terminal-control regressions and fixes changed other portions of the same adapter files and PostgreSQL test file. Frozen sourceHashesAtReview/currentTestHashesAtReview describe that earlier review state, not the final campaign checkout. The report embeds the exact executed sources; selected ownership expressions remain unchanged."
+}

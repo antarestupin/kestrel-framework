@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Entire actions/model_actions.ts, actions/pagination.ts and actions/cursor_pagination.ts; other actions files and lower-level db/utils helpers are dependencies rather than mutated sources.",
+  "command": "npm run test:mutation:actions-crud-pagination",
+  "budgetMs": 600000,
+  "report": "artifacts/mutation/actions-crud-pagination/mutation.json",
+  "beforeReport": "artifacts/mutation/actions-crud-pagination-before-tests/mutation.json",
+  "counts": {
+    "Killed": 168,
+    "Survived": 8
+  },
+  "beforeCounts": {
+    "NoCoverage": 8,
+    "Killed": 142,
+    "Survived": 26
+  },
+  "scopeMutants": 176,
+  "review": "complete for selected CRUD/pagination files, with unconstrained diagnostics kept visible",
+  "productionChanges": true,
+  "bugsFound": [
+    {
+      "file": "src/packages/kestrel/src/actions/pagination.ts",
+      "contract": "Configured numbered defaults must be consistent with explicit safe-integer input.",
+      "before": "createPaginationInputSchema({defaultPageSize: Number.MAX_SAFE_INTEGER + 1, maxPageSize: Number.MAX_SAFE_INTEGER + 1}).parse(undefined) returned unsafe pageSize9007199254740992, while the equivalent explicit page input failed Zod validation. Number.isInteger accepted unsafe integer configuration, and Zod defaults bypassed field parsing.",
+      "regressionEvidence": "Two new unsafe defaultPageSize/maxPageSize cases failed on the original source (expected TypeError, received no throw), then passed after the fix.",
+      "fix": "Validate configured numbered page sizes with Number.isSafeInteger. Number.MAX_SAFE_INTEGER remains permitted for numbered options; cursor-only lookahead bounds and lower-level numbered window/offset arithmetic are not changed.",
+      "publicDocs": [
+        "docs/usage/pagination.md",
+        "docs/implementation/pagination.md"
+      ]
+    }
+  ],
+  "comparisonPolicy": "Sources changed, so equal mutant counts do not imply identical mutation corpora. Match file, normalized original expression, mutator, replacement and occurrence; report changed source bodies/expressions separately. Numeric IDs and shifted line positions are descriptive only.",
+  "comparison": {
+    "sourceChanges": [
+      "src/packages/kestrel/src/actions/pagination.ts"
+    ],
+    "beforeMutants": 176,
+    "afterMutants": 176,
+    "matchedSites": 169,
+    "beforeUnmatched": 7,
+    "afterUnmatched": 7,
+    "matchedTransitions": [
+      {
+        "before": "Killed",
+        "after": "Killed",
+        "count": 140
+      },
+      {
+        "before": "Survived",
+        "after": "Killed",
+        "count": 18
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Killed",
+        "count": 4
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Survived",
+        "count": 2
+      },
+      {
+        "before": "Survived",
+        "after": "Survived",
+        "count": 5
+      }
+    ],
+    "matchedPriorKillsRegressed": []
+  },
+  "remaining": [
+    {
+      "sampleId": "7",
+      "file": "src/packages/kestrel/src/actions/cursor_pagination.ts",
+      "location": {
+        "end": {
+          "column": 88,
+          "line": 27
+        },
+        "start": {
+          "column": 55,
+          "line": 27
+        }
+      },
+      "original": "\"Cursor values must be non-null.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 7,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only human-readable Zod issue or configuration TypeError text changes. Rejection, structured custom issue code/path where applicable, and invalid configuration handling are preserved. Tests constrain those observable structures rather than undocumented exact wording.",
+      "reviewAgainWhen": "An exact stable diagnostic-message or option-name presentation contract becomes public."
+    },
+    {
+      "sampleId": "21",
+      "file": "src/packages/kestrel/src/actions/cursor_pagination.ts",
+      "location": {
+        "end": {
+          "column": 99,
+          "line": 44
+        },
+        "start": {
+          "column": 71,
+          "line": 44
+        }
+      },
+      "original": "\"Invalid pagination cursor.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only human-readable Zod issue or configuration TypeError text changes. Rejection, structured custom issue code/path where applicable, and invalid configuration handling are preserved. Tests constrain those observable structures rather than undocumented exact wording.",
+      "reviewAgainWhen": "An exact stable diagnostic-message or option-name presentation contract becomes public."
+    },
+    {
+      "sampleId": "48",
+      "file": "src/packages/kestrel/src/actions/cursor_pagination.ts",
+      "location": {
+        "end": {
+          "column": 86,
+          "line": 116
+        },
+        "start": {
+          "column": 58,
+          "line": 116
+        }
+      },
+      "original": "\"Invalid pagination cursor.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only human-readable Zod issue or configuration TypeError text changes. Rejection, structured custom issue code/path where applicable, and invalid configuration handling are preserved. Tests constrain those observable structures rather than undocumented exact wording.",
+      "reviewAgainWhen": "An exact stable diagnostic-message or option-name presentation contract becomes public."
+    },
+    {
+      "sampleId": "75",
+      "file": "src/packages/kestrel/src/actions/cursor_pagination.ts",
+      "location": {
+        "end": {
+          "column": 135,
+          "line": 130
+        },
+        "start": {
+          "column": 25,
+          "line": 130
+        }
+      },
+      "original": "\"Cursor page sizes must be positive safe integers with defaultPageSize <= maxPageSize and room for lookahead.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 15,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only human-readable Zod issue or configuration TypeError text changes. Rejection, structured custom issue code/path where applicable, and invalid configuration handling are preserved. Tests constrain those observable structures rather than undocumented exact wording.",
+      "reviewAgainWhen": "An exact stable diagnostic-message or option-name presentation contract becomes public."
+    },
+    {
+      "sampleId": "135",
+      "file": "src/packages/kestrel/src/actions/pagination.ts",
+      "location": {
+        "end": {
+          "column": 78,
+          "line": 73
+        },
+        "start": {
+          "column": 7,
+          "line": 73
+        }
+      },
+      "original": "\"The default pagination page size cannot exceed the maximum page size.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only human-readable configuration error text changes. The same invalid option still throws TypeError before schema creation; no stable exact message contract is documented.",
+      "reviewAgainWhen": "An exact stable diagnostic-message or option-name presentation contract becomes public."
+    },
+    {
+      "sampleId": "181",
+      "file": "src/packages/kestrel/src/actions/pagination.ts",
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 240
+        },
+        "start": {
+          "column": 7,
+          "line": 240
+        }
+      },
+      "original": "`The pagination ${name} must be a positive safe integer.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Survived",
+      "testsCompleted": 12,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only human-readable configuration error text changes. The same invalid option still throws TypeError before schema creation; no stable exact message contract is documented.",
+      "reviewAgainWhen": "An exact stable diagnostic-message or option-name presentation contract becomes public."
+    },
+    {
+      "sampleId": "128",
+      "file": "src/packages/kestrel/src/actions/pagination.ts",
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 69
+        },
+        "start": {
+          "column": 24,
+          "line": 69
+        }
+      },
+      "original": "\"maxPageSize\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 823,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "The option-name argument is used only to label the thrown TypeError message. Changing its text does not change validation, default values or query behavior. Tests intentionally assert rejection/error type instead of undocumented exact diagnostic wording.",
+      "reviewAgainWhen": "An exact stable diagnostic-message or option-name presentation contract becomes public."
+    },
+    {
+      "sampleId": "126",
+      "file": "src/packages/kestrel/src/actions/pagination.ts",
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 68
+        },
+        "start": {
+          "column": 24,
+          "line": 68
+        }
+      },
+      "original": "\"defaultPageSize\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 823,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "The option-name argument is used only to label the thrown TypeError message. Changing its text does not change validation, default values or query behavior. Tests intentionally assert rejection/error type instead of undocumented exact diagnostic wording.",
+      "reviewAgainWhen": "An exact stable diagnostic-message or option-name presentation contract becomes public."
+    }
+  ],
+  "scorePolicy": "Retain all eight diagnostic survivors with their original statuses; no ignores, score adjustment or blocking threshold. This is selected-scope evidence, not whole-component completion.",
+  "fingerprintInputs": {
+    "src/packages/kestrel/src/actions/model_actions.ts": "a9db9ac5587959ddb78054a3235d82a762383e1a61a130ff4082559475530741",
+    "src/packages/kestrel/src/actions/pagination.ts": "affffd10677f7b77d06c35d25bc2bcbfac5d5ce027b64c32be5b0ae7bee3e5fe",
+    "src/packages/kestrel/src/actions/cursor_pagination.ts": "97a5a05f0f7de668a0e3321e4e861a8d3dedd999e47c9742b588ba149017fb4c",
+    "src/packages/kestrel/src/actions/pagination.test.ts": "e715f9666f86762cc47baf69d3a8d88b59fec23f4f7d797b80342256733413f5",
+    "src/packages/kestrel/src/actions/cursor_pagination.test.ts": "b46449de1396187cb1738b625b2967f6b41e9c50a52cef57a0ce8d0bb684ccd0"
+  },
+  "reportHashes": {
+    "artifacts/mutation/actions-crud-pagination-before-tests/mutation.json": "c48405ecf7f0d2fc87640c42c94fc1332312e11f93da6c071b531fddcf55fe30",
+    "artifacts/mutation/actions-crud-pagination/mutation.json": "f0b4f0d75ec8f8711e1286c66526c4ec1b06bd0f40c665b0466c72713e0bf96d"
+  }
+}

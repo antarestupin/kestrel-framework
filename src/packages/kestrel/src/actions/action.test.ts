@@ -44,7 +44,10 @@ describe("actions", () => {
       handler: async (value: string) => value,
     };
     try {
-      await expect(app.get(defineAction(options)).run("value"))
+      // Inspect the default policy before binding so a broken definition fails directly.
+      const syncAction = defineAction(options);
+      expect(syncAction.validation).toEqual({ input: "sync", output: "sync" });
+      await expect(app.get(syncAction).run("value"))
         .rejects.toThrow(/Promise/);
       expect(transform).toHaveBeenCalledTimes(1);
       const action = defineAction({ ...options, validation: { [boundary]: "async" } });

@@ -382,21 +382,27 @@ export class WorkerScheduler<Config> {
     const leaseExtensions = this.keepLeasesAlive(jobs);
 
     try {
-      const outcomes = await Promise.all(
+      // An execution-scope failure must not end sibling handlers or their lease
+      // protection. Drain all invocations and persist the outcomes that did finish.
+      const invocations = await Promise.allSettled(
         this.createInvocations(jobs).map((invocation) =>
           this.runInvocation(invocation)),
       );
+      const outcomes = invocations.flatMap((invocation) =>
+        invocation.status === "fulfilled" ? invocation.value : []);
+      const invocationErrors = invocations.flatMap((invocation) =>
+        invocation.status === "rejected" ? [invocation.reason as unknown] : []);
 
       // Independent storage transitions can complete together at the cycle
       // boundary instead of serializing deferrals behind acknowledgements.
       const transitions = await Promise.allSettled([
-        this.flushOutcomes(outcomes.flat()),
+        this.flushOutcomes(outcomes),
         this.deferrals.flush(),
       ]);
       // One failed buffer must not end lease maintenance while another is
       // still persisting outcomes or waiting for correlated result delivery.
-      const errors = transitions.flatMap((transition) =>
-        transition.status === "rejected" ? [transition.reason as unknown] : []);
+      const errors = [...invocationErrors, ...transitions.flatMap((transition) =>
+        transition.status === "rejected" ? [transition.reason as unknown] : [])];
       if (errors.length === 1) throw errors[0];
       if (errors.length > 1) {
         throw new AggregateError(errors, "Several worker transitions failed.");
@@ -1161,20 +1167,39 @@ export class WorkerScheduler<Config> {
 
     // Keep successes outside the auto-flushing buffer until their result
     // handoffs are durable. A timer or full buffer must never overtake them.
-    await Promise.all(completions.map(this.completeCorrelatedJob));
+    // A failed handoff must not release sibling reservations while their
+    // terminal results are still reaching storage. Normalize synchronous throws
+    // as well, so every selected handoff participates in the same drain.
+    const handoffs = await Promise.allSettled(completions.map((completion) =>
+      Promise.resolve().then(() => this.completeCorrelatedJob(completion))));
+    const handoffErrors = handoffs.flatMap((handoff) =>
+      handoff.status === "rejected" ? [handoff.reason as unknown] : []);
+    if (handoffErrors.length === 1) throw handoffErrors[0];
+    if (handoffErrors.length > 1) {
+      throw new AggregateError(handoffErrors, "Several worker result handoffs failed.");
+    }
 
     for (const { job } of successes) {
       this.acknowledgements.enqueue(job.queue, toReservationRef(job));
     }
 
     // Independent batches let adapters issue one statement per transition.
-    await Promise.all([
+    // Preserve lease maintenance until all started queue transitions settle,
+    // including when one backend operation fails before its peers complete.
+    const transitions = await Promise.allSettled([
       this.acknowledgements.flush(),
-      retries.length === 0 ? undefined : this.adapter.retry(retries),
+      retries.length === 0 ? undefined
+        : Promise.resolve().then(() => this.adapter.retry(retries)),
       deadLetters.length === 0
         ? undefined
-        : this.adapter.deadLetter(deadLetters),
+        : Promise.resolve().then(() => this.adapter.deadLetter(deadLetters)),
     ]);
+    const transitionErrors = transitions.flatMap((transition) =>
+      transition.status === "rejected" ? [transition.reason as unknown] : []);
+    if (transitionErrors.length === 1) throw transitionErrors[0];
+    if (transitionErrors.length > 1) {
+      throw new AggregateError(transitionErrors, "Several worker queue transitions failed.");
+    }
   }
 }
 

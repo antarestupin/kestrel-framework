@@ -1,0 +1,938 @@
+{
+  "date": "2026-11-10",
+  "profile": "outbound-resilience",
+  "assessment": "complete",
+  "review": "classified with material resource, interleaving and representation gaps retained",
+  "report": "artifacts/mutation/outbound-resilience/mutation.json",
+  "reportHash": "1333d37dc3e503ff52e859a5162673b3eeb670dcbc80a759f7ba2324c2d47b9b",
+  "beforeReport": "artifacts/mutation/outbound-resilience-before-two-hour-tests/mutation.json",
+  "beforeReportHash": "b1b107b8ac95e015e8856ac81d755dc06b370c89d13919fd35ce7d2bed883efa",
+  "sourceHashes": {
+    "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts": "bdf00fb29b3c0ad4d924d16be05ef25c6d8de0481314c24b5689021c245f4c7d",
+    "src/packages/kestrel/src/outbound_http/body.ts": "59365fab17372a7966f5bd91c3cd21160a7ced8540933af3ffd58eed641137ea",
+    "src/packages/kestrel/src/outbound_http/deadline.ts": "df2334ac244a88795d3bea72f4829731330544ed5293b50f30fc143c33538450"
+  },
+  "counts": {
+    "NoCoverage": 1,
+    "Killed": 313,
+    "Timeout": 1,
+    "Survived": 33
+  },
+  "comparison": {
+    "policy": "File, normalized original expression, operator, replacement and occurrence. Text matches are not a proof of semantic identity across changed surrounding control flow.",
+    "common": 331,
+    "unmatchedBefore": 3,
+    "unmatchedAfter": 17,
+    "transitions": [
+      {
+        "before": "Killed",
+        "after": "Killed",
+        "count": 187
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Killed",
+        "count": 41
+      },
+      {
+        "before": "NoCoverage",
+        "after": "NoCoverage",
+        "count": 1
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Survived",
+        "count": 8
+      },
+      {
+        "before": "Survived",
+        "after": "Killed",
+        "count": 69
+      },
+      {
+        "before": "Survived",
+        "after": "Survived",
+        "count": 24
+      },
+      {
+        "before": "Survived",
+        "after": "Timeout",
+        "count": 1
+      }
+    ]
+  },
+  "categories": {
+    "unreachable-diagnostic": 1,
+    "execution-guard-detection": 1,
+    "bounded-work-distinction": 2,
+    "retired-timer-equivalent": 1,
+    "native-abort-invariant": 7,
+    "deferred-process-liveness": 3,
+    "unconstrained-diagnostic": 8,
+    "private-state-equivalent": 1,
+    "deferred-resource-lifetime": 1,
+    "deferred-cancellation-interleaving": 5,
+    "deferred-stream-representation": 2,
+    "production-caller-invariant": 3
+  },
+  "vitestTimeoutKills": [
+    {
+      "id": "280",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "281",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "286",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "285",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "290",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "292",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "293",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "294",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "296",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "297",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "298",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "301",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "302",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "303",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "306",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "53",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "59",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "61",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "71",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "79",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "81",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "82",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "94",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "123",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "126",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "128",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "168",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "184",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "186",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    },
+    {
+      "id": "187",
+      "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\"."
+    }
+  ],
+  "residuals": [
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "240",
+      "status": "NoCoverage",
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 79
+        },
+        "start": {
+          "column": 23,
+          "line": 79
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"Outbound HTTP retry loop completed unexpectedly.\"",
+      "replacement": "\"\"",
+      "category": "unreachable-diagnostic",
+      "reason": "Validated finite positive integer maxAttempts ensures the last iteration returns a response or throws its final failure. The post-loop diagnostic is unreachable under unchanged validated control flow.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "215",
+      "status": "Timeout",
+      "location": {
+        "end": {
+          "column": 65,
+          "line": 47
+        },
+        "start": {
+          "column": 53,
+          "line": 47
+        }
+      },
+      "operator": "AssignmentOperator",
+      "original": "attempt += 1",
+      "replacement": "attempt -= 1",
+      "category": "execution-guard-detection",
+      "reason": "Stryker explicitly reports a hit-limit termination for nonprogressing attempt/timer arithmetic. Preserve Timeout separately from assertion kills.",
+      "statusReason": "Hit limit reached (4401/4400)"
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "252",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 26,
+          "line": 92
+        },
+        "start": {
+          "column": 7,
+          "line": 92
+        }
+      },
+      "operator": "ConditionalExpression",
+      "original": "value === undefined",
+      "replacement": "false",
+      "category": "bounded-work-distinction",
+      "reason": "Performs an additional native parse/clock comparison on an absent optional value. Existing public results agree; this is retained as a work distinction rather than strict equivalence.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "284",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 123
+        },
+        "start": {
+          "column": 7,
+          "line": 123
+        }
+      },
+      "operator": "CallExpression",
+      "original": "clearTimeout(timeout);",
+      "replacement": ";",
+      "category": "retired-timer-equivalent",
+      "reason": "finish is called only from the timer callback after its one active interval fired. Clearing that already fired interval adds no cancellation; the separate abort path still clears a pending timer.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "288",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 127
+        },
+        "start": {
+          "column": 34,
+          "line": 127
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"abort\"",
+      "replacement": "\"\"",
+      "category": "native-abort-invariant",
+      "reason": "The abort callback retains its unchanged once option, which removes it before invocation. The altered explicit removal during that same callback is redundant under this native once-listener behavior.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "300",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 25,
+          "line": 139
+        },
+        "start": {
+          "column": 9,
+          "line": 139
+        }
+      },
+      "operator": "CallExpression",
+      "original": "timeout.unref();",
+      "replacement": ";",
+      "category": "deferred-process-liveness",
+      "reason": "Removing unref keeps the process alive for an otherwise unowned timer. In-process fake-clock tests do not establish process-exit behavior; subprocess activation evidence is deferred.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "304",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 21,
+          "line": 146
+        },
+        "start": {
+          "column": 5,
+          "line": 146
+        }
+      },
+      "operator": "CallExpression",
+      "original": "timeout.unref();",
+      "replacement": ";",
+      "category": "deferred-process-liveness",
+      "reason": "Removing unref keeps the process alive for an otherwise unowned timer. In-process fake-clock tests do not establish process-exit behavior; subprocess activation evidence is deferred.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "307",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 59,
+          "line": 147
+        },
+        "start": {
+          "column": 45,
+          "line": 147
+        }
+      },
+      "operator": "ObjectLiteral",
+      "original": "{ once: true }",
+      "replacement": "{}",
+      "category": "native-abort-invariant",
+      "reason": "Removing the once option preserves a single native AbortController cancellation together with explicit handler/owner listener cleanup. This does not claim equivalence for manually repeated dispatchEvent calls outside the cancellation contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "308",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 147
+        },
+        "start": {
+          "column": 53,
+          "line": 147
+        }
+      },
+      "operator": "BooleanLiteral",
+      "original": "true",
+      "replacement": "false",
+      "category": "native-abort-invariant",
+      "reason": "Removing the once option preserves a single native AbortController cancellation together with explicit handler/owner listener cleanup. This does not claim equivalence for manually repeated dispatchEvent calls outside the cancellation contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "310",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 51,
+          "line": 154
+        },
+        "start": {
+          "column": 36,
+          "line": 154
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"retry backoff\"",
+      "replacement": "\"\"",
+      "category": "unconstrained-diagnostic",
+      "reason": "Changes diagnostic wording while type, cause and control flow are retained. Exact English text is not an application contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "320",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 67,
+          "line": 161
+        },
+        "start": {
+          "column": 25,
+          "line": 161
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"A retryable HTTP method cannot be empty.\"",
+      "replacement": "\"\"",
+      "category": "unconstrained-diagnostic",
+      "reason": "Changes diagnostic wording while type, cause and control flow are retained. Exact English text is not an application contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "331",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 174
+        },
+        "start": {
+          "column": 25,
+          "line": 174
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"Retry maxAttempts must be a positive integer.\"",
+      "replacement": "\"\"",
+      "category": "unconstrained-diagnostic",
+      "reason": "Changes diagnostic wording while type, cause and control flow are retained. Exact English text is not an application contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "349",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 96,
+          "line": 179
+        },
+        "start": {
+          "column": 25,
+          "line": 179
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"Retry delays must be finite and maxDelayMs must cover initialDelayMs.\"",
+      "replacement": "\"\"",
+      "category": "unconstrained-diagnostic",
+      "reason": "Changes diagnostic wording while type, cause and control flow are retained. Exact English text is not an application contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+      "sampleId": "364",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 74,
+          "line": 183
+        },
+        "start": {
+          "column": 25,
+          "line": 183
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"Retry jitterRatio must be between zero and one.\"",
+      "replacement": "\"\"",
+      "category": "unconstrained-diagnostic",
+      "reason": "Changes diagnostic wording while type, cause and control flow are retained. Exact English text is not an application contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "20",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 39,
+          "line": 34
+        },
+        "start": {
+          "column": 19,
+          "line": 34
+        }
+      },
+      "operator": "ObjectLiteral",
+      "original": "{ truncated: false }",
+      "replacement": "{}",
+      "category": "private-state-equivalent",
+      "reason": "The private initial truncated value is read through ?? false and set to true on truncation. Its own-property shape is never exposed.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "33",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 46
+        },
+        "start": {
+          "column": 7,
+          "line": 46
+        }
+      },
+      "operator": "CallExpression",
+      "original": "this.active.delete(target);",
+      "replacement": ";",
+      "category": "deferred-resource-lifetime",
+      "reason": "Removing active.delete retains finished Response/reader closures until the operation owner is released. Ordinary decoded output does not establish retention behavior; this is not strict equivalence.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "38",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 22,
+          "line": 51
+        },
+        "start": {
+          "column": 18,
+          "line": 51
+        }
+      },
+      "operator": "BooleanLiteral",
+      "original": "true",
+      "replacement": "false",
+      "category": "deferred-cancellation-interleaving",
+      "reason": "Changes finished-state guards/updates around cancellation and an outstanding reader continuation. Successful output and current cancellation tests do not prove all cleanup/repeated-work interleavings equivalent; retain this robustness gap.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "37",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 50
+        },
+        "start": {
+          "column": 11,
+          "line": 50
+        }
+      },
+      "operator": "ConditionalExpression",
+      "original": "finished",
+      "replacement": "false",
+      "category": "deferred-cancellation-interleaving",
+      "reason": "Changes finished-state guards/updates around cancellation and an outstanding reader continuation. Successful output and current cancellation tests do not prove all cleanup/repeated-work interleavings equivalent; retain this robustness gap.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "42",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 57
+        },
+        "start": {
+          "column": 11,
+          "line": 57
+        }
+      },
+      "operator": "ConditionalExpression",
+      "original": "finished",
+      "replacement": "false",
+      "category": "deferred-cancellation-interleaving",
+      "reason": "Changes finished-state guards/updates around cancellation and an outstanding reader continuation. Successful output and current cancellation tests do not prove all cleanup/repeated-work interleavings equivalent; retain this robustness gap.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "54",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 23,
+          "line": 68
+        },
+        "start": {
+          "column": 15,
+          "line": 68
+        }
+      },
+      "operator": "ConditionalExpression",
+      "original": "finished",
+      "replacement": "false",
+      "category": "deferred-cancellation-interleaving",
+      "reason": "Changes finished-state guards/updates around cancellation and an outstanding reader continuation. Successful output and current cancellation tests do not prove all cleanup/repeated-work interleavings equivalent; retain this robustness gap.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "58",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 70
+        },
+        "start": {
+          "column": 24,
+          "line": 70
+        }
+      },
+      "operator": "BooleanLiteral",
+      "original": "true",
+      "replacement": "false",
+      "category": "deferred-cancellation-interleaving",
+      "reason": "Changes finished-state guards/updates around cancellation and an outstanding reader continuation. Successful output and current cancellation tests do not prove all cleanup/repeated-work interleavings equivalent; retain this robustness gap.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "73",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 82
+        },
+        "start": {
+          "column": 17,
+          "line": 82
+        }
+      },
+      "operator": "ConditionalExpression",
+      "original": "remaining > 0",
+      "replacement": "true",
+      "category": "deferred-stream-representation",
+      "reason": "May enqueue an empty Uint8Array at the exact truncation boundary. Decoded bytes agree, but direct stream readers can observe another chunk. No strict-equivalence claim or new empty-chunk policy is made.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "75",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 82
+        },
+        "start": {
+          "column": 17,
+          "line": 82
+        }
+      },
+      "operator": "EqualityOperator",
+      "original": "remaining > 0",
+      "replacement": "remaining >= 0",
+      "category": "deferred-stream-representation",
+      "reason": "May enqueue an empty Uint8Array at the exact truncation boundary. Decoded bytes agree, but direct stream readers can observe another chunk. No strict-equivalence claim or new empty-chunk policy is made.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "95",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 107
+        },
+        "start": {
+          "column": 59,
+          "line": 107
+        }
+      },
+      "operator": "ObjectLiteral",
+      "original": "{ once: true }",
+      "replacement": "{}",
+      "category": "native-abort-invariant",
+      "reason": "Removing the once option preserves a single native AbortController cancellation together with explicit handler/owner listener cleanup. This does not claim equivalence for manually repeated dispatchEvent calls outside the cancellation contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "96",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 71,
+          "line": 107
+        },
+        "start": {
+          "column": 67,
+          "line": 107
+        }
+      },
+      "operator": "BooleanLiteral",
+      "original": "true",
+      "replacement": "false",
+      "category": "native-abort-invariant",
+      "reason": "Removing the once option preserves a single native AbortController cancellation together with explicit handler/owner listener cleanup. This does not claim equivalence for manually repeated dispatchEvent calls outside the cancellation contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "103",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 86,
+          "line": 109
+        },
+        "start": {
+          "column": 42,
+          "line": 109
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"The outbound HTTP operation has completed.\"",
+      "replacement": "\"\"",
+      "category": "unconstrained-diagnostic",
+      "reason": "Changes diagnostic wording while type, cause and control flow are retained. Exact English text is not an application contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/body.ts",
+      "sampleId": "120",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 91,
+          "line": 125
+        },
+        "start": {
+          "column": 25,
+          "line": 125
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"An outbound HTTP response limit must be a positive safe integer.\"",
+      "replacement": "\"\"",
+      "category": "unconstrained-diagnostic",
+      "reason": "Changes diagnostic wording while type, cause and control flow are retained. Exact English text is not an application contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/deadline.ts",
+      "sampleId": "129",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 71,
+          "line": 23
+        },
+        "start": {
+          "column": 57,
+          "line": 23
+        }
+      },
+      "operator": "ObjectLiteral",
+      "original": "{ once: true }",
+      "replacement": "{}",
+      "category": "native-abort-invariant",
+      "reason": "Removing the once option preserves a single native AbortController cancellation together with explicit handler/owner listener cleanup. This does not claim equivalence for manually repeated dispatchEvent calls outside the cancellation contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/deadline.ts",
+      "sampleId": "130",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 69,
+          "line": 23
+        },
+        "start": {
+          "column": 65,
+          "line": 23
+        }
+      },
+      "operator": "BooleanLiteral",
+      "original": "true",
+      "replacement": "false",
+      "category": "native-abort-invariant",
+      "reason": "Removing the once option preserves a single native AbortController cancellation together with explicit handler/owner listener cleanup. This does not claim equivalence for manually repeated dispatchEvent calls outside the cancellation contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/deadline.ts",
+      "sampleId": "132",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 24
+        },
+        "start": {
+          "column": 9,
+          "line": 24
+        }
+      },
+      "operator": "ConditionalExpression",
+      "original": "this.signal.aborted",
+      "replacement": "false",
+      "category": "production-caller-invariant",
+      "reason": "For an already aborted source, run/check rejects before invoking or awaiting work. The private expiration promise is never awaited in that state. This relies on the current precheck and production caller contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/deadline.ts",
+      "sampleId": "133",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 45,
+          "line": 24
+        },
+        "start": {
+          "column": 30,
+          "line": 24
+        }
+      },
+      "operator": "CallExpression",
+      "original": "this.onAbort();",
+      "replacement": ";",
+      "category": "production-caller-invariant",
+      "reason": "For an already aborted source, run/check rejects before invoking or awaiting work. The private expiration promise is never awaited in that state. This relies on the current precheck and production caller contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/deadline.ts",
+      "sampleId": "146",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 87,
+          "line": 33
+        },
+        "start": {
+          "column": 56,
+          "line": 33
+        }
+      },
+      "operator": "ConditionalExpression",
+      "original": "this.timeoutError !== undefined",
+      "replacement": "true",
+      "category": "production-caller-invariant",
+      "reason": "Production callers request error only after native cancellation. A native aborted signal has a defined reason, so an undefined timeoutError cannot compare equal there. This is not a claim about calling error on a healthy internal deadline.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/deadline.ts",
+      "sampleId": "153",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 40
+        },
+        "start": {
+          "column": 9,
+          "line": 40
+        }
+      },
+      "operator": "ConditionalExpression",
+      "original": "this.expiresAt !== undefined",
+      "replacement": "true",
+      "category": "bounded-work-distinction",
+      "reason": "Performs an additional native parse/clock comparison on an absent optional value. Existing public results agree; this is retained as a work distinction rather than strict equivalence.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/deadline.ts",
+      "sampleId": "165",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 82,
+          "line": 44
+        },
+        "start": {
+          "column": 38,
+          "line": 44
+        }
+      },
+      "operator": "StringLiteral",
+      "original": "\"The outbound HTTP operation has completed.\"",
+      "replacement": "\"\"",
+      "category": "unconstrained-diagnostic",
+      "reason": "Changes diagnostic wording while type, cause and control flow are retained. Exact English text is not an application contract.",
+      "statusReason": null
+    },
+    {
+      "file": "src/packages/kestrel/src/outbound_http/deadline.ts",
+      "sampleId": "185",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 68
+        },
+        "start": {
+          "column": 5,
+          "line": 68
+        }
+      },
+      "operator": "CallExpression",
+      "original": "this.timer.unref();",
+      "replacement": ";",
+      "category": "deferred-process-liveness",
+      "reason": "Removing unref keeps the process alive for an otherwise unowned timer. In-process fake-clock tests do not establish process-exit behavior; subprocess activation evidence is deferred.",
+      "statusReason": null
+    }
+  ],
+  "limits": "No exclusions, adjusted score or score gate. Timer liveness, retained objects and cancellation interleavings are not certified by output assertions. Only three entire implementation files are selected; the outbound component remains partial. Session evidence records executed test hashes and full resolved scopes."
+}

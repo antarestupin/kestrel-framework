@@ -56,3 +56,43 @@ describe("ScheduledTaskRegistry", () => {
     )).toThrow(/application catalog.*ExampleProvider/u);
   });
 });
+
+const other = defineScheduledTask({ id: "other.task", schedule: every({ seconds: 1 }), handler: () => undefined });
+const third = defineScheduledTask({ id: "third.task", schedule: every({ seconds: 1 }), handler: () => undefined });
+
+describe("scheduled task catalog ownership", () => {
+  it("registers collections in order and isolates returned array containers", () => {
+    const registry = new ScheduledTaskRegistry();
+    expect(registry.registerMany([task, other], { kind: "application" })).toBe(registry);
+    expect(registry.tasks).toEqual([task, other]);
+    expect(registry.tasks).not.toBe(registry.tasks);
+    expect(registry.registrations).not.toBe(registry.registrations);
+    expect(registry.registrations.map(({ source }) => source)).toEqual([{ kind: "application" }, { kind: "application" }]);
+  });
+
+  it.each([
+    [["branch"], ["branch"]],
+    [["branch"], ["branch", "leaf"]],
+    [["branch", "leaf"], ["branch"]],
+  ])("rejects equal and leaf-to-branch declaration paths: %j vs %j", (first, second) => {
+    const registry = new ScheduledTaskRegistry().register(task, { kind: "application" }, first);
+    expect(() => registry.register(other, { kind: "application" }, second)).toThrow(TypeError);
+    expect(registry.tasks).toEqual([task]);
+  });
+
+  it("retains distinct siblings and full nested paths without false collisions", () => {
+    const parent = ["namespace"];
+    const registry = new ScheduledTaskRegistry().registerCatalog({ branch: { first: task, second: other }, separate: { first: third } }, { kind: "application" }, parent);
+    parent.push("mutated");
+    expect(registry.catalog).toEqual({ namespace: { branch: { first: task, second: other }, separate: { first: third } } });
+    expect(registry.registrations.map(({ path }) => path)).toEqual([["namespace", "branch", "first"], ["namespace", "branch", "second"], ["namespace", "separate", "first"]]);
+    expect(new ScheduledTaskRegistry().registerCatalog({}, { kind: "application" }).catalog).toEqual({});
+  });
+
+  it("copies caller-owned path arrays", () => {
+    const path = ["branch", "first"];
+    const registry = new ScheduledTaskRegistry().register(task, { kind: "application" }, path);
+    path.push("mutated");
+    expect(registry.catalog).toEqual({ branch: { first: task } });
+  });
+});

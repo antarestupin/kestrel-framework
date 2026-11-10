@@ -10,6 +10,7 @@ import { App } from "../app/index.js";
 import type {
   CollectionQuery,
   PaginatedResult,
+  RepositoryReturningOptions,
 } from "../db/index.js";
 import {
   defineModelCreateAction,
@@ -37,6 +38,7 @@ interface UpdateTestModelInput {
 
 interface ModelStore {
   records: TestModel[];
+  requests?: Array<{ method: string; args: readonly unknown[] }>;
 }
 
 class TestModelRepository implements ModelActionRepository<
@@ -51,9 +53,19 @@ class TestModelRepository implements ModelActionRepository<
     },
   ) {}
 
+  public create(
+    input: CreateTestModelInput,
+    options: RepositoryReturningOptions<true>,
+  ): Promise<TestModel>;
+  public create(
+    input: CreateTestModelInput,
+    options?: RepositoryReturningOptions<false>,
+  ): Promise<void>;
   public async create(
     input: CreateTestModelInput,
-  ): Promise<TestModel> {
+    options: RepositoryReturningOptions<boolean> = {},
+  ): Promise<TestModel | void> {
+    this.dependencies.modelStore.requests?.push({ method: "create", args: [input, options] });
     const model = {
       recordId: this.dependencies.modelStore.records.length + 1,
       ...input,
@@ -61,7 +73,8 @@ class TestModelRepository implements ModelActionRepository<
 
     this.dependencies.modelStore.records.push(model);
 
-    return model;
+    // Match the real repository: writes return rows only when RETURNING is explicitly requested.
+    return options.returning === true ? { ...model } : undefined;
   }
 
   public async findById(id: number): Promise<TestModel | null> {
@@ -81,6 +94,7 @@ class TestModelRepository implements ModelActionRepository<
   public async findCollection(
     query: CollectionQuery,
   ): Promise<PaginatedResult<TestModel, CollectionQuery["pagination"]>> {
+    this.dependencies.modelStore.requests?.push({ method: "findCollection", args: [query] });
     const { pagination } = query;
     const offset =
       (pagination.page - 1) * pagination.pageSize;
@@ -101,36 +115,56 @@ class TestModelRepository implements ModelActionRepository<
     };
   }
 
+  public update(
+    id: number,
+    input: UpdateTestModelInput,
+    options: RepositoryReturningOptions<true>,
+  ): Promise<TestModel | null>;
+  public update(
+    id: number,
+    input: UpdateTestModelInput,
+    options?: RepositoryReturningOptions<false>,
+  ): Promise<void>;
   public async update(
     id: number,
     input: UpdateTestModelInput,
-  ): Promise<TestModel | null> {
+    options: RepositoryReturningOptions<boolean> = {},
+  ): Promise<TestModel | null | void> {
+    this.dependencies.modelStore.requests?.push({ method: "update", args: [id, input, options] });
     const model = this.dependencies.modelStore.records.find(
       (candidate) => candidate.recordId === id,
     );
 
     if (model === undefined) {
-      return null;
+      return options.returning === true ? null : undefined;
     }
 
     Object.assign(model, input);
 
-    return model;
+    return options.returning === true ? { ...model } : undefined;
   }
 
-  public async delete(id: number): Promise<TestModel | null> {
+  public delete(id: number, options: RepositoryReturningOptions<true>): Promise<TestModel | null>;
+  public delete(id: number, options?: RepositoryReturningOptions<false>): Promise<void>;
+  public async delete(
+    id: number,
+    options: RepositoryReturningOptions<boolean> = {},
+  ): Promise<TestModel | null | void> {
+    this.dependencies.modelStore.requests?.push({ method: "delete", args: [id, options] });
     const index = this.dependencies.modelStore.records.findIndex(
       (model) => model.recordId === id,
     );
 
     if (index === -1) {
-      return null;
+      return options.returning === true ? null : undefined;
     }
 
-    return (
+    const deleted = (
       this.dependencies.modelStore.records.splice(index, 1)[0]
       ?? null
     );
+
+    return options.returning === true ? deleted : undefined;
   }
 }
 
@@ -252,73 +286,86 @@ describe("model action helpers", () => {
 
     app.container.registerValue("modelStore", modelStore);
 
-    const firstPage = await app.get(listModelAction).run({
-      pagination: {
+    try {
+      const firstPage = await app.get(listModelAction).run({
+        pagination: {
+          type: "page",
+          page: 1,
+          pageSize: 2,
+        },
+      });
+
+      expect(firstPage.items.map((model) => model.value))
+        .toEqual(["one", "two"]);
+      expect(firstPage.pageInfo).toEqual({
         type: "page",
         page: 1,
         pageSize: 2,
-      },
-    });
+        hasNextPage: true,
+      });
 
-    expect(firstPage.items.map((model) => model.value))
-      .toEqual(["one", "two"]);
-    expect(firstPage.pageInfo).toEqual({
-      type: "page",
-      page: 1,
-      pageSize: 2,
-      hasNextPage: true,
-    });
+      const secondPage = await app.get(listModelAction).run({
+        pagination: {
+          type: "page",
+          page: 2,
+          pageSize: 2,
+        },
+      });
 
-    const secondPage = await app.get(listModelAction).run({
-      pagination: {
+      expect(secondPage.items.map((model) => model.value))
+        .toEqual(["three"]);
+      expect(secondPage.pageInfo).toEqual({
         type: "page",
         page: 2,
         pageSize: 2,
-      },
-    });
+        hasNextPage: false,
+      });
+    } finally {
+      await app.dispose();
+    }
 
-    expect(secondPage.items.map((model) => model.value))
-      .toEqual(["three"]);
-    expect(secondPage.pageInfo).toEqual({
-      type: "page",
-      page: 2,
-      pageSize: 2,
-      hasNextPage: false,
-    });
-
-    await app.dispose();
   });
 
   it("creates, gets, updates and deletes models through the repository", async () => {
     const app = new App({});
-    const modelStore: ModelStore = { records: [] };
+    const modelStore: ModelStore = { records: [], requests: [] };
 
     app.container.registerValue("modelStore", modelStore);
 
-    const created = await app.get(createModelAction).run({
-      value: "created",
-    });
-    const found = await app.get(getModelAction).run({
-      recordId: created.recordId,
-    });
-    const updated = await app.get(updateModelAction).run({
-      recordId: created.recordId,
-      value: "updated",
-    });
-    const deleted = await app.get(deleteModelAction).run({
-      recordId: created.recordId,
-    });
-    const missing = await app.get(getModelAction).run({
-      recordId: created.recordId,
-    });
+    try {
+      const created = await app.get(createModelAction).run({
+        value: "created",
+      });
+      const found = await app.get(getModelAction).run({
+        recordId: created.recordId,
+      });
+      const updated = await app.get(updateModelAction).run({
+        recordId: created.recordId,
+        value: "updated",
+      });
+      const deleted = await app.get(deleteModelAction).run({
+        recordId: created.recordId,
+      });
+      const missing = await app.get(getModelAction).run({
+        recordId: created.recordId,
+      });
 
-    expectTypeOf(created).toEqualTypeOf<TestModel>();
-    expect(found).toEqual(created);
-    expect(updated).toEqual({ ...created, value: "updated" });
-    expect(deleted).toEqual(updated);
-    expect(missing).toBeNull();
+      expectTypeOf(created).toEqualTypeOf<TestModel>();
+      expect(found).toEqual(created);
+      expect(updated).toEqual({ ...created, value: "updated" });
+      expect(deleted).toEqual(updated);
+      expect(missing).toBeNull();
+      // Returning a model is part of each write Action's public contract; the repository
+      // must receive both the explicit return policy and update values without the identifier.
+      expect(modelStore.requests).toEqual([
+        { method: "create", args: [{ value: "created" }, { returning: true }] },
+        { method: "update", args: [created.recordId, { value: "updated" }, { returning: true }] },
+        { method: "delete", args: [created.recordId, { returning: true }] },
+      ]);
+    } finally {
+      await app.dispose();
+    }
 
-    await app.dispose();
   });
 
   it("gets multiple models by id and omits missing identifiers", async () => {
@@ -333,16 +380,90 @@ describe("model action helpers", () => {
 
     app.container.registerValue("modelStore", modelStore);
 
-    const found = await app.get(getManyModelAction).run({
-      ids: [3, 1, 404],
+    try {
+      const found = await app.get(getManyModelAction).run({
+        ids: [3, 1, 404],
+      });
+
+      expectTypeOf(found).toEqualTypeOf<TestModel[]>();
+      expect(found).toEqual([
+        { recordId: 1, value: "one" },
+        { recordId: 3, value: "three" },
+      ]);
+    } finally {
+      await app.dispose();
+    }
+
+  });
+
+  for (const operation of ["get", "update", "delete"] as const) {
+    it(`returns null from ${operation} without changing another model when the identifier is absent`, async () => {
+      const app = new App({});
+      const modelStore: ModelStore = { records: [{ recordId: 1, value: "unchanged" }] };
+      app.container.registerValue("modelStore", modelStore);
+      try {
+        const result = operation === "get" ? await app.get(getModelAction).run({ recordId: 404 })
+          : operation === "update" ? await app.get(updateModelAction).run({ recordId: 404, value: "wrong" })
+            : await app.get(deleteModelAction).run({ recordId: 404 });
+        expect(result).toBeNull();
+        expect(modelStore.records).toEqual([{ recordId: 1, value: "unchanged" }]);
+      } finally {
+        await app.dispose();
+      }
     });
+  }
 
-    expectTypeOf(found).toEqualTypeOf<TestModel[]>();
-    expect(found).toEqual([
-      { recordId: 1, value: "one" },
-      { recordId: 3, value: "three" },
-    ]);
+  for (const operation of ["list", "lookup"] as const) {
+    it(`forwards the parsed collection query through ${operation} and validates the paginated response`, async () => {
+      const app = new App({});
+      const modelStore: ModelStore = {
+        records: [{ recordId: 1, value: "one" }, { recordId: 2, value: "two" }],
+        requests: [],
+      };
+      app.container.registerValue("modelStore", modelStore);
+      try {
+        const action = operation === "list" ? listModelAction : lookupModelAction;
+        const pagination = { type: "page" as const, page: 2, pageSize: 1 };
+        const search = { term: "two" };
+        const filters = [{ field: "value", operator: "contains" as const, value: "o" }];
+        const sort = [{ field: "recordId", direction: "desc" as const }];
+        // Transport-shaped JSON must be parsed before the model helper forwards it to storage.
+        expect(await app.get(action).run({
+          pagination,
+          search: JSON.stringify(search),
+          filters: JSON.stringify(filters),
+          sort: JSON.stringify(sort),
+        })).toEqual({
+          items: [{ recordId: 2, value: "two" }],
+          pageInfo: { ...pagination, hasNextPage: false },
+        });
+        expect(modelStore.requests).toEqual([
+          { method: "findCollection", args: [{ pagination, search, filters, sort }] },
+        ]);
+      } finally {
+        await app.dispose();
+      }
+    });
+  }
 
-    await app.dispose();
+  it("selects by a parsed identifier and omits it from the normalized update values", async () => {
+    const app = new App({});
+    const modelStore: ModelStore = { records: [{ recordId: 1, value: "before" }], requests: [] };
+    app.container.registerValue("modelStore", modelStore);
+    const normalizedUpdate = defineModelUpdateAction(
+      "normalizedModel",
+      TestModelRepository,
+      modelIdKey,
+      z.object({ recordId: z.coerce.number<string>().int(), value: z.string().trim() }),
+      outputSchema,
+    );
+    try {
+      expect(await app.get(normalizedUpdate).run({ recordId: "1", value: "  updated  " })).toEqual({ recordId: 1, value: "updated" });
+      expect(modelStore.requests).toEqual([
+        { method: "update", args: [1, { value: "updated" }, { returning: true }] },
+      ]);
+    } finally {
+      await app.dispose();
+    }
   });
 });

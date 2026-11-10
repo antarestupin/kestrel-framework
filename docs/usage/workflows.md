@@ -119,6 +119,10 @@ When changing command order, preserve branches for pinned `workflow.version` val
 
 Operational endpoints use `workflowOperationsDependency` behind application authorization. Pause stops new reservations; cancel requests cooperative compensation; terminate stops orchestration without compensation. Studio exposes these controls and execution history. See the [operations reference](../implementation/workflows.md#operational-api) before choosing a destructive control.
 
+Force termination also closes open descendants of an already terminal execution, including descendants below a closed child. The original terminal execution keeps its outcome and reason. A terminal result is observed after local cleanup and concurrency permit release, so its execution snapshot reflects the completed transition.
+
+An operator retry creates a distinct execution from the failed run's original start input, including an original `null` input after continue-as-new. Ordinary keyed start policies do not attach the retry to another active execution or reject it; execution-scoped capacity can keep the new retry pending. Reusing the same retry identity for the same source is idempotent, including concurrent calls; the first creation fixes its workflow version. The failed source and unrelated active executions remain unchanged.
+
 ## Use cases still to document
 
 - Compose PostgreSQL persistence and worker-backed activities with stable effect idempotency keys.

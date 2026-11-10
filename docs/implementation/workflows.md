@@ -522,6 +522,12 @@ The operator commands have deliberately different semantics:
 | `retry()` | Accepts only a failed execution and creates a new execution from the original start input at the definition's current version. `retryOfExecutionId` preserves navigation and audit history. The failed execution remains immutable. |
 | `terminate()` | Immediately closes the execution and open descendants, removes pending local work, and runs no compensation. Already executing external effects cannot be recalled. |
 
+Retry identity is independent of ordinary keyed `reject`/`return-existing` admission: the requested new execution is created and waits when execution-scoped capacity is exhausted, while retaining its original concurrency policy metadata. The initial input snapshot distinguishes an explicit `null` from a missing legacy snapshot; only the latter falls back to the persisted current input. Concurrent requests for the same source and retry identity share creation and return one `created: true` result; later callers observe the created execution at its first selected workflow version. The memory adapter publishes an in-flight retry job before invoking ID generation and removes the job on both success and failure, so reentrant calls cannot see an unlinked target and completed jobs cannot retain stale snapshots. PostgreSQL serializes the corresponding creation with its retry-identity advisory lock and transaction.
+
+Adapter `forceTerminate()` returns whether the requested root changed, while still traversing its descendants if that root or an intermediate child is already terminal. Closed records retain their original outcomes; remaining open descendants are terminated and lose pending tasks and activity outbox work. Memory terminal waiters are resolved only after child cleanup and concurrency release, so their cloned execution matches the stored final snapshot. Normal completed, failed and cancelled activation outcomes follow the same notification ordering.
+
+Cancelling a capacity-pending child closes it immediately because no handler activation has started. The adapter must also complete its nonterminal parent's child command and queue the parent, rather than waiting for a child activation that will never run. PostgreSQL performs that idempotent history write and parent wake-up under the existing transaction and parent row lock; terminal parents keep their recorded outcomes.
+
 ```mermaid
 sequenceDiagram
     participant O as Authorized operator endpoint

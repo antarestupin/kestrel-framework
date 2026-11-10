@@ -1,0 +1,518 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Entire workers/client.ts, publication.ts, serialization.ts, acknowledgement_buffer.ts and deferral_buffer.ts. Scheduler, worker definitions, provider and storage implementations are dependencies rather than mutated sources.",
+  "command": "npm run test:mutation:workers-publication",
+  "budgetMs": 600000,
+  "beforeReport": "artifacts/mutation/workers-publication-before-two-hour-tests/mutation.json",
+  "report": "artifacts/mutation/workers-publication/mutation.json",
+  "beforeCounts": {
+    "Killed": 128,
+    "NoCoverage": 12,
+    "Survived": 23
+  },
+  "counts": {
+    "Killed": 159,
+    "Survived": 20
+  },
+  "newTestCases": 12,
+  "productionChanges": [
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.ts"
+  ],
+  "bugEvidence": {
+    "before": "Two new acknowledgement regressions failed against the original source: flush settled while a sibling queue ack remained pending, and only the first queue failure survived. Public gated probes independently reproduced the early completion.",
+    "fix": "Wait for every queue-group acknowledgement with Promise.allSettled, propagate a single original cause or AggregateError containing every group failure. Existing successful callbacks remain after durable writes.",
+    "tests": "Three new acknowledgement drain/aggregation cases plus one pendingCount case; seven publication contract cases and one multi-chunk deferral case.",
+    "publicDocs": [
+      "docs/usage/workers.md",
+      "docs/implementation/workers.md"
+    ]
+  },
+  "review": "complete with non-contractual diagnostics/optional-property/synthetic-cause limits",
+  "comparison": {
+    "beforeMutants": 163,
+    "afterMutants": 179,
+    "matchedSites": 162,
+    "beforeUnmatched": 1,
+    "afterUnmatched": 17,
+    "matchedTransitions": [
+      {
+        "before": "Survived",
+        "after": "Survived",
+        "count": 14
+      },
+      {
+        "before": "Killed",
+        "after": "Killed",
+        "count": 127
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Killed",
+        "count": 8
+      },
+      {
+        "before": "Survived",
+        "after": "Killed",
+        "count": 9
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Survived",
+        "count": 4
+      }
+    ],
+    "matchedPriorKillsRegressed": 0,
+    "policy": "Production changed at the queue-group drain; match normalized original/operator/replacement/occurrence rather than numeric IDs or line positions. Source-body changes/new error branches are not identical mutation variants."
+  },
+  "vitestTimeoutKills": 0,
+  "timeoutDrivenDetections": [],
+  "allExecutedMutantsCompletedTests": true,
+  "remainingCategoryCounts": {
+    "equivalent under internal result and branch invariants": 4,
+    "unconstrained diagnostic text": 7,
+    "unconstrained optional metadata representation": 5,
+    "equivalent omitted-budget comparison": 1,
+    "unconstrained synthesized serialization cause": 2,
+    "equivalent native Buffer encoding fallback": 1
+  },
+  "remaining": [
+    {
+      "sampleId": "13",
+      "file": "src/packages/kestrel/src/workers/acknowledgement_buffer.ts",
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 54
+        },
+        "start": {
+          "column": 13,
+          "line": 54
+        }
+      },
+      "original": "result.errors[0]?.error",
+      "mutatorName": "OptionalChaining",
+      "replacement": "result.errors[0].error",
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "equivalent under internal result and branch invariants",
+      "reason": "A dense one-error result guarantees result.errors[0] exists, so optional chaining is redundant there. The >1 to >=1 variants follow an earlier length===1 throw without intervening mutation/callback. These facts apply only to the unchanged internal result builder and branch order."
+    },
+    {
+      "sampleId": "16",
+      "file": "src/packages/kestrel/src/workers/acknowledgement_buffer.ts",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 57
+        },
+        "start": {
+          "column": 9,
+          "line": 57
+        }
+      },
+      "original": "result.errors.length > 1",
+      "mutatorName": "EqualityOperator",
+      "replacement": "result.errors.length >= 1",
+      "status": "Survived",
+      "testsCompleted": 53,
+      "classification": "equivalent under internal result and branch invariants",
+      "reason": "A dense one-error result guarantees result.errors[0] exists, so optional chaining is redundant there. The >1 to >=1 variants follow an earlier length===1 throw without intervening mutation/callback. These facts apply only to the unchanged internal result builder and branch order."
+    },
+    {
+      "sampleId": "21",
+      "file": "src/packages/kestrel/src/workers/acknowledgement_buffer.ts",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 60
+        },
+        "start": {
+          "column": 9,
+          "line": 60
+        }
+      },
+      "original": "\"Several worker acknowledgement batches failed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The public rejection/error category and error aggregation contract remain unchanged; exact human-readable/internal diagnostic labels are not a stable API. Caller-originated serializer error identity is separately tested."
+    },
+    {
+      "sampleId": "45",
+      "file": "src/packages/kestrel/src/workers/acknowledgement_buffer.ts",
+      "location": {
+        "end": {
+          "column": 26,
+          "line": 82
+        },
+        "start": {
+          "column": 9,
+          "line": 82
+        }
+      },
+      "original": "errors.length > 1",
+      "mutatorName": "EqualityOperator",
+      "replacement": "errors.length >= 1",
+      "status": "Survived",
+      "testsCompleted": 33,
+      "classification": "equivalent under internal result and branch invariants",
+      "reason": "A dense one-error result guarantees result.errors[0] exists, so optional chaining is redundant there. The >1 to >=1 variants follow an earlier length===1 throw without intervening mutation/callback. These facts apply only to the unchanged internal result builder and branch order."
+    },
+    {
+      "sampleId": "49",
+      "file": "src/packages/kestrel/src/workers/acknowledgement_buffer.ts",
+      "location": {
+        "end": {
+          "column": 87,
+          "line": 83
+        },
+        "start": {
+          "column": 40,
+          "line": 83
+        }
+      },
+      "original": "\"Several worker queue acknowledgements failed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The public rejection/error category and error aggregation contract remain unchanged; exact human-readable/internal diagnostic labels are not a stable API. Caller-originated serializer error identity is separately tested."
+    },
+    {
+      "sampleId": "58",
+      "file": "src/packages/kestrel/src/workers/client.ts",
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 55
+        },
+        "start": {
+          "column": 23,
+          "line": 55
+        }
+      },
+      "original": "\"The worker adapter did not return the enqueued job ID.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The public rejection/error category and error aggregation contract remain unchanged; exact human-readable/internal diagnostic labels are not a stable API. Caller-originated serializer error identity is separately tested."
+    },
+    {
+      "sampleId": "71",
+      "file": "src/packages/kestrel/src/workers/client.ts",
+      "location": {
+        "end": {
+          "column": 71,
+          "line": 85
+        },
+        "start": {
+          "column": 9,
+          "line": 85
+        }
+      },
+      "original": "\"A stable Worker identity can only describe one enqueued job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The public rejection/error category and error aggregation contract remain unchanged; exact human-readable/internal diagnostic labels are not a stable API. Caller-originated serializer error identity is separately tested."
+    },
+    {
+      "sampleId": "77",
+      "file": "src/packages/kestrel/src/workers/client.ts",
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 100
+        },
+        "start": {
+          "column": 13,
+          "line": 100
+        }
+      },
+      "original": "options.identity === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 16,
+      "classification": "unconstrained optional metadata representation",
+      "reason": "Forcing an undefined-option branch false adds an explicit undefined property instead of omitting it. Defined option values still flow unchanged. Reads/JSON publication agree, but own-property enumeration differs; strict JavaScript object-shape equivalence is not claimed."
+    },
+    {
+      "sampleId": "81",
+      "file": "src/packages/kestrel/src/workers/client.ts",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 101
+        },
+        "start": {
+          "column": 13,
+          "line": 101
+        }
+      },
+      "original": "options.correlation === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 16,
+      "classification": "unconstrained optional metadata representation",
+      "reason": "Forcing an undefined-option branch false adds an explicit undefined property instead of omitting it. Defined option values still flow unchanged. Reads/JSON publication agree, but own-property enumeration differs; strict JavaScript object-shape equivalence is not claimed."
+    },
+    {
+      "sampleId": "85",
+      "file": "src/packages/kestrel/src/workers/client.ts",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 104
+        },
+        "start": {
+          "column": 13,
+          "line": 104
+        }
+      },
+      "original": "options.availableAt === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 16,
+      "classification": "unconstrained optional metadata representation",
+      "reason": "Forcing an undefined-option branch false adds an explicit undefined property instead of omitting it. Defined option values still flow unchanged. Reads/JSON publication agree, but own-property enumeration differs; strict JavaScript object-shape equivalence is not claimed."
+    },
+    {
+      "sampleId": "89",
+      "file": "src/packages/kestrel/src/workers/client.ts",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 107
+        },
+        "start": {
+          "column": 13,
+          "line": 107
+        }
+      },
+      "original": "options.groupId === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 16,
+      "classification": "unconstrained optional metadata representation",
+      "reason": "Forcing an undefined-option branch false adds an explicit undefined property instead of omitting it. Defined option values still flow unchanged. Reads/JSON publication agree, but own-property enumeration differs; strict JavaScript object-shape equivalence is not claimed."
+    },
+    {
+      "sampleId": "93",
+      "file": "src/packages/kestrel/src/workers/client.ts",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 108
+        },
+        "start": {
+          "column": 13,
+          "line": 108
+        }
+      },
+      "original": "options.executionId === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 16,
+      "classification": "unconstrained optional metadata representation",
+      "reason": "Forcing an undefined-option branch false adds an explicit undefined property instead of omitting it. Defined option values still flow unchanged. Reads/JSON publication agree, but own-property enumeration differs; strict JavaScript object-shape equivalence is not claimed."
+    },
+    {
+      "sampleId": "119",
+      "file": "src/packages/kestrel/src/workers/deferral_buffer.ts",
+      "location": {
+        "end": {
+          "column": 26,
+          "line": 61
+        },
+        "start": {
+          "column": 9,
+          "line": 61
+        }
+      },
+      "original": "errors.length > 1",
+      "mutatorName": "EqualityOperator",
+      "replacement": "errors.length >= 1",
+      "status": "Survived",
+      "testsCompleted": 54,
+      "classification": "equivalent under internal result and branch invariants",
+      "reason": "A dense one-error result guarantees result.errors[0] exists, so optional chaining is redundant there. The >1 to >=1 variants follow an earlier length===1 throw without intervening mutation/callback. These facts apply only to the unchanged internal result builder and branch order."
+    },
+    {
+      "sampleId": "124",
+      "file": "src/packages/kestrel/src/workers/deferral_buffer.ts",
+      "location": {
+        "end": {
+          "column": 50,
+          "line": 64
+        },
+        "start": {
+          "column": 9,
+          "line": 64
+        }
+      },
+      "original": "\"Several worker deferral batches failed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The public rejection/error category and error aggregation contract remain unchanged; exact human-readable/internal diagnostic labels are not a stable API. Caller-originated serializer error identity is separately tested."
+    },
+    {
+      "sampleId": "141",
+      "file": "src/packages/kestrel/src/workers/publication.ts",
+      "location": {
+        "end": {
+          "column": 88,
+          "line": 18
+        },
+        "start": {
+          "column": 27,
+          "line": 18
+        }
+      },
+      "original": "`Worker publication ${name} must be a positive safe integer.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The public rejection/error category and error aggregation contract remain unchanged; exact human-readable/internal diagnostic labels are not a stable API. Caller-originated serializer error identity is separately tested."
+    },
+    {
+      "sampleId": "171",
+      "file": "src/packages/kestrel/src/workers/publication.ts",
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 59
+        },
+        "start": {
+          "column": 9,
+          "line": 59
+        }
+      },
+      "original": "limit !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 166,
+      "classification": "equivalent omitted-budget comparison",
+      "reason": "For an omitted validated budget, actual > undefined evaluates false. Performing that pure comparison instead of short-circuiting therefore preserves unlimited policy, while finite supplied budgets remain checked."
+    },
+    {
+      "sampleId": "183",
+      "file": "src/packages/kestrel/src/workers/serialization.ts",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 7
+        },
+        "start": {
+          "column": 9,
+          "line": 7
+        }
+      },
+      "original": "serialized === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 161,
+      "classification": "unconstrained synthesized serialization cause",
+      "reason": "Without the explicit undefined-root guard, native JSON.parse(undefined) throws a SyntaxError rather than the internally synthesized TypeError. The public WorkerPayloadSerializationError wrapper and pre-write rejection remain; exact synthetic cause shape differs and is not promised. Do not classify this as unconditional equivalence. Caller-supplied toJSON errors retain exact cause identity in separate tests."
+    },
+    {
+      "sampleId": "185",
+      "file": "src/packages/kestrel/src/workers/serialization.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 9
+        },
+        "start": {
+          "column": 35,
+          "line": 7
+        }
+      },
+      "original": "{\n      throw new TypeError(\"The root value has no JSON representation.\");\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "unconstrained synthesized serialization cause",
+      "reason": "Without the explicit undefined-root guard, native JSON.parse(undefined) throws a SyntaxError rather than the internally synthesized TypeError. The public WorkerPayloadSerializationError wrapper and pre-write rejection remain; exact synthetic cause shape differs and is not promised. Do not classify this as unconditional equivalence. Caller-supplied toJSON errors retain exact cause identity in separate tests."
+    },
+    {
+      "sampleId": "187",
+      "file": "src/packages/kestrel/src/workers/serialization.ts",
+      "location": {
+        "end": {
+          "column": 71,
+          "line": 8
+        },
+        "start": {
+          "column": 27,
+          "line": 8
+        }
+      },
+      "original": "\"The root value has no JSON representation.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The public rejection/error category and error aggregation contract remain unchanged; exact human-readable/internal diagnostic labels are not a stable API. Caller-originated serializer error identity is separately tested."
+    },
+    {
+      "sampleId": "189",
+      "file": "src/packages/kestrel/src/workers/serialization.ts",
+      "location": {
+        "end": {
+          "column": 99,
+          "line": 10
+        },
+        "start": {
+          "column": 93,
+          "line": 10
+        }
+      },
+      "original": "\"utf8\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 161,
+      "classification": "equivalent native Buffer encoding fallback",
+      "reason": "Buffer.byteLength uses UTF-8 for this unsupported empty encoding, preserving byte counts for primitive serialized JSON strings under the current Node contract. Re-review on Node encoding semantics changes."
+    }
+  ],
+  "scorePolicy": "Keep every residual and raw Stryker status visible; no exclusions, adjusted scores or blocking gate. Optional own-property and synthesized-cause differences are not strict equivalences.",
+  "sourceAndTestHashes": {
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.ts": "0d671ddd0899357500be19be08624ed10f8b1046bd59900212da49e1a78e9466",
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "d8eb58bb419220feecb823742b2e514c05ca3208a9bb0d995856ab88657be182",
+    "src/packages/kestrel/src/workers/deferral_buffer.ts": "1755cce7f1bac01f8571b387d4308d700179d5a6a1c3f96c0e2137acc94b26b0",
+    "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "0cefd1a9eeb1212ab7eba2c0df1c5a27f9a95f74dfb421659e8b10d5e746e33f",
+    "src/packages/kestrel/src/workers/client.ts": "89c739b77104ef7bbd511e086b13082588327f919bf022a7b30df73b1ea7a305",
+    "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+    "src/packages/kestrel/src/workers/publication.ts": "c7923158f7a24441ed1c5292df6ba3fe3c3923c1981ff9a119d4a77dc1fc644a",
+    "src/packages/kestrel/src/workers/serialization.ts": "8b38b21769fbf5cb85ca234a7e3506082e4c03153f6bfd3b4a5118bab2730fe2",
+    "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba"
+  },
+  "reportHashes": {
+    "artifacts/mutation/workers-publication/mutation.json": "f90fa48976653a228e0d99c1d0262bbcd9841d893dbdfb186a029e15e8589222",
+    "artifacts/mutation/workers-publication-before-two-hour-tests/mutation.json": "c9bd3824176e94fed95480bb22ccca831d248d954b7d91cfb43865b098596709"
+  },
+  "deferred": "Re-review if exact diagnostics, optional own-property presence, synthetic serialization cause types or Node encoding behavior become contractual. Queue-group callback errors and storage failures now drain every started peer operation."
+}

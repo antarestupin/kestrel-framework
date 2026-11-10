@@ -66,7 +66,7 @@ After schema validation, payloads and optional `correlation` metadata are snapsh
 
 Use schemas that accept the stored JSON representation when the scheduler validates the payload again: for example, keep dates as ISO strings or use an appropriate coercion. Memory and PostgreSQL deduplication compare the normalized JSON content rather than the original JavaScript types. PostgreSQL JSONB restrictions still apply, including its rejection of the Unicode null character. These Worker conversions do not change the stricter default Workflow payload codec. See the [serialization contract](../implementation/workers.md#durable-json-payloads).
 
-Prefer `enqueueMany` when publishing several inputs together. PostgreSQL inserts up to 1,000 ordinary jobs per statement and keeps larger publications atomic across chunks. Returned IDs follow input order. When using `correlation` with a configured completion sink, the scheduler waits for durable result delivery before buffering the corresponding acknowledgement; a failed handoff leaves the job available for replay after its lease expires.
+Prefer `enqueueMany` when publishing several inputs together. PostgreSQL inserts up to 1,000 ordinary jobs per statement and keeps larger publications atomic across chunks. Returned IDs follow input order. When using `correlation` with a configured completion sink, the scheduler waits for durable result delivery before buffering the corresponding acknowledgement; a failed handoff leaves the job available for replay after its lease expires. Failures in one result handoff or queue transition do not end sibling writes early: the cycle keeps leases protected until every started operation settles, then propagates the collected causes.
 
 ## Limit publication sizes
 
@@ -134,7 +134,7 @@ Forward `context.signal` to cancellable dependencies. Configure `slots`, `reserv
 
 For dependency limits, add `throttling: { requirements: job => ({ admission, estimatedCost }), buffering: { strategy: "defer" } }`. [Throttling](./throttling.md) explains policies; [the worker buffering reference](../implementation/workers.md#choosing-a-buffering-strategy) covers bounded hold and release alternatives.
 
-Tune `ackBufferSize` / `ackFlushIntervalMs` for acknowledgements and `deferBufferSize` / `deferFlushIntervalMs` for throttling deferrals. Both default to 100 jobs and 10 ms and drain at cycle completion or shutdown. A release strategy makes the job immediately eligible once the buffered write succeeds. Leases remain protected while a deferral waits for storage; a failed write is reported as a scheduler storage failure and leaves the job leased for redelivery, without invoking its handler or issuing a handler retry.
+Tune `ackBufferSize` / `ackFlushIntervalMs` for acknowledgements and `deferBufferSize` / `deferFlushIntervalMs` for throttling deferrals. Both default to 100 jobs and 10 ms and drain at cycle completion or shutdown. A release strategy makes the job immediately eligible once the buffered write succeeds. Leases remain protected while a deferral waits for storage; a failed write is reported as a scheduler storage failure and leaves the job leased for redelivery, without invoking its handler or issuing a handler retry. Queue-scoped acknowledgement groups also drain every started write before reporting storage failures, preserving multiple causes in an `AggregateError`.
 
 ## Use cases still to document
 

@@ -123,3 +123,7 @@ Include every value affecting the response in the cache key, including any accou
 - Send JSON bodies with per-request headers and select response decoders.
 - Compose throttling with retries so each network attempt acquires admission.
 - Cache multiple response types with scoped keys and tag invalidation.
+
+Retry backoff respects `maxDelayMs` after applying jitter for transport failures as well as retryable HTTP responses. `Retry-After` delays are capped by the same maximum; a configured logical deadline still bounds the complete operation.
+
+Long retry delays are split into Node-compatible timer intervals without shortening the logical backoff. Caller cancellation releases the current interval and prevents another attempt.

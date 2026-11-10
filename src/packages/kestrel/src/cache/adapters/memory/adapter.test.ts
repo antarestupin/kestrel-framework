@@ -130,6 +130,71 @@ describe("MemoryCacheAdapter", () => {
       .resolves.toBeUndefined();
   });
 
+  it("physically removes expired entries using an explicit limit different from the default", async () => {
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const adapter = createAdapter({ pruneBatchSize: 1, now: () => now });
+    const expiresAt = new Date("2026-01-01T00:01:00.000Z");
+    for (const name of ["first", "second", "third"]) {
+      await adapter.set(key(name), entry(name, { expiresAt }));
+    }
+    now = new Date("2026-01-01T00:02:00.000Z");
+
+    await expect(adapter.prune({ limit: 2 })).resolves.toBe(2);
+    // delete() observes physical retention without the lazy expiration performed by get().
+    await expect(adapter.delete(key("first"))).resolves.toBe(false);
+    await expect(adapter.delete(key("second"))).resolves.toBe(false);
+    await expect(adapter.reset()).resolves.toBe(1);
+  });
+
+  it("uses the configured default pruning batch when no explicit limit is supplied", async () => {
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const adapter = createAdapter({ pruneBatchSize: 2, now: () => now });
+    const expiresAt = new Date("2026-01-01T00:01:00.000Z");
+    for (const name of ["first", "second", "third"]) {
+      await adapter.set(key(name), entry(name, { expiresAt }));
+    }
+    now = new Date("2026-01-01T00:02:00.000Z");
+
+    await expect(adapter.prune({})).resolves.toBe(2);
+    await expect(adapter.reset()).resolves.toBe(1);
+  });
+
+  it("counts fresh entries toward the bounded inspection batch", async () => {
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const adapter = createAdapter({ now: () => now });
+    await adapter.set(key("fresh"), entry("fresh"));
+    await adapter.set(key("expired"), entry("expired", {
+      expiresAt: new Date("2026-01-01T00:01:00.000Z"),
+    }));
+    now = new Date("2026-01-01T00:02:00.000Z");
+
+    // Memory pruning limits work examined, rather than promising this many deletions.
+    await expect(adapter.prune({ limit: 1 })).resolves.toBe(0);
+    await expect(adapter.prune({ limit: 2 })).resolves.toBe(1);
+    await expect(adapter.delete(key("expired"))).resolves.toBe(false);
+    await expect(adapter.delete(key("fresh"))).resolves.toBe(true);
+  });
+
+  it("removes an entry at its exact expiration boundary", async () => {
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const expiresAt = new Date("2026-01-01T00:01:00.000Z");
+    const adapter = createAdapter({ now: () => now });
+    await adapter.set(key("boundary"), entry("boundary", { expiresAt }));
+    now = expiresAt;
+
+    await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
+    await expect(adapter.delete(key("boundary"))).resolves.toBe(false);
+  });
+
+  for (const limit of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    it(`rejects an invalid prune limit of ${limit} without removing entries`, async () => {
+      const adapter = createAdapter();
+      await adapter.set(key("fresh"), entry("fresh"));
+      await expect(adapter.prune({ limit })).rejects.toBeInstanceOf(TypeError);
+      await expect(adapter.delete(key("fresh"))).resolves.toBe(true);
+    });
+  }
+
   it("bounds the number of entries inspected by pruning", async () => {
     let now = new Date("2026-01-01T00:00:00.000Z");
     const adapter = createAdapter({

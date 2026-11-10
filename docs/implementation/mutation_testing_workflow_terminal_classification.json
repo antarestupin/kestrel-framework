@@ -1,0 +1,3359 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Memory/PostgreSQL requestCancellation,setPaused,forceTerminate plus memory child-control helpers and PostgreSQL execution-tree helpers. Supporting applyActivationOutcome waiter fixes are ordinary-tested but outside these frozen mutation ranges.",
+  "command": "npm run test:mutation:workflow-terminal-control",
+  "budgetMs": 600000,
+  "ignoreStatic": false,
+  "report": "artifacts/mutation/workflow-terminal-control/mutation.json",
+  "beforeReport": "artifacts/mutation/workflow-terminal-control-before-two-hour-tests/mutation.json",
+  "beforeCounts": {
+    "NoCoverage": 81,
+    "Killed": 99,
+    "Survived": 91,
+    "Timeout": 4
+  },
+  "counts": {
+    "NoCoverage": 1,
+    "Killed": 282,
+    "Survived": 31,
+    "Timeout": 6
+  },
+  "seconds": {
+    "before": 54,
+    "after": 75
+  },
+  "baselineTests": {
+    "before": 184,
+    "after": 214
+  },
+  "newTestCases": 30,
+  "beforeScopeMutants": 275,
+  "scopeMutants": 320,
+  "productionChangesInScope": true,
+  "sourceComparison": "Compare file/method/normalized original-expression/operator/replacement/occurrence fingerprints. Production tree traversal and pending-child cancellation changed, so equal mutation corpora and whole-file source identity are not claimed.",
+  "matchedSites": 260,
+  "removedBeforeSites": 15,
+  "newAfterSites": 60,
+  "matchedPriorKillsPreserved": true,
+  "matchedSitePairs": [
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "cancelOpenChildren",
+      "beforeId": "89",
+      "afterId": "91",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "cancelOpenChildren",
+      "beforeId": "87",
+      "afterId": "89",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "cancelOpenChildren",
+      "beforeId": "88",
+      "afterId": "90",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "cancelOpenChildren",
+      "beforeId": "85",
+      "afterId": "87",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "cancelOpenChildren",
+      "beforeId": "84",
+      "afterId": "86",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "cancelOpenChildren",
+      "beforeId": "86",
+      "afterId": "88",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "cancelOpenChildren",
+      "beforeId": "82",
+      "afterId": "84",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "cancelOpenChildren",
+      "beforeId": "83",
+      "afterId": "85",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "cancelOpenChildren",
+      "beforeId": "90",
+      "afterId": "92",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "63",
+      "afterId": "63",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "70",
+      "afterId": "72",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "68",
+      "afterId": "70",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "74",
+      "afterId": "76",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "73",
+      "afterId": "75",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "75",
+      "afterId": "77",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "67",
+      "afterId": "69",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "66",
+      "afterId": "66",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "65",
+      "afterId": "65",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "78",
+      "afterId": "79",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "71",
+      "afterId": "73",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "76",
+      "afterId": "78",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "80",
+      "afterId": "81",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "77",
+      "afterId": "82",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "79",
+      "afterId": "68",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "81",
+      "afterId": "83",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "72",
+      "afterId": "74",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "69",
+      "afterId": "71",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "40",
+      "afterId": "40",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "7",
+      "afterId": "7",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "16",
+      "afterId": "16",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "14",
+      "afterId": "14",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "21",
+      "afterId": "21",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "30",
+      "afterId": "30",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "38",
+      "afterId": "38",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "39",
+      "afterId": "39",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "36",
+      "afterId": "36",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "35",
+      "afterId": "35",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "37",
+      "afterId": "37",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "9",
+      "afterId": "9",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "12",
+      "afterId": "12",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "11",
+      "afterId": "11",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "13",
+      "afterId": "13",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "5",
+      "afterId": "5",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "2",
+      "afterId": "2",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "1",
+      "afterId": "1",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "3",
+      "afterId": "3",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "26",
+      "afterId": "26",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "27",
+      "afterId": "27",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "24",
+      "afterId": "24",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "23",
+      "afterId": "23",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "25",
+      "afterId": "25",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "28",
+      "afterId": "28",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "29",
+      "afterId": "29",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "18",
+      "afterId": "17",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "33",
+      "afterId": "33",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "8",
+      "afterId": "8",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "19",
+      "afterId": "18",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "17",
+      "afterId": "19",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "32",
+      "afterId": "32",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "20",
+      "afterId": "10",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "10",
+      "afterId": "20",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "42",
+      "afterId": "42",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "41",
+      "afterId": "41",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "34",
+      "afterId": "34",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "22",
+      "afterId": "22",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "4",
+      "afterId": "4",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "31",
+      "afterId": "31",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "6",
+      "afterId": "6",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "48",
+      "afterId": "48",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "47",
+      "afterId": "47",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "49",
+      "afterId": "49",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "59",
+      "afterId": "59",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "58",
+      "afterId": "58",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "51",
+      "afterId": "51",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "50",
+      "afterId": "50",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "52",
+      "afterId": "52",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "46",
+      "afterId": "46",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "53",
+      "afterId": "53",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "45",
+      "afterId": "45",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "44",
+      "afterId": "44",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "55",
+      "afterId": "55",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "54",
+      "afterId": "54",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "61",
+      "afterId": "61",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "62",
+      "afterId": "62",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "43",
+      "afterId": "43",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "57",
+      "afterId": "57",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "56",
+      "afterId": "56",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "60",
+      "afterId": "60",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "266",
+      "afterId": "275",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "268",
+      "afterId": "277",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "267",
+      "afterId": "276",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "251",
+      "afterId": "260",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "258",
+      "afterId": "267",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "255",
+      "afterId": "264",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "259",
+      "afterId": "268",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "231",
+      "afterId": "240",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "271",
+      "afterId": "280",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "245",
+      "afterId": "254",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "222",
+      "afterId": "231",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "265",
+      "afterId": "274",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "262",
+      "afterId": "271",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "264",
+      "afterId": "273",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "274",
+      "afterId": "319",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "239",
+      "afterId": "248",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "273",
+      "afterId": "318",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "240",
+      "afterId": "249",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "275",
+      "afterId": "320",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "260",
+      "afterId": "269",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "253",
+      "afterId": "262",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "252",
+      "afterId": "261",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "254",
+      "afterId": "263",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "233",
+      "afterId": "242",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "232",
+      "afterId": "241",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "234",
+      "afterId": "243",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "220",
+      "afterId": "229",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "263",
+      "afterId": "232",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "223",
+      "afterId": "272",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "247",
+      "afterId": "256",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "246",
+      "afterId": "255",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "248",
+      "afterId": "257",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "224",
+      "afterId": "233",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "226",
+      "afterId": "235",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "225",
+      "afterId": "234",
+      "before": "Timeout",
+      "after": "Timeout"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "237",
+      "afterId": "246",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "236",
+      "afterId": "245",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "238",
+      "afterId": "247",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "242",
+      "afterId": "251",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "257",
+      "afterId": "266",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "276",
+      "afterId": "321",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "230",
+      "afterId": "239",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "229",
+      "afterId": "238",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "228",
+      "afterId": "237",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "269",
+      "afterId": "278",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "256",
+      "afterId": "265",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "261",
+      "afterId": "270",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "249",
+      "afterId": "258",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "250",
+      "afterId": "259",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "270",
+      "afterId": "279",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "243",
+      "afterId": "252",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "235",
+      "afterId": "244",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "beforeId": "241",
+      "afterId": "250",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "132",
+      "afterId": "141",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "135",
+      "afterId": "144",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "134",
+      "afterId": "143",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "forceTerminate",
+      "beforeId": "133",
+      "afterId": "142",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "102",
+      "afterId": "111",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "101",
+      "afterId": "110",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "requestCancellation",
+      "beforeId": "100",
+      "afterId": "109",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "127",
+      "afterId": "136",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "125",
+      "afterId": "134",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "124",
+      "afterId": "133",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "126",
+      "afterId": "135",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "105",
+      "afterId": "114",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "130",
+      "afterId": "139",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "115",
+      "afterId": "124",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "114",
+      "afterId": "123",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "116",
+      "afterId": "125",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "122",
+      "afterId": "131",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "123",
+      "afterId": "132",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "118",
+      "afterId": "127",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "117",
+      "afterId": "126",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "119",
+      "afterId": "128",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "107",
+      "afterId": "116",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "106",
+      "afterId": "115",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "108",
+      "afterId": "117",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "113",
+      "afterId": "122",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "120",
+      "afterId": "129",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "112",
+      "afterId": "121",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "111",
+      "afterId": "120",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "110",
+      "afterId": "119",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "131",
+      "afterId": "140",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "128",
+      "afterId": "137",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "104",
+      "afterId": "113",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "129",
+      "afterId": "138",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "121",
+      "afterId": "130",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "103",
+      "afterId": "112",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "setPaused",
+      "beforeId": "109",
+      "afterId": "118",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "198",
+      "afterId": "207",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "206",
+      "afterId": "179",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "170",
+      "afterId": "215",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "202",
+      "afterId": "211",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "204",
+      "afterId": "213",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "216",
+      "afterId": "225",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "168",
+      "afterId": "177",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "192",
+      "afterId": "156",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "147",
+      "afterId": "201",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "219",
+      "afterId": "228",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "164",
+      "afterId": "173",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "138",
+      "afterId": "147",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "207",
+      "afterId": "216",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "201",
+      "afterId": "210",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "217",
+      "afterId": "181",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "172",
+      "afterId": "182",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "173",
+      "afterId": "226",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "211",
+      "afterId": "220",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "210",
+      "afterId": "219",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "212",
+      "afterId": "221",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "160",
+      "afterId": "169",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "175",
+      "afterId": "184",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "155",
+      "afterId": "164",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "159",
+      "afterId": "168",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "174",
+      "afterId": "183",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "156",
+      "afterId": "165",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "161",
+      "afterId": "170",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "176",
+      "afterId": "185",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "149",
+      "afterId": "158",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "148",
+      "afterId": "157",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "150",
+      "afterId": "159",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "136",
+      "afterId": "145",
+      "before": "NoCoverage",
+      "after": "NoCoverage"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "139",
+      "afterId": "148",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "171",
+      "afterId": "180",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "166",
+      "afterId": "175",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "165",
+      "afterId": "174",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "196",
+      "afterId": "205",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "197",
+      "afterId": "206",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "194",
+      "afterId": "203",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "193",
+      "afterId": "202",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "195",
+      "afterId": "204",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "215",
+      "afterId": "224",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "140",
+      "afterId": "149",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "142",
+      "afterId": "151",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "141",
+      "afterId": "150",
+      "before": "Timeout",
+      "after": "Timeout"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "153",
+      "afterId": "162",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "152",
+      "afterId": "161",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "154",
+      "afterId": "163",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "185",
+      "afterId": "194",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "186",
+      "afterId": "195",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "189",
+      "afterId": "198",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "190",
+      "afterId": "199",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "187",
+      "afterId": "196",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "188",
+      "afterId": "197",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "183",
+      "afterId": "192",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "184",
+      "afterId": "193",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "181",
+      "afterId": "190",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "182",
+      "afterId": "191",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "179",
+      "afterId": "188",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "178",
+      "afterId": "187",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "180",
+      "afterId": "189",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "158",
+      "afterId": "167",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "177",
+      "afterId": "186",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "146",
+      "afterId": "155",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "145",
+      "afterId": "154",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "144",
+      "afterId": "153",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "213",
+      "afterId": "222",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "191",
+      "afterId": "200",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "199",
+      "afterId": "208",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "143",
+      "afterId": "152",
+      "before": "Timeout",
+      "after": "Timeout"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "137",
+      "afterId": "146",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "200",
+      "afterId": "209",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "209",
+      "afterId": "218",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "203",
+      "afterId": "212",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "218",
+      "afterId": "227",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "208",
+      "afterId": "217",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "162",
+      "afterId": "171",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "151",
+      "afterId": "160",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "205",
+      "afterId": "214",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "169",
+      "afterId": "178",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "214",
+      "afterId": "223",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "167",
+      "afterId": "176",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "beforeId": "157",
+      "afterId": "166",
+      "before": "NoCoverage",
+      "after": "Killed"
+    }
+  ],
+  "removedBeforeIds": [
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "64"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "0"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "15"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "98"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "96"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "97"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "94"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "93"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "95"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "91"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "92"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "99"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "272"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "227"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "221"
+    }
+  ],
+  "newAfterIds": [
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "80"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "67"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "64"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "0"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "15"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "94"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "104"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "103"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "105"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "107"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "106"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "95"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "97"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "96"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "108"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "101"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "100"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "99"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "98"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "93"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "102"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "296"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "304"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "300"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "302"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "314"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "290"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "317"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "305"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "299"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "315"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "309"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "308"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "310"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "287"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "288"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "285"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "286"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "283"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "282"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "284"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "294"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "295"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "292"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "291"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "293"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "313"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "281"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "311"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "289"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "297"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "236"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "230"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "298"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "307"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "306"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "301"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "316"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "303"
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "312"
+    }
+  ],
+  "allExecutedMutantsCompletedTests": true,
+  "vitestTimeoutKills": 0,
+  "review": "complete classification with explicit ordinary-child, low-level metadata, malformed-graph and backend-race gaps; not complete terminal lifecycle mutation coverage",
+  "remaining": [
+    {
+      "sampleId": "145",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 2213
+        },
+        "start": {
+          "column": 19,
+          "line": 2213
+        }
+      },
+      "original": "false",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "true",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "classification": "uncovered unused private default",
+      "reason": "terminateExecutionTree has one current caller and it always passes requireRoot=true explicitly. Its false default is therefore never evaluated, so flipping that default has no scenario under the present call graph. A later cleanup may remove the unused default; no score-driven source change or artificial invocation was made."
+    },
+    {
+      "sampleId": "141",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "forceTerminate",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 1855
+        },
+        "start": {
+          "column": 14,
+          "line": 1855
+        }
+      },
+      "original": "\"Terminated by an operator.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained default diagnostic wording",
+      "reason": "Explicit termination reasons are tested and persisted. Emptying the unpinned human-readable default does not change the terminal error identity or cleanup behavior. Keep this survivor visible rather than pinning incidental wording."
+    },
+    {
+      "sampleId": "150",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 2220
+        },
+        "start": {
+          "column": 12,
+          "line": 2220
+        }
+      },
+      "original": "pending.length > 0",
+      "mutatorName": "EqualityOperator",
+      "replacement": "pending.length >= 0",
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "nonterminating traversal detected by Stryker timeout",
+      "reason": "Changing >0 to >=0 or deleting the loop body prevents traversal progress/termination. These six outcomes are retained as Timeout, separate from assertion kills. They do not establish bounded application runtime for ordinary operations."
+    },
+    {
+      "sampleId": "152",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 2258
+        },
+        "start": {
+          "column": 32,
+          "line": 2220
+        }
+      },
+      "original": "{\n      const currentId = pending.shift()!;\n      if (visited.has(currentId)) continue;\n      visited.add(currentId);\n\n      const [execution] = await transaction.select()\n        .from(this.executionsTable)\n        .where(eq(this.executionsTable.id, currentId))\n        .for(\"update\");\n      if (execution === undefined) {\n        if (requireRoot && currentId === rootExecutionId) {\n          throw new WorkflowExecutionNotFoundError(rootExecutionId);\n        }\n        continue;\n      }\n      if (currentId === rootExecutionId) root = execution;\n      const children = await transaction.select({ id: this.executionsTable.id })\n        .from(this.executionsTable)\n        .where(eq(this.executionsTable.parentExecutionId, currentId));\n      pending.push(...children.map((child) => child.id));\n      if (isTerminalWorkflowStatus(execution.status)) continue;\n\n      await transaction.update(this.executionsTable).set({\n        status: \"terminated\",\n        error: { name: \"WorkflowExecutionTerminatedError\", message: reason },\n        pausedAt: null,\n        concurrencyAdmitted: false,\n        completedAt: sql`statement_timestamp()`,\n        updatedAt: sql`statement_timestamp()`,\n      }).where(eq(this.executionsTable.id, currentId));\n      await transaction.delete(this.tasksTable).where(\n        eq(this.tasksTable.executionId, currentId),\n      );\n      await transaction.delete(this.dispatchOutboxTable).where(\n        eq(this.dispatchOutboxTable.executionId, currentId),\n      );\n      await this.admitPendingKeyedExecutions(transaction, execution);\n      if (currentId === rootExecutionId) rootChanged = true;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "nonterminating traversal detected by Stryker timeout",
+      "reason": "Changing >0 to >=0 or deleting the loop body prevents traversal progress/termination. These six outcomes are retained as Timeout, separate from assertion kills. They do not establish bounded application runtime for ordinary operations."
+    },
+    {
+      "sampleId": "154",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 2222
+        },
+        "start": {
+          "column": 11,
+          "line": 2222
+        }
+      },
+      "original": "visited.has(currentId)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 7,
+      "classification": "deferred cyclic-parent-graph robustness gap",
+      "reason": "Generated child commands form an acyclic tree, so current cases do not revisit an identity. Low-level start requests accept explicit parent links and external persistence can contain cycles; removing visited bookkeeping can make those graphs nonterminating. Preserve the defense and add a bounded cyclic-graph robustness case separately; this is not universal equivalence."
+    },
+    {
+      "sampleId": "155",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 2223
+        },
+        "start": {
+          "column": 7,
+          "line": 2223
+        }
+      },
+      "original": "visited.add(currentId);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "status": "Survived",
+      "testsCompleted": 7,
+      "classification": "deferred cyclic-parent-graph robustness gap",
+      "reason": "Generated child commands form an acyclic tree, so current cases do not revisit an identity. Low-level start requests accept explicit parent links and external persistence can contain cycles; removing visited bookkeeping can make those graphs nonterminating. Preserve the defense and add a bounded cyclic-graph robustness case separately; this is not universal equivalence."
+    },
+    {
+      "sampleId": "161",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 2230
+        },
+        "start": {
+          "column": 13,
+          "line": 2230
+        }
+      },
+      "original": "requireRoot && currentId === rootExecutionId",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "deferred missing-descendant and internal-root handling gap",
+      "reason": "The branch is reached in current tests only for a missing required public root. These mutations broaden throwing to absent internal roots/descendants. A child queried earlier can disappear under concurrent external deletion, while internal cleanup intentionally tolerates absence. Sequential fixtures do not cover that race or storage corruption; keep the root/descendant distinction and do not call the mutants equivalent."
+    },
+    {
+      "sampleId": "163",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 2230
+        },
+        "start": {
+          "column": 13,
+          "line": 2230
+        }
+      },
+      "original": "requireRoot && currentId === rootExecutionId",
+      "mutatorName": "LogicalOperator",
+      "replacement": "requireRoot || currentId === rootExecutionId",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "deferred missing-descendant and internal-root handling gap",
+      "reason": "The branch is reached in current tests only for a missing required public root. These mutations broaden throwing to absent internal roots/descendants. A child queried earlier can disappear under concurrent external deletion, while internal cleanup intentionally tolerates absence. Sequential fixtures do not cover that race or storage corruption; keep the root/descendant distinction and do not call the mutants equivalent."
+    },
+    {
+      "sampleId": "164",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 2230
+        },
+        "start": {
+          "column": 28,
+          "line": 2230
+        }
+      },
+      "original": "currentId === rootExecutionId",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "deferred missing-descendant and internal-root handling gap",
+      "reason": "The branch is reached in current tests only for a missing required public root. These mutations broaden throwing to absent internal roots/descendants. A child queried earlier can disappear under concurrent external deletion, while internal cleanup intentionally tolerates absence. Sequential fixtures do not cover that race or storage corruption; keep the root/descendant distinction and do not call the mutants equivalent."
+    },
+    {
+      "sampleId": "194",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 2260
+        },
+        "start": {
+          "column": 24,
+          "line": 2260
+        }
+      },
+      "original": "root !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "equivalent under local rootChanged invariant",
+      "reason": "rootChanged becomes true only after the requested root row was found and assigned to the local root variable. That local variable is not cleared by callbacks or awaits. The following root!==undefined check is therefore true whenever reached with rootChanged, under the current method control flow."
+    },
+    {
+      "sampleId": "196",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 77,
+          "line": 2260
+        },
+        "start": {
+          "column": 46,
+          "line": 2260
+        }
+      },
+      "original": "root.parentExecutionId !== null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "same result with extra null-parent query",
+      "reason": "If the root has no parent but has a command sequence, bypassing the parent-identity guard performs a SELECT with a null parent ID, then the parent!==undefined guard skips notification. Output is unchanged but query work and failure observations differ. With ordinary paired metadata, the command-sequence guard already skips parentless roots. Keep the cheap guard; this is not strict I/O equivalence."
+    },
+    {
+      "sampleId": "198",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 45,
+          "line": 2261
+        },
+        "start": {
+          "column": 10,
+          "line": 2261
+        }
+      },
+      "original": "root.parentCommandSequence !== null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "deferred partial-parent-metadata gap",
+      "reason": "Generated children have both parent identity and command sequence. Low-level StartWorkflowExecutionRequest permits these optional fields separately; bypassing the sequence guard can append a null-sequence completion to an existing parent. Add a direct adapter partial-metadata case if that robustness is retained as contract; this survivor is not equivalent over every accepted low-level request."
+    },
+    {
+      "sampleId": "202",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 2266
+        },
+        "start": {
+          "column": 11,
+          "line": 2266
+        }
+      },
+      "original": "parent !== undefined && !isTerminalWorkflowStatus(parent.status)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "deferred direct-child termination with already terminal parent",
+      "reason": "Current closed-root escalation traverses descendants while rootChanged remains false, so it skips this outer notification block. Directly terminating an open child whose parent is already terminal reaches this guard and should preserve the terminal parent. That focused case merits an additional test in the next terminal follow-up; bypassing the status guard can reopen the parent."
+    },
+    {
+      "sampleId": "204",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 2266
+        },
+        "start": {
+          "column": 11,
+          "line": 2266
+        }
+      },
+      "original": "parent !== undefined && !isTerminalWorkflowStatus(parent.status)",
+      "mutatorName": "LogicalOperator",
+      "replacement": "parent !== undefined || !isTerminalWorkflowStatus(parent.status)",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "deferred direct-child termination with already terminal parent",
+      "reason": "Current closed-root escalation traverses descendants while rootChanged remains false, so it skips this outer notification block. Directly terminating an open child whose parent is already terminal reaches this guard and should preserve the terminal parent. That focused case merits an additional test in the next terminal follow-up; bypassing the status guard can reopen the parent."
+    },
+    {
+      "sampleId": "205",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 2266
+        },
+        "start": {
+          "column": 11,
+          "line": 2266
+        }
+      },
+      "original": "parent !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "deferred orphan-parent robustness gap",
+      "reason": "Normal child creation supplies an existing parent. A low-level start can name a missing parent, or external retention can orphan a record. Removing the absent-parent guard can dereference an undefined row instead of completing child cleanup. Keep the guard and classify orphan metadata as a deferred robustness case, not equivalent behavior."
+    },
+    {
+      "sampleId": "219",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "terminateExecutionTree",
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 2287
+        },
+        "start": {
+          "column": 13,
+          "line": 2287
+        }
+      },
+      "original": "completion !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "deferred defensive completion-insert conflict handling",
+      "reason": "Current paths lock the parent and child and avoid duplicate terminal notifications before the INSERT. Repeated ordinary cancellation/termination therefore does not force the onConflictDoNothing empty-return branch. A preexisting conflicting journal entry or unexpected backend result distinguishes this guard. Preserve it; no artificial trigger or private-row injection was added solely for mutation scoring."
+    },
+    {
+      "sampleId": "229",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 2308
+        },
+        "start": {
+          "column": 19,
+          "line": 2308
+        }
+      },
+      "original": "false",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "same present internal roots with deferred missing-root tolerance",
+      "reason": "This default is exercised by internal cleanup of children already obtained from a query. Making it true leaves existing-tree behavior unchanged but would turn disappearance of an internal root into an error. Public operations pass true explicitly. The absent-internal-root race remains deferred; this is not strict failure-path equivalence."
+    },
+    {
+      "sampleId": "234",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 2314
+        },
+        "start": {
+          "column": 12,
+          "line": 2314
+        }
+      },
+      "original": "pending.length > 0",
+      "mutatorName": "EqualityOperator",
+      "replacement": "pending.length >= 0",
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "nonterminating traversal detected by Stryker timeout",
+      "reason": "Changing >0 to >=0 or deleting the loop body prevents traversal progress/termination. These six outcomes are retained as Timeout, separate from assertion kills. They do not establish bounded application runtime for ordinary operations."
+    },
+    {
+      "sampleId": "236",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 2417
+        },
+        "start": {
+          "column": 32,
+          "line": 2314
+        }
+      },
+      "original": "{\n      const currentId = pending.shift()!;\n\n      if (visited.has(currentId)) continue;\n      visited.add(currentId);\n\n      const [execution] = await transaction.select()\n        .from(this.executionsTable)\n        .where(eq(this.executionsTable.id, currentId))\n        .for(\"update\");\n\n      if (execution === undefined) {\n        if (requireRoot && currentId === rootExecutionId) {\n          throw new WorkflowExecutionNotFoundError(rootExecutionId);\n        }\n        continue;\n      }\n\n      const children = await transaction.select({ id: this.executionsTable.id })\n        .from(this.executionsTable)\n        .where(eq(this.executionsTable.parentExecutionId, currentId));\n      pending.push(...children.map((child) => child.id));\n\n      if (isTerminalWorkflowStatus(execution.status)\n        || execution.cancellationRequested) {\n        continue;\n      }\n\n      await transaction.insert(this.historyTable).values({\n        executionId: currentId,\n        eventIndex: execution.revision,\n        type: \"cancellation-requested\",\n      });\n      const pendingCancellation = execution.status === \"pending\";\n      await transaction.update(this.executionsTable).set({\n        cancellationRequested: true,\n        pausedAt: null,\n        status: pendingCancellation ? \"cancelled\" : \"queued\",\n        revision: execution.revision + 1,\n        ...(pendingCancellation\n          ? {\n              completedAt: sql`statement_timestamp()`,\n              concurrencyAdmitted: false,\n            }\n          : {}),\n        updatedAt: sql`statement_timestamp()`,\n      }).where(eq(this.executionsTable.id, currentId));\n      await transaction.delete(this.tasksTable).where(and(\n        eq(this.tasksTable.executionId, currentId),\n        sql`${this.tasksTable.kind} <> 'workflow'`,\n      ));\n      if (!pendingCancellation) {\n        await transaction.insert(this.tasksTable).values({\n          executionId: currentId,\n          kind: \"workflow\",\n        }).onConflictDoNothing();\n      } else {\n        await this.admitPendingKeyedExecutions(\n          transaction,\n          execution,\n        );\n        // A capacity-pending child has no activation that could report its\n        // terminal cancellation later. Complete its parent's command now.\n        if (execution.parentExecutionId !== null && execution.parentCommandSequence !== null) {\n          const [parent] = await transaction.select()\n            .from(this.executionsTable)\n            .where(eq(this.executionsTable.id, execution.parentExecutionId))\n            .for(\"update\");\n          if (parent !== undefined && !isTerminalWorkflowStatus(parent.status)) {\n            const [{ count = 0 } = {}] = await transaction.select({\n              count: sql<number>`count(*)::integer`,\n            }).from(this.historyTable).where(and(\n              eq(this.historyTable.executionId, parent.id),\n              eq(this.historyTable.type, \"command-completed\"),\n            ));\n            const [completion] = await transaction.insert(this.historyTable).values({\n              executionId: parent.id,\n              eventIndex: parent.revision,\n              type: \"command-completed\",\n              commandSequence: execution.parentCommandSequence,\n              completionOrder: count,\n              error: {\n                name: \"WorkflowCancellationError\",\n                message: `Child workflow \"${execution.id}\" was cancelled.`,\n                details: { executionId: execution.id },\n              },\n            }).onConflictDoNothing().returning({ eventIndex: this.historyTable.eventIndex });\n            if (completion !== undefined) {\n              await transaction.update(this.executionsTable).set({\n                revision: parent.revision + 1,\n                status: \"queued\",\n                updatedAt: sql`statement_timestamp()`,\n              }).where(eq(this.executionsTable.id, parent.id));\n              await transaction.insert(this.tasksTable).values({\n                executionId: parent.id,\n                kind: \"workflow\",\n              }).onConflictDoNothing();\n            }\n          }\n        }\n      }\n\n      if (currentId === rootExecutionId) rootChanged = true;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "nonterminating traversal detected by Stryker timeout",
+      "reason": "Changing >0 to >=0 or deleting the loop body prevents traversal progress/termination. These six outcomes are retained as Timeout, separate from assertion kills. They do not establish bounded application runtime for ordinary operations."
+    },
+    {
+      "sampleId": "238",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 2317
+        },
+        "start": {
+          "column": 11,
+          "line": 2317
+        }
+      },
+      "original": "visited.has(currentId)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 8,
+      "classification": "deferred cyclic-parent-graph robustness gap",
+      "reason": "Generated child commands form an acyclic tree, so current cases do not revisit an identity. Low-level start requests accept explicit parent links and external persistence can contain cycles; removing visited bookkeeping can make those graphs nonterminating. Preserve the defense and add a bounded cyclic-graph robustness case separately; this is not universal equivalence."
+    },
+    {
+      "sampleId": "239",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 2318
+        },
+        "start": {
+          "column": 7,
+          "line": 2318
+        }
+      },
+      "original": "visited.add(currentId);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "status": "Survived",
+      "testsCompleted": 8,
+      "classification": "deferred cyclic-parent-graph robustness gap",
+      "reason": "Generated child commands form an acyclic tree, so current cases do not revisit an identity. Low-level start requests accept explicit parent links and external persistence can contain cycles; removing visited bookkeeping can make those graphs nonterminating. Preserve the defense and add a bounded cyclic-graph robustness case separately; this is not universal equivalence."
+    },
+    {
+      "sampleId": "245",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 2326
+        },
+        "start": {
+          "column": 13,
+          "line": 2326
+        }
+      },
+      "original": "requireRoot && currentId === rootExecutionId",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "deferred missing-descendant and internal-root handling gap",
+      "reason": "The branch is reached in current tests only for a missing required public root. These mutations broaden throwing to absent internal roots/descendants. A child queried earlier can disappear under concurrent external deletion, while internal cleanup intentionally tolerates absence. Sequential fixtures do not cover that race or storage corruption; keep the root/descendant distinction and do not call the mutants equivalent."
+    },
+    {
+      "sampleId": "247",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 2326
+        },
+        "start": {
+          "column": 13,
+          "line": 2326
+        }
+      },
+      "original": "requireRoot && currentId === rootExecutionId",
+      "mutatorName": "LogicalOperator",
+      "replacement": "requireRoot || currentId === rootExecutionId",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "deferred missing-descendant and internal-root handling gap",
+      "reason": "The branch is reached in current tests only for a missing required public root. These mutations broaden throwing to absent internal roots/descendants. A child queried earlier can disappear under concurrent external deletion, while internal cleanup intentionally tolerates absence. Sequential fixtures do not cover that race or storage corruption; keep the root/descendant distinction and do not call the mutants equivalent."
+    },
+    {
+      "sampleId": "248",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 2326
+        },
+        "start": {
+          "column": 28,
+          "line": 2326
+        }
+      },
+      "original": "currentId === rootExecutionId",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "deferred missing-descendant and internal-root handling gap",
+      "reason": "The branch is reached in current tests only for a missing required public root. These mutations broaden throwing to absent internal roots/descendants. A child queried earlier can disappear under concurrent external deletion, while internal cleanup intentionally tolerates absence. Sequential fixtures do not cover that race or storage corruption; keep the root/descendant distinction and do not call the mutants equivalent."
+    },
+    {
+      "sampleId": "282",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 93,
+          "line": 2377
+        },
+        "start": {
+          "column": 13,
+          "line": 2377
+        }
+      },
+      "original": "execution.parentExecutionId !== null && execution.parentCommandSequence !== null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "deferred partial-parent metadata and additional-query behavior",
+      "reason": "Generated children have paired parent identity/sequence metadata and roots have neither. On that healthy path this broadens notification work or leaves outputs unchanged. A low-level request with only a parent identity can instead insert a null-sequence parent completion, while a lone sequence can cause an extra null-parent SELECT. Preserve both guards; do not label this equivalent across all representable adapter requests."
+    },
+    {
+      "sampleId": "285",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 49,
+          "line": 2377
+        },
+        "start": {
+          "column": 13,
+          "line": 2377
+        }
+      },
+      "original": "execution.parentExecutionId !== null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "same healthy result with partial-metadata query work difference",
+      "reason": "With paired generated metadata, testing parent identity as always true is redundant once a non-null sequence is required. A lone sequence with a null parent identity performs an extra SELECT that returns no parent. The result is unchanged but work and storage-failure observations differ; retain the guard."
+    },
+    {
+      "sampleId": "284",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 93,
+          "line": 2377
+        },
+        "start": {
+          "column": 13,
+          "line": 2377
+        }
+      },
+      "original": "execution.parentExecutionId !== null && execution.parentCommandSequence !== null",
+      "mutatorName": "LogicalOperator",
+      "replacement": "execution.parentExecutionId !== null || execution.parentCommandSequence !== null",
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "deferred partial-parent metadata and additional-query behavior",
+      "reason": "Generated children have paired parent identity/sequence metadata and roots have neither. On that healthy path this broadens notification work or leaves outputs unchanged. A low-level request with only a parent identity can instead insert a null-sequence parent completion, while a lone sequence can cause an extra null-parent SELECT. Preserve both guards; do not label this equivalent across all representable adapter requests."
+    },
+    {
+      "sampleId": "287",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 93,
+          "line": 2377
+        },
+        "start": {
+          "column": 53,
+          "line": 2377
+        }
+      },
+      "original": "execution.parentCommandSequence !== null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "deferred partial-parent metadata and additional-query behavior",
+      "reason": "Generated children have paired parent identity/sequence metadata and roots have neither. On that healthy path this broadens notification work or leaves outputs unchanged. A low-level request with only a parent identity can instead insert a null-sequence parent completion, while a lone sequence can cause an extra null-parent SELECT. Preserve both guards; do not label this equivalent across all representable adapter requests."
+    },
+    {
+      "sampleId": "294",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 35,
+          "line": 2382
+        },
+        "start": {
+          "column": 15,
+          "line": 2382
+        }
+      },
+      "original": "parent !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "deferred orphan-parent robustness gap",
+      "reason": "Normal child creation supplies an existing parent. A low-level start can name a missing parent, or external retention can orphan a record. Removing the absent-parent guard can dereference an undefined row instead of completing child cleanup. Keep the guard and classify orphan metadata as a deferred robustness case, not equivalent behavior."
+    },
+    {
+      "sampleId": "308",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 2401
+        },
+        "start": {
+          "column": 17,
+          "line": 2401
+        }
+      },
+      "original": "completion !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "deferred defensive completion-insert conflict handling",
+      "reason": "Current paths lock the parent and child and avoid duplicate terminal notifications before the INSERT. Repeated ordinary cancellation/termination therefore does not force the onConflictDoNothing empty-return branch. A preexisting conflicting journal entry or unexpected backend result distinguishes this guard. Preserve it; no artificial trigger or private-row injection was added solely for mutation scoring."
+    },
+    {
+      "sampleId": "318",
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "method": "cancelExecutionTree",
+      "location": {
+        "end": {
+          "column": 40,
+          "line": 2416
+        },
+        "start": {
+          "column": 11,
+          "line": 2416
+        }
+      },
+      "original": "currentId === rootExecutionId",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 7,
+      "classification": "deferred root-result semantics with newly open descendants",
+      "reason": "The boolean reports whether the selected root changed. Current repeated-cancellation cases have no newly open child. If an already cancelling parent later schedules a compensation child, traversal can change only that descendant; this mutation would incorrectly report a root change. Add a public compensation/child scenario and clarify repeated propagation semantics across adapters rather than assume the return guard is equivalent."
+    },
+    {
+      "sampleId": "18",
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "requestCancellation",
+      "location": {
+        "end": {
+          "column": 47,
+          "line": 806
+        },
+        "start": {
+          "column": 7,
+          "line": 806
+        }
+      },
+      "original": "this.releaseConcurrency(execution, now);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "defensive admission reconciliation under pending-state invariant",
+      "reason": "A pending execution owns no retained permit, and supported serialized memory admission transitions already fill newly available capacity. Its releaseConcurrency call normally reasserts false and reconciles an already full key, so the pending cancellation output is unchanged without it. External/test-seam state transitions can leave reconcilable capacity; keep this defense and do not generalize equivalence to arbitrary manipulated states."
+    },
+    {
+      "sampleId": "63",
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "forceTerminate",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 852
+        },
+        "start": {
+          "column": 14,
+          "line": 852
+        }
+      },
+      "original": "\"Terminated by an operator.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "unconstrained default diagnostic wording",
+      "reason": "Explicit termination reasons are tested and persisted. Emptying the unpinned human-readable default does not change the terminal error identity or cleanup behavior. Keep this survivor visible rather than pinning incidental wording."
+    },
+    {
+      "sampleId": "96",
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "terminateOpenChildren",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 1620
+        },
+        "start": {
+          "column": 12,
+          "line": 1620
+        }
+      },
+      "original": "pending.length > 0",
+      "mutatorName": "EqualityOperator",
+      "replacement": "pending.length >= 0",
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "nonterminating traversal detected by Stryker timeout",
+      "reason": "Changing >0 to >=0 or deleting the loop body prevents traversal progress/termination. These six outcomes are retained as Timeout, separate from assertion kills. They do not establish bounded application runtime for ordinary operations."
+    },
+    {
+      "sampleId": "98",
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "terminateOpenChildren",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 1630
+        },
+        "start": {
+          "column": 32,
+          "line": 1620
+        }
+      },
+      "original": "{\n      const current = pending.pop()!;\n      if (visited.has(current)) continue;\n      visited.add(current);\n      for (const child of this.executions.values()) {\n        if (child.parentExecutionId !== current) continue;\n        // Closed intermediate children must not hide still-open descendants.\n        if (isTerminalWorkflowStatus(child.status)) pending.push(child.executionId);\n        else void this.forceTerminate(child.executionId, reason);\n      }\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "nonterminating traversal detected by Stryker timeout",
+      "reason": "Changing >0 to >=0 or deleting the loop body prevents traversal progress/termination. These six outcomes are retained as Timeout, separate from assertion kills. They do not establish bounded application runtime for ordinary operations."
+    },
+    {
+      "sampleId": "100",
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "terminateOpenChildren",
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 1622
+        },
+        "start": {
+          "column": 11,
+          "line": 1622
+        }
+      },
+      "original": "visited.has(current)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 11,
+      "classification": "deferred cyclic-parent-graph robustness gap",
+      "reason": "Generated child commands form an acyclic tree, so current cases do not revisit an identity. Low-level start requests accept explicit parent links and external persistence can contain cycles; removing visited bookkeeping can make those graphs nonterminating. Preserve the defense and add a bounded cyclic-graph robustness case separately; this is not universal equivalence."
+    },
+    {
+      "sampleId": "101",
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "terminateOpenChildren",
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 1623
+        },
+        "start": {
+          "column": 7,
+          "line": 1623
+        }
+      },
+      "original": "visited.add(current);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "status": "Survived",
+      "testsCompleted": 11,
+      "classification": "deferred cyclic-parent-graph robustness gap",
+      "reason": "Generated child commands form an acyclic tree, so current cases do not revisit an identity. Low-level start requests accept explicit parent links and external persistence can contain cycles; removing visited bookkeeping can make those graphs nonterminating. Preserve the defense and add a bounded cyclic-graph robustness case separately; this is not universal equivalence."
+    },
+    {
+      "sampleId": "107",
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "method": "terminateOpenChildren",
+      "location": {
+        "end": {
+          "column": 51,
+          "line": 1627
+        },
+        "start": {
+          "column": 13,
+          "line": 1627
+        }
+      },
+      "original": "isTerminalWorkflowStatus(child.status)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "same acyclic-tree outcome with extra recursion and cyclic-graph gap",
+      "reason": "Always routing a closed child through forceTerminate still reaches its descendants and preserves outcomes on healthy acyclic trees, but adds nested async/helper work. On a cycle of closed parent links it resets visited ownership across recursive helper calls and can fail to terminate. Preserve the branch; this is not strict work or malformed-graph equivalence."
+    }
+  ],
+  "remainingCategories": {
+    "uncovered unused private default": 1,
+    "unconstrained default diagnostic wording": 2,
+    "nonterminating traversal detected by Stryker timeout": 6,
+    "deferred cyclic-parent-graph robustness gap": 6,
+    "deferred missing-descendant and internal-root handling gap": 6,
+    "equivalent under local rootChanged invariant": 1,
+    "same result with extra null-parent query": 1,
+    "deferred partial-parent-metadata gap": 1,
+    "deferred direct-child termination with already terminal parent": 2,
+    "deferred orphan-parent robustness gap": 2,
+    "deferred defensive completion-insert conflict handling": 2,
+    "same present internal roots with deferred missing-root tolerance": 1,
+    "deferred partial-parent metadata and additional-query behavior": 3,
+    "same healthy result with partial-metadata query work difference": 1,
+    "deferred root-result semantics with newly open descendants": 1,
+    "defensive admission reconciliation under pending-state invariant": 1,
+    "same acyclic-tree outcome with extra recursion and cyclic-graph gap": 1
+  },
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 96
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 62
+    },
+    {
+      "before": "NoCoverage",
+      "after": "NoCoverage",
+      "count": 1
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Survived",
+      "count": 14
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 76
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 8
+    },
+    {
+      "before": "Timeout",
+      "after": "Timeout",
+      "count": 3
+    }
+  ],
+  "reportHashes": {
+    "artifacts/mutation/workflow-terminal-control-before-two-hour-tests/mutation.json": "fa5ee9d2d401fd467494dadbbd0f188d5b083b868e4a0e5067bf27b994fdd849",
+    "artifacts/mutation/workflow-terminal-control/mutation.json": "e4127cc56e4b9caea81161d028b92d5ac062b23977973a86f4d627b4586a38d1"
+  },
+  "embeddedProductionSourceHashes": {
+    "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "743a52cbd4e326406d6b1ebf615d3617c49239be34187aec109ad0ea7e25e5f4",
+    "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "4569fb5cb69d9225ec245d1c4b87f030f573b781be5fae8ad83f7efcbb19f861"
+  },
+  "executedTestSourceHashes": {
+    "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "d3f453d0d363c08101867f4ceebf44268a37a6088585c1f73f88e0a313d5dbca",
+    "src/packages/kestrel/src/workflows/adapters/memory/terminal_control.test.ts": "1140a02c17bec12394f878a6a53112bbe0d09576a5fdd7177f4e84d0f5947363",
+    "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+    "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+    "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+    "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+    "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+    "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+    "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+    "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+    "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+    "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+    "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+    "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+    "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+    "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+    "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+    "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+    "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+    "src/packages/kestrel/src/workflows/adapters/memory/retry_execution.test.ts": "4ff4a5a303fb7e8402397b31d11fd398440adbd4628ead6ecd96b03f94a39176"
+  },
+  "configurationHashesAtReview": {
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/mutation-profile.mjs": "255d6bc141dacae71439e7b4501404e577f295376696ea2b958c0015fcf7c9c7"
+  },
+  "scorePolicy": "Keep 31 survivors,1 uncovered default and6 timeouts visible. No exclusions, no blanket equivalence and no blocking threshold. TypeScript AST mutation does not systematically mutate SQL predicates or prove transaction interleavings.",
+  "reviewAgainWhen": "Prioritize direct-child termination under a terminal parent, repeated cancellation after compensation child creation, then partial/orphan/cyclic low-level graph contracts and shared-schema multi-connection races."
+}

@@ -1,0 +1,400 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "All nine eligible source files under actions/**/*; eight mutant-bearing files generate 238 mutants and index.ts contains only re-exports. Lower-level db/utils/definition/middleware/DI code remains dependency code rather than mutated source in this component lot.",
+  "command": "npm run test:mutation:component -- actions",
+  "budgetMs": 600000,
+  "report": "artifacts/mutation/component-actions/mutation.json",
+  "beforeReport": "artifacts/mutation/component-actions-before-collection-tests/mutation.json",
+  "scopeMutants": 238,
+  "sourceFiles": 9,
+  "mutantBearingFiles": 8,
+  "beforeCounts": {
+    "NoCoverage": 4,
+    "Killed": 212,
+    "Survived": 22
+  },
+  "counts": {
+    "Killed": 226,
+    "Survived": 12
+  },
+  "review": "complete under documented optional-metadata and diagnostic-message contracts",
+  "productionChangesDuringFullComponentComparison": false,
+  "priorSelectedScopeBug": "The earlier CRUD/pagination selection found and fixed unsafe numbered pagination defaults. See mutation_testing_actions_classification.json for its failing regression and source-change-aware comparison. The full-component baseline and final comparison both include that fix.",
+  "sameProductionSources": true,
+  "sameMutationFingerprints": true,
+  "allPriorKillsPreserved": true,
+  "allExecutedMutantsCompletedTests": true,
+  "vitestTimeoutKills": 0,
+  "timeoutDrivenDetections": [],
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 212
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 2
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Survived",
+      "count": 2
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 12
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 10
+    }
+  ],
+  "remainingCategoryCounts": {
+    "unconstrained human-readable diagnostic text under Zod issue defaults": 1,
+    "unconstrained human-readable diagnostic text": 9,
+    "unconstrained optional metadata property representation": 2
+  },
+  "remaining": [
+    {
+      "sampleId": "44",
+      "file": "src/packages/kestrel/src/actions/collection.ts",
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 66
+        },
+        "start": {
+          "column": 24,
+          "line": 63
+        }
+      },
+      "original": "{\n        code: \"custom\",\n        message: \"Expected valid JSON.\",\n      }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "unconstrained human-readable diagnostic text under Zod issue defaults",
+      "reason": "Replacing context.addIssue({code: custom, message: Expected valid JSON}) with context.addIssue({}) retains rejection, custom issue code and contextual path because installed Zod defaults an omitted issue code to custom. Only rendered diagnostic wording changes to the default Invalid input. Positive/rejection and structured custom-issue tests already constrain the meaningful result.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "46",
+      "file": "src/packages/kestrel/src/actions/collection.ts",
+      "location": {
+        "end": {
+          "column": 40,
+          "line": 65
+        },
+        "start": {
+          "column": 18,
+          "line": 65
+        }
+      },
+      "original": "\"Expected valid JSON.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only a rendered error/issue message or option-name label changes. Invalid values still fail with the same validation behavior and public error/issue structure. Exact diagnostic wording is not documented as a stable contract and is intentionally not pinned by tests.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "3",
+      "file": "src/packages/kestrel/src/actions/action.ts",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 122
+        },
+        "start": {
+          "column": 9,
+          "line": 122
+        }
+      },
+      "original": "options.description === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 846,
+      "classification": "unconstrained optional metadata property representation",
+      "reason": "For a missing description, forcing the branch false adds an own description property with value undefined instead of omitting the property. Documented description reads, controller fallback and JSON serialization retain the same value/behavior. Own-key enumeration can differ, so this is not unconditional JavaScript equivalence; the contract does not promise exact property presence for absent optional metadata. No runtime test pins this representation solely for a score.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "54",
+      "file": "src/packages/kestrel/src/actions/cursor_pagination.ts",
+      "location": {
+        "end": {
+          "column": 88,
+          "line": 27
+        },
+        "start": {
+          "column": 55,
+          "line": 27
+        }
+      },
+      "original": "\"Cursor values must be non-null.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 7,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only a rendered error/issue message or option-name label changes. Invalid values still fail with the same validation behavior and public error/issue structure. Exact diagnostic wording is not documented as a stable contract and is intentionally not pinned by tests.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "68",
+      "file": "src/packages/kestrel/src/actions/cursor_pagination.ts",
+      "location": {
+        "end": {
+          "column": 99,
+          "line": 44
+        },
+        "start": {
+          "column": 71,
+          "line": 44
+        }
+      },
+      "original": "\"Invalid pagination cursor.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only a rendered error/issue message or option-name label changes. Invalid values still fail with the same validation behavior and public error/issue structure. Exact diagnostic wording is not documented as a stable contract and is intentionally not pinned by tests.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "95",
+      "file": "src/packages/kestrel/src/actions/cursor_pagination.ts",
+      "location": {
+        "end": {
+          "column": 86,
+          "line": 116
+        },
+        "start": {
+          "column": 58,
+          "line": 116
+        }
+      },
+      "original": "\"Invalid pagination cursor.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only a rendered error/issue message or option-name label changes. Invalid values still fail with the same validation behavior and public error/issue structure. Exact diagnostic wording is not documented as a stable contract and is intentionally not pinned by tests.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "122",
+      "file": "src/packages/kestrel/src/actions/cursor_pagination.ts",
+      "location": {
+        "end": {
+          "column": 135,
+          "line": 130
+        },
+        "start": {
+          "column": 25,
+          "line": 130
+        }
+      },
+      "original": "\"Cursor page sizes must be positive safe integers with defaultPageSize <= maxPageSize and room for lookahead.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 15,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only a rendered error/issue message or option-name label changes. Invalid values still fail with the same validation behavior and public error/issue structure. Exact diagnostic wording is not documented as a stable contract and is intentionally not pinned by tests.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "130",
+      "file": "src/packages/kestrel/src/actions/input_mapping.ts",
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 59
+        },
+        "start": {
+          "column": 11,
+          "line": 59
+        }
+      },
+      "original": "action.description === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 14,
+      "classification": "unconstrained optional metadata property representation",
+      "reason": "For a missing description, forcing the branch false adds an own description property with value undefined instead of omitting the property. Documented description reads, controller fallback and JSON serialization retain the same value/behavior. Own-key enumeration can differ, so this is not unconditional JavaScript equivalence; the contract does not promise exact property presence for absent optional metadata. No runtime test pins this representation solely for a score.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "193",
+      "file": "src/packages/kestrel/src/actions/pagination.ts",
+      "location": {
+        "end": {
+          "column": 78,
+          "line": 73
+        },
+        "start": {
+          "column": 7,
+          "line": 73
+        }
+      },
+      "original": "\"The default pagination page size cannot exceed the maximum page size.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only a rendered error/issue message or option-name label changes. Invalid values still fail with the same validation behavior and public error/issue structure. Exact diagnostic wording is not documented as a stable contract and is intentionally not pinned by tests.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "239",
+      "file": "src/packages/kestrel/src/actions/pagination.ts",
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 240
+        },
+        "start": {
+          "column": 7,
+          "line": 240
+        }
+      },
+      "original": "`The pagination ${name} must be a positive safe integer.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Survived",
+      "testsCompleted": 12,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only a rendered error/issue message or option-name label changes. Invalid values still fail with the same validation behavior and public error/issue structure. Exact diagnostic wording is not documented as a stable contract and is intentionally not pinned by tests.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "184",
+      "file": "src/packages/kestrel/src/actions/pagination.ts",
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 68
+        },
+        "start": {
+          "column": 24,
+          "line": 68
+        }
+      },
+      "original": "\"defaultPageSize\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 846,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only a rendered error/issue message or option-name label changes. Invalid values still fail with the same validation behavior and public error/issue structure. Exact diagnostic wording is not documented as a stable contract and is intentionally not pinned by tests.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    },
+    {
+      "sampleId": "186",
+      "file": "src/packages/kestrel/src/actions/pagination.ts",
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 69
+        },
+        "start": {
+          "column": 24,
+          "line": 69
+        }
+      },
+      "original": "\"maxPageSize\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 846,
+      "classification": "unconstrained human-readable diagnostic text",
+      "reason": "Only a rendered error/issue message or option-name label changes. Invalid values still fail with the same validation behavior and public error/issue structure. Exact diagnostic wording is not documented as a stable contract and is intentionally not pinned by tests.",
+      "reviewAgainWhen": "Optional metadata own-property presence or exact diagnostic text becomes a stable public contract, or Zod custom-issue default semantics change."
+    }
+  ],
+  "scorePolicy": "Keep all twelve survivors visible; raw/covered score 94.96%, no NoCoverage or native Stryker Timeout/error status and zero Vitest timeout-driven kills. No exclusions, adjusted score or blocking threshold. Two optional metadata representations are accepted under the documented contract rather than claimed unconditional JavaScript equivalents.",
+  "fingerprintInputs": {
+    "src/packages/kestrel/src/actions/collection.ts": "d975bfed94d877064cbca1d3edc787e08090e14bdac6b359c8a3d375550ec05f",
+    "src/packages/kestrel/src/actions/action.ts": "60fceb84c22406833e1c398c07bd88e6edf945784b7dd9747fa88dd47d5753b8",
+    "src/packages/kestrel/src/actions/cursor_pagination.ts": "97a5a05f0f7de668a0e3321e4e861a8d3dedd999e47c9742b588ba149017fb4c",
+    "src/packages/kestrel/src/actions/input_mapping.ts": "7a26b9a5c775f24c5258f5d0b4cc1fe171484478b5ea891c37da73e45cd16b08",
+    "src/packages/kestrel/src/actions/model_actions.ts": "a9db9ac5587959ddb78054a3235d82a762383e1a61a130ff4082559475530741",
+    "src/packages/kestrel/src/actions/pagination.ts": "affffd10677f7b77d06c35d25bc2bcbfac5d5ce027b64c32be5b0ae7bee3e5fe",
+    "src/packages/kestrel/src/actions/runner.ts": "b7f57b1ecb6b862e1c3632d492795937d547f4666b73ac1a1c4160ec96bfed77",
+    "src/packages/kestrel/src/actions/middleware.ts": "7a86a7e7517d24ebdce56ea3da021d51b3a99633a09abb539216226b1278159c",
+    "src/packages/kestrel/src/actions/index.ts": "681db090b2a099a645e0134d1b9db321ea90ea02fe85652db4fa1ee759cf3298",
+    "src/packages/kestrel/src/actions/collection.test.ts": "559566b96cf34080f11d5ff2bed4afba25e9d94b84965a6eba04976faaf0bc82",
+    "src/packages/kestrel/src/actions/action.test.ts": "c22f0ec96cb1eaa21d1c4ed5324b602f9011c5a86be0ad5cd62708c90950a464",
+    "src/packages/kestrel/src/actions/action_dependencies.test.ts": "ea41adfc9feee97dbc29ba63a628c6aa0d2ca397737317771973bdef07a0fd0e",
+    "src/packages/kestrel/src/actions/model_actions.test.ts": "8bf08a55a0390fc03bea53ca8c30865258ea47f2fbffa6f58264d577c067d212",
+    "src/packages/kestrel/src/actions/pagination.test.ts": "e715f9666f86762cc47baf69d3a8d88b59fec23f4f7d797b80342256733413f5",
+    "src/packages/kestrel/src/actions/cursor_pagination.test.ts": "b46449de1396187cb1738b625b2967f6b41e9c50a52cef57a0ce8d0bb684ccd0",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/mutation-profile.mjs": "be936c5fed703b450ec608f18b6d0f94d7ff2c8839a9ca9b9a30c0d5c8c602fe",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72",
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033"
+  },
+  "reportHashes": {
+    "artifacts/mutation/component-actions-before-collection-tests/mutation.json": "553b194ab828422c22eade88dfd88052164ca8469a6b12af7c0c60e18be056db",
+    "artifacts/mutation/component-actions/mutation.json": "e7bb5fe3716e584d0f3c1eb99e0ef5d7fc65a90c77d81ccfc5e7417013b26303"
+  },
+  "seconds": {
+    "before": 130,
+    "after": 100
+  },
+  "baselineTests": {
+    "before": 978,
+    "after": 1001
+  },
+  "newTestCasesDuringFullComponentComparison": 19,
+  "historicalTimeoutImprovement": {
+    "beforeVitestTimeoutKills": 1,
+    "beforeReport": "artifacts/mutation/component-actions-before-default-policy-assertion/mutation.json",
+    "beforeReportHash": "c53feef9d16309b80ca36666a5abd19a179b4a8ef070c694a31e08c245153150",
+    "beforeTimeoutDrivenDetections": [
+      {
+        "sampleId": "0",
+        "file": "src/packages/kestrel/src/actions/action.ts",
+        "location": {
+          "end": {
+            "column": 2,
+            "line": 138
+          },
+          "start": {
+            "column": 52,
+            "line": 114
+          }
+        },
+        "mutatorName": "BlockStatement",
+        "replacement": "{}",
+        "status": "Killed",
+        "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+        "testsCompleted": 1,
+        "classification": "Vitest timeout detects lost definition/execution progress",
+        "reason": "Emptying the entire defineAction factory body returns undefined. The existing first async-boundary test then loses progress while attempting App-bound execution. Its five-second Vitest deadline detects corruption, but this is not a direct definition-shape assertion or a native Stryker Timeout status. A future first-in-file synchronous public definition inspection could turn this into an immediate assertion detection."
+      }
+    ],
+    "change": "Existing first async-boundary test now inspects the action default validation policy before binding to App; a missing factory result should fail immediately rather than entering a stalled execution path.",
+    "afterVitestTimeoutKills": 0,
+    "afterStatusReason": "Cannot read properties of undefined (reading 'validation')",
+    "afterClassification": "direct definition-policy assertion: empty defineAction result fails before App execution begins"
+  },
+  "relatedSuiteCountNote": "Related baseline tests also include newly added dependent suites outside this component. Do not derive the number of new actions cases from the 978-to-1001 baseline delta.",
+  "newRelatedTestsOutsideActionsByFile": {
+    "src/packages/kestrel/src/app/catalog_identities.test.ts": 4
+  }
+}

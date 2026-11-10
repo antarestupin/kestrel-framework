@@ -1,0 +1,803 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Entire workers/adapter_definition.ts, configuration.ts, dependencies.ts, errors.ts, index.ts, provider.ts, runtime.ts, types.ts and worker.ts. Scheduler execution and storage implementations are dependencies covered by their own profiles.",
+  "command": "npm run test:mutation:workers-contracts",
+  "budgetMs": 600000,
+  "modeNote": "Bounded focused component profile; ignoreStatic=False. Static mutants remain enabled in these focused profiles. SQL text is not comprehensively mutated by Stryker; exported schema contracts do not substitute for a production migration/application test.",
+  "beforeReport": "artifacts/mutation/workers-contracts-before-two-hour-tests/mutation.json",
+  "report": "artifacts/mutation/workers-contracts/mutation.json",
+  "beforeCounts": {
+    "Killed": 186,
+    "Survived": 103,
+    "NoCoverage": 55
+  },
+  "counts": {
+    "Killed": 317,
+    "Survived": 27
+  },
+  "newTestCases": 81,
+  "bugEvidence": {
+    "productionChanges": [],
+    "result": "No new production defect demonstrated in this contract lot. Added tests confirm configuration, definition, errors/router, runtime lifecycle, boot and CLI behavior on the existing implementation."
+  },
+  "comparison": {
+    "beforeMutants": 344,
+    "afterMutants": 344,
+    "matchedSites": 344,
+    "beforeUnmatched": 0,
+    "afterUnmatched": 0,
+    "matchedTransitions": [
+      {
+        "before": "Killed",
+        "after": "Killed",
+        "count": 186
+      },
+      {
+        "before": "Survived",
+        "after": "Killed",
+        "count": 93
+      },
+      {
+        "before": "Survived",
+        "after": "Survived",
+        "count": 10
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Killed",
+        "count": 38
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Survived",
+        "count": 17
+      }
+    ],
+    "priorKillsNoLongerKilled": [],
+    "policy": "Match normalized original/operator/replacement/occurrence, not numeric IDs or line numbers. Whole bodies changed by a production fix are different variants; total-count score movement alone does not prove a same-corpus improvement."
+  },
+  "vitestTimeoutKills": 2,
+  "timeoutDrivenDetections": [
+    {
+      "fingerprint": "9759fbae7ae00b8a9b132557bc2c8ca3c6df2391f44ce79aaeeaf708127053f1",
+      "sampleId": "118",
+      "file": "src/packages/kestrel/src/workers/runtime.ts",
+      "location": {
+        "end": {
+          "column": 49,
+          "line": 29
+        },
+        "start": {
+          "column": 32,
+          "line": 29
+        }
+      },
+      "original": "() => this.stop()",
+      "mutatorName": "ArrowFunction",
+      "replacement": "() => undefined",
+      "occurrence": 0,
+      "status": "Killed",
+      "testsCompleted": 3,
+      "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+      "killedBy": [
+        "370"
+      ]
+    },
+    {
+      "fingerprint": "fe3b3e0d9c148efc6b922ef026f0da742927141a29c886c8061c8dd4e3e03381",
+      "sampleId": "246",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 52,
+          "line": 304
+        },
+        "start": {
+          "column": 23,
+          "line": 304
+        }
+      },
+      "original": "buffering.maxHoldMs ?? 30_000",
+      "mutatorName": "LogicalOperator",
+      "replacement": "buffering.maxHoldMs && 30_000",
+      "occurrence": 0,
+      "status": "Killed",
+      "testsCompleted": 1,
+      "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+      "killedBy": [
+        "399"
+      ]
+    }
+  ],
+  "remainingCategoryCounts": {
+    "unconstrained diagnostic text": 19,
+    "unconstrained synthesized missing-owner error shape": 2,
+    "noncritical CLI help text": 1,
+    "equivalent absent optional scheduler setting": 2,
+    "unconstrained explicit-undefined definition property": 3
+  },
+  "remaining": [
+    {
+      "fingerprint": "c347483e659325bbdbb04597dbcd293fe3587fbd54c179f2e9536370d6c374a8",
+      "sampleId": "21",
+      "file": "src/packages/kestrel/src/workers/dependencies.ts",
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 39
+        },
+        "start": {
+          "column": 27,
+          "line": 39
+        }
+      },
+      "original": "\"Worker correlation namespaces cannot be empty.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "c969e9fc81b9e60b713bf9c039485900f99d17d4482c83461765578be8a7fd85",
+      "sampleId": "26",
+      "file": "src/packages/kestrel/src/workers/dependencies.ts",
+      "location": {
+        "end": {
+          "column": 77,
+          "line": 43
+        },
+        "start": {
+          "column": 9,
+          "line": 43
+        }
+      },
+      "original": "`Worker correlation namespace \"${namespace}\" is already registered.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "03a1680fa74ac473d78ca7271c41707983ce968fc2777f1d7b630c9c0e8f2719",
+      "sampleId": "30",
+      "file": "src/packages/kestrel/src/workers/dependencies.ts",
+      "location": {
+        "end": {
+          "column": 27,
+          "line": 51
+        },
+        "start": {
+          "column": 9,
+          "line": 51
+        }
+      },
+      "original": "sink === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "unconstrained synthesized missing-owner error shape",
+      "reason": "Both paths reject an unknown namespace before any owner runs. Removing the explicit guard produces native TypeError on undefined.complete instead of the synthesized Error; the current contract/tests require an Error rejection but do not fix this synthetic subtype/message. Error shape differs, so strict equivalence is not claimed."
+    },
+    {
+      "fingerprint": "eea26d07f02a22a1477c121dec0f1ce67fa6a4275b0669483253a2b44c9ab6fb",
+      "sampleId": "32",
+      "file": "src/packages/kestrel/src/workers/dependencies.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 55
+        },
+        "start": {
+          "column": 29,
+          "line": 51
+        }
+      },
+      "original": "{\n      throw new Error(\n        `No Worker completion sink handles namespace \"${completion.correlation.namespace}\".`,\n      );\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained synthesized missing-owner error shape",
+      "reason": "Both paths reject an unknown namespace before any owner runs. Removing the explicit guard produces native TypeError on undefined.complete instead of the synthesized Error; the current contract/tests require an Error rejection but do not fix this synthetic subtype/message. Error shape differs, so strict equivalence is not claimed."
+    },
+    {
+      "fingerprint": "3015c969959cd4cdade0b4d413588d10ab9d474465cffaca38c0b12da37c5874",
+      "sampleId": "34",
+      "file": "src/packages/kestrel/src/workers/dependencies.ts",
+      "location": {
+        "end": {
+          "column": 93,
+          "line": 53
+        },
+        "start": {
+          "column": 9,
+          "line": 53
+        }
+      },
+      "original": "`No Worker completion sink handles namespace \"${completion.correlation.namespace}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "587307d859b9370f3ef7d92af4f25d3981f1d4a4b59a34106b932ba911f36c4b",
+      "sampleId": "37",
+      "file": "src/packages/kestrel/src/workers/errors.ts",
+      "location": {
+        "end": {
+          "column": 76,
+          "line": 6
+        },
+        "start": {
+          "column": 11,
+          "line": 6
+        }
+      },
+      "original": "\"Worker payload and correlation must have a JSON representation.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 17,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "852881ec5dfc82c15f5fb4bdc80417a515eccab5c410a2c38ec03a7121f77e96",
+      "sampleId": "51",
+      "file": "src/packages/kestrel/src/workers/errors.ts",
+      "location": {
+        "end": {
+          "column": 67,
+          "line": 31
+        },
+        "start": {
+          "column": 9,
+          "line": 31
+        }
+      },
+      "original": "\"Worker retry delays must be non-negative finite numbers.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "3f2c70e66a3b550857564f1524e8ec717d74b692ed221364df7a490d684ff6e7",
+      "sampleId": "66",
+      "file": "src/packages/kestrel/src/workers/errors.ts",
+      "location": {
+        "end": {
+          "column": 81,
+          "line": 37
+        },
+        "start": {
+          "column": 27,
+          "line": 37
+        }
+      },
+      "original": "\"Worker retry maxAttempts must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "8acce1d53c7a5c1d8b5b9d5484a3f626ca7cfa11d353456351ca75d670af8e8b",
+      "sampleId": "68",
+      "file": "src/packages/kestrel/src/workers/errors.ts",
+      "location": {
+        "end": {
+          "column": 78,
+          "line": 50
+        },
+        "start": {
+          "column": 11,
+          "line": 50
+        }
+      },
+      "original": "`Worker job identity \"${identity}\" already belongs to another job.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 17,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "ea6e9b7ad5ef36d8357030d42d4c3c6d4b66877966d4e8385c5b2e730517f8a2",
+      "sampleId": "70",
+      "file": "src/packages/kestrel/src/workers/errors.ts",
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 63
+        },
+        "start": {
+          "column": 11,
+          "line": 63
+        }
+      },
+      "original": "`Worker publication ${budget} exceeded: ${actual} > ${limit}.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 20,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "da95b5a0c2fb51a3008abac47eaed633485feda83f1598af4e2dba027a66809b",
+      "sampleId": "96",
+      "file": "src/packages/kestrel/src/workers/provider.ts",
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 86
+        },
+        "start": {
+          "column": 28,
+          "line": 86
+        }
+      },
+      "original": "\"Run queue workers.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 9,
+      "classification": "noncritical CLI help text",
+      "reason": "The contributed command, dependency, runtime, workload and execution are checked. This variant changes only the human-readable help description; exact wording is not a pinned behavior contract."
+    },
+    {
+      "fingerprint": "08c44b11aa7f53995e3711166da86aaa76fe283a392809b099dfa8e01f2dd1e0",
+      "sampleId": "121",
+      "file": "src/packages/kestrel/src/workers/runtime.ts",
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 36
+        },
+        "start": {
+          "column": 13,
+          "line": 36
+        }
+      },
+      "original": "throttling === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 9,
+      "classification": "equivalent absent optional scheduler setting",
+      "reason": "Forcing the branch to include an absent service adds an internal setting whose value is undefined. WorkerScheduler reads the value rather than own-property presence, preserving its optional default. Present service objects are covered separately."
+    },
+    {
+      "fingerprint": "88c3432a5a6decc391e29da1b25a0c02c4a25a11bca96ec9be25b37b367d6ab0",
+      "sampleId": "125",
+      "file": "src/packages/kestrel/src/workers/runtime.ts",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 37
+        },
+        "start": {
+          "column": 13,
+          "line": 37
+        }
+      },
+      "original": "reservationPressure === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 9,
+      "classification": "equivalent absent optional scheduler setting",
+      "reason": "Forcing the branch to include an absent service adds an internal setting whose value is undefined. WorkerScheduler reads the value rather than own-property presence, preserving its optional default. Present service objects are covered separately."
+    },
+    {
+      "fingerprint": "de046a1282f59a24f4ccff6a9312cbad3b1fb665fc4f1e3f177583afbee6b4d3",
+      "sampleId": "131",
+      "file": "src/packages/kestrel/src/workers/runtime.ts",
+      "location": {
+        "end": {
+          "column": 71,
+          "line": 41
+        },
+        "start": {
+          "column": 40,
+          "line": 41
+        }
+      },
+      "original": "\"Worker scheduler cycle failed\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "436ca0b29203172242094b46a8dea90b7e48db899f0e7ff560bbdfc25ce85bd9",
+      "sampleId": "148",
+      "file": "src/packages/kestrel/src/workers/runtime.ts",
+      "location": {
+        "end": {
+          "column": 86,
+          "line": 67
+        },
+        "start": {
+          "column": 57,
+          "line": 67
+        }
+      },
+      "original": "\"Worker runtime has stopped.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "ee507a1aa169f666501efdca18d2798eeac704458b43c8762b8f45ff7cf863e9",
+      "sampleId": "152",
+      "file": "src/packages/kestrel/src/workers/runtime.ts",
+      "location": {
+        "end": {
+          "column": 63,
+          "line": 73
+        },
+        "start": {
+          "column": 49,
+          "line": 73
+        }
+      },
+      "original": "\"worker drain\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 9,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "3028b326e5842488966c4e172cd25e5ed005ce0c1fe89255ab1ba1f5dd37089d",
+      "sampleId": "167",
+      "file": "src/packages/kestrel/src/workers/runtime.ts",
+      "location": {
+        "end": {
+          "column": 89,
+          "line": 78
+        },
+        "start": {
+          "column": 67,
+          "line": 78
+        }
+      },
+      "original": "\"Worker drain failed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "6c4fafffd9d7bca2e25c1bea248b0cfcb9f5ca0a73e6722d0ebe920074467de4",
+      "sampleId": "193",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 263
+        },
+        "start": {
+          "column": 9,
+          "line": 263
+        }
+      },
+      "original": "options.description === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 264,
+      "classification": "unconstrained explicit-undefined definition property",
+      "reason": "An absent optional field is returned explicitly as undefined rather than omitted. Defined values, defaults and behavior are independently covered. Ordinary reads and JSON agree, but own-property enumeration differs; this is not strict JavaScript object-shape equivalence."
+    },
+    {
+      "fingerprint": "8f028ec20bb138f51299d3865f9d1725a12158836b22f3ec4b2004baeaade4bc",
+      "sampleId": "197",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 39,
+          "line": 268
+        },
+        "start": {
+          "column": 9,
+          "line": 268
+        }
+      },
+      "original": "options.examples === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 264,
+      "classification": "unconstrained explicit-undefined definition property",
+      "reason": "An absent optional field is returned explicitly as undefined rather than omitted. Defined values, defaults and behavior are independently covered. Ordinary reads and JSON agree, but own-property enumeration differs; this is not strict JavaScript object-shape equivalence."
+    },
+    {
+      "fingerprint": "cbb7d054807d85292ddf0f54120fca68fafd78b49400b0c081ecc99b853fbea4",
+      "sampleId": "228",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 77,
+          "line": 291
+        },
+        "start": {
+          "column": 25,
+          "line": 291
+        }
+      },
+      "original": "\"Worker throttling requirements must be a function.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "5a705053cc492c9d23a4c6df4f7d8f825ad8c0d58a90453b8a71b73b0b6dca09",
+      "sampleId": "267",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 51,
+          "line": 321
+        },
+        "start": {
+          "column": 13,
+          "line": 321
+        }
+      },
+      "original": "buffering.maxBlockedJobs === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "unconstrained explicit-undefined definition property",
+      "reason": "An absent optional field is returned explicitly as undefined rather than omitted. Defined values, defaults and behavior are independently covered. Ordinary reads and JSON agree, but own-property enumeration differs; this is not strict JavaScript object-shape equivalence."
+    },
+    {
+      "fingerprint": "0fe99e0173ce56fea03d7fab20129621eda65cf2b9fbd1174be0b20e2abb187e",
+      "sampleId": "290",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 56,
+          "line": 352
+        },
+        "start": {
+          "column": 25,
+          "line": 352
+        }
+      },
+      "original": "\"Worker names cannot be empty.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "218fa1b2822aa62a73d0df753b21e60da6fd40950e55e305eb55f8d6e6c75226",
+      "sampleId": "296",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 62,
+          "line": 356
+        },
+        "start": {
+          "column": 25,
+          "line": 356
+        }
+      },
+      "original": "\"Worker queue names cannot be empty.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "a2865a837871cecd6fece43e99e2eee20817d4af25090ec03d21e47f8e542612",
+      "sampleId": "307",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 70,
+          "line": 365
+        },
+        "start": {
+          "column": 27,
+          "line": 365
+        }
+      },
+      "original": "`${name} must be a positive finite number.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "85feb57ab33e4b43f1f15099fc79da9482aef7285df421b99c3a106fb570303b",
+      "sampleId": "318",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 66,
+          "line": 372
+        },
+        "start": {
+          "column": 25,
+          "line": 372
+        }
+      },
+      "original": "\"maxAttempts must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "3403e199360b22953e5868c0a3a23646dc1bf37a1b135a663c289a33328bd57e",
+      "sampleId": "337",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 380
+        },
+        "start": {
+          "column": 25,
+          "line": 380
+        }
+      },
+      "original": "\"Worker batch size must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    },
+    {
+      "fingerprint": "ca406457282f948e7a7bbb4c3cc49e6843910f80fba8a9e3e991a1faf3a5fc43",
+      "sampleId": "367",
+      "file": "src/packages/kestrel/src/workers/worker.ts",
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 398
+        },
+        "start": {
+          "column": 25,
+          "line": 398
+        }
+      },
+      "original": "\"Worker batch maxAttempts must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Error categories, native causes, numeric limits, routing behavior, lifecycle outcomes and cleanup are checked separately. Exact human-readable validation/error/log/drain labels are not pinned solely to improve the mutation score."
+    }
+  ],
+  "scorePolicy": "Preserve every raw status. No exclusions, adjusted score, or blocking threshold. Deferred fault injection and data-shape differences are not unconditional semantic equivalences.",
+  "deferred": "No provider-forwarding or absent-owner behavioral variants remain. The residuals are diagnostic/help text, explicitly undefined properties/settings, and synthesized missing-owner Error-vs-TypeError shape differences. The latter two groups are not unconditional object/error-shape equivalences. Two Killed variants still depend on Vitest timeout evidence and are recorded separately.",
+  "sourceAndTestHashes": {
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "d8eb58bb419220feecb823742b2e514c05ca3208a9bb0d995856ab88657be182",
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.ts": "0d671ddd0899357500be19be08624ed10f8b1046bd59900212da49e1a78e9466",
+    "src/packages/kestrel/src/workers/adapter_definition.ts": "7c2549c2903b9ca5bdd1aff1490d2662be846f34edcec2cde85f5a6a9304b6c5",
+    "src/packages/kestrel/src/workers/adapters/index.ts": "23cb3253606abad68d13b8f35d2e4ad9a0f0307a617bbcfb3d948c5a6fb83ac6",
+    "src/packages/kestrel/src/workers/adapters/memory/adapter.test.ts": "39fec985ea5bcc7902768104640ff465f60a6f980158bc8530269713dd6d8b4d",
+    "src/packages/kestrel/src/workers/adapters/memory/adapter.ts": "1994c9e0e12a4d6010b402b7b7d72f659ca88ec36d10fe32993c3454f0086721",
+    "src/packages/kestrel/src/workers/adapters/memory/definition.test.ts": "4f54129de0c21fdabb8f0a4807ca80fb96fc29921b0f2b9cbc8cd57158555d20",
+    "src/packages/kestrel/src/workers/adapters/memory/definition.ts": "6fff8e8cc43ac4205c33a76eb1f07dfaa35a83903d9554256458a5c724b4fc17",
+    "src/packages/kestrel/src/workers/adapters/memory/index.ts": "43e6e1ee685d12449705c346edecc45304297c9e60eb7613f4679578e5e81002",
+    "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts": "800a78a25a2a28e15d6cc519a3d6e8d8c477511cfcfac935496427565cced686",
+    "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts": "3e5136f258f04309f0c1deeb1824af34ea4f5e19c929486da9a2b5baaba25a2c",
+    "src/packages/kestrel/src/workers/adapters/postgres/definition.test.ts": "6a9436ceb30d32459f73a177b7440a4f136d43b352e7a29e30b33fd734de2e53",
+    "src/packages/kestrel/src/workers/adapters/postgres/definition.ts": "91dd76912c93f9876a1881e9cb0fb67232a0c8d4ae5d6e8fbf18d744edf73819",
+    "src/packages/kestrel/src/workers/adapters/postgres/index.ts": "6c912a86055eb327b3146fa13c5dad0cc1f16f581e83359f27011dfb0e622855",
+    "src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts": "59754224954e2e858384ee9c77804a5cfd9437b93f641d2abb7034a4a1e2026a",
+    "src/packages/kestrel/src/workers/adapters/postgres/schema.ts": "31df134a46e7b8406f3038d3e7477f64f79243b58648ece20f3bfdcd8b43a229",
+    "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+    "src/packages/kestrel/src/workers/client.ts": "89c739b77104ef7bbd511e086b13082588327f919bf022a7b30df73b1ea7a305",
+    "src/packages/kestrel/src/workers/configuration.test.ts": "d560923960df766c2880eb555ee3c209c05dbb6884e9ec8abaa4499a75b60a3e",
+    "src/packages/kestrel/src/workers/configuration.ts": "ed3992278844045d76030c1cdece602c0212826401a1e0cda05775de95b9199b",
+    "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "0cefd1a9eeb1212ab7eba2c0df1c5a27f9a95f74dfb421659e8b10d5e746e33f",
+    "src/packages/kestrel/src/workers/deferral_buffer.ts": "1755cce7f1bac01f8571b387d4308d700179d5a6a1c3f96c0e2137acc94b26b0",
+    "src/packages/kestrel/src/workers/definition_contract.test.ts": "7160d9b7061a48337b73da160cb522d917a1b6d08cdea8a66006f5d436bcdfa0",
+    "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+    "src/packages/kestrel/src/workers/dependencies.ts": "471adfd3bd82879c49ba1670948f976671bcf0ef07bb5cbed28867e02c534272",
+    "src/packages/kestrel/src/workers/errors.ts": "2011d5e8950bb40ad51bb854a2ace17a076e8340d9a178c9cd57c3f0940b7552",
+    "src/packages/kestrel/src/workers/index.ts": "e0f31ae3263a518de404fd45119aeafcbb24020d25de4238e7dba54bf2ce0e17",
+    "src/packages/kestrel/src/workers/metadata_contract.test.ts": "df06b75cf10eb49e46ca418f77f6f091fb5b23c671431749c19274a90821d27b",
+    "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+    "src/packages/kestrel/src/workers/provider.ts": "a33b4bb9708f7700f19c10daeb1ad969cc748c3dfe3a43694a3d91f6554ac78a",
+    "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+    "src/packages/kestrel/src/workers/publication.ts": "c7923158f7a24441ed1c5292df6ba3fe3c3923c1981ff9a119d4a77dc1fc644a",
+    "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba",
+    "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+    "src/packages/kestrel/src/workers/runtime.ts": "0128fa3914a4573d622e242765bb0f9dd11f0d1c459283c3b9061099f3bff48f",
+    "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+    "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+    "src/packages/kestrel/src/workers/scheduler.ts": "94e9aedee6abd04055d67d2c34818ac3c63f746ecdcbd9c8eabdd222382fb78b",
+    "src/packages/kestrel/src/workers/serialization.ts": "8b38b21769fbf5cb85ca234a7e3506082e4c03153f6bfd3b4a5118bab2730fe2",
+    "src/packages/kestrel/src/workers/testing/payload_conformance.ts": "7e29a933c60380d1e9dbc973f5178e02ce8134eee75d787270ad21757eca8aaf",
+    "src/packages/kestrel/src/workers/types.ts": "4cb8a838d137f1688cae39393c4a177d02dde076f5439567350f44475a5ac1ef",
+    "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+    "src/packages/kestrel/src/workers/worker.ts": "f468ec7d7389fa97223f9fdffd690cc6136c4efd9df8e74cb0b5279af5c922a8"
+  },
+  "reportHashes": {
+    "artifacts/mutation/workers-contracts-before-two-hour-tests/mutation.json": "1ecb6decb2a5e4858223f4bd00c07830669133a59513228c8bd4a86c501f82aa",
+    "artifacts/mutation/workers-contracts/mutation.json": "0c3006f72d5dae470c0a720e5c8b1e00d2d27fd585ea112428eee450131cf6c7"
+  },
+  "closedFollowups": [
+    "Configured WorkerProvider admission and completion-owner forwarding now execute through a real job.",
+    "Standalone correlated delivery without an optional completion owner is checked."
+  ],
+  "firstAfterTimeoutKillAudit": {
+    "vitestTimeoutKills": 5,
+    "finalVitestTimeoutKills": 2,
+    "change": "The runtime idempotence fixture now asserts a real drain promise and stop request before awaiting polling completion, and cleans its scheduler independently. Remaining timeout-based detections are the deleted application drain callback in the older borrowed-storage fixture and a hold-duration mutation extending an ordinary short wait to thirty seconds."
+  }
+}

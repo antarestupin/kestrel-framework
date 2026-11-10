@@ -1,0 +1,3846 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "budgetMs": 600000,
+  "report": "artifacts/mutation/scheduled-runtime/mutation.json",
+  "beforeReport": "artifacts/mutation/scheduled-runtime-before-two-hour-tests/mutation.json",
+  "reportSha256": "b107d0ec36d78ee00595d0bf6c7e48e5190a9c377ec263972da80e5841689294",
+  "beforeReportSha256": "e2f0d6e35a3049efbbed667fe132ed2bdeb7fcfa9a9e0112bdd4b42ef3b6ca03",
+  "counts": {
+    "Killed": 419,
+    "Survived": 71,
+    "Timeout": 18,
+    "NoCoverage": 5
+  },
+  "beforeCounts": {
+    "NoCoverage": 181,
+    "Survived": 137,
+    "Killed": 142
+  },
+  "byStatic": {
+    "static": {},
+    "runtime": {
+      "Killed": 419,
+      "Survived": 71,
+      "Timeout": 18,
+      "NoCoverage": 5
+    }
+  },
+  "scopeMutants": 513,
+  "sourceSha256": {
+    "src/packages/kestrel/src/scheduled_tasks/scheduler.ts": "8cf7613913faf6dd21298fc01779b5e5c7fb99eda9f49d7ef55d5da9a3965761",
+    "src/packages/kestrel/src/scheduled_tasks/runtime.ts": "838ba4b7c85fbfb564b9e631c3a35878d9d6d03953c8f080f71a6e7c3cef5d12"
+  },
+  "beforeSourceSha256": {
+    "src/packages/kestrel/src/scheduled_tasks/runtime.ts": "5ba0e46a4f71c966ddac671218e3fe7671ec6e2dc44e706b05d5c0dbe188b48d",
+    "src/packages/kestrel/src/scheduled_tasks/scheduler.ts": "31a2e6708277e5f72cdabb510534fc735ed04817843b0a76ef9503202d459ae1"
+  },
+  "sourceComparison": "Compare common original-expression/operator/replacement/occurrence fingerprints, not raw counts: production fixes changed the mutation corpus. Fingerprints and both report digests preserve the exact reviewed references.",
+  "commonFingerprintCount": 402,
+  "beforeOnlyFingerprints": 58,
+  "afterOnlyFingerprints": 111,
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 119
+    },
+    {
+      "before": "Killed",
+      "after": "Timeout",
+      "count": 8
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 126
+    },
+    {
+      "before": "NoCoverage",
+      "after": "NoCoverage",
+      "count": 5
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Survived",
+      "count": 19
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Timeout",
+      "count": 8
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 84
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 33
+    }
+  ],
+  "commonPriorAssertionKillsChanged": [
+    "1c3cdea7b6249d8f4c41ff971fad2d77e7c9766c949b2424b54e94310ae65bd2",
+    "d96fb330525c2e9fef489bd51d9b33885d905d801964408d20e3947d9aae7290",
+    "9d9ee0b2dcee2235c7e22bf772d82e0bd49932aacbfeb2ae4f21847885e3c36d",
+    "25507a09ac0e35e8944cb5bacee8b33d8c16edcabdf29837cd2ee52c0f248df6",
+    "b43b966638a19b8b3b8132b6aef6689cb686787eb46879c0471bb31fd08c26f5",
+    "d209ddb31600883988a58a0ae15171aeb828849707f0117a5f8de8e46884fdb1",
+    "1ae0bb3e9f1786dfb2b39e0ea9b05540a38947c9740b2f2516fbc49cfe7510bb",
+    "2f4969258cc0a69ed5581cf999a6ec86ce21ae4d3ab05ae68e23281896e9880a"
+  ],
+  "remaining": [
+    {
+      "sampleId": "20",
+      "fingerprintSha256": "d9c1f0cedba6659948d40a258e6ec7265bf182114cffc1fc5c4455730990f946",
+      "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+      "original": "`Unknown scheduled task id: \"${unknownId}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 69,
+          "line": 31
+        },
+        "start": {
+          "column": 25,
+          "line": 31
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "26",
+      "fingerprintSha256": "b04d612a070443a162a34d49edf9283b80a16abac64be68a9df72a99522f8f6f",
+      "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+      "original": "`Unknown scheduled task group: \"${unknownGroup}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 34
+        },
+        "start": {
+          "column": 25,
+          "line": 34
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "53",
+      "fingerprintSha256": "7d10de9456e8d0683121500c1fad18b798aa38e09352df1028768b5ccc31364b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+      "original": "() => this.stop()",
+      "mutatorName": "ArrowFunction",
+      "replacement": "() => undefined",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 100
+        },
+        "start": {
+          "column": 13,
+          "line": 100
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed supervisor stop independent of application drain",
+      "reason": "For the already-started real App fixture, app.stop requests registered runtime drains, masking removal of the supervisor explicit stop callback. Failure/pre-start/custom-owner cases could differ. Keep this ownership/failure boundary visible rather than asserting universal redundancy."
+    },
+    {
+      "sampleId": "66",
+      "fingerprintSha256": "d9e3c8652d5bc00e6536d04d41c6bac45940299c3dc8b54982ea65a3f8148235",
+      "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+      "original": "\"scheduled task drain\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 71,
+          "line": 116
+        },
+        "start": {
+          "column": 49,
+          "line": 116
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "80",
+      "fingerprintSha256": "cb2821697e6d74e16470106f09c6214c7ba425c800c97a2c829c1bc8eff80c85",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.app.shutdown?.signal",
+      "mutatorName": "OptionalChaining",
+      "replacement": "this.app.shutdown.signal",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 56,
+          "line": 111
+        },
+        "start": {
+          "column": 31,
+          "line": 111
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict equivalence under the declared RuntimeApp contract",
+      "reason": "RuntimeApp requires an application shutdown coordinator and its AbortSignal. For a conforming owner the optional chain is unnecessary and applicationSignal is always defined, so the existing defined-signal branch remains the same. This proof does not extend to malformed partial owners."
+    },
+    {
+      "sampleId": "82",
+      "fingerprintSha256": "929f0f782cecbabe2cc780f2df0ded0bcd6ecdb1155e942016d95f9207954f33",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "applicationSignal === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 112
+        },
+        "start": {
+          "column": 12,
+          "line": 112
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict equivalence under the declared RuntimeApp contract",
+      "reason": "RuntimeApp requires an application shutdown coordinator and its AbortSignal. For a conforming owner the optional chain is unnecessary and applicationSignal is always defined, so the existing defined-signal branch remains the same. This proof does not extend to malformed partial owners."
+    },
+    {
+      "sampleId": "81",
+      "fingerprintSha256": "87d3070901a18c0274db9610f3310767338acb0f27d89b4b672dcc1558048413",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "applicationSignal === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 112
+        },
+        "start": {
+          "column": 12,
+          "line": 112
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed application-budget cancellation",
+      "reason": "These variants omit the application shutdown signal while retaining the scheduler-owned signal. Current tests exercise scheduler stop and per-invocation ownership loss, but do not isolate application drain-budget cancellation of a direct scheduler invocation."
+    },
+    {
+      "sampleId": "83",
+      "fingerprintSha256": "224f641aa454cedb66a4b14f0a044bb066543a47d992d7c5790464132df24b23",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "applicationSignal === undefined",
+      "mutatorName": "EqualityOperator",
+      "replacement": "applicationSignal !== undefined",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 112
+        },
+        "start": {
+          "column": 12,
+          "line": 112
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed application-budget cancellation",
+      "reason": "These variants omit the application shutdown signal while retaining the scheduler-owned signal. Current tests exercise scheduler stop and per-invocation ownership loss, but do not isolate application drain-budget cancellation of a direct scheduler invocation."
+    },
+    {
+      "sampleId": "90",
+      "fingerprintSha256": "78b0c0e11c479d5eb73e785d8276d025a7d80a443b178d11a903cb5285119b48",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.loopPromise !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 39,
+          "line": 121
+        },
+        "start": {
+          "column": 9,
+          "line": 121
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed second start during active polling",
+      "reason": "The startup flag protects overlapping initialization, but is cleared once startup finishes. Removing only the existing-loop guard can start another loop after the first is already polling. The concurrent-start regression currently gates reconciliation rather than this later state."
+    },
+    {
+      "sampleId": "94",
+      "fingerprintSha256": "b24ef0c77dfb07a72fee27f61ca6b4dde64b77877c8fa87a7fcf5a7a57af9dc3",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "\"The scheduled task scheduler is already running.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 122
+        },
+        "start": {
+          "column": 23,
+          "line": 122
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "100",
+      "fingerprintSha256": "2d1195160c45c07b7a71a76de7b2cdb198edef0fdb56666267736d82f0d6af80",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{ this.starting = false; }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 139
+        },
+        "start": {
+          "column": 15,
+          "line": 139
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed startup-state reset after polling termination",
+      "reason": "Keeping starting true still blocks duplicate starts, but can prevent a subsequent start after polling has already failed and cleared loopPromise. The current contract does not yet specify and test that restart path; do not treat permanent startup ownership as equivalent."
+    },
+    {
+      "sampleId": "101",
+      "fingerprintSha256": "b8ee487de1a56166626dfe5a5013f208c8aa24467ec5fadb4699bb936553fc48",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "false",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "true",
+      "occurrence": 3,
+      "location": {
+        "end": {
+          "column": 38,
+          "line": 139
+        },
+        "start": {
+          "column": 33,
+          "line": 139
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed startup-state reset after polling termination",
+      "reason": "Keeping starting true still blocks duplicate starts, but can prevent a subsequent start after polling has already failed and cleared loopPromise. The current contract does not yet specify and test that restart path; do not treat permanent startup ownership as equivalent."
+    },
+    {
+      "sampleId": "124",
+      "fingerprintSha256": "6a561a94c10976494614bb96f228a2498df1aaf5a44216795a623e3c91ec740a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      try {\n        await this.admitOnce();\n      } catch (error) {\n        this.reportError(error);\n      }\n\n      try {\n        await this.sleep(this.pollIntervalMs, signal);\n      } catch (error) {\n        if (!signal.aborted) {\n          throw error;\n        }\n      }\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 200
+        },
+        "start": {
+          "column": 29,
+          "line": 186
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": "Hit limit reached (901/900)",
+      "statusReasonTruncated": false,
+      "statusReasonSha256": "1c0abf47f3311d715cc089d060cb134fee98eab2ee3dee11c0d6ab2278e509df",
+      "classification": "execution hit-limit detection",
+      "reason": "The report explicitly identifies Stryker execution-guard exhaustion after this control-flow mutation. Preserve Timeout as a detection separately from assertion kills; it does not establish a Vitest test-timeout failure."
+    },
+    {
+      "sampleId": "128",
+      "fingerprintSha256": "bacec163647076630d524d2cc8e45b04d23f4caf88c690f472f1994862d5775c",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n        await this.sleep(this.pollIntervalMs, signal);\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 195
+        },
+        "start": {
+          "column": 11,
+          "line": 193
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": "Hit limit reached (901/900)",
+      "statusReasonTruncated": false,
+      "statusReasonSha256": "1c0abf47f3311d715cc089d060cb134fee98eab2ee3dee11c0d6ab2278e509df",
+      "classification": "execution hit-limit detection",
+      "reason": "The report explicitly identifies Stryker execution-guard exhaustion after this control-flow mutation. Preserve Timeout as a detection separately from assertion kills; it does not establish a Vitest test-timeout failure."
+    },
+    {
+      "sampleId": "129",
+      "fingerprintSha256": "c711ca55bce546f99bbc3c48763350bccbc3e808d614104991bd7bb5d4d8133c",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n        if (!signal.aborted) {\n          throw error;\n        }\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 199
+        },
+        "start": {
+          "column": 23,
+          "line": 195
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": "Hit limit reached (301/300)",
+      "statusReasonTruncated": false,
+      "statusReasonSha256": "bef8c0fe435317f90966c7928508b73e0c81112471eb1786917c1880f46f33cd",
+      "classification": "execution hit-limit detection",
+      "reason": "The report explicitly identifies Stryker execution-guard exhaustion after this control-flow mutation. Preserve Timeout as a detection separately from assertion kills; it does not establish a Vitest test-timeout failure."
+    },
+    {
+      "sampleId": "130",
+      "fingerprintSha256": "b451aaf35e32beeffa2f11767fd9a6e14a384211434e61c6d5aae4b7215c9aca",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "!signal.aborted",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "signal.aborted",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 196
+        },
+        "start": {
+          "column": 13,
+          "line": 196
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": "Hit limit reached (301/300)",
+      "statusReasonTruncated": false,
+      "statusReasonSha256": "bef8c0fe435317f90966c7928508b73e0c81112471eb1786917c1880f46f33cd",
+      "classification": "execution hit-limit detection",
+      "reason": "The report explicitly identifies Stryker execution-guard exhaustion after this control-flow mutation. Preserve Timeout as a detection separately from assertion kills; it does not establish a Vitest test-timeout failure."
+    },
+    {
+      "sampleId": "132",
+      "fingerprintSha256": "cf6ae934cb3da016aeafbecd48a310512a37819a5d2ffefffee5b6daa1ec2a6a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "!signal.aborted",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 196
+        },
+        "start": {
+          "column": 13,
+          "line": 196
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": "Hit limit reached (301/300)",
+      "statusReasonTruncated": false,
+      "statusReasonSha256": "bef8c0fe435317f90966c7928508b73e0c81112471eb1786917c1880f46f33cd",
+      "classification": "execution hit-limit detection",
+      "reason": "The report explicitly identifies Stryker execution-guard exhaustion after this control-flow mutation. Preserve Timeout as a detection separately from assertion kills; it does not establish a Vitest test-timeout failure."
+    },
+    {
+      "sampleId": "131",
+      "fingerprintSha256": "4afdfdd689543391e0d5a6f472bb8ab29360385b01939383efe25fcf4b9e7b5d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "!signal.aborted",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 196
+        },
+        "start": {
+          "column": 13,
+          "line": 196
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed custom-delay cancellation rejection",
+      "reason": "The bundled abortableDelay resolves on cancellation, but the public injected sleep callback may reject after its signal aborts. Always rethrowing that rejection can change clean stop/completion into failure. Current tests cover a live delay failure and resolving cancellation, not this combination."
+    },
+    {
+      "sampleId": "133",
+      "fingerprintSha256": "69acb5401026fd0207ef9dfde2152cde209f18f8b3e6544a8f8b9ce8c2f1bd78",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n          throw error;\n        }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 198
+        },
+        "start": {
+          "column": 30,
+          "line": 196
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": "Hit limit reached (201/200)",
+      "statusReasonTruncated": false,
+      "statusReasonSha256": "45e3323b753933533c6b76838232eff3ed25260a5088aec79f226af2d8d9a4b3",
+      "classification": "execution hit-limit detection",
+      "reason": "The report explicitly identifies Stryker execution-guard exhaustion after this control-flow mutation. Preserve Timeout as a detection separately from assertion kills; it does not establish a Vitest test-timeout failure."
+    },
+    {
+      "sampleId": "139",
+      "fingerprintSha256": "d209ddb31600883988a58a0ae15171aeb828849707f0117a5f8de8e46884fdb1",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      if (this.admissionCycle === cycle) {\n        this.admissionCycle = undefined;\n      }\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 212
+        },
+        "start": {
+          "column": 62,
+          "line": 208
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "140",
+      "fingerprintSha256": "0293dd81724f9ab8478e35ab52a513afd7daf5f86cb3575e09780a7b0ec5979d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.admissionCycle === cycle",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 40,
+          "line": 209
+        },
+        "start": {
+          "column": 11,
+          "line": 209
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict admission-owner identity equivalence",
+      "reason": "Public admission calls share the single admissionCycle until that cycle settles. No later cycle can replace it before its own finally runs, so admissionCycle === cycle is true at this cleanup site under the implemented serialization."
+    },
+    {
+      "sampleId": "146",
+      "fingerprintSha256": "5459cca357bbf3df860c0d0c5ffd41ae8781a0b6dd7f25de696e08dd9d43d357",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.stopRequested",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 27,
+          "line": 218
+        },
+        "start": {
+          "column": 9,
+          "line": 218
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional admission work/failure observation after stop",
+      "reason": "Later stop checks still prevent the handler, so removing one check can preserve invocation counts while performing extra state reads, clock/candidate work or overlap-lock acquisition/release. Those operations can fail or have cost. Current tests do not establish work/failure equivalence; retain this limitation."
+    },
+    {
+      "sampleId": "152",
+      "fingerprintSha256": "ff993d3247c254185df0ed6e0de843216645bd1ee9aab9481047e42778212af0",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "capacity <= 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 22,
+          "line": 220
+        },
+        "start": {
+          "column": 9,
+          "line": 220
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional empty-capacity admission work",
+      "reason": "When capacity is zero, slicing candidates to zero still prevents extra handlers even without the early return; when no tasks exist, no adapter group is loaded. The variant nevertheless performs extra reads/clock/candidate work in some cases and can expose adapter failure. Global slot behavior is now tested, but this work/failure boundary is not closed."
+    },
+    {
+      "sampleId": "153",
+      "fingerprintSha256": "5b23df3d35dc3f3e7ae30e5ddd6558238a8f628e7289feebd4735850baeae963",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "capacity <= 0",
+      "mutatorName": "EqualityOperator",
+      "replacement": "capacity < 0",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 22,
+          "line": 220
+        },
+        "start": {
+          "column": 9,
+          "line": 220
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional empty-capacity admission work",
+      "reason": "When capacity is zero, slicing candidates to zero still prevents extra handlers even without the early return; when no tasks exist, no adapter group is loaded. The variant nevertheless performs extra reads/clock/candidate work in some cases and can expose adapter failure. Global slot behavior is now tested, but this work/failure boundary is not closed."
+    },
+    {
+      "sampleId": "150",
+      "fingerprintSha256": "600ba4baa67da1cf2ce1907c55bcab0658f8099b29336cece380b64f4f278fef",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "capacity <= 0 || this.resolvedTasks.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 220
+        },
+        "start": {
+          "column": 9,
+          "line": 220
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional empty-capacity admission work",
+      "reason": "When capacity is zero, slicing candidates to zero still prevents extra handlers even without the early return; when no tasks exist, no adapter group is loaded. The variant nevertheless performs extra reads/clock/candidate work in some cases and can expose adapter failure. Global slot behavior is now tested, but this work/failure boundary is not closed."
+    },
+    {
+      "sampleId": "151",
+      "fingerprintSha256": "f19fc04b7976624a9cc278ada51059d48afacd7122a51d153adcec7cc173e7d2",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "capacity <= 0 || this.resolvedTasks.length === 0",
+      "mutatorName": "LogicalOperator",
+      "replacement": "capacity <= 0 && this.resolvedTasks.length === 0",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 220
+        },
+        "start": {
+          "column": 9,
+          "line": 220
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional empty-capacity admission work",
+      "reason": "When capacity is zero, slicing candidates to zero still prevents extra handlers even without the early return; when no tasks exist, no adapter group is loaded. The variant nevertheless performs extra reads/clock/candidate work in some cases and can expose adapter failure. Global slot behavior is now tested, but this work/failure boundary is not closed."
+    },
+    {
+      "sampleId": "155",
+      "fingerprintSha256": "f5d21b124d68dfac80f4e2582c1fdeb66e7ef4bf90ed7cd07843d4fec31be441",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.resolvedTasks.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 220
+        },
+        "start": {
+          "column": 26,
+          "line": 220
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional empty-capacity admission work",
+      "reason": "When capacity is zero, slicing candidates to zero still prevents extra handlers even without the early return; when no tasks exist, no adapter group is loaded. The variant nevertheless performs extra reads/clock/candidate work in some cases and can expose adapter failure. Global slot behavior is now tested, but this work/failure boundary is not closed."
+    },
+    {
+      "sampleId": "157",
+      "fingerprintSha256": "714250c7dd2a6f54104419b5dcfb2ddf4f61260e562ba87b13c11c9bb8ced6be",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      return [];\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 222
+        },
+        "start": {
+          "column": 59,
+          "line": 220
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional empty-capacity admission work",
+      "reason": "When capacity is zero, slicing candidates to zero still prevents extra handlers even without the early return; when no tasks exist, no adapter group is loaded. The variant nevertheless performs extra reads/clock/candidate work in some cases and can expose adapter failure. Global slot behavior is now tested, but this work/failure boundary is not closed."
+    },
+    {
+      "sampleId": "160",
+      "fingerprintSha256": "1226272801c054bbf2b13ffd429e6e88ce2282a3d785ccc52ac00abd53448398",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.stopRequested",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 3,
+      "location": {
+        "end": {
+          "column": 27,
+          "line": 225
+        },
+        "start": {
+          "column": 9,
+          "line": 225
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional admission work/failure observation after stop",
+      "reason": "Later stop checks still prevent the handler, so removing one check can preserve invocation counts while performing extra state reads, clock/candidate work or overlap-lock acquisition/release. Those operations can fail or have cost. Current tests do not establish work/failure equivalence; retain this limitation."
+    },
+    {
+      "sampleId": "187",
+      "fingerprintSha256": "a5ca4015aa9594efa6f433f033e5d997ed385df88e8660a31f43e7fce1e9a2ea",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.stopRequested",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 4,
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 247
+        },
+        "start": {
+          "column": 11,
+          "line": 247
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional admission work/failure observation after stop",
+      "reason": "Later stop checks still prevent the handler, so removing one check can preserve invocation counts while performing extra state reads, clock/candidate work or overlap-lock acquisition/release. Those operations can fail or have cost. Current tests do not establish work/failure equivalence; retain this limitation."
+    },
+    {
+      "sampleId": "212",
+      "fingerprintSha256": "2f4969258cc0a69ed5581cf999a6ec86ce21ae4d3ab05ae68e23281896e9880a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "(this.activeTaskCounts.get(task.id) ?? 0) > 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 292
+        },
+        "start": {
+          "column": 27,
+          "line": 292
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "215",
+      "fingerprintSha256": "1ae0bb3e9f1786dfb2b39e0ea9b05540a38947c9740b2f2516fbc49cfe7510bb",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.activeTaskCounts.get(task.id) ?? 0",
+      "mutatorName": "LogicalOperator",
+      "replacement": "this.activeTaskCounts.get(task.id) && 0",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 67,
+          "line": 292
+        },
+        "start": {
+          "column": 28,
+          "line": 292
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "221",
+      "fingerprintSha256": "c8c66349c53d861740373c1fd86e97d346f8c43d2b076e9ab2929aaf987bcaca",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.coordination === \"local\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 40,
+          "line": 295
+        },
+        "start": {
+          "column": 7,
+          "line": 295
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed local/distributed overlap distinction",
+      "reason": "Treating distributed coordination as local can suppress acquisition/refresh of a distributed overlap guard while an invocation remains locally active. Ordinary contention can look identical, but ownership-loss/reacquisition and external lock work may differ. Keep this policy/fault-interleaving gap visible."
+    },
+    {
+      "sampleId": "217",
+      "fingerprintSha256": "25507a09ac0e35e8944cb5bacee8b33d8c16edcabdf29837cd2ee52c0f248df6",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.coordination === \"local\"\n      && task.overlap !== \"parallel\"\n      && locallyActive",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 23,
+          "line": 297
+        },
+        "start": {
+          "column": 7,
+          "line": 295
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "225",
+      "fingerprintSha256": "b43b966638a19b8b3b8132b6aef6689cb686787eb46879c0471bb31fd08c26f5",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "task.overlap !== \"parallel\"",
+      "mutatorName": "EqualityOperator",
+      "replacement": "task.overlap === \"parallel\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 296
+        },
+        "start": {
+          "column": 10,
+          "line": 296
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "227",
+      "fingerprintSha256": "9d9ee0b2dcee2235c7e22bf772d82e0bd49932aacbfeb2ae4f21847885e3c36d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      if (task.overlap === \"skip\") {\n        await adapter.skip(request);\n      }\n      return undefined;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 303
+        },
+        "start": {
+          "column": 7,
+          "line": 298
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "228",
+      "fingerprintSha256": "90478a8a8ca1afd98bc3ede4bf619249ce62beeba9036fc088d081d8473a05cd",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "task.overlap === \"skip\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 299
+        },
+        "start": {
+          "column": 11,
+          "line": 299
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed wait-versus-skip contention policy",
+      "reason": "Always taking the skip branch can consume a pending occurrence under the wait policy instead of retaining it. Current overlap cases assert skip behavior and busy-lock non-admission, but do not assert later replay of an occurrence retained by wait."
+    },
+    {
+      "sampleId": "233",
+      "fingerprintSha256": "133f15c6215cb1270d7909b324fd4d073e3c26d83e3178febd104955edf6d698",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "lock !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 39,
+          "line": 306
+        },
+        "start": {
+          "column": 21,
+          "line": 306
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed lock-release ownership and failure boundary",
+      "reason": "These variants alter the local release-ownership bookkeeping. Ordinary successful release cases agree, but a missing lock, release failure, late reservation cleanup or secondary synchronous setup failure can expose a missing/double release or replace a primary error. Existing tests do not prove all such combined paths equivalent; retain the defensive ownership boundary for follow-up."
+    },
+    {
+      "sampleId": "237",
+      "fingerprintSha256": "110398c7d42a0871847f89a8c5bbfe7fb32e0a08cdd55e9757b8b19265d2fd4a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "lockOwned",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 20,
+          "line": 308
+        },
+        "start": {
+          "column": 11,
+          "line": 308
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed lock-release ownership and failure boundary",
+      "reason": "These variants alter the local release-ownership bookkeeping. Ordinary successful release cases agree, but a missing lock, release failure, late reservation cleanup or secondary synchronous setup failure can expose a missing/double release or replace a primary error. Existing tests do not prove all such combined paths equivalent; retain the defensive ownership boundary for follow-up."
+    },
+    {
+      "sampleId": "240",
+      "fingerprintSha256": "79960b0efd415d642648903c3d6ce9f14e22245f79e41c2b456fc6890ea276f9",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "false",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "true",
+      "occurrence": 4,
+      "location": {
+        "end": {
+          "column": 26,
+          "line": 309
+        },
+        "start": {
+          "column": 21,
+          "line": 309
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed lock-release ownership and failure boundary",
+      "reason": "These variants alter the local release-ownership bookkeeping. Ordinary successful release cases agree, but a missing lock, release failure, late reservation cleanup or secondary synchronous setup failure can expose a missing/double release or replace a primary error. Existing tests do not prove all such combined paths equivalent; retain the defensive ownership boundary for follow-up."
+    },
+    {
+      "sampleId": "258",
+      "fingerprintSha256": "08b75bd59e494795dcfad7a588f439444609cfd1bb2325181c71c77477f4feac",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "task.overlap === \"skip\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 321
+        },
+        "start": {
+          "column": 13,
+          "line": 321
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed wait-versus-skip contention policy",
+      "reason": "Always taking the skip branch can consume a pending occurrence under the wait policy instead of retaining it. Current overlap cases assert skip behavior and busy-lock non-admission, but do not assert later replay of an occurrence retained by wait."
+    },
+    {
+      "sampleId": "274",
+      "fingerprintSha256": "401d9c01644b823781dbbc4e22ac5bbe6071db54d7e9a116d7399f8f74c77f31",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "false",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "true",
+      "occurrence": 5,
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 344
+        },
+        "start": {
+          "column": 19,
+          "line": 344
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed lock-release ownership and failure boundary",
+      "reason": "These variants alter the local release-ownership bookkeeping. Ordinary successful release cases agree, but a missing lock, release failure, late reservation cleanup or secondary synchronous setup failure can expose a missing/double release or replace a primary error. Existing tests do not prove all such combined paths equivalent; retain the defensive ownership boundary for follow-up."
+    },
+    {
+      "sampleId": "275",
+      "fingerprintSha256": "a6f73ca05717a2c2812fa80567d7ccfd8cc38184ed433c90b494e5c4df8c88a1",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n          // Invocation errors are contained so one task cannot stop admission.\n          this.reportError(error);\n        }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 349
+        },
+        "start": {
+          "column": 36,
+          "line": 346
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed escaping invocation failure reporting",
+      "reason": "The usual handler, execution, renewal, completion and release failures are captured inside runInvocation. This final rejection-containment callback is not reached by current cases. A throwing custom scheduling/reporting callback or other escaping failure could reach it; do not force an artificial private throw or claim universal unreachability."
+    },
+    {
+      "sampleId": "276",
+      "fingerprintSha256": "2d2db2755b540ed41ab9f555d1928e9ea06158d2a4dd2660afbbdbda0fda0034",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.reportError(error);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 35,
+          "line": 348
+        },
+        "start": {
+          "column": 11,
+          "line": 348
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed escaping invocation failure reporting",
+      "reason": "The usual handler, execution, renewal, completion and release failures are captured inside runInvocation. This final rejection-containment callback is not reached by current cases. A throwing custom scheduling/reporting callback or other escaping failure could reach it; do not force an artificial private throw or claim universal unreachability."
+    },
+    {
+      "sampleId": "279",
+      "fingerprintSha256": "d96fb330525c2e9fef489bd51d9b33885d905d801964408d20e3947d9aae7290",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "(this.activeTaskCounts.get(task.id) ?? 0) + 1",
+      "mutatorName": "ArithmeticOperator",
+      "replacement": "(this.activeTaskCounts.get(task.id) ?? 0) - 1",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 54,
+          "line": 353
+        },
+        "start": {
+          "column": 9,
+          "line": 353
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "280",
+      "fingerprintSha256": "1c3cdea7b6249d8f4c41ff971fad2d77e7c9766c949b2424b54e94310ae65bd2",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.activeTaskCounts.get(task.id) ?? 0",
+      "mutatorName": "LogicalOperator",
+      "replacement": "this.activeTaskCounts.get(task.id) && 0",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 49,
+          "line": 353
+        },
+        "start": {
+          "column": 10,
+          "line": 353
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "284",
+      "fingerprintSha256": "7a3156a954c0cdfa9e25526250895d6d283f9c713a9c817bb40efd399ec1f245",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.activeTaskCounts.get(task.id) ?? 1",
+      "mutatorName": "LogicalOperator",
+      "replacement": "this.activeTaskCounts.get(task.id) && 1",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 67,
+          "line": 357
+        },
+        "start": {
+          "column": 28,
+          "line": 357
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "fixed-policy bookkeeping limitation; representation/work differs",
+      "reason": "For a stable non-parallel local task, correct admission has at most one active invocation; parallel/distributed tasks do not use this count to gate local overlap. Zero versus missing entries and counts above one therefore often preserve tested admission outcomes while changing internal counter values/retention. No private-map assertion was added solely to kill these variants. This is a scoped policy observation, not unconditional internal-state/work equivalence."
+    },
+    {
+      "sampleId": "286",
+      "fingerprintSha256": "204c9ed0d5ec752a679fc71e09dc83d1371aed1f7784818bc233b25528018b32",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "remaining === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 358
+        },
+        "start": {
+          "column": 13,
+          "line": 358
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "fixed-policy bookkeeping limitation; representation/work differs",
+      "reason": "For a stable non-parallel local task, correct admission has at most one active invocation; parallel/distributed tasks do not use this count to gate local overlap. Zero versus missing entries and counts above one therefore often preserve tested admission outcomes while changing internal counter values/retention. No private-map assertion was added solely to kill these variants. This is a scoped policy observation, not unconditional internal-state/work equivalence."
+    },
+    {
+      "sampleId": "285",
+      "fingerprintSha256": "7ec35261f83926e8e2dee9b682fa228103564bbdc3a50e57993b076537726afc",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "remaining === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 358
+        },
+        "start": {
+          "column": 13,
+          "line": 358
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "fixed-policy bookkeeping limitation; representation/work differs",
+      "reason": "For a stable non-parallel local task, correct admission has at most one active invocation; parallel/distributed tasks do not use this count to gate local overlap. Zero versus missing entries and counts above one therefore often preserve tested admission outcomes while changing internal counter values/retention. No private-map assertion was added solely to kill these variants. This is a scoped policy observation, not unconditional internal-state/work equivalence."
+    },
+    {
+      "sampleId": "287",
+      "fingerprintSha256": "1918647e9793c2e93554cd4535c6ffc021eb7dc6b7728a6ea23ac5dfe8b1cccb",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "remaining === 0",
+      "mutatorName": "EqualityOperator",
+      "replacement": "remaining !== 0",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 358
+        },
+        "start": {
+          "column": 13,
+          "line": 358
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "fixed-policy bookkeeping limitation; representation/work differs",
+      "reason": "For a stable non-parallel local task, correct admission has at most one active invocation; parallel/distributed tasks do not use this count to gate local overlap. Zero versus missing entries and counts above one therefore often preserve tested admission outcomes while changing internal counter values/retention. No private-map assertion was added solely to kill these variants. This is a scoped policy observation, not unconditional internal-state/work equivalence."
+    },
+    {
+      "sampleId": "290",
+      "fingerprintSha256": "613a7fd4c10b30bbf2748ec053a0b7a0c86b07242de58ef50e86f0ac2ff9dfbf",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n          this.activeTaskCounts.set(task.id, remaining);\n        }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 362
+        },
+        "start": {
+          "column": 16,
+          "line": 360
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "fixed-policy bookkeeping limitation; representation/work differs",
+      "reason": "For a stable non-parallel local task, correct admission has at most one active invocation; parallel/distributed tasks do not use this count to gate local overlap. Zero versus missing entries and counts above one therefore often preserve tested admission outcomes while changing internal counter values/retention. No private-map assertion was added solely to kill these variants. This is a scoped policy observation, not unconditional internal-state/work equivalence."
+    },
+    {
+      "sampleId": "291",
+      "fingerprintSha256": "bbd0d9d6a4bc6e7a5e9a7328565a0b186cc2ba4a0fe5ba144e21751245544d7d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.activeTaskCounts.set(task.id, remaining);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 361
+        },
+        "start": {
+          "column": 11,
+          "line": 361
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "fixed-policy bookkeeping limitation; representation/work differs",
+      "reason": "For a stable non-parallel local task, correct admission has at most one active invocation; parallel/distributed tasks do not use this count to gate local overlap. Zero versus missing entries and counts above one therefore often preserve tested admission outcomes while changing internal counter values/retention. No private-map assertion was added solely to kill these variants. This is a scoped policy observation, not unconditional internal-state/work equivalence."
+    },
+    {
+      "sampleId": "326",
+      "fingerprintSha256": "7359b1f86629d8b3f57ff968e883e9a6e25b9c53506c02013cbfe4ab4a836b54",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "\"scheduled-task\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 432
+        },
+        "start": {
+          "column": 20,
+          "line": 432
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed execution-log context metadata",
+      "reason": "These variants empty the scheduled-task transport/workload labels in execution log context. Invocation observation fields and executionLog enablement are asserted, but the emitted execution-log context projection is not yet checked. These structured labels are more than unconstrained prose wording."
+    },
+    {
+      "sampleId": "327",
+      "fingerprintSha256": "1c0742487952026f2592ff9cc16e11f6920e82d838d80111937124dbb0c0d2bf",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "\"scheduled-tasks\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 433
+        },
+        "start": {
+          "column": 19,
+          "line": 433
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed execution-log context metadata",
+      "reason": "These variants empty the scheduled-task transport/workload labels in execution log context. Invocation observation fields and executionLog enablement are asserted, but the emitted execution-log context projection is not yet checked. These structured labels are more than unconstrained prose wording."
+    },
+    {
+      "sampleId": "329",
+      "fingerprintSha256": "423bc5d3e32d0d5578c2857cdfb5033a25e7ea9a758425f64d17509b62e6b36d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n        observer?.record(executionStartedObservation, {\n          operation: resolved.task.id,\n          transport: \"scheduled-task\",\n        });\n\n        try {\n          const dependencies = await execution!.container.resolveDependenciesAsync(\n            resolved.task.dependencies,\n          );\n          await resolved.task.handler(dependencies, {\n            signal,\n            scheduledAt: reservation.scheduledAt,\n            trigger: reservation.trigger,\n            deferNextRun: deferral.deferNextRun,\n          });\n          if (invocationAbort.signal.aborted) throw invocationAbort.signal.reason;\n          outcome = \"success\";\n        } catch (handlerError) {\n          captureFailure(handlerError);\n        } finally {\n          completedAt = this.now();\n          deferredDelayMs = deferral.delayMs;\n          observer?.record(\n            executionCompletedObservation,\n            {\n              operation: resolved.task.id,\n              transport: \"scheduled-task\",\n              ...getExecutionObservationContext(execution!.context),\n              ...(!failed\n                ? {}\n                : getExecutionObservationError(error)),\n            },\n            {\n              outcome,\n              durationMs: performance.now() - startedAt,\n            },\n          );\n          await execution!.dispose(outcome);\n        }\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 482
+        },
+        "start": {
+          "column": 68,
+          "line": 442
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "340",
+      "fingerprintSha256": "0f9893245eb0606a7659b9e23ba5efc83609ebf0f5944f7cade7d4f5267585d0",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n          completedAt = this.now();\n          deferredDelayMs = deferral.delayMs;\n          observer?.record(\n            executionCompletedObservation,\n            {\n              operation: resolved.task.id,\n              transport: \"scheduled-task\",\n              ...getExecutionObservationContext(execution!.context),\n              ...(!failed\n                ? {}\n                : getExecutionObservationError(error)),\n            },\n            {\n              outcome,\n              durationMs: performance.now() - startedAt,\n            },\n          );\n          await execution!.dispose(outcome);\n        }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 481
+        },
+        "start": {
+          "column": 19,
+          "line": 462
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "350",
+      "fingerprintSha256": "8196a85dcb48c7d44c01383e911cc0a48aced540927223c8e803b34b74958c78",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "execution !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 486
+        },
+        "start": {
+          "column": 11,
+          "line": 486
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "352",
+      "fingerprintSha256": "231e33e58bd2a2b9b2048869e8d9620734e6570bc4e53595d082022c1779dc5d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n        // Disposal is idempotent when the observed callback already reached it.\n        await execution.dispose(\"failure\").catch(() => undefined);\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 489
+        },
+        "start": {
+          "column": 36,
+          "line": 486
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Timeout without detailed cause in the report",
+      "reason": "Stryker records Timeout without a statusReason. The changed loop, overlap or execution/disposal path can prevent a gated operation from settling, but this JSON alone does not distinguish worker timeout, a Vitest deadline or another timeout path. Preserve the raw status and do not count it as an assertion kill or invent a completed-test count."
+    },
+    {
+      "sampleId": "356",
+      "fingerprintSha256": "58cd6c2b4ac77e13f023cd83f7d47f660a9a64458ebd4aaed7acae4c4314b40a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n        captureFailure(maintenanceError);\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 495
+        },
+        "start": {
+          "column": 34,
+          "line": 493
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant failure-reporting channel with different internal rejection",
+      "reason": "Every renewal rejection first invokes onFailure, which immediately captures its first raw cause in runInvocation. The later maintenance.close rejection/capture is a second channel for the same failure, so these variants can preserve persisted/observed/reported outcomes. Internal close rejection and exception work can differ; they are not blanket promise/work equivalences."
+    },
+    {
+      "sampleId": "357",
+      "fingerprintSha256": "1a13505d32fff5b69ae0673679935631419c11c727fd0a7e21138fcc6b66f92a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "captureFailure(maintenanceError);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 494
+        },
+        "start": {
+          "column": 9,
+          "line": 494
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant failure-reporting channel with different internal rejection",
+      "reason": "Every renewal rejection first invokes onFailure, which immediately captures its first raw cause in runInvocation. The later maintenance.close rejection/capture is a second channel for the same failure, so these variants can preserve persisted/observed/reported outcomes. Internal close rejection and exception work can differ; they are not blanket promise/work equivalences."
+    },
+    {
+      "sampleId": "374",
+      "fingerprintSha256": "3fbb05705a51d61e1eea13db239194f970e2132e99689ccdbce07312a4a0a46b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "deferredDelayMs !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 504
+        },
+        "start": {
+          "column": 12,
+          "line": 504
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed absent-deferral combination",
+      "reason": "Always building postponeUntil with an absent delay constructs an invalid Date for a scheduled invocation with no requested deferral. Some adapters retain an already-present cadence and hide it, but completion payload correctness and cadence-less combinations are not fully asserted."
+    },
+    {
+      "sampleId": "403",
+      "fingerprintSha256": "3226bfcb5be8b2be1e50702aa279c9f2a094990c83f8c478a8a131ef2a142f5a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "() => clearInterval(interval)",
+      "mutatorName": "ArrowFunction",
+      "replacement": "() => undefined",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 47,
+          "line": 545
+        },
+        "start": {
+          "column": 18,
+          "line": 545
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed timer/listener cleanup and post-completion work",
+      "reason": "Current ownership tests exercise cancellation while renewal is pending, but these variants can retain a timer/listener or attempt another renewal after ordinary completion/stop. Invocation outcomes alone do not prove timely resource cleanup. Do not classify extra timer ticks, retained listeners or post-release I/O as equivalent work."
+    },
+    {
+      "sampleId": "406",
+      "fingerprintSha256": "104ac951fd1f01684a86b044b16f35fa3d9bf8bc8bdd1ca27d99ebc6dc8c4eef",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "signal.aborted",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 25,
+          "line": 547
+        },
+        "start": {
+          "column": 11,
+          "line": 547
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed timer/listener cleanup and post-completion work",
+      "reason": "Current ownership tests exercise cancellation while renewal is pending, but these variants can retain a timer/listener or attempt another renewal after ordinary completion/stop. Invocation outcomes alone do not prove timely resource cleanup. Do not classify extra timer ticks, retained listeners or post-release I/O as equivalent work."
+    },
+    {
+      "sampleId": "407",
+      "fingerprintSha256": "f2ed74b2b7961b78c597acdb0de32fbb7731faa8cf3491d1c36c23aac1096102",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{ stop(); return; }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 547
+        },
+        "start": {
+          "column": 27,
+          "line": 547
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreached defensive aborted-tick body",
+      "reason": "The paired abort listener normally clears the interval immediately, and the initial aborted-signal check clears it before the first tick. The callback body for an already-aborted signal was not reached. Queued-native-tick/race behavior has not been separately demonstrated; preserve NoCoverage without fabricating private state."
+    },
+    {
+      "sampleId": "408",
+      "fingerprintSha256": "9baf0ea6a97a6b382dc9f916f30ae3d271759594ef70e53f734cce5e37e0266a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "stop();",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 547
+        },
+        "start": {
+          "column": 29,
+          "line": 547
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreached defensive aborted-tick body",
+      "reason": "The paired abort listener normally clears the interval immediately, and the initial aborted-signal check clears it before the first tick. The callback body for an already-aborted signal was not reached. Queued-native-tick/race behavior has not been separately demonstrated; preserve NoCoverage without fabricating private state."
+    },
+    {
+      "sampleId": "415",
+      "fingerprintSha256": "80993ed761a69ad06a055b084d2e79a734ce1e84ee089f43eda31fb5ca93ed13",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "!extensionFailed",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "extensionFailed",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 556
+        },
+        "start": {
+          "column": 15,
+          "line": 556
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant failure-reporting channel with different internal rejection",
+      "reason": "Every renewal rejection first invokes onFailure, which immediately captures its first raw cause in runInvocation. The later maintenance.close rejection/capture is a second channel for the same failure, so these variants can preserve persisted/observed/reported outcomes. Internal close rejection and exception work can differ; they are not blanket promise/work equivalences."
+    },
+    {
+      "sampleId": "417",
+      "fingerprintSha256": "4f1a0bd113bd6e4ff857c3ccbcfed15dc18ff76268a7412f5fb608d7d57aa06a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "!extensionFailed",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 556
+        },
+        "start": {
+          "column": 15,
+          "line": 556
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant failure-reporting channel with different internal rejection",
+      "reason": "Every renewal rejection first invokes onFailure, which immediately captures its first raw cause in runInvocation. The later maintenance.close rejection/capture is a second channel for the same failure, so these variants can preserve persisted/observed/reported outcomes. Internal close rejection and exception work can differ; they are not blanket promise/work equivalences."
+    },
+    {
+      "sampleId": "416",
+      "fingerprintSha256": "a69bd17aaa366560980fb0c99e4e03b6c71153bbf96338fe1a35ba7effb30731",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "!extensionFailed",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 556
+        },
+        "start": {
+          "column": 15,
+          "line": 556
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant failure-reporting channel with different internal rejection",
+      "reason": "Every renewal rejection first invokes onFailure, which immediately captures its first raw cause in runInvocation. The later maintenance.close rejection/capture is a second channel for the same failure, so these variants can preserve persisted/observed/reported outcomes. Internal close rejection and exception work can differ; they are not blanket promise/work equivalences."
+    },
+    {
+      "sampleId": "418",
+      "fingerprintSha256": "c775993489fdf1fdf122eca94c9db59cf28b87fb80bce336424ae5afd9bb6b10",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n            extensionFailed = true;\n            extensionError = error;\n          }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 12,
+          "line": 559
+        },
+        "start": {
+          "column": 33,
+          "line": 556
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant failure-reporting channel with different internal rejection",
+      "reason": "Every renewal rejection first invokes onFailure, which immediately captures its first raw cause in runInvocation. The later maintenance.close rejection/capture is a second channel for the same failure, so these variants can preserve persisted/observed/reported outcomes. Internal close rejection and exception work can differ; they are not blanket promise/work equivalences."
+    },
+    {
+      "sampleId": "419",
+      "fingerprintSha256": "924d48bdf4a98a6fe363d981f0938f86568e43e70d925271404a8a933d5c70ab",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "true",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "false",
+      "occurrence": 4,
+      "location": {
+        "end": {
+          "column": 35,
+          "line": 557
+        },
+        "start": {
+          "column": 31,
+          "line": 557
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant failure-reporting channel with different internal rejection",
+      "reason": "Every renewal rejection first invokes onFailure, which immediately captures its first raw cause in runInvocation. The later maintenance.close rejection/capture is a second channel for the same failure, so these variants can preserve persisted/observed/reported outcomes. Internal close rejection and exception work can differ; they are not blanket promise/work equivalences."
+    },
+    {
+      "sampleId": "428",
+      "fingerprintSha256": "a3eee0a6072cb4a1c970e768bbbc69cb279375b95d8a2d997c2f80cb0dc3549e",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "`Scheduled task reservation ownership was lost for \"${reservation.taskId}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 115,
+          "line": 571
+        },
+        "start": {
+          "column": 39,
+          "line": 571
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "431",
+      "fingerprintSha256": "4d63977c360a57f4872f3114835ff701f2c23029ed2f3ae66cd2bb84b6709530",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n        activeExtension = undefined;\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 576
+        },
+        "start": {
+          "column": 46,
+          "line": 574
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed repeated successful heartbeat",
+      "reason": "Removing activeExtension reset can make the first successful renewal block all later renewals. Current gated tests hold that first extension until stop and therefore do not require a second successful heartbeat during a continuing invocation."
+    },
+    {
+      "sampleId": "432",
+      "fingerprintSha256": "815fabc6acc5adea3279620835efe6485dbcc7c2de50b56b34ac5b4f1c485f7b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "Math.max(1, Math.floor(this.options.leaseMs / 2))",
+      "mutatorName": "MethodExpression",
+      "replacement": "Math.min(1, Math.floor(this.options.leaseMs / 2))",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 577
+        },
+        "start": {
+          "column": 8,
+          "line": 577
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed heartbeat pacing",
+      "reason": "Replacing the half-lease interval with its minimum can schedule renewal every millisecond instead of half the lease. Existing pending-renewal tests prevent overlap, which can hide this extra pacing/load. Assert no renewal before the intended boundary and repeated healthy pacing in a follow-up."
+    },
+    {
+      "sampleId": "434",
+      "fingerprintSha256": "eed54fcdeeba527fa4095149a5af5f783a8ada31a04619cfcf88900339dc5241",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "interval.unref();",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 22,
+          "line": 578
+        },
+        "start": {
+          "column": 5,
+          "line": 578
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed process-liveness contract",
+      "reason": "Removing unref can keep an otherwise idle process alive while an owner abandons a live invocation. Tests dispose their owned resources and do not use a subprocess liveness harness. This process-lifetime behavior is not equivalent merely because unit tests exit normally."
+    },
+    {
+      "sampleId": "436",
+      "fingerprintSha256": "b12629dec6698f8383e9494410fcbfaa5c20cb1116db3b9a4b61637ece0d5ae3",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "\"abort\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 579
+        },
+        "start": {
+          "column": 29,
+          "line": 579
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed timer/listener cleanup and post-completion work",
+      "reason": "Current ownership tests exercise cancellation while renewal is pending, but these variants can retain a timer/listener or attempt another renewal after ordinary completion/stop. Invocation outcomes alone do not prove timely resource cleanup. Do not classify extra timer ticks, retained listeners or post-release I/O as equivalent work."
+    },
+    {
+      "sampleId": "437",
+      "fingerprintSha256": "51c644a7dea1c5b94892b097c953bded6ff427f3fc1f8810eda7a9df71469676",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{ once: true }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 58,
+          "line": 579
+        },
+        "start": {
+          "column": 44,
+          "line": 579
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "native cancellation result with different listener retention",
+      "reason": "A native AbortSignal transitions to aborted once, so once:true versus a retained listener invokes the same ordinary stop callback once. Listener retention until close and manually dispatched events differ; do not claim unconditional EventTarget or resource-lifetime equivalence."
+    },
+    {
+      "sampleId": "438",
+      "fingerprintSha256": "973832ef5a50d7bfa53355e02b83f4eb5a82c359edf25c65e48006b683b3e159",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "true",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "false",
+      "occurrence": 5,
+      "location": {
+        "end": {
+          "column": 56,
+          "line": 579
+        },
+        "start": {
+          "column": 52,
+          "line": 579
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "native cancellation result with different listener retention",
+      "reason": "A native AbortSignal transitions to aborted once, so once:true versus a retained listener invokes the same ordinary stop callback once. Listener retention until close and manually dispatched events differ; do not claim unconditional EventTarget or resource-lifetime equivalence."
+    },
+    {
+      "sampleId": "440",
+      "fingerprintSha256": "f3ea840e848d6f716d2b4b2ade73720ffb1030311cc3ab125eab7b4a50d6c775",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "signal.aborted",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 23,
+          "line": 580
+        },
+        "start": {
+          "column": 9,
+          "line": 580
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed already-aborted invocation setup",
+      "reason": "These variants omit initial cancellation cleanup when the application signal is already aborted as maintenance is installed. Scheduler stop ordinarily prevents admission first; direct application-budget cancellation during invocation setup is not isolated in current tests."
+    },
+    {
+      "sampleId": "441",
+      "fingerprintSha256": "84ccf063cf3e13ba0da41f64caaeff3942e57aa9e057e14ec01cbf1abbd39c12",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "stop();",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 32,
+          "line": 580
+        },
+        "start": {
+          "column": 25,
+          "line": 580
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed already-aborted invocation setup",
+      "reason": "These variants omit initial cancellation cleanup when the application signal is already aborted as maintenance is installed. Scheduler stop ordinarily prevents admission first; direct application-budget cancellation during invocation setup is not isolated in current tests."
+    },
+    {
+      "sampleId": "444",
+      "fingerprintSha256": "fffe42cb667041c4c4c46f070f8e950baf64b3311f906539a3d308ec3179cace",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "clearInterval(interval);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 584
+        },
+        "start": {
+          "column": 9,
+          "line": 584
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed timer/listener cleanup and post-completion work",
+      "reason": "Current ownership tests exercise cancellation while renewal is pending, but these variants can retain a timer/listener or attempt another renewal after ordinary completion/stop. Invocation outcomes alone do not prove timely resource cleanup. Do not classify extra timer ticks, retained listeners or post-release I/O as equivalent work."
+    },
+    {
+      "sampleId": "446",
+      "fingerprintSha256": "0799564f85955b20d4cecc698037481ca7c888204a66384a8da1b19fefb0810c",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "\"abort\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 585
+        },
+        "start": {
+          "column": 36,
+          "line": 585
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed timer/listener cleanup and post-completion work",
+      "reason": "Current ownership tests exercise cancellation while renewal is pending, but these variants can retain a timer/listener or attempt another renewal after ordinary completion/stop. Invocation outcomes alone do not prove timely resource cleanup. Do not classify extra timer ticks, retained listeners or post-release I/O as equivalent work."
+    },
+    {
+      "sampleId": "448",
+      "fingerprintSha256": "48eaa53c9a69f8f62e45b576e6322ddb70a673d596f316385f6919d3171919bf",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "extensionFailed",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 587
+        },
+        "start": {
+          "column": 13,
+          "line": 587
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant failure-reporting channel with different internal rejection",
+      "reason": "Every renewal rejection first invokes onFailure, which immediately captures its first raw cause in runInvocation. The later maintenance.close rejection/capture is a second channel for the same failure, so these variants can preserve persisted/observed/reported outcomes. Internal close rejection and exception work can differ; they are not blanket promise/work equivalences."
+    },
+    {
+      "sampleId": "449",
+      "fingerprintSha256": "b1f2392b4f550259cfc99222584d6a0ffb584b24d977d8a212a3e9181d4043cc",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n          throw extensionError;\n        }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 589
+        },
+        "start": {
+          "column": 30,
+          "line": 587
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant failure-reporting channel with different internal rejection",
+      "reason": "Every renewal rejection first invokes onFailure, which immediately captures its first raw cause in runInvocation. The later maintenance.close rejection/capture is a second channel for the same failure, so these variants can preserve persisted/observed/reported outcomes. Internal close rejection and exception work can differ; they are not blanket promise/work equivalences."
+    },
+    {
+      "sampleId": "455",
+      "fingerprintSha256": "2b5ead3687aadc1963e0719afd673f9014db12518a7e65d6a4bc0382a3fd6e6e",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "\"persistent\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 610
+        },
+        "start": {
+          "column": 12,
+          "line": 610
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "runtime adapter selection equivalence with an invalid internal tag",
+      "reason": "Adapter resolution selects memory only for state === \"memory\" and otherwise uses the persistent adapter. Replacing the persistent default tag with an empty string therefore selects the same adapter in current code, although the internal value is outside the declared union. Runtime result equivalence does not make that typed literal valid source."
+    },
+    {
+      "sampleId": "463",
+      "fingerprintSha256": "926fa9af5baeb0cd8e31cae534f6b34a912b310e230f12ff9764db1c288b9e6a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "`Scheduled task ids must be unique: \"${task.id}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 77,
+          "line": 618
+        },
+        "start": {
+          "column": 27,
+          "line": 618
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "479",
+      "fingerprintSha256": "5f274b0eb3e77655c4d44e892d4f1101835a9eeab943493a7f7eef2423640cd1",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "`Runtime overrides are disabled for scheduled task \"${task.id}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 74,
+          "line": 628
+        },
+        "start": {
+          "column": 9,
+          "line": 628
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "491",
+      "fingerprintSha256": "79beb668ef7694cd7acd12cf8e98ece7d4ecdb94cfb642e72ee3ebc44756c370",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "`Scheduled task \"${task.id}\" requires a persistent adapter.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 69,
+          "line": 639
+        },
+        "start": {
+          "column": 9,
+          "line": 639
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "502",
+      "fingerprintSha256": "70984d194ca964f4901a718c646e851ea1a89da58dc6da2b1453294afb144e22",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "`Scheduled task \"${task.id}\" requires distributed locks.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 66,
+          "line": 644
+        },
+        "start": {
+          "column": 9,
+          "line": 644
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "506",
+      "fingerprintSha256": "c03a74dfc42cd00f7596290c16b841ca724b67e03ae615ff490f2c0c75820c8e",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "left === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 25,
+          "line": 656
+        },
+        "start": {
+          "column": 7,
+          "line": 656
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict optional-date branch equivalence",
+      "reason": "When left is undefined, right is returned by the final comparison if present; if right is also undefined, the following guard returns undefined. Removing only the first return preserves every valid Date/undefined value and selected instance."
+    },
+    {
+      "sampleId": "508",
+      "fingerprintSha256": "9e5da616efffffb68748b97f74012383292e94ddb9a8077230ce9f4d6dba3688",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n    return right;\n  }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 658
+        },
+        "start": {
+          "column": 27,
+          "line": 656
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict optional-date branch equivalence",
+      "reason": "When left is undefined, right is returned by the final comparison if present; if right is also undefined, the following guard returns undefined. Removing only the first return preserves every valid Date/undefined value and selected instance."
+    },
+    {
+      "sampleId": "509",
+      "fingerprintSha256": "f0f86e384612b4d57709b14ee95ff597674823ee51f2a48ca4c3f0f34294dce1",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "right === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 26,
+          "line": 659
+        },
+        "start": {
+          "column": 7,
+          "line": 659
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed competing manual/regular dates",
+      "reason": "Always choosing the manual/left date can suppress an earlier regular occurrence when both timestamps exist. Current manual cases cover paused scheduling and a manual request before a future cadence, but do not exercise both relative orderings while both triggers are eligible."
+    },
+    {
+      "sampleId": "513",
+      "fingerprintSha256": "865358d404eebf2b9342f2eb76f90b2e4bb05808316686c3714cf28976d4c594",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "left < right",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 22,
+          "line": 662
+        },
+        "start": {
+          "column": 10,
+          "line": 662
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed competing manual/regular dates",
+      "reason": "Always choosing the manual/left date can suppress an earlier regular occurrence when both timestamps exist. Current manual cases cover paused scheduling and a manual request before a future cadence, but do not exercise both relative orderings while both triggers are eligible."
+    },
+    {
+      "sampleId": "515",
+      "fingerprintSha256": "957164b68fd6bf98e411333eb484c73523a98a0e1e4a20dabb1ce8da503d47fb",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "left < right",
+      "mutatorName": "EqualityOperator",
+      "replacement": "left <= right",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 22,
+          "line": 662
+        },
+        "start": {
+          "column": 10,
+          "line": 662
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "equal-instant Date identity; accepted contract limitation",
+      "reason": "The <= variant only chooses another Date instance at an equal timestamp. The selected instant and downstream trigger matching agree; public task context does not promise identity with one of the internal snapshot Date objects."
+    },
+    {
+      "sampleId": "528",
+      "fingerprintSha256": "c3cf097c0a7ba1a79f7c84e20f98fee63426bfd601496a4fa8803e469bd53c47",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "`${name} must be a positive integer.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 672
+        },
+        "start": {
+          "column": 27,
+          "line": 672
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The selected operation, rejection or drain still occurs. This mutation changes human-readable error/log/drain text only; exact wording is deliberately not pinned."
+    }
+  ],
+  "vitestDeadlineKills": [
+    {
+      "sampleId": "64",
+      "fingerprintSha256": "3b16a6b46be8c8b696a16346cadef65faf0e94562ea00830a06cd928a15f0985",
+      "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+      "original": "{\n    this.stopPromise ??= this.app.shutdown.wait(\"scheduled task drain\", async () => {\n      const stopping = this.scheduler?.stop();\n      await this.startPromise?.catch(() => undefined);\n      await stopping;\n    });\n\n    return this.stopPromise;\n  }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 123
+        },
+        "start": {
+          "column": 32,
+          "line": 115
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "65",
+      "fingerprintSha256": "33ae23b5feccc27b8180d508857c68b6c370ed920e3612f070f17136566122b0",
+      "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+      "original": "this.stopPromise ??= this.app.shutdown.wait(\"scheduled task drain\", async () => {\n      const stopping = this.scheduler?.stop();\n      await this.startPromise?.catch(() => undefined);\n      await stopping;\n    })",
+      "mutatorName": "AssignmentOperator",
+      "replacement": "this.stopPromise &&= this.app.shutdown.wait(\"scheduled task drain\", async () => {\n  const stopping = this.scheduler?.stop();\n  await this.startPromise?.catch(() => undefined);\n  await stopping;\n})",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 7,
+          "line": 120
+        },
+        "start": {
+          "column": 5,
+          "line": 116
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "67",
+      "fingerprintSha256": "078383df928ba26fe767e24bda4d8a469a7482b002e35b79e8c408cf331a86a8",
+      "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+      "original": "{\n      const stopping = this.scheduler?.stop();\n      await this.startPromise?.catch(() => undefined);\n      await stopping;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 120
+        },
+        "start": {
+          "column": 85,
+          "line": 116
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "98",
+      "fingerprintSha256": "5ddb66850c5656307c6605b5b2f4627b6a955955498b2c259012e1a85a20db7e",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.stopRequested",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 129
+        },
+        "start": {
+          "column": 11,
+          "line": 129
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "103",
+      "fingerprintSha256": "4a3bd1db7340644ab9380b7df87d7997a747132ddbba0b90f3f5a87a85093f9b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "true",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "false",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 144
+        },
+        "start": {
+          "column": 26,
+          "line": 144
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "111",
+      "fingerprintSha256": "7b359888ea24daa58883378fadf64274f72bb4be899ffc447f8a5c2b471ace46",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n    await this.initialize();\n    const invocations = await this.admitOnce();\n    await Promise.all(invocations);\n    return invocations.length;\n  }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 162
+        },
+        "start": {
+          "column": 43,
+          "line": 157
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "119",
+      "fingerprintSha256": "e5b620d9db1f677de45bc72c786cbbeec53c4c8145853ca7b11aa4c5fe5425c2",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "({ task }) => ({\n        taskId: task.id,\n        nextScheduledAt: task.schedule.initial(now),\n      })",
+      "mutatorName": "ArrowFunction",
+      "replacement": "() => undefined",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 9,
+          "line": 181
+        },
+        "start": {
+          "column": 35,
+          "line": 178
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "120",
+      "fingerprintSha256": "5544a0431ef5a92f85545fd87aed62199eef8c9055cc23a4b1d486d2951734a3",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n        taskId: task.id,\n        nextScheduledAt: task.schedule.initial(now),\n      }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 181
+        },
+        "start": {
+          "column": 50,
+          "line": 178
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "134",
+      "fingerprintSha256": "d85494edbdd02ad3cb28d6639a93a794ef0b4a47598370bb5476da306ba00759",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n    if (this.admissionCycle !== undefined) {\n      return this.admissionCycle;\n    }\n\n    const cycle = this.executeAdmissionCycle().finally(() => {\n      if (this.admissionCycle === cycle) {\n        this.admissionCycle = undefined;\n      }\n    });\n    this.admissionCycle = cycle;\n    return cycle;\n  }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 215
+        },
+        "start": {
+          "column": 58,
+          "line": 203
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "135",
+      "fingerprintSha256": "43f8ff75c617c5bbba9e77ba341e136d9e81756f73f35dbf0ee6b153ad747e76",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.admissionCycle !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 204
+        },
+        "start": {
+          "column": 9,
+          "line": 204
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "137",
+      "fingerprintSha256": "9dd19de0bd242bb35ce5d00fad987b5335d57b7b1da2ac863ca480860820be89",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.admissionCycle !== undefined",
+      "mutatorName": "EqualityOperator",
+      "replacement": "this.admissionCycle === undefined",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 204
+        },
+        "start": {
+          "column": 9,
+          "line": 204
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "149",
+      "fingerprintSha256": "723ea48fbc481fd20e8388d33df5b20ee2bcfc7bcce9b8045d63f86a4a8a5284",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "capacity <= 0 || this.resolvedTasks.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 220
+        },
+        "start": {
+          "column": 9,
+          "line": 220
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "159",
+      "fingerprintSha256": "7ad73d7a4ca09c2d6e47929af588a83069f2898c23bdfaa9330ab3dd878a9964",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.stopRequested",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 3,
+      "location": {
+        "end": {
+          "column": 27,
+          "line": 225
+        },
+        "start": {
+          "column": 9,
+          "line": 225
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "164",
+      "fingerprintSha256": "eb162b52123e07db07c4271ea37a4943659173ed5f07136829ceccafbdbb3a6f",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      const state = statesByTask.get(resolved.task.id);\n      const scheduledAt = state === undefined\n        ? undefined\n        : earliestDate(\n            state.manualRunRequestedAt,\n            state.paused ? undefined : state.nextScheduledAt,\n          );\n\n      return scheduledAt === undefined || scheduledAt > now\n        ? []\n        : [{ resolved, scheduledAt }];\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 239
+        },
+        "start": {
+          "column": 65,
+          "line": 227
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "165",
+      "fingerprintSha256": "d1f17903c5376ea6f27974fa589cc02f2afd3674dc96c700f5774a47d8762fd7",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "state === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 229
+        },
+        "start": {
+          "column": 27,
+          "line": 229
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "167",
+      "fingerprintSha256": "ca038a8df499b8373ba359446748b02c022784c7c60916238acf850e81c3fcae",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "state === undefined",
+      "mutatorName": "EqualityOperator",
+      "replacement": "state !== undefined",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 229
+        },
+        "start": {
+          "column": 27,
+          "line": 229
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "172",
+      "fingerprintSha256": "1c176825fab468457d14aa0655d2d5155ed6376684cd0b9450731046f4f59451",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "scheduledAt === undefined",
+      "mutatorName": "EqualityOperator",
+      "replacement": "scheduledAt !== undefined",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 39,
+          "line": 236
+        },
+        "start": {
+          "column": 14,
+          "line": 236
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "168",
+      "fingerprintSha256": "8b2b8d889d2e7de71443397258cea346d71c89bac1e7634e8ac50f9d73e7f674",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "scheduledAt === undefined || scheduledAt > now",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 60,
+          "line": 236
+        },
+        "start": {
+          "column": 14,
+          "line": 236
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "175",
+      "fingerprintSha256": "10de2da7776fe87464a0bec78990d7142184cca5da4928b5704c6d9360747733",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "scheduledAt > now",
+      "mutatorName": "EqualityOperator",
+      "replacement": "scheduledAt <= now",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 60,
+          "line": 236
+        },
+        "start": {
+          "column": 43,
+          "line": 236
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "174",
+      "fingerprintSha256": "83ac4abea8651af10b1df270c95422493ce1a8c7dbef8b923b8c60ca57a3f8b2",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "scheduledAt > now",
+      "mutatorName": "EqualityOperator",
+      "replacement": "scheduledAt >= now",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 60,
+          "line": 236
+        },
+        "start": {
+          "column": 43,
+          "line": 236
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "177",
+      "fingerprintSha256": "33e985c0cea8a10940231025e27833b0ccc3d1c47929bf49879d6a45a17a6567",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "[{ resolved, scheduledAt }]",
+      "mutatorName": "ArrayDeclaration",
+      "replacement": "[]",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 38,
+          "line": 238
+        },
+        "start": {
+          "column": 11,
+          "line": 238
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "178",
+      "fingerprintSha256": "12ff62646a2c7dc5c1dbf009d8b90187994349614862ad7c8c991de47e487756",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{ resolved, scheduledAt }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 238
+        },
+        "start": {
+          "column": 12,
+          "line": 238
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "185",
+      "fingerprintSha256": "f3922dcb71a764730d813009ac44eb82755338850442cd07fcce1a5078e6d7c6",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      if (this.stopRequested) break;\n      const started = await this.tryStart(\n        candidate.resolved,\n        candidate.scheduledAt,\n        now,\n      );\n\n      if (started !== undefined) {\n        invocations.push(started.invocation);\n      }\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 257
+        },
+        "start": {
+          "column": 41,
+          "line": 246
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "186",
+      "fingerprintSha256": "dd48752d3875a1f7e6236105ee54de2cf668d3737c40bf3900a5618940929075",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.stopRequested",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 4,
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 247
+        },
+        "start": {
+          "column": 11,
+          "line": 247
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "194",
+      "fingerprintSha256": "786035de920a9f8513aeefd49aca4ffb5e9b7a3bda2ad0f3d66b9300e41366fc",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "(resolved) => resolved.adapter",
+      "mutatorName": "ArrowFunction",
+      "replacement": "() => undefined",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 265
+        },
+        "start": {
+          "column": 7,
+          "line": 265
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "205",
+      "fingerprintSha256": "a2529870c6545c738fd2fcce6cbd24e843ed1dcf3b25009607870b8ababa0a3e",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{ scheduledAt, completedAt: now }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 61,
+          "line": 284
+        },
+        "start": {
+          "column": 28,
+          "line": 284
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "206",
+      "fingerprintSha256": "445ca96663745c3d6ab05264143f2a46857db871c91f75a24c20b811d91febfc",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      taskId: task.id,\n      expectedScheduledAt: scheduledAt,\n      ...(nextScheduledAt === undefined ? {} : { nextScheduledAt }),\n      overlap: task.overlap,\n      leaseMs: this.options.leaseMs,\n    }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 291
+        },
+        "start": {
+          "column": 50,
+          "line": 285
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "211",
+      "fingerprintSha256": "c89a48d1ef603507a79f34356bbbc96499a922e751b5eae0caaefc6cf8fc414b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "(this.activeTaskCounts.get(task.id) ?? 0) > 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 292
+        },
+        "start": {
+          "column": 27,
+          "line": 292
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "214",
+      "fingerprintSha256": "fe33b656184312e7d5ce4f7b4799235bb2aa0a6fac7b58ceac9c63b4f361984a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "(this.activeTaskCounts.get(task.id) ?? 0) > 0",
+      "mutatorName": "EqualityOperator",
+      "replacement": "(this.activeTaskCounts.get(task.id) ?? 0) <= 0",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 292
+        },
+        "start": {
+          "column": 27,
+          "line": 292
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "213",
+      "fingerprintSha256": "21cc7bf008df5110f7d66190e9969167775c6eeb392f6cff40f3f8f7238ef0f8",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "(this.activeTaskCounts.get(task.id) ?? 0) > 0",
+      "mutatorName": "EqualityOperator",
+      "replacement": "(this.activeTaskCounts.get(task.id) ?? 0) >= 0",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 292
+        },
+        "start": {
+          "column": 27,
+          "line": 292
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "216",
+      "fingerprintSha256": "31c2451a21d150c4e7acfb083102569c4908e24d7a5e6ecc95c05e0b0359b670",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.coordination === \"local\"\n      && task.overlap !== \"parallel\"\n      && locallyActive",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 23,
+          "line": 297
+        },
+        "start": {
+          "column": 7,
+          "line": 295
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "218",
+      "fingerprintSha256": "d41aa57cde631b7749700449b667dea80e103ea7c9c43dbfb96bb432378a30b7",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.coordination === \"local\"\n      && task.overlap !== \"parallel\"\n      && locallyActive",
+      "mutatorName": "LogicalOperator",
+      "replacement": "resolved.coordination === \"local\" && task.overlap !== \"parallel\" || locallyActive",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 23,
+          "line": 297
+        },
+        "start": {
+          "column": 7,
+          "line": 295
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "241",
+      "fingerprintSha256": "1a98adf3bf1bf01bc89719bdb345f6289d8058700333b8fa440a70689925877c",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.stopRequested",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 5,
+      "location": {
+        "end": {
+          "column": 27,
+          "line": 314
+        },
+        "start": {
+          "column": 9,
+          "line": 314
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "247",
+      "fingerprintSha256": "0555a8cda514b98e2ac197415a27338e0d2e1a2b205a5f9c33d1b5a66b926ebf",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.coordination === \"distributed\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 319
+        },
+        "start": {
+          "column": 9,
+          "line": 319
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "248",
+      "fingerprintSha256": "04fc27c170f9cf2e6f51fb1ee603edda03b10f461d8cdf29781b2d2af7a4f014",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.coordination === \"distributed\"",
+      "mutatorName": "EqualityOperator",
+      "replacement": "resolved.coordination !== \"distributed\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 319
+        },
+        "start": {
+          "column": 9,
+          "line": 319
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "244",
+      "fingerprintSha256": "baaf3569a695eabba5c360d50f3ff07f53851293d1ad7001c81a6b2b46f145ac",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.coordination === \"distributed\" && task.overlap !== \"parallel\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 319
+        },
+        "start": {
+          "column": 9,
+          "line": 319
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "246",
+      "fingerprintSha256": "db2c088e636cab13a9820a32e85812c6fa23cee0d9443f56e0f69a89783e28a7",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.coordination === \"distributed\" && task.overlap !== \"parallel\"",
+      "mutatorName": "LogicalOperator",
+      "replacement": "resolved.coordination === \"distributed\" || task.overlap !== \"parallel\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 319
+        },
+        "start": {
+          "column": 9,
+          "line": 319
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "250",
+      "fingerprintSha256": "39c6e6fbff13b622059f26dd49aa88c82cfd9b0e8734563c2a1ce140935b8f4d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "task.overlap !== \"parallel\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 319
+        },
+        "start": {
+          "column": 52,
+          "line": 319
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "252",
+      "fingerprintSha256": "f4c8da2855f9e6cef2da12b54b3afee1b39f96726bb18f7e3d22b32d2c4aae95",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "\"parallel\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 319
+        },
+        "start": {
+          "column": 69,
+          "line": 319
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "254",
+      "fingerprintSha256": "f7fde8738b38384f1cd41670fb7463009141fa1bf115bb1fa58076c2976b8050",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "lock === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 320
+        },
+        "start": {
+          "column": 11,
+          "line": 320
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "256",
+      "fingerprintSha256": "7e38acbc49f3466b1ec7f38a635a56492e81d6d0ad5064dc9d9814bc93bc2221",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "lock === undefined",
+      "mutatorName": "EqualityOperator",
+      "replacement": "lock !== undefined",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 320
+        },
+        "start": {
+          "column": 11,
+          "line": 320
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "263",
+      "fingerprintSha256": "d51b4d60a5f687b1d7ed6c44fd0316059eee1b8c2f8521a00a2a68b38d8e4da9",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      const result = await adapter.reserve(request);\n\n      if (result.status !== \"reserved\") {\n        await releaseLock();\n        return undefined;\n      }\n\n      if (this.stopRequested) {\n        // Undo a late reservation instead of handing a stopped scheduler new work.\n        try { await adapter.release(result.reservation); }\n        finally { await releaseLock(); }\n        return undefined;\n      }\n\n      // The invocation now owns lock release, including its failure paths.\n      lockOwned = false;\n      const invocation = this.runInvocation(resolved, result.reservation, lock)\n        .catch((error: unknown) => {\n          // Invocation errors are contained so one task cannot stop admission.\n          this.reportError(error);\n        });\n      this.activeInvocations.add(invocation);\n      this.activeTaskCounts.set(\n        task.id,\n        (this.activeTaskCounts.get(task.id) ?? 0) + 1,\n      );\n      void invocation.finally(() => {\n        this.activeInvocations.delete(invocation);\n        const remaining = (this.activeTaskCounts.get(task.id) ?? 1) - 1;\n        if (remaining === 0) {\n          this.activeTaskCounts.delete(task.id);\n        } else {\n          this.activeTaskCounts.set(task.id, remaining);\n        }\n      });\n      return { invocation };\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 365
+        },
+        "start": {
+          "column": 9,
+          "line": 328
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "269",
+      "fingerprintSha256": "3865119898a80fae520387e1338066583cd331d868cf425bb807c009cb8ca043",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "this.stopRequested",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 6,
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 336
+        },
+        "start": {
+          "column": 11,
+          "line": 336
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "295",
+      "fingerprintSha256": "762ad490c0cae29957480745b1586a1aab65a0e44195a920310b9618e8212efb",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.coordination !== \"distributed\"\n      || resolved.task.overlap === \"parallel\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 376
+        },
+        "start": {
+          "column": 7,
+          "line": 375
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "302",
+      "fingerprintSha256": "5e4b41b476686bb0e8342328aeea3238295568a457911de4887bf76685815de6",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "resolved.task.overlap === \"parallel\"",
+      "mutatorName": "EqualityOperator",
+      "replacement": "resolved.task.overlap !== \"parallel\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 376
+        },
+        "start": {
+          "column": 10,
+          "line": 376
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "304",
+      "fingerprintSha256": "e1f1f6ef4a71c991bab13444b9038b45e9b85c25d4c92bee8a3e95366927c0d7",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      return undefined;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 379
+        },
+        "start": {
+          "column": 7,
+          "line": 377
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "307",
+      "fingerprintSha256": "bb157937c159d0136fefcd611f3ca5d1872cdde5f4d8164eff31765bd78b925f",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n    let error: unknown;\n    let failed = false;\n    // Failure presence is separate from its value: JavaScript can throw undefined or null.\n    const captureFailure = (failure: unknown): void => {\n      if (!failed) {\n        failed = true;\n        error = failure;\n      }\n    };\n    // Ownership failure cancels this invocation without cancelling sibling tasks.\n    const invocationAbort = new AbortController();\n    const signal = AbortSignal.any([this.executionSignal, invocationAbort.signal]);\n    const maintenance = this.keepOwnershipAlive(\n      resolved.adapter,\n      reservation,\n      lock,\n      signal,\n      (failure) => {\n        // AbortSignal normalizes undefined; retain the backend's raw cause separately.\n        captureFailure(failure);\n        invocationAbort.abort(failure);\n      },\n    );\n    let execution: ExecutionScope<Config> | undefined;\n    let completedAt = this.now();\n    let deferredDelayMs: number | undefined;\n\n    try {\n      execution = await this.app.createExecutionScope();\n      if (\n        execution.container.hasRegistration(\n          setExecutionLogEnabledDependency.id,\n        )\n      ) {\n        execution.container.resolve(setExecutionLogEnabledDependency)(\n          resolved.task.executionLog,\n        );\n      }\n      setExecutionLogContext(execution.context, {\n        operation: resolved.task.id,\n        transport: \"scheduled-task\",\n        workload: \"scheduled-tasks\",\n      });\n      const observer = resolved.task.observe\n        ? this.resolveObserver(execution)\n        : undefined;\n      const startedAt = performance.now();\n      const deferral = createNextRunDeferral();\n      let outcome: \"failure\" | \"success\" = \"failure\";\n\n      await this.app.runInObservationContext(observer, async () => {\n        observer?.record(executionStartedObservation, {\n          operation: resolved.task.id,\n          transport: \"scheduled-task\",\n        });\n\n        try {\n          const dependencies = await execution!.container.resolveDependenciesAsync(\n            resolved.task.dependencies,\n          );\n          await resolved.task.handler(dependencies, {\n            signal,\n            scheduledAt: reservation.scheduledAt,\n            trigger: reservation.trigger,\n            deferNextRun: deferral.deferNextRun,\n          });\n          if (invocationAbort.signal.aborted) throw invocationAbort.signal.reason;\n          outcome = \"success\";\n        } catch (handlerError) {\n          captureFailure(handlerError);\n        } finally {\n          completedAt = this.now();\n          deferredDelayMs = deferral.delayMs;\n          observer?.record(\n            executionCompletedObservation,\n            {\n              operation: resolved.task.id,\n              transport: \"scheduled-task\",\n              ...getExecutionObservationContext(execution!.context),\n              ...(!failed\n                ? {}\n                : getExecutionObservationError(error)),\n            },\n            {\n              outcome,\n              durationMs: performance.now() - startedAt,\n            },\n          );\n          await execution!.dispose(outcome);\n        }\n      });\n    } catch (executionError) {\n      captureFailure(executionError);\n      completedAt = this.now();\n      if (execution !== undefined) {\n        // Disposal is idempotent when the observed callback already reached it.\n        await execution.dispose(\"failure\").catch(() => undefined);\n      }\n    } finally {\n      try {\n        await maintenance.close();\n      } catch (maintenanceError) {\n        captureFailure(maintenanceError);\n      }\n      const nextScheduledAt = reservation.trigger === \"scheduled\"\n        && resolved.task.schedule.kind === \"loop\"\n        ? resolved.task.schedule.next({\n            scheduledAt: reservation.scheduledAt,\n            completedAt,\n          })\n        : undefined;\n      const postponeUntil = reservation.trigger === \"scheduled\"\n        && deferredDelayMs !== undefined\n        ? new Date(completedAt.getTime() + deferredDelayMs)\n        : undefined;\n      try {\n        await resolved.adapter.complete({\n          taskId: reservation.taskId,\n          reservationToken: reservation.reservationToken,\n          completedAt,\n          ...(nextScheduledAt === undefined ? {} : { nextScheduledAt }),\n          ...(postponeUntil === undefined ? {} : { postponeUntil }),\n          outcome: failed ? \"failure\" : \"success\",\n          ...(!failed\n            ? {}\n            : { error: serializeScheduledTaskError(error) }),\n        });\n      } catch (completionError) {\n        captureFailure(completionError);\n      }\n\n      try {\n        await lock?.release();\n      } catch (releaseError) {\n        captureFailure(releaseError);\n      }\n    }\n\n    if (failed) {\n      this.reportError(error);\n    }\n  }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 533
+        },
+        "start": {
+          "column": 20,
+          "line": 391
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "319",
+      "fingerprintSha256": "6cedae2eb68416c1ae02117429afc478720b92175f536d63c28bf39134500d50",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n      execution = await this.app.createExecutionScope();\n      if (\n        execution.container.hasRegistration(\n          setExecutionLogEnabledDependency.id,\n        )\n      ) {\n        execution.container.resolve(setExecutionLogEnabledDependency)(\n          resolved.task.executionLog,\n        );\n      }\n      setExecutionLogContext(execution.context, {\n        operation: resolved.task.id,\n        transport: \"scheduled-task\",\n        workload: \"scheduled-tasks\",\n      });\n      const observer = resolved.task.observe\n        ? this.resolveObserver(execution)\n        : undefined;\n      const startedAt = performance.now();\n      const deferral = createNextRunDeferral();\n      let outcome: \"failure\" | \"success\" = \"failure\";\n\n      await this.app.runInObservationContext(observer, async () => {\n        observer?.record(executionStartedObservation, {\n          operation: resolved.task.id,\n          transport: \"scheduled-task\",\n        });\n\n        try {\n          const dependencies = await execution!.container.resolveDependenciesAsync(\n            resolved.task.dependencies,\n          );\n          await resolved.task.handler(dependencies, {\n            signal,\n            scheduledAt: reservation.scheduledAt,\n            trigger: reservation.trigger,\n            deferNextRun: deferral.deferNextRun,\n          });\n          if (invocationAbort.signal.aborted) throw invocationAbort.signal.reason;\n          outcome = \"success\";\n        } catch (handlerError) {\n          captureFailure(handlerError);\n        } finally {\n          completedAt = this.now();\n          deferredDelayMs = deferral.delayMs;\n          observer?.record(\n            executionCompletedObservation,\n            {\n              operation: resolved.task.id,\n              transport: \"scheduled-task\",\n              ...getExecutionObservationContext(execution!.context),\n              ...(!failed\n                ? {}\n                : getExecutionObservationError(error)),\n            },\n            {\n              outcome,\n              durationMs: performance.now() - startedAt,\n            },\n          );\n          await execution!.dispose(outcome);\n        }\n      });\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 483
+        },
+        "start": {
+          "column": 9,
+          "line": 419
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "320",
+      "fingerprintSha256": "d07f7497e06fcd3f23cbf52e4ff1170141e1cf1aaf97a841baf0bcb02076cd2c",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "execution.container.hasRegistration(\n          setExecutionLogEnabledDependency.id,\n        )",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 424
+        },
+        "start": {
+          "column": 9,
+          "line": 422
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "325",
+      "fingerprintSha256": "bc82db8fc75e52555efa78368354a3d96c7aee2ca3e27bed9fd0a8d8c1b449c8",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n        operation: resolved.task.id,\n        transport: \"scheduled-task\",\n        workload: \"scheduled-tasks\",\n      }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 434
+        },
+        "start": {
+          "column": 49,
+          "line": 430
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "330",
+      "fingerprintSha256": "27e51e4672f1ae9d794a1bc5d73a15563fd424f2c6b8298bc3bb9e3a29ab72a7",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "observer?.record",
+      "mutatorName": "OptionalChaining",
+      "replacement": "observer.record",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 25,
+          "line": 443
+        },
+        "start": {
+          "column": 9,
+          "line": 443
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "333",
+      "fingerprintSha256": "51dff775b785cf0d622d41ffc441167af2e69d697d85b787a621d256cca6059d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n          const dependencies = await execution!.container.resolveDependenciesAsync(\n            resolved.task.dependencies,\n          );\n          await resolved.task.handler(dependencies, {\n            signal,\n            scheduledAt: reservation.scheduledAt,\n            trigger: reservation.trigger,\n            deferNextRun: deferral.deferNextRun,\n          });\n          if (invocationAbort.signal.aborted) throw invocationAbort.signal.reason;\n          outcome = \"success\";\n        }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 460
+        },
+        "start": {
+          "column": 13,
+          "line": 448
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "504",
+      "fingerprintSha256": "bbb022d12da682b05883afc173aea83cccd1e051168f0803b0dc90e03f2e0d88",
+      "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+      "original": "{\n  if (left === undefined) {\n    return right;\n  }\n  if (right === undefined) {\n    return left;\n  }\n  return left < right ? left : right;\n}",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 2,
+          "line": 663
+        },
+        "start": {
+          "column": 21,
+          "line": 655
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    }
+  ],
+  "vitestDeadlineKillCount": 53,
+  "beforeVitestDeadlineKillCount": 2,
+  "killedWithoutReportedVitestDeadline": 366,
+  "commonPriorAssertionKillsNowTimeout": [
+    "1c3cdea7b6249d8f4c41ff971fad2d77e7c9766c949b2424b54e94310ae65bd2",
+    "d96fb330525c2e9fef489bd51d9b33885d905d801964408d20e3947d9aae7290",
+    "9d9ee0b2dcee2235c7e22bf772d82e0bd49932aacbfeb2ae4f21847885e3c36d",
+    "25507a09ac0e35e8944cb5bacee8b33d8c16edcabdf29837cd2ee52c0f248df6",
+    "b43b966638a19b8b3b8132b6aef6689cb686787eb46879c0471bb31fd08c26f5",
+    "d209ddb31600883988a58a0ae15171aeb828849707f0117a5f8de8e46884fdb1",
+    "1ae0bb3e9f1786dfb2b39e0ea9b05540a38947c9740b2f2516fbc49cfe7510bb",
+    "2f4969258cc0a69ed5581cf999a6ec86ce21ae4d3ab05ae68e23281896e9880a"
+  ],
+  "commonPriorDetectionsLost": [],
+  "command": "npm run test:mutation:scheduled-runtime",
+  "newTestCases": 78,
+  "seconds": {
+    "before": 66,
+    "after": 312
+  },
+  "baselineTests": {
+    "before": 377,
+    "after": 533
+  },
+  "review": "assessed with material start, cancellation, wait/skip, timer pacing/cleanup and competing-date gaps retained",
+  "bugsFound": [
+    "Concurrent and reentrant startup failed to publish scheduler/runtime ownership before asynchronous initialization.",
+    "Stop could end before reconciliation/admission and admit late work instead of returning its acquired resources.",
+    "Lease refusal did not cancel the affected invocation and sibling renewal rejection could end cleanup before every renewal settled.",
+    "Undefined handler failure was persisted as success, and undefined renewal failure was normalized into AbortError instead of retaining the raw cause."
+  ],
+  "scorePolicy": "Keep all residuals and Timeout statuses visible. No exclusions, adjusted score or blocking threshold."
+}

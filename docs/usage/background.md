@@ -44,7 +44,7 @@ Run workloads in separate processes when they need different capacity or deploym
 ./do run workflows
 ```
 
-Use the same application definition in each process with shared persistent adapters. The combined runtime coordinates startup and shutdown; it does not provide additional job durability. On partial startup failure it stops the workloads already started. During shutdown each scheduler drains or cancels according to its policy, and cleanup failures are reported after all cleanup attempts.
+Use the same application definition in each process with shared persistent adapters. The combined runtime coordinates startup and shutdown; it does not provide additional job durability. On partial startup failure it stops every workload whose startup was attempted, including the partially initialized workload. During shutdown each scheduler drains or cancels according to its policy, and cleanup failures are reported after all cleanup attempts, including when a stop callback throws synchronously.
 
 Continue with [workers](./workers.md), [scheduled tasks](./scheduled_tasks.md) or [workflows](./workflows.md) for workload-specific recipes.
 

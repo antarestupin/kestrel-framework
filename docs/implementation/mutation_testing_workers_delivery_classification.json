@@ -1,0 +1,1130 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Selected scheduler.ts ranges: runOnce/runLoop/executeCycle, individual and batch execution, outcome flush, and retry/failure construction helpers. Admission/throttling internals, reservation allocation, option normalization, heartbeat internals and scheduler start/stop remain outside this mutation profile.",
+  "command": "npm run test:mutation:workers-delivery",
+  "budgetMs": 600000,
+  "modeNote": "Bounded focused component profile; ignoreStatic=False. Static mutants remain enabled in these focused profiles. SQL text is not comprehensively mutated by Stryker; exported schema contracts do not substitute for a production migration/application test.",
+  "beforeReport": "artifacts/mutation/workers-delivery-before-two-hour-tests/mutation.json",
+  "report": "artifacts/mutation/workers-delivery/mutation.json",
+  "beforeCounts": {
+    "Timeout": 3,
+    "Survived": 54,
+    "Killed": 168,
+    "NoCoverage": 38
+  },
+  "counts": {
+    "Killed": 271,
+    "Survived": 35,
+    "Timeout": 5,
+    "NoCoverage": 2
+  },
+  "newTestCases": 23,
+  "bugEvidence": {
+    "before": "Public gated cycle regressions failed against the original source: a failed correlated handoff or queue transition ended the cycle while a sibling write was pending; an execution-scope opening failure ended the cycle before a sibling handler finished or persisted its successful outcome.",
+    "fix": "Use allSettled at invocation, correlated-result and queue-transition boundaries. Normalize synchronous sink/adapter throws into promises, retain every error, persist fulfilled peer outcomes, and retain heartbeat protection until all already-owned work settles.",
+    "tests": "Twenty-three new delivery contract cases; existing handoff-start gates now use bounded fake-timer turns and direct start assertions rather than timeout-based detection.",
+    "productionChanges": [
+      "src/packages/kestrel/src/workers/scheduler.ts"
+    ]
+  },
+  "comparison": {
+    "beforeMutants": 263,
+    "afterMutants": 313,
+    "matchedSites": 258,
+    "beforeUnmatched": 5,
+    "afterUnmatched": 55,
+    "matchedTransitions": [
+      {
+        "before": "Killed",
+        "after": "Killed",
+        "count": 164
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Killed",
+        "count": 29
+      },
+      {
+        "before": "Survived",
+        "after": "Killed",
+        "count": 26
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Survived",
+        "count": 7
+      },
+      {
+        "before": "Survived",
+        "after": "Survived",
+        "count": 24
+      },
+      {
+        "before": "Survived",
+        "after": "Timeout",
+        "count": 4
+      },
+      {
+        "before": "NoCoverage",
+        "after": "NoCoverage",
+        "count": 2
+      },
+      {
+        "before": "Timeout",
+        "after": "Timeout",
+        "count": 1
+      },
+      {
+        "before": "Timeout",
+        "after": "Killed",
+        "count": 1
+      }
+    ],
+    "priorKillsNoLongerKilled": [],
+    "policy": "Match normalized original/operator/replacement/occurrence, not numeric IDs or line numbers. Whole bodies changed by a production fix are different variants; total-count score movement alone does not prove a same-corpus improvement."
+  },
+  "vitestTimeoutKills": 0,
+  "timeoutDrivenDetections": [],
+  "remainingCategoryCounts": {
+    "equivalent active-cycle ownership guard": 1,
+    "protective loop or timeout detection": 5,
+    "deferred busy-poll timing policy": 1,
+    "deferred empty-reservation backend avoidance": 2,
+    "equivalent post-single-error count guard": 3,
+    "unconstrained diagnostic text": 8,
+    "conditional final deferral-drain redundancy": 1,
+    "deferred failed-reservation cleanup lifetime": 2,
+    "unconstrained explicit-undefined outcome metadata": 5,
+    "deferred duplicate correlated-result overwrite": 3,
+    "deferred duplicate acknowledgement work": 3,
+    "deferred mutable/manual batch-failure boundary": 2,
+    "deferred observed batch-failure classification": 2,
+    "deferred uncorrelated individual sink filtering": 1,
+    "deferred unknown-queue integrity guard": 3
+  },
+  "remaining": [
+    {
+      "fingerprint": "7a006fc0935a4167529ed90a0968f273c589481802aba0d4a31c9df5eb3e5e98",
+      "sampleId": "6",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 313
+        },
+        "start": {
+          "column": 11,
+          "line": 313
+        }
+      },
+      "original": "this.activeCycle === cycle",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 58,
+      "classification": "equivalent active-cycle ownership guard",
+      "reason": "runOnce returns the existing activeCycle while it is defined; no intervening cycle can replace it before this finally executes. Clearing the current cycle unconditionally therefore preserves the public coalescing invariant in this implementation."
+    },
+    {
+      "fingerprint": "434a8bf6beee0a8b8a503249fbbeed00a6412d43a8ea645fd45e53b0db29c766",
+      "sampleId": "13",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 343
+        },
+        "start": {
+          "column": 29,
+          "line": 323
+        }
+      },
+      "original": "{\n      let handled = 0;\n\n      try {\n        handled = await this.runOnce();\n      } catch (error) {\n        // A transient backend failure must not permanently stop the process.\n        // The bootstrap supplies structured logging through this callback.\n        this.reportError(error);\n      }\n\n      if (handled === 0) {\n        try {\n          await this.sleep(this.pollIntervalMs, signal);\n        } catch (error) {\n          if (!signal.aborted) {\n            throw error;\n          }\n        }\n      }\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "protective loop or timeout detection",
+      "reason": "Hit limit reached (601/600)"
+    },
+    {
+      "fingerprint": "d3961a09fd6f0efd377fac30592d9027bcf1c60e443e63bb576c37c243df4f6c",
+      "sampleId": "18",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 334
+        },
+        "start": {
+          "column": 11,
+          "line": 334
+        }
+      },
+      "original": "handled === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "protective loop or timeout detection",
+      "reason": "Hit limit reached (601/600)"
+    },
+    {
+      "fingerprint": "674023613600346c89e612e0566cf84e77a7cefea8dc7f943b309d52108a1e6f",
+      "sampleId": "17",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 334
+        },
+        "start": {
+          "column": 11,
+          "line": 334
+        }
+      },
+      "original": "handled === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "deferred busy-poll timing policy",
+      "reason": "Always taking the idle-delay branch also sleeps after a productive cycle. Jobs still finish, but throughput and next-delivery latency change. The tests cover idle failure/cancellation, not the requirement to poll immediately after busy cycles."
+    },
+    {
+      "fingerprint": "cf77a6ab780a0a8b90c701db25ab4ffcff916d4f7b2326c21fe9da90206cf4c8",
+      "sampleId": "19",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 334
+        },
+        "start": {
+          "column": 11,
+          "line": 334
+        }
+      },
+      "original": "handled === 0",
+      "mutatorName": "EqualityOperator",
+      "replacement": "handled !== 0",
+      "occurrence": 0,
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "protective loop or timeout detection",
+      "reason": "Hit limit reached (601/600)"
+    },
+    {
+      "fingerprint": "3ecac8e4944808912f5a2409d937f76dcab65f24263864951185c8a4ccaff60e",
+      "sampleId": "20",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 342
+        },
+        "start": {
+          "column": 26,
+          "line": 334
+        }
+      },
+      "original": "{\n        try {\n          await this.sleep(this.pollIntervalMs, signal);\n        } catch (error) {\n          if (!signal.aborted) {\n            throw error;\n          }\n        }\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "protective loop or timeout detection",
+      "reason": "Hit limit reached (601/600)"
+    },
+    {
+      "fingerprint": "3695cefac6130c6c331728affb44387b4c5b3bdb6898227f65be36b16d266115",
+      "sampleId": "21",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 337
+        },
+        "start": {
+          "column": 13,
+          "line": 335
+        }
+      },
+      "original": "{\n          await this.sleep(this.pollIntervalMs, signal);\n        }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Timeout",
+      "testsCompleted": 0,
+      "classification": "protective loop or timeout detection",
+      "reason": "Hit limit reached (601/600)"
+    },
+    {
+      "fingerprint": "cdc67adc702766459934188ab1376c0d79b99c6939f4a5600840f63f19422351",
+      "sampleId": "40",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 360
+        },
+        "start": {
+          "column": 9,
+          "line": 360
+        }
+      },
+      "original": "readyWorkers.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 55,
+      "classification": "deferred empty-reservation backend avoidance",
+      "reason": "Removing this shortcut can reserve with no ready worker. The memory adapter returns an empty result, so existing outcomes agree, but extra backend work or a failure of an otherwise unused backend becomes observable. The current empty-worker case does not independently reject unexpected reserve calls."
+    },
+    {
+      "fingerprint": "eebf81ee411334d76b335db3e11ef3ceb8a389d10c14f66889ae1cbee0ff770e",
+      "sampleId": "42",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 362
+        },
+        "start": {
+          "column": 36,
+          "line": 360
+        }
+      },
+      "original": "{\n      return 0;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "deferred empty-reservation backend avoidance",
+      "reason": "Removing this shortcut can reserve with no ready worker. The memory adapter returns an empty result, so existing outcomes agree, but extra backend work or a failure of an otherwise unused backend becomes observable. The current empty-worker case does not independently reject unexpected reserve calls."
+    },
+    {
+      "fingerprint": "0221957b9aae86bf0d10d044ce4ab4bc33ab37f3d8137d25c4cd16c1b50892d4",
+      "sampleId": "83",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 407
+        },
+        "start": {
+          "column": 11,
+          "line": 407
+        }
+      },
+      "original": "errors.length > 1",
+      "mutatorName": "EqualityOperator",
+      "replacement": "errors.length >= 1",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 41,
+      "classification": "equivalent post-single-error count guard",
+      "reason": "This >=1 variant follows an earlier length===1 throw with no intervening mutation or callback. Zero and multiple-error behavior remain unchanged; the single-error path cannot reach this condition."
+    },
+    {
+      "fingerprint": "1b40cffd99ac1091668e8eda3de651416cf89bd581e45da2f3216dcd7f5f1911",
+      "sampleId": "87",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 78,
+          "line": 408
+        },
+        "start": {
+          "column": 42,
+          "line": 408
+        }
+      },
+      "original": "\"Several worker transitions failed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Result validation, error categories, failure causes and durable transitions are asserted. Exact human-readable diagnostic labels remain nonblocking without exclusions."
+    },
+    {
+      "fingerprint": "eb06273919b67587349234d85a3315e533357c0022fdcda4339911a25660c38b",
+      "sampleId": "89",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 415
+        },
+        "start": {
+          "column": 11,
+          "line": 411
+        }
+      },
+      "original": "{\n        // Drain even if a correlated result handoff fails. Deferred jobs never\n        // entered a handler and must not turn into ordinary worker retries.\n        await this.deferrals.flush();\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 50,
+      "classification": "conditional final deferral-drain redundancy",
+      "reason": "All invocation promises have settled before the earlier transition drain calls deferrals.flush(), which drains and consumes its errors. The final retry is redundant while no new deferral can be enqueued after those invocations settle. This proof depends on the current ownership and buffer-drain order; re-review when that order changes."
+    },
+    {
+      "fingerprint": "0d4ec0714f39c1ba106526c1bf121f2f783ebec8505b1af8e1b5dc1c50a761bf",
+      "sampleId": "92",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 420
+        },
+        "start": {
+          "column": 19,
+          "line": 418
+        }
+      },
+      "original": "{\n          for (const job of jobs) this.leasedJobs.delete(job.id);\n        }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 50,
+      "classification": "deferred failed-reservation cleanup lifetime",
+      "reason": "Successful acknowledgement callbacks already remove confirmed references, so the completed-job cleanup case does not distinguish these variants. Failed invocation or persistence paths can retain stale local entries without the final cleanup, changing memory lifetime and later release-shutdown work. This is not semantic equivalence."
+    },
+    {
+      "fingerprint": "88c8875fca7cc40f311029e1799da8f6dac75a82643594607cf48677af182be6",
+      "sampleId": "93",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 66,
+          "line": 419
+        },
+        "start": {
+          "column": 35,
+          "line": 419
+        }
+      },
+      "original": "this.leasedJobs.delete(job.id);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 50,
+      "classification": "deferred failed-reservation cleanup lifetime",
+      "reason": "Successful acknowledgement callbacks already remove confirmed references, so the completed-job cleanup case does not distinguish these variants. Failed invocation or persistence paths can retain stale local entries without the final cleanup, changing memory lifetime and later release-shutdown work. This is not semantic equivalence."
+    },
+    {
+      "fingerprint": "f607dbf1cddd6c5ae68f4a334540d8adad46dc18d1141aee0225b17db1379c1f",
+      "sampleId": "104",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 859
+        },
+        "start": {
+          "column": 21,
+          "line": 859
+        }
+      },
+      "original": "\"A worker result can only be reported once per job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Result validation, error categories, failure causes and durable transitions are asserted. Exact human-readable diagnostic labels remain nonblocking without exclusions."
+    },
+    {
+      "fingerprint": "18aba995edac708aeb76e656b8e18e015d1fc4f9b80daa93a3c93d3bd9d6d3fe",
+      "sampleId": "116",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 54,
+          "line": 884
+        },
+        "start": {
+          "column": 23,
+          "line": 884
+        }
+      },
+      "original": "error.maxAttempts === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "unconstrained explicit-undefined outcome metadata",
+      "reason": "The branch adds an optional internal field with value undefined instead of omitting it. Defined overrides/identities are tested and downstream policy reads use undefined/nullish defaults. Own-property representation differs; unconditional JavaScript shape equivalence is not claimed."
+    },
+    {
+      "fingerprint": "c8bdb5be067a8eb082a35414c34fe27cacd370a5509728e086ad0ac0491420a0",
+      "sampleId": "128",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 930
+        },
+        "start": {
+          "column": 21,
+          "line": 930
+        }
+      },
+      "original": "\"Batch workers must return results with jobSuccess().\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Result validation, error categories, failure causes and durable transitions are asserted. Exact human-readable diagnostic labels remain nonblocking without exclusions."
+    },
+    {
+      "fingerprint": "172fac45b49bd84c13fcaa3c9dd22ffd062afb07dbb1b8b953ae28c98f2a3c40",
+      "sampleId": "136",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 943
+        },
+        "start": {
+          "column": 21,
+          "line": 943
+        }
+      },
+      "original": "`Batch result references unknown job \"${result.key}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Result validation, error categories, failure causes and durable transitions are asserted. Exact human-readable diagnostic labels remain nonblocking without exclusions."
+    },
+    {
+      "fingerprint": "ecfeba8e4c4e26ed304d1e4607c5af697f9aa91bd5f6926dfab24c40584fac2c",
+      "sampleId": "138",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 50,
+          "line": 947
+        },
+        "start": {
+          "column": 21,
+          "line": 947
+        }
+      },
+      "original": "yieldedJobIds.has(result.key)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 9,
+      "classification": "deferred duplicate correlated-result overwrite",
+      "reason": "The existing duplicate-yield case preserves an already acknowledged uncorrelated success and observes the peer failure, which does not distinguish these variants. Repeating a correlated result can overwrite its first stored result if this guard/set is removed. A correlated duplicate-yield regression is still warranted."
+    },
+    {
+      "fingerprint": "fd9602974b142f0a703ed10d4ccb1b146e86580fc5038f59c81672bc8905e80d",
+      "sampleId": "139",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 18,
+          "line": 951
+        },
+        "start": {
+          "column": 52,
+          "line": 947
+        }
+      },
+      "original": "{\n                  throw new WorkerBatchResultError(\n                    `Batch returned more than one result for job \"${result.key}\".`,\n                  );\n                }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "deferred duplicate correlated-result overwrite",
+      "reason": "The existing duplicate-yield case preserves an already acknowledged uncorrelated success and observes the peer failure, which does not distinguish these variants. Repeating a correlated result can overwrite its first stored result if this guard/set is removed. A correlated duplicate-yield regression is still warranted."
+    },
+    {
+      "fingerprint": "a32343c4c3b42a0216d4285fad8007fad3e386a84c5a032ab01e379c6f1100e5",
+      "sampleId": "141",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 83,
+          "line": 949
+        },
+        "start": {
+          "column": 21,
+          "line": 949
+        }
+      },
+      "original": "`Batch returned more than one result for job \"${result.key}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Result validation, error categories, failure causes and durable transitions are asserted. Exact human-readable diagnostic labels remain nonblocking without exclusions."
+    },
+    {
+      "fingerprint": "518b1f09f360408e5f3eb4fc7fee1e7590f6fea1094289af772a5af9cc601cdc",
+      "sampleId": "142",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 47,
+          "line": 953
+        },
+        "start": {
+          "column": 17,
+          "line": 953
+        }
+      },
+      "original": "yieldedJobIds.add(result.key);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 9,
+      "classification": "deferred duplicate correlated-result overwrite",
+      "reason": "The existing duplicate-yield case preserves an already acknowledged uncorrelated success and observes the peer failure, which does not distinguish these variants. Repeating a correlated result can overwrite its first stored result if this guard/set is removed. A correlated duplicate-yield regression is still warranted."
+    },
+    {
+      "fingerprint": "58f3e17653933c620a77a8f325bc85f725a944a0eb4f77f992d150946c1c748f",
+      "sampleId": "153",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 63,
+          "line": 960
+        },
+        "start": {
+          "column": 21,
+          "line": 960
+        }
+      },
+      "original": "eagerlyAcknowledgedJobIds.add(result.key);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "deferred duplicate acknowledgement work",
+      "reason": "A yielded uncorrelated success is already buffered/acknowledged progressively. Losing this bookkeeping may return the same success again at final or interrupted batch completion, causing redundant ACK work. Token-safe storage hides the duplicate in final job state; exact acknowledgement ownership/call counts remain unasserted."
+    },
+    {
+      "fingerprint": "a128ee4868570fa08786d8912ce00c1f90f2b852d5a7550b199f6249c2663e13",
+      "sampleId": "156",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 54,
+          "line": 967
+        },
+        "start": {
+          "column": 19,
+          "line": 967
+        }
+      },
+      "original": "validateBatchFailure(result.error);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "deferred mutable/manual batch-failure boundary",
+      "reason": "jobFail() validates ordinary helper-created failures, and both runtime guards see the tested valid objects. Manual aggregated outcomes or caller mutation of a failure object after yielding can distinguish validation at yield time from validation at outcome construction. Do not assume these guards are unconditionally redundant."
+    },
+    {
+      "fingerprint": "a14bb85e1e4ba6c93dd675c74f1075abde1804f569a22fa69abbf58184dbb44b",
+      "sampleId": "162",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 54,
+          "line": 983
+        },
+        "start": {
+          "column": 17,
+          "line": 983
+        }
+      },
+      "original": "eagerlyAcknowledgedJobIds.has(job.id)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "deferred duplicate acknowledgement work",
+      "reason": "A yielded uncorrelated success is already buffered/acknowledged progressively. Losing this bookkeeping may return the same success again at final or interrupted batch completion, causing redundant ACK work. Token-safe storage hides the duplicate in final job state; exact acknowledgement ownership/call counts remain unasserted."
+    },
+    {
+      "fingerprint": "383bd6f8c7d8c0621a26a05fe52628e5008cf0667886be36ac58601cc51243c2",
+      "sampleId": "175",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 996
+        },
+        "start": {
+          "column": 25,
+          "line": 996
+        }
+      },
+      "original": "\"failure\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "deferred observed batch-failure classification",
+      "reason": "Queue transitions treat every non-success tag as failure, so the tested retry/dead-letter outcomes persist. runObservedInvocation searches specifically for kind === \"failure\"; an empty tag can incorrectly mark the application execution successful and omit its failure context. This is an observability gap, not equivalent metadata."
+    },
+    {
+      "fingerprint": "6082af6b0d717c9c85c9dc787ed584f00d97135ba7233708e324b91a2677076e",
+      "sampleId": "184",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 59,
+          "line": 1017
+        },
+        "start": {
+          "column": 7,
+          "line": 1017
+        }
+      },
+      "original": "\"Batch must yield exactly one result for every job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Result validation, error categories, failure causes and durable transitions are asserted. Exact human-readable diagnostic labels remain nonblocking without exclusions."
+    },
+    {
+      "fingerprint": "ff0c989aac3a957436fd823e4fc22f90226e706197793e46f775b6cf1927dc8e",
+      "sampleId": "187",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 1021
+        },
+        "start": {
+          "column": 11,
+          "line": 1021
+        }
+      },
+      "original": "eagerlyAcknowledgedJobIds.has(job.id)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "deferred duplicate acknowledgement work",
+      "reason": "A yielded uncorrelated success is already buffered/acknowledged progressively. Losing this bookkeeping may return the same success again at final or interrupted batch completion, causing redundant ACK work. Token-safe storage hides the duplicate in final job state; exact acknowledgement ownership/call counts remain unasserted."
+    },
+    {
+      "fingerprint": "73375d808ee692755d9fdc0d925cff0cfa2ba91532282a7e23e81bc2d5946907",
+      "sampleId": "212",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 50,
+          "line": 1118
+        },
+        "start": {
+          "column": 13,
+          "line": 1118
+        }
+      },
+      "original": "outcome.job.correlation !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 31,
+      "classification": "deferred uncorrelated individual sink filtering",
+      "reason": "The ordinary mixed batch case eagerly acknowledges its uncorrelated peer before flushOutcomes. A successful uncorrelated individual job with a configured sink would expose this variant by sending an invalid undefined correlation to the owner. That composition remains untested here."
+    },
+    {
+      "fingerprint": "c2da77a3026a60f271db4bcb6bddad156eae790f1d9d9d45259c86428c1138b7",
+      "sampleId": "219",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 51,
+          "line": 1121
+        },
+        "start": {
+          "column": 17,
+          "line": 1121
+        }
+      },
+      "original": "outcome.job.identity === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 17,
+      "classification": "unconstrained explicit-undefined outcome metadata",
+      "reason": "The branch adds an optional internal field with value undefined instead of omitting it. Defined overrides/identities are tested and downstream policy reads use undefined/nullish defaults. Own-property representation differs; unconditional JavaScript shape equivalence is not claimed."
+    },
+    {
+      "fingerprint": "ee78a55d9cbe00bb82b8f82496af59bdd90b4df4f6f8ffcfedc5e4853e97c512",
+      "sampleId": "227",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 1137
+        },
+        "start": {
+          "column": 11,
+          "line": 1137
+        }
+      },
+      "original": "worker === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 18,
+      "classification": "deferred unknown-queue integrity guard",
+      "reason": "Conforming adapters reserve configured queues and tests preserve job metadata. The unknown-queue failure boundary is therefore not exercised; a malformed adapter result or handler mutation of job.queue can distinguish the controlled error from a later native TypeError. The diagnostic and defensive variants remain raw NoCoverage/Survived, not excluded."
+    },
+    {
+      "fingerprint": "65a2894ab46de87e86c363632c23f25385dc2659852a4f3cb053be64feb675e7",
+      "sampleId": "229",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 1139
+        },
+        "start": {
+          "column": 33,
+          "line": 1137
+        }
+      },
+      "original": "{\n        throw new Error(`No worker consumes queue \"${outcome.job.queue}\".`);\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "classification": "deferred unknown-queue integrity guard",
+      "reason": "Conforming adapters reserve configured queues and tests preserve job metadata. The unknown-queue failure boundary is therefore not exercised; a malformed adapter result or handler mutation of job.queue can distinguish the controlled error from a later native TypeError. The diagnostic and defensive variants remain raw NoCoverage/Survived, not excluded."
+    },
+    {
+      "fingerprint": "b9e090fe0f64fb8b63f386742c6d972f4161aadf8d2e86527b54466033c58df8",
+      "sampleId": "231",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 1138
+        },
+        "start": {
+          "column": 25,
+          "line": 1138
+        }
+      },
+      "original": "`No worker consumes queue \"${outcome.job.queue}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "classification": "deferred unknown-queue integrity guard",
+      "reason": "Conforming adapters reserve configured queues and tests preserve job metadata. The unknown-queue failure boundary is therefore not exercised; a malformed adapter result or handler mutation of job.queue can distinguish the controlled error from a later native TypeError. The diagnostic and defensive variants remain raw NoCoverage/Survived, not excluded."
+    },
+    {
+      "fingerprint": "1726b5ccfba6b2aead03f1d2a627be56ef8574dcf70929f8d3a6b9f89f0a7baf",
+      "sampleId": "245",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 51,
+          "line": 1147
+        },
+        "start": {
+          "column": 17,
+          "line": 1147
+        }
+      },
+      "original": "outcome.job.identity === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "unconstrained explicit-undefined outcome metadata",
+      "reason": "The branch adds an optional internal field with value undefined instead of omitting it. Defined overrides/identities are tested and downstream policy reads use undefined/nullish defaults. Own-property representation differs; unconditional JavaScript shape equivalence is not claimed."
+    },
+    {
+      "fingerprint": "d612c896a35728c92dd2839fe1b8bcd8d2b952509865f579536b23134f50d4c5",
+      "sampleId": "269",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 1178
+        },
+        "start": {
+          "column": 9,
+          "line": 1178
+        }
+      },
+      "original": "handoffErrors.length > 1",
+      "mutatorName": "EqualityOperator",
+      "replacement": "handoffErrors.length >= 1",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 47,
+      "classification": "equivalent post-single-error count guard",
+      "reason": "This >=1 variant follows an earlier length===1 throw with no intervening mutation or callback. Zero and multiple-error behavior remain unchanged; the single-error path cannot reach this condition."
+    },
+    {
+      "fingerprint": "f16cfabf797275346f5d529111bd34d39cf76249ebdaee8b5140081023b26ac5",
+      "sampleId": "273",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 87,
+          "line": 1179
+        },
+        "start": {
+          "column": 47,
+          "line": 1179
+        }
+      },
+      "original": "\"Several worker result handoffs failed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Result validation, error categories, failure causes and durable transitions are asserted. Exact human-readable diagnostic labels remain nonblocking without exclusions."
+    },
+    {
+      "fingerprint": "6f5c1d22d65a7e03e393a20672d410d6318f7ce76b7f1db89a84c84e22793415",
+      "sampleId": "297",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 1200
+        },
+        "start": {
+          "column": 9,
+          "line": 1200
+        }
+      },
+      "original": "transitionErrors.length > 1",
+      "mutatorName": "EqualityOperator",
+      "replacement": "transitionErrors.length >= 1",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 44,
+      "classification": "equivalent post-single-error count guard",
+      "reason": "This >=1 variant follows an earlier length===1 throw with no intervening mutation or callback. Zero and multiple-error behavior remain unchanged; the single-error path cannot reach this condition."
+    },
+    {
+      "fingerprint": "ac81c04c606bff8c22e3398f5eb65373bd2517186e5e15de161ebe976b072116",
+      "sampleId": "301",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 92,
+          "line": 1201
+        },
+        "start": {
+          "column": 50,
+          "line": 1201
+        }
+      },
+      "original": "\"Several worker queue transitions failed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "Result validation, error categories, failure causes and durable transitions are asserted. Exact human-readable diagnostic labels remain nonblocking without exclusions."
+    },
+    {
+      "fingerprint": "7b00598442a80f911eba66218344b9d702c921615c674e260ba5f20692a1f41c",
+      "sampleId": "314",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 1238
+        },
+        "start": {
+          "column": 3,
+          "line": 1238
+        }
+      },
+      "original": "validateBatchFailure(failure);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "deferred mutable/manual batch-failure boundary",
+      "reason": "jobFail() validates ordinary helper-created failures, and both runtime guards see the tested valid objects. Manual aggregated outcomes or caller mutation of a failure object after yielding can distinguish validation at yield time from validation at outcome construction. Do not assume these guards are unconditionally redundant."
+    },
+    {
+      "fingerprint": "d2fab9817e74b5bb0a1568391c768bfc3b93f38ea8ed370e544c3d913d8abaa5",
+      "sampleId": "316",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 20,
+          "line": 1241
+        },
+        "start": {
+          "column": 11,
+          "line": 1241
+        }
+      },
+      "original": "\"failure\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 3,
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "deferred observed batch-failure classification",
+      "reason": "Queue transitions treat every non-success tag as failure, so the tested retry/dead-letter outcomes persist. runObservedInvocation searches specifically for kind === \"failure\"; an empty tag can incorrectly mark the application execution successful and omit its failure context. This is an observability gap, not equivalent metadata."
+    },
+    {
+      "fingerprint": "5e07945a3906e85e6f07d33c1f1aed214e7e8a009687976a1aa548ed95734842",
+      "sampleId": "318",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 1244
+        },
+        "start": {
+          "column": 9,
+          "line": 1244
+        }
+      },
+      "original": "failure.retryDelayMs === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "unconstrained explicit-undefined outcome metadata",
+      "reason": "The branch adds an optional internal field with value undefined instead of omitting it. Defined overrides/identities are tested and downstream policy reads use undefined/nullish defaults. Own-property representation differs; unconditional JavaScript shape equivalence is not claimed."
+    },
+    {
+      "fingerprint": "72e34f219efc0eebe85d030658965d7d7f703814a8fe3d002d0459ccb6e54c01",
+      "sampleId": "322",
+      "file": "src/packages/kestrel/src/workers/scheduler.ts",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 1247
+        },
+        "start": {
+          "column": 9,
+          "line": 1247
+        }
+      },
+      "original": "failure.maxAttempts === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "unconstrained explicit-undefined outcome metadata",
+      "reason": "The branch adds an optional internal field with value undefined instead of omitting it. Defined overrides/identities are tested and downstream policy reads use undefined/nullish defaults. Own-property representation differs; unconditional JavaScript shape equivalence is not claimed."
+    }
+  ],
+  "scorePolicy": "Preserve every raw status. No exclusions, adjusted score, or blocking threshold. Deferred fault injection and data-shape differences are not unconditional semantic equivalences.",
+  "deferred": "Prioritize correlated duplicate-yield preservation, failed-reservation local cleanup, uncorrelated individual sink filtering, busy-poll latency and empty-backend avoidance. Manual/mutable failure data and observed failure tags are also not proved equivalent. Five raw Stryker hit-limit detections protect busy-loop variants; they are separate from direct assertion kills.",
+  "sourceAndTestHashes": {
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "d8eb58bb419220feecb823742b2e514c05ca3208a9bb0d995856ab88657be182",
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.ts": "0d671ddd0899357500be19be08624ed10f8b1046bd59900212da49e1a78e9466",
+    "src/packages/kestrel/src/workers/adapter_definition.ts": "7c2549c2903b9ca5bdd1aff1490d2662be846f34edcec2cde85f5a6a9304b6c5",
+    "src/packages/kestrel/src/workers/adapters/index.ts": "23cb3253606abad68d13b8f35d2e4ad9a0f0307a617bbcfb3d948c5a6fb83ac6",
+    "src/packages/kestrel/src/workers/adapters/memory/adapter.test.ts": "39fec985ea5bcc7902768104640ff465f60a6f980158bc8530269713dd6d8b4d",
+    "src/packages/kestrel/src/workers/adapters/memory/adapter.ts": "1994c9e0e12a4d6010b402b7b7d72f659ca88ec36d10fe32993c3454f0086721",
+    "src/packages/kestrel/src/workers/adapters/memory/definition.test.ts": "4f54129de0c21fdabb8f0a4807ca80fb96fc29921b0f2b9cbc8cd57158555d20",
+    "src/packages/kestrel/src/workers/adapters/memory/definition.ts": "6fff8e8cc43ac4205c33a76eb1f07dfaa35a83903d9554256458a5c724b4fc17",
+    "src/packages/kestrel/src/workers/adapters/memory/index.ts": "43e6e1ee685d12449705c346edecc45304297c9e60eb7613f4679578e5e81002",
+    "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts": "800a78a25a2a28e15d6cc519a3d6e8d8c477511cfcfac935496427565cced686",
+    "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts": "3e5136f258f04309f0c1deeb1824af34ea4f5e19c929486da9a2b5baaba25a2c",
+    "src/packages/kestrel/src/workers/adapters/postgres/definition.test.ts": "6a9436ceb30d32459f73a177b7440a4f136d43b352e7a29e30b33fd734de2e53",
+    "src/packages/kestrel/src/workers/adapters/postgres/definition.ts": "91dd76912c93f9876a1881e9cb0fb67232a0c8d4ae5d6e8fbf18d744edf73819",
+    "src/packages/kestrel/src/workers/adapters/postgres/index.ts": "6c912a86055eb327b3146fa13c5dad0cc1f16f581e83359f27011dfb0e622855",
+    "src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts": "59754224954e2e858384ee9c77804a5cfd9437b93f641d2abb7034a4a1e2026a",
+    "src/packages/kestrel/src/workers/adapters/postgres/schema.ts": "31df134a46e7b8406f3038d3e7477f64f79243b58648ece20f3bfdcd8b43a229",
+    "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+    "src/packages/kestrel/src/workers/client.ts": "89c739b77104ef7bbd511e086b13082588327f919bf022a7b30df73b1ea7a305",
+    "src/packages/kestrel/src/workers/configuration.test.ts": "d560923960df766c2880eb555ee3c209c05dbb6884e9ec8abaa4499a75b60a3e",
+    "src/packages/kestrel/src/workers/configuration.ts": "ed3992278844045d76030c1cdece602c0212826401a1e0cda05775de95b9199b",
+    "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "0cefd1a9eeb1212ab7eba2c0df1c5a27f9a95f74dfb421659e8b10d5e746e33f",
+    "src/packages/kestrel/src/workers/deferral_buffer.ts": "1755cce7f1bac01f8571b387d4308d700179d5a6a1c3f96c0e2137acc94b26b0",
+    "src/packages/kestrel/src/workers/definition_contract.test.ts": "7160d9b7061a48337b73da160cb522d917a1b6d08cdea8a66006f5d436bcdfa0",
+    "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+    "src/packages/kestrel/src/workers/dependencies.ts": "471adfd3bd82879c49ba1670948f976671bcf0ef07bb5cbed28867e02c534272",
+    "src/packages/kestrel/src/workers/errors.ts": "2011d5e8950bb40ad51bb854a2ace17a076e8340d9a178c9cd57c3f0940b7552",
+    "src/packages/kestrel/src/workers/index.ts": "e0f31ae3263a518de404fd45119aeafcbb24020d25de4238e7dba54bf2ce0e17",
+    "src/packages/kestrel/src/workers/metadata_contract.test.ts": "df06b75cf10eb49e46ca418f77f6f091fb5b23c671431749c19274a90821d27b",
+    "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+    "src/packages/kestrel/src/workers/provider.ts": "a33b4bb9708f7700f19c10daeb1ad969cc748c3dfe3a43694a3d91f6554ac78a",
+    "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+    "src/packages/kestrel/src/workers/publication.ts": "c7923158f7a24441ed1c5292df6ba3fe3c3923c1981ff9a119d4a77dc1fc644a",
+    "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba",
+    "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+    "src/packages/kestrel/src/workers/runtime.ts": "0128fa3914a4573d622e242765bb0f9dd11f0d1c459283c3b9061099f3bff48f",
+    "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+    "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+    "src/packages/kestrel/src/workers/scheduler.ts": "94e9aedee6abd04055d67d2c34818ac3c63f746ecdcbd9c8eabdd222382fb78b",
+    "src/packages/kestrel/src/workers/serialization.ts": "8b38b21769fbf5cb85ca234a7e3506082e4c03153f6bfd3b4a5118bab2730fe2",
+    "src/packages/kestrel/src/workers/testing/payload_conformance.ts": "7e29a933c60380d1e9dbc973f5178e02ce8134eee75d787270ad21757eca8aaf",
+    "src/packages/kestrel/src/workers/types.ts": "4cb8a838d137f1688cae39393c4a177d02dde076f5439567350f44475a5ac1ef",
+    "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+    "src/packages/kestrel/src/workers/worker.ts": "f468ec7d7389fa97223f9fdffd690cc6136c4efd9df8e74cb0b5279af5c922a8"
+  },
+  "reportHashes": {
+    "artifacts/mutation/workers-delivery-before-two-hour-tests/mutation.json": "a747f454ea83230942e5b9e5bfefb149f277fac3200e3fdf29079bd43ad63a27",
+    "artifacts/mutation/workers-delivery/mutation.json": "2a9535521476b23aa85b60c85d2fb247e30ea4a11c23300a0064a049f4f2796f"
+  },
+  "firstAfterTimeoutKillAudit": {
+    "vitestTimeoutKills": 11,
+    "finalVitestTimeoutKills": 0,
+    "change": "Replaced two existing unbounded handoff-start resolver waits with an asynchronous-turn start assertion; every gate is still released in finally."
+  }
+}

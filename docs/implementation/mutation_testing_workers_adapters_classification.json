@@ -1,0 +1,2395 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "All production TypeScript under workers/adapters, including the memory/PostgreSQL implementations, factories, actual exported schema and indexes. Temporary PostgreSQL adapter fixtures exercise production statements but do not apply the exported production DDL.",
+  "command": "npm run test:mutation:workers-adapters",
+  "budgetMs": 600000,
+  "modeNote": "Bounded focused component profile; ignoreStatic=False. Static mutants remain enabled in these focused profiles. SQL text is not comprehensively mutated by Stryker; exported schema contracts do not substitute for a production migration/application test.",
+  "beforeReport": "artifacts/mutation/workers-adapters-before-two-hour-tests/mutation.json",
+  "report": "artifacts/mutation/workers-adapters/mutation.json",
+  "beforeCounts": {
+    "Killed": 313,
+    "Survived": 189,
+    "NoCoverage": 51,
+    "RuntimeError": 41
+  },
+  "counts": {
+    "Killed": 498,
+    "Survived": 55,
+    "RuntimeError": 41
+  },
+  "newTestCases": 46,
+  "bugEvidence": {
+    "before": "An integration regression against the original PostgreSQL source failed because ReservedJob timestamp fields were strings instead of Date instances. The public date arithmetic contract was violated.",
+    "fix": "Normalize availableAt, reservedAt and createdAt using new Date at the raw-query row mapping boundary; accept Date|string in the internal driver row type.",
+    "tests": "Nineteen new memory cases, twenty new PostgreSQL cases, four actual exported-schema cases and both adapter factory cases, plus one multi-identity follow-up case. Existing PostgreSQL Date case also checks absent optional metadata does not leak SQL NULL.",
+    "productionChanges": [
+      "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts"
+    ]
+  },
+  "comparison": {
+    "beforeMutants": 594,
+    "afterMutants": 594,
+    "matchedSites": 592,
+    "beforeUnmatched": 2,
+    "afterUnmatched": 2,
+    "matchedTransitions": [
+      {
+        "before": "Killed",
+        "after": "Killed",
+        "count": 311
+      },
+      {
+        "before": "Survived",
+        "after": "Killed",
+        "count": 139
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Killed",
+        "count": 46
+      },
+      {
+        "before": "Survived",
+        "after": "Survived",
+        "count": 50
+      },
+      {
+        "before": "RuntimeError",
+        "after": "RuntimeError",
+        "count": 41
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Survived",
+        "count": 5
+      }
+    ],
+    "priorKillsNoLongerKilled": [],
+    "policy": "Match normalized original/operator/replacement/occurrence, not numeric IDs or line numbers. Whole bodies changed by a production fix are different variants; total-count score movement alone does not prove a same-corpus improvement."
+  },
+  "vitestTimeoutKills": 0,
+  "timeoutDrivenDetections": [],
+  "remainingCategoryCounts": {
+    "unconstrained explicit-undefined metadata properties": 12,
+    "conditional publication-overlay equivalence": 1,
+    "bounded extra reservation traversal": 4,
+    "deferred duplicate-queue allocation input": 1,
+    "unconstrained diagnostic text": 4,
+    "equivalent empty-publication pipeline": 2,
+    "equivalent absent-identity lookup": 1,
+    "equivalent unused identity-map entry": 1,
+    "invalid mutated module at import boundary": 41,
+    "equivalent inferred SQL column name": 16,
+    "equivalent native timestamp-mode fallback": 6,
+    "deferred optional schema-description surface": 3,
+    "deferred production DDL expression coverage": 4
+  },
+  "remaining": [
+    {
+      "fingerprint": "04a24fc2c620e98b33ff291d54046cbc41e7f13e91507492d9f439b37ae9caf1",
+      "sampleId": "31",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 98
+        },
+        "start": {
+          "column": 13,
+          "line": 98
+        }
+      },
+      "original": "request.identity === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 103,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "6b05447b1f9a311b9ac33968d4da738ab11b8a71d8d8efff80b65b114b4e28d6",
+      "sampleId": "35",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 103
+        },
+        "start": {
+          "column": 13,
+          "line": 103
+        }
+      },
+      "original": "request.correlation === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 103,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "eaf857edde14e354a5c62212d075321f65d360f2cf6a9c986b19225a94ad3705",
+      "sampleId": "39",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 106
+        },
+        "start": {
+          "column": 13,
+          "line": 106
+        }
+      },
+      "original": "request.groupId === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 103,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "c241347bfc162ae2a4f845b94bbaefdf78cd9392f1e82ad2a7425678007926fc",
+      "sampleId": "43",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 107
+        },
+        "start": {
+          "column": 13,
+          "line": 107
+        }
+      },
+      "original": "request.executionId === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 103,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "649a5ce4b7e0049c093bc4970c74544245c5077972cea8aca1b7b1714fd90fbe",
+      "sampleId": "47",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 23,
+          "line": 119
+        },
+        "start": {
+          "column": 5,
+          "line": 119
+        }
+      },
+      "original": "this.jobs.clear();",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 104,
+      "classification": "conditional publication-overlay equivalence",
+      "reason": "For ordinary non-reentrant ID generation, stagedJobs contains the existing map plus insertions, so overlaying all staged entries produces the same state and insertion order without clearing first. Reentrant injected factories can affect adapter state and are outside this proof; unconditional equivalence is not claimed."
+    },
+    {
+      "fingerprint": "24a789ce37bebe883ce1988afae1b0975342b1f2b8b264f83f3070fbaaab9959",
+      "sampleId": "55",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 26,
+          "line": 137
+        },
+        "start": {
+          "column": 11,
+          "line": 137
+        }
+      },
+      "original": "remaining === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 85,
+      "classification": "bounded extra reservation traversal",
+      "reason": "The validated positive capacity and slice(0, remaining) still prevent extra reservations when capacity is zero. Removing this shortcut performs extra pure ready-job traversals/sorts; results remain bounded but CPU work differs, so it is not a strict performance equivalence."
+    },
+    {
+      "fingerprint": "e432554f7d2c5cd71e5cfc9a561fd1480a9adf45ca9f2ca37e68fd415561f70f",
+      "sampleId": "57",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 139
+        },
+        "start": {
+          "column": 28,
+          "line": 137
+        }
+      },
+      "original": "{\n        break;\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "bounded extra reservation traversal",
+      "reason": "The validated positive capacity and slice(0, remaining) still prevent extra reservations when capacity is zero. Removing this shortcut performs extra pure ready-job traversals/sorts; results remain bounded but CPU work differs, so it is not a strict performance equivalence."
+    },
+    {
+      "fingerprint": "9d4383d73feba7ea3c15149fde1f7a0a25843c686db8cbc8baba1e51a43a55ae",
+      "sampleId": "68",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 77,
+          "line": 153
+        },
+        "start": {
+          "column": 40,
+          "line": 153
+        }
+      },
+      "original": "selected.length >= request.totalLimit",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 81,
+      "classification": "bounded extra reservation traversal",
+      "reason": "The validated positive capacity and slice(0, remaining) still prevent extra reservations when capacity is zero. Removing this shortcut performs extra pure ready-job traversals/sorts; results remain bounded but CPU work differs, so it is not a strict performance equivalence."
+    },
+    {
+      "fingerprint": "95df859da28773301b1c00c1cfbeac68b6df96c9c3fc4e31e8ede0774f404ef8",
+      "sampleId": "69",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 77,
+          "line": 153
+        },
+        "start": {
+          "column": 40,
+          "line": 153
+        }
+      },
+      "original": "selected.length >= request.totalLimit",
+      "mutatorName": "EqualityOperator",
+      "replacement": "selected.length > request.totalLimit",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 81,
+      "classification": "bounded extra reservation traversal",
+      "reason": "The validated positive capacity and slice(0, remaining) still prevent extra reservations when capacity is zero. Removing this shortcut performs extra pure ready-job traversals/sorts; results remain bounded but CPU work differs, so it is not a strict performance equivalence."
+    },
+    {
+      "fingerprint": "08b2c57285407224a9a050791cead6abb24afb32cf00c4d38eec24132fa5070d",
+      "sampleId": "76",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 162
+        },
+        "start": {
+          "column": 9,
+          "line": 162
+        }
+      },
+      "original": "selectedIds.add(job.id);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "deferred duplicate-queue allocation input",
+      "reason": "This is the overflow-loop insertion, after the initial allocations. For the unique queue preferences emitted by WorkerScheduler, later queues cannot select the same job. The public adapter request type does not explicitly forbid duplicate queue preferences; that input remains untested and this mutant is not claimed universally equivalent."
+    },
+    {
+      "fingerprint": "ba0a62477fe530fa6edba740b0f07a3b27495a6487983c71d95cc2962d3a80cc",
+      "sampleId": "95",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 216
+        },
+        "start": {
+          "column": 13,
+          "line": 216
+        }
+      },
+      "original": "stored.identity === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 17,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "6c57d0bd7a4dcd9bc9cec5c6c76eb413ce644b6b960d467d7fcd3fed9e61a87f",
+      "sampleId": "99",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 45,
+          "line": 219
+        },
+        "start": {
+          "column": 13,
+          "line": 219
+        }
+      },
+      "original": "stored.correlation === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 17,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "770ff2ff90c001be8c741d98c21a5006e3b4a7ecdaef4a294f46945f5e936ade",
+      "sampleId": "103",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 222
+        },
+        "start": {
+          "column": 13,
+          "line": 222
+        }
+      },
+      "original": "stored.groupId === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 17,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "84e3132d51681041625f02811880affa41032dfc1e12bf3558240e01a4228622",
+      "sampleId": "107",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 45,
+          "line": 223
+        },
+        "start": {
+          "column": 13,
+          "line": 223
+        }
+      },
+      "original": "stored.executionId === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 17,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "144ee24adf2b3861d42c749c1b853a62e9b693bebce0c807808ede29a2dc5934",
+      "sampleId": "202",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 35,
+          "line": 351
+        },
+        "start": {
+          "column": 9,
+          "line": 351
+        }
+      },
+      "original": "job.identity === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 77,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "82783b7cc1062a70e60744271dbe8fbb7dd8727295417bd8eb08c8dfaf92eed8",
+      "sampleId": "206",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 38,
+          "line": 354
+        },
+        "start": {
+          "column": 9,
+          "line": 354
+        }
+      },
+      "original": "job.correlation === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 77,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "8d661f3b9ec772ec3594a43e7ce1dc432900c8ab313ee7c0464681829a00c1bf",
+      "sampleId": "210",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 357
+        },
+        "start": {
+          "column": 9,
+          "line": 357
+        }
+      },
+      "original": "job.groupId === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 77,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "321ce8e350f829974fd3122b9ac54d8ed233f1d7fdc2210ddfd7e6ef61005660",
+      "sampleId": "214",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 38,
+          "line": 358
+        },
+        "start": {
+          "column": 9,
+          "line": 358
+        }
+      },
+      "original": "job.executionId === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 77,
+      "classification": "unconstrained explicit-undefined metadata properties",
+      "reason": "A missing optional memory metadata field becomes an explicit undefined property instead of being omitted. Defined metadata is independently checked through publication, reservation and dead-letter transitions. Property reads and JSON agree, but own-property enumeration differs; this is not unconditional JavaScript shape equivalence."
+    },
+    {
+      "fingerprint": "c287efe00555b5b873596228673a673cfb76a3d77572731d98c50ff9cdc883bc",
+      "sampleId": "244",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 384
+        },
+        "start": {
+          "column": 27,
+          "line": 384
+        }
+      },
+      "original": "`${name} must be a positive integer.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The tests assert rejection type and pre-mutation/pre-SQL behavior for invalid reservation values. Exact human-readable validation labels are not a stable public contract."
+    },
+    {
+      "fingerprint": "e1f060f41703facb103612d93c0fccd60e0d0564d144866ac0df77fbeee226e0",
+      "sampleId": "255",
+      "file": "src/packages/kestrel/src/workers/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 393
+        },
+        "start": {
+          "column": 27,
+          "line": 393
+        }
+      },
+      "original": "\"reservationLimit must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The tests assert rejection type and pre-mutation/pre-SQL behavior for invalid reservation values. Exact human-readable validation labels are not a stable public contract."
+    },
+    {
+      "fingerprint": "05e92750059cbc732cc825f84b4e9c4b1ecb2f081b553aaff445cfd0099e0f52",
+      "sampleId": "263",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 88
+        },
+        "start": {
+          "column": 9,
+          "line": 88
+        }
+      },
+      "original": "requests.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 51,
+      "classification": "equivalent empty-publication pipeline",
+      "reason": "Removing this fast return runs normalization and an empty local publish loop, still returning [] without executing SQL. The counting-adapter test verifies zero database calls. Only additional local allocations/traversal differ."
+    },
+    {
+      "fingerprint": "e42993d34bb0919e6f3b3db43cc9960fdf7d3f1f9c349f2facdd360625aba3ad",
+      "sampleId": "265",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 90
+        },
+        "start": {
+          "column": 32,
+          "line": 88
+        }
+      },
+      "original": "{\n      return [];\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "equivalent empty-publication pipeline",
+      "reason": "Removing this fast return runs normalization and an empty local publish loop, still returning [] without executing SQL. The counting-adapter test verifies zero database calls. Only additional local allocations/traversal differ."
+    },
+    {
+      "fingerprint": "7973786ed6c7143129240c01324f965c3851442dfacbaf0d3599fed6efab6da5",
+      "sampleId": "286",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 56,
+          "line": 118
+        },
+        "start": {
+          "column": 26,
+          "line": 118
+        }
+      },
+      "original": "request.identity === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 39,
+      "classification": "equivalent absent-identity lookup",
+      "reason": "With this single mutation, existingByIdentity contains only defined identity keys, so looking up undefined returns undefined just as the original short-circuit does. Defined identities retain the original map lookup and comparison."
+    },
+    {
+      "fingerprint": "d45b6c1fa4e28b31c89fb43670106469b1db59ae686f8b88804866f0c251aa5a",
+      "sampleId": "303",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 137
+        },
+        "start": {
+          "column": 13,
+          "line": 137
+        }
+      },
+      "original": "request.identity !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 39,
+      "classification": "equivalent unused identity-map entry",
+      "reason": "Adding a local undefined-key entry for an unkeyed job is unobservable because the unchanged lookup branch never reads that key. The map remains internal and only explicit string identities participate in the database identity read/lock set."
+    },
+    {
+      "fingerprint": "fb3271a3857cc69791fc49b82c3694ba6b8437e48db016afd865181cc957b878",
+      "sampleId": "476",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 647
+        },
+        "start": {
+          "column": 27,
+          "line": 647
+        }
+      },
+      "original": "`${name} must be a positive integer.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 2,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The tests assert rejection type and pre-mutation/pre-SQL behavior for invalid reservation values. Exact human-readable validation labels are not a stable public contract."
+    },
+    {
+      "fingerprint": "fb8d2afe0f61f044f63d930e0e545ead29eaef8a3513b0b8848535f48b8b21bf",
+      "sampleId": "487",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 656
+        },
+        "start": {
+          "column": 27,
+          "line": 656
+        }
+      },
+      "original": "\"reservationLimit must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The tests assert rejection type and pre-mutation/pre-SQL behavior for invalid reservation values. Exact human-readable validation labels are not a stable public contract."
+    },
+    {
+      "fingerprint": "daf0bd4f5b009d96bdf7b2583f873e9ef096d38511c76bc7f0788b24915e8ffc",
+      "sampleId": "493",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 78,
+          "line": 26
+        },
+        "start": {
+          "column": 3,
+          "line": 26
+        }
+      },
+      "original": "\"Durable background jobs, queue controls, leases, and dead-letter records.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/provider.test.ts: Database description for schema workers cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts: Database description for schema workers cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for schema workers cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for schema workers cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/pa",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "df5a70aaa4a64c9d0716380cadf57346765be73cdfcc68bc4b6885ae0153ccae",
+      "sampleId": "495",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 39
+        },
+        "start": {
+          "column": 3,
+          "line": 32
+        }
+      },
+      "original": "{\n    queue: text(\"queue\").primaryKey(),\n    enabled: boolean(\"enabled\").default(true).notNull(),\n    updatedAt: timestamp(\"updated_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }).defaultNow().notNull(),\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts: Column description workers.queue_control.queue does not match a Drizzle column property.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts: Column description workers.queue_control.queue does not match a Drizzle column property.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Column description workers.queue_control.queue does not match a Drizzle column property.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Column description workers.que",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "05661c29a78a33c101e6e498b0361750cd6cfa67fd19ad9d1bad8760a4efa3f3",
+      "sampleId": "496",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 33
+        },
+        "start": {
+          "column": 17,
+          "line": 33
+        }
+      },
+      "original": "\"queue\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "3e360d5e92ce998f674e0e3fb526dca709820f6c13ac71486420eb4bbb8f2410",
+      "sampleId": "497",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 34
+        },
+        "start": {
+          "column": 22,
+          "line": 34
+        }
+      },
+      "original": "\"enabled\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "435d8e58838433aac8d2587abd068c44340ada0008641dc42d2b6dea73fe8b34",
+      "sampleId": "501",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 36
+        },
+        "start": {
+          "column": 13,
+          "line": 36
+        }
+      },
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent native timestamp-mode fallback",
+      "reason": "The installed Drizzle timestamp factory selects string mode only for mode === \"string\"; both \"date\" and the mutated empty value select PgTimestampBuilder. Actual exported-schema tests confirm the Date data type and timezone-aware SQL type. Re-review when changing Drizzle."
+    },
+    {
+      "fingerprint": "e74681c3941751fcc2d90f53072c03be80f19710eb969d366d43a0b733c98d0b",
+      "sampleId": "505",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 2,
+          "line": 50
+        },
+        "start": {
+          "column": 54,
+          "line": 43
+        }
+      },
+      "original": "{\n  description: \"Durable operator controls that enable or pause consumption for individual queues.\",\n  columns: {\n    queue: \"Stable name of the controlled worker queue.\",\n    enabled: \"Whether workers may reserve jobs from the queue.\",\n    updatedAt: \"Date and time when the queue control was last changed.\",\n  },\n}",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts: Database table descriptions for workers.queue_control require a table or column description.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/provider.test.ts: Database table descriptions for workers.queue_control require a table or column description.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workflows/runtime.test.ts: Database table descriptions for workers.queue_control require a table or column description.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database table descriptions fo",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "286cb809ccb7e69dc5f0ec64dcd8ade4d7b3f0bb414d19d8bebf98b12560bdd9",
+      "sampleId": "506",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 99,
+          "line": 44
+        },
+        "start": {
+          "column": 16,
+          "line": 44
+        }
+      },
+      "original": "\"Durable operator controls that enable or pause consumption for individual queues.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts: Database description for table workers.queue_control cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for table workers.queue_control cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for table workers.queue_control cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for table workers.queue_control cannot be empty.\n/Users/antarestupin/workspace/proj",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "ccecca75b9bd6896f5aa88d5655ea45cde14a7fa2f458202e53915304976d956",
+      "sampleId": "507",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 49
+        },
+        "start": {
+          "column": 12,
+          "line": 45
+        }
+      },
+      "original": "{\n    queue: \"Stable name of the controlled worker queue.\",\n    enabled: \"Whether workers may reserve jobs from the queue.\",\n    updatedAt: \"Date and time when the queue control was last changed.\",\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "deferred optional schema-description surface",
+      "reason": "The mutation removes per-column descriptions while leaving the required table description and executable schema intact. This changes introspection/documentation metadata and is not strict equivalence. Actual metadata wording is not pinned solely to improve a score; description-presence contracts can be added if this tooling surface is prioritized."
+    },
+    {
+      "fingerprint": "2a0ed767f8d47a8321a5d5da5dc95975626889d0b3bab70abdce7f5a8f535bbf",
+      "sampleId": "508",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 46
+        },
+        "start": {
+          "column": 12,
+          "line": 46
+        }
+      },
+      "original": "\"Stable name of the controlled worker queue.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.queue_control.queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.queue_control.queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.queue_control.queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.queue_control.queue cannot be empty.\n/Users/antarestupin/workspa",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "1020cce55279be8f197df5fd87270f74b10cb43a05e8fa1dd6558cc7a6167144",
+      "sampleId": "509",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 47
+        },
+        "start": {
+          "column": 14,
+          "line": 47
+        }
+      },
+      "original": "\"Whether workers may reserve jobs from the queue.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.queue_control.enabled cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.queue_control.enabled cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.queue_control.enabled cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.queue_control.enabled cannot be empty.\n/Users/antarestupin",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "93ee2460788996f489cd02ce29bf0aac3a7dbea25d7b1e4ce95590b1b8482acd",
+      "sampleId": "510",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 48
+        },
+        "start": {
+          "column": 16,
+          "line": 48
+        }
+      },
+      "original": "\"Date and time when the queue control was last changed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts: Database description for column workers.queue_control.updated_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workflows/runtime.test.ts: Database description for column workers.queue_control.updated_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.queue_control.updated_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/provider.test.ts: Database description for column workers.queue_control.updated_a",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "289b23c91c070a88db67e2baa53bd8409273893f2bdc44b62d62b53f995ee24f",
+      "sampleId": "512",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 82
+        },
+        "start": {
+          "column": 3,
+          "line": 55
+        }
+      },
+      "original": "{\n    id: uuid(\"id\").default(sql`uuidv7()`).primaryKey(),\n    identity: text(\"identity\"),\n    queue: text(\"queue\").notNull(),\n    payload: jsonb(\"payload\").$type<unknown>().notNull(),\n    correlation: jsonb(\"correlation\").$type<WorkerJobCorrelation>(),\n    groupId: text(\"group_id\"),\n    executionId: uuid(\"execution_id\"),\n    attempt: integer(\"attempt\").default(0).notNull(),\n    availableAt: timestamp(\"available_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }).defaultNow().notNull(),\n    reservedAt: timestamp(\"reserved_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }),\n    reservationToken: uuid(\"reservation_token\"),\n    state: text(\"state\")\n      .$type<\"pending\" | \"reserved\">()\n      .default(\"pending\")\n      .notNull(),\n    lastError: jsonb(\"last_error\").$type<WorkerJobError>(),\n    createdAt: timestamp(\"created_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }).defaultNow().notNull(),\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Cannot read properties of undefined (reading 'name')\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Cannot read properties of undefined (reading 'name')\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Cannot read properties of undefined (reading 'name')\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Cannot read properties of undefined (reading 'name')\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/display.t",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "2f2a81084673b3523766a536639cb4efd2de8c6e659ecd39c1f6a905d3497942",
+      "sampleId": "513",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 18,
+          "line": 56
+        },
+        "start": {
+          "column": 14,
+          "line": 56
+        }
+      },
+      "original": "\"id\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "1903b69c5f32783e9c06d042a6a27209fafd834be3a8913631d98536274dce40",
+      "sampleId": "514",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 56
+        },
+        "start": {
+          "column": 31,
+          "line": 56
+        }
+      },
+      "original": "`uuidv7()`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "deferred production DDL expression coverage",
+      "reason": "The actual exported column/index metadata is checked, but these tests do not compile and apply its UUID-default or partial-index SQL expressions against a production workers schema. An empty SQL expression can change or invalidate generated DDL. This is a real migration-level coverage gap, not an acceptable semantic equivalence."
+    },
+    {
+      "fingerprint": "0b8df86a70b301ba579425ee17ecb84a82021d261aadd016c60237fabb5501fc",
+      "sampleId": "515",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 57
+        },
+        "start": {
+          "column": 20,
+          "line": 57
+        }
+      },
+      "original": "\"identity\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "72d78c642a25346bd91980371fa3d2d67cb1d0935153d0ceee183394b30b8cf5",
+      "sampleId": "516",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 58
+        },
+        "start": {
+          "column": 17,
+          "line": 58
+        }
+      },
+      "original": "\"queue\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "50c7a7c9362ca4def63e3921afa32463a883a5dbf8d74c64f3a832a7772befa7",
+      "sampleId": "517",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 59
+        },
+        "start": {
+          "column": 20,
+          "line": 59
+        }
+      },
+      "original": "\"payload\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "e9b7977a3dca282b29b31bf2ceddd9e55ddb0c5cba59642e68bb9fdab0e546f5",
+      "sampleId": "518",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 60
+        },
+        "start": {
+          "column": 24,
+          "line": 60
+        }
+      },
+      "original": "\"correlation\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "621f30390ccb75b14a136baf62bed44f8692c9e9b05051e704882c175faf4d8a",
+      "sampleId": "521",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 63
+        },
+        "start": {
+          "column": 22,
+          "line": 63
+        }
+      },
+      "original": "\"attempt\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "a848f2db2c924dc45b3483e2c2b09cd27d32209f47f73deb92d7fb794a541069",
+      "sampleId": "524",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 65
+        },
+        "start": {
+          "column": 13,
+          "line": 65
+        }
+      },
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent native timestamp-mode fallback",
+      "reason": "The installed Drizzle timestamp factory selects string mode only for mode === \"string\"; both \"date\" and the mutated empty value select PgTimestampBuilder. Actual exported-schema tests confirm the Date data type and timezone-aware SQL type. Re-review when changing Drizzle."
+    },
+    {
+      "fingerprint": "a06259ab5ffca3e6c94f44d56c03b42aa9eb3d8a8554e5c68df81dad9c9a6002",
+      "sampleId": "528",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 69
+        },
+        "start": {
+          "column": 13,
+          "line": 69
+        }
+      },
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 2,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent native timestamp-mode fallback",
+      "reason": "The installed Drizzle timestamp factory selects string mode only for mode === \"string\"; both \"date\" and the mutated empty value select PgTimestampBuilder. Actual exported-schema tests confirm the Date data type and timezone-aware SQL type. Re-review when changing Drizzle."
+    },
+    {
+      "fingerprint": "e4c8c2c33d298142827baf42ca59f0711a5defc021e5fcffdb4e1d720100336e",
+      "sampleId": "531",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 73
+        },
+        "start": {
+          "column": 17,
+          "line": 73
+        }
+      },
+      "original": "\"state\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "f25430169a5671d6fc7aa6388d9fd8ccef1403130a73b65276e750d1b5466dd0",
+      "sampleId": "536",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 79
+        },
+        "start": {
+          "column": 13,
+          "line": 79
+        }
+      },
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 3,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent native timestamp-mode fallback",
+      "reason": "The installed Drizzle timestamp factory selects string mode only for mode === \"string\"; both \"date\" and the mutated empty value select PgTimestampBuilder. Actual exported-schema tests confirm the Date data type and timezone-aware SQL type. Re-review when changing Drizzle."
+    },
+    {
+      "fingerprint": "420addfcb7b8f8e684e4cc286e1c80d36d80aa8fccecd1be16868569ad125e13",
+      "sampleId": "538",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 95
+        },
+        "start": {
+          "column": 3,
+          "line": 83
+        }
+      },
+      "original": "(table) => [\n    uniqueIndex(\"job_identity_unique_idx\")\n      .on(table.identity)\n      .where(sql`${table.identity} IS NOT NULL`),\n    index(\"job_reservation_idx\").on(\n      table.queue,\n      table.availableAt,\n      table.id,\n    ),\n    index(\"job_reserved_hint_idx\")\n      .on(table.queue, table.availableAt)\n      .where(sql`${table.state} = 'reserved'`),\n  ]",
+      "mutatorName": "ArrowFunction",
+      "replacement": "() => undefined",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts: Cannot convert undefined or null to object\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Cannot convert undefined or null to object\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Cannot convert undefined or null to object\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Cannot convert undefined or null to object\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Cannot convert",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "886dbf3f3afe5f18c782140c4645d41a225de327ee4b3a8e9ce42f899e1313fc",
+      "sampleId": "541",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 86
+        },
+        "start": {
+          "column": 17,
+          "line": 86
+        }
+      },
+      "original": "`${table.identity} IS NOT NULL`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "deferred production DDL expression coverage",
+      "reason": "The actual exported column/index metadata is checked, but these tests do not compile and apply its UUID-default or partial-index SQL expressions against a production workers schema. An empty SQL expression can change or invalidate generated DDL. This is a real migration-level coverage gap, not an acceptable semantic equivalence."
+    },
+    {
+      "fingerprint": "bb6bc9513e19df978e0a2642427d61f885f11396cb2c36154687b1b675e40cc4",
+      "sampleId": "544",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 94
+        },
+        "start": {
+          "column": 17,
+          "line": 94
+        }
+      },
+      "original": "`${table.state} = 'reserved'`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "deferred production DDL expression coverage",
+      "reason": "The actual exported column/index metadata is checked, but these tests do not compile and apply its UUID-default or partial-index SQL expressions against a production workers schema. An empty SQL expression can change or invalidate generated DDL. This is a real migration-level coverage gap, not an acceptable semantic equivalence."
+    },
+    {
+      "fingerprint": "f33ba90914ea7589b71e6271e108887026af0ff6fff680f0fda86927f3e4cbf9",
+      "sampleId": "547",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 2,
+          "line": 117
+        },
+        "start": {
+          "column": 45,
+          "line": 99
+        }
+      },
+      "original": "{\n  description: \"Active durable background jobs whose availability timestamp also represents reservation expiry.\",\n  columns: {\n    id: \"Stable identifier of the job.\",\n    identity: \"Optional unique application-defined identity used to deduplicate job creation.\",\n    queue: \"Queue from which workers may reserve the job.\",\n    payload: \"Application-defined input delivered to the job handler.\",\n    correlation: \"Optional metadata used to correlate completion with an external workflow or caller.\",\n    groupId: \"Optional application-defined scheduling group reserved for grouped queue policies.\",\n    executionId: \"Optional identifier correlating the first execution attempt with observability data.\",\n    attempt: \"Number of handler execution attempts started for the job.\",\n    availableAt: \"Date and time when the job becomes eligible for reservation, or when its current lease expires.\",\n    reservedAt: \"Date and time when the current reservation was acquired.\",\n    reservationToken: \"Current ownership token used to reject stale worker updates.\",\n    state: \"Current active-job state: pending or reserved.\",\n    lastError: \"Structured error produced by the most recent retryable failure.\",\n    createdAt: \"Date and time when the job was created.\",\n  },\n}",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts: Database table descriptions for workers.job require a table or column description.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database table descriptions for workers.job require a table or column description.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database table descriptions for workers.job require a table or column description.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database table descriptions for workers.job require a table or co",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "0f3f9f2b69105df19925b26826b7aea8dfd8b9b54743fac20f0b3facf0891716",
+      "sampleId": "548",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 113,
+          "line": 100
+        },
+        "start": {
+          "column": 16,
+          "line": 100
+        }
+      },
+      "original": "\"Active durable background jobs whose availability timestamp also represents reservation expiry.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts: Database description for table workers.job cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/provider.test.ts: Database description for table workers.job cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workflows/runtime.test.ts: Database description for table workers.job cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for table workers.job cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sa",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "50a0cdf282baa852df074fae18ffa2a0adcdb0bca7a7c02c81b3ae396b97c97a",
+      "sampleId": "549",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 116
+        },
+        "start": {
+          "column": 12,
+          "line": 101
+        }
+      },
+      "original": "{\n    id: \"Stable identifier of the job.\",\n    identity: \"Optional unique application-defined identity used to deduplicate job creation.\",\n    queue: \"Queue from which workers may reserve the job.\",\n    payload: \"Application-defined input delivered to the job handler.\",\n    correlation: \"Optional metadata used to correlate completion with an external workflow or caller.\",\n    groupId: \"Optional application-defined scheduling group reserved for grouped queue policies.\",\n    executionId: \"Optional identifier correlating the first execution attempt with observability data.\",\n    attempt: \"Number of handler execution attempts started for the job.\",\n    availableAt: \"Date and time when the job becomes eligible for reservation, or when its current lease expires.\",\n    reservedAt: \"Date and time when the current reservation was acquired.\",\n    reservationToken: \"Current ownership token used to reject stale worker updates.\",\n    state: \"Current active-job state: pending or reserved.\",\n    lastError: \"Structured error produced by the most recent retryable failure.\",\n    createdAt: \"Date and time when the job was created.\",\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "deferred optional schema-description surface",
+      "reason": "The mutation removes per-column descriptions while leaving the required table description and executable schema intact. This changes introspection/documentation metadata and is not strict equivalence. Actual metadata wording is not pinned solely to improve a score; description-presence contracts can be added if this tooling surface is prioritized."
+    },
+    {
+      "fingerprint": "8516347bd2f17edbc426a91170c46f5b5aaf5eafc11e2db4789aa329175c78a3",
+      "sampleId": "550",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 40,
+          "line": 102
+        },
+        "start": {
+          "column": 9,
+          "line": 102
+        }
+      },
+      "original": "\"Stable identifier of the job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.job.id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWg",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "c1766780515efde81d217fa9c6c168f3875869f7fd956e07da79136b764f4cf2",
+      "sampleId": "551",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 95,
+          "line": 103
+        },
+        "start": {
+          "column": 15,
+          "line": 103
+        }
+      },
+      "original": "\"Optional unique application-defined identity used to deduplicate job creation.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.identity cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.identity cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.identity cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.job.identity cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "1de26db1533b1e20b2101b4f960751948e168909a0495021203712893ad7fff5",
+      "sampleId": "552",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 59,
+          "line": 104
+        },
+        "start": {
+          "column": 12,
+          "line": 104
+        }
+      },
+      "original": "\"Queue from which workers may reserve the job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts: Database description for column workers.job.queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workflows/runtime.test.ts: Database description for column workers.job.queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.job.queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.job.queue cannot be empty.\n/Users/antarestupin/workspace/projec",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "72ae1c6d9159d2a3b1b26e4f15812b8fcd48698dea5ff1b59617d2c93aa80869",
+      "sampleId": "553",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 71,
+          "line": 105
+        },
+        "start": {
+          "column": 14,
+          "line": 105
+        }
+      },
+      "original": "\"Application-defined input delivered to the job handler.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.payload cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.payload cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.payload cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.job.payload cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.str",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "0620b6524502841fefcd8995b499940d3cead02f9deb25ccdf27eac6069128fa",
+      "sampleId": "554",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 103,
+          "line": 106
+        },
+        "start": {
+          "column": 18,
+          "line": 106
+        }
+      },
+      "original": "\"Optional metadata used to correlate completion with an external workflow or caller.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.correlation cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.job.correlation cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.correlation cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.correlation cannot be empty.\n/Users/antarestupin/workspace/projects/cano",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "af514b5f7f22f1c44ab6361383d3f0fb443dcc41d1a7a1afa602d1db15fb96dd",
+      "sampleId": "555",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 98,
+          "line": 107
+        },
+        "start": {
+          "column": 14,
+          "line": 107
+        }
+      },
+      "original": "\"Optional application-defined scheduling group reserved for grouped queue policies.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.group_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.group_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.group_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.job.group_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "bcc994b82bfececeef37ad95aab380656bc21d76c3150046f7b7c370724e0574",
+      "sampleId": "556",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 104,
+          "line": 108
+        },
+        "start": {
+          "column": 18,
+          "line": 108
+        }
+      },
+      "original": "\"Optional identifier correlating the first execution attempt with observability data.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.execution_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.execution_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.execution_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.job.execution_id cannot be empty.\n/Users/antarestupin/workspace/projects",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "71e5e1fe6c3b458a2a8f30e29aa5187268d9a621e9fff1bf3da1c7ff9baa0f91",
+      "sampleId": "557",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 109
+        },
+        "start": {
+          "column": 14,
+          "line": 109
+        }
+      },
+      "original": "\"Number of handler execution attempts started for the job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.attempt cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.job.attempt cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.attempt cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.attempt cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stry",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "082f260cedab2cd7c00482591f220d64e094b2b5fea38fc7a0da3218f81f748c",
+      "sampleId": "558",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 115,
+          "line": 110
+        },
+        "start": {
+          "column": 18,
+          "line": 110
+        }
+      },
+      "original": "\"Date and time when the job becomes eligible for reservation, or when its current lease expires.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.available_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.job.available_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.available_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.available_at cannot be empty.\n/Users/antarestupin/workspace/projects/",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "0d79922207342e232b710e9e325267e637c1edc3b7d27885fa9c6eef4eb268d5",
+      "sampleId": "559",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 111
+        },
+        "start": {
+          "column": 17,
+          "line": 111
+        }
+      },
+      "original": "\"Date and time when the current reservation was acquired.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.reserved_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.reserved_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.reserved_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.job.reserved_at cannot be empty.\n/Users/antarestupin/workspace/projects/can",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "d6a3d62d899db316dc1cfdff31e0ba2f3e7ad8153dfda2248a2910df2a989567",
+      "sampleId": "560",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 85,
+          "line": 112
+        },
+        "start": {
+          "column": 23,
+          "line": 112
+        }
+      },
+      "original": "\"Current ownership token used to reject stale worker updates.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.reservation_token cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.reservation_token cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.reservation_token cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.job.reservation_token cannot be empty.\n/Users/antarestupi",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "ed2d48a4552fee77d370ee801cb4b69a7712681b106387791fd9e6a575caae84",
+      "sampleId": "561",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 60,
+          "line": 113
+        },
+        "start": {
+          "column": 12,
+          "line": 113
+        }
+      },
+      "original": "\"Current active-job state: pending or reserved.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.state cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.job.state cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.state cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.state cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "b707282a8bc534716c1da95e305453511328e8a51ace9d17ae1d02330db025cf",
+      "sampleId": "562",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 81,
+          "line": 114
+        },
+        "start": {
+          "column": 16,
+          "line": 114
+        }
+      },
+      "original": "\"Structured error produced by the most recent retryable failure.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.last_error cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.last_error cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.last_error cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.job.last_error cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "fb384e2232d6d9fae5d7939b3763c5477b43dfd97f69cf826835daa290c1ae3d",
+      "sampleId": "563",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 57,
+          "line": 115
+        },
+        "start": {
+          "column": 16,
+          "line": 115
+        }
+      },
+      "original": "\"Date and time when the job was created.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.job.created_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.job.created_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.job.created_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.job.created_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/k",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "586bfe5137af00993b7d8a5998a15fea78607317ee495961b4d3aba2df8a214f",
+      "sampleId": "565",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 141
+        },
+        "start": {
+          "column": 3,
+          "line": 122
+        }
+      },
+      "original": "{\n    id: uuid(\"id\").default(sql`uuidv7()`).primaryKey(),\n    originalJobId: uuid(\"original_job_id\").notNull(),\n    identity: text(\"identity\"),\n    queue: text(\"queue\").notNull(),\n    payload: jsonb(\"payload\").$type<unknown>().notNull(),\n    correlation: jsonb(\"correlation\").$type<WorkerJobCorrelation>(),\n    groupId: text(\"group_id\"),\n    executionId: uuid(\"execution_id\"),\n    attempt: integer(\"attempt\").notNull(),\n    error: jsonb(\"error\").$type<WorkerJobError>().notNull(),\n    createdAt: timestamp(\"created_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }).notNull(),\n    failedAt: timestamp(\"failed_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }).defaultNow().notNull(),\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Cannot read properties of undefined (reading 'name')\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Cannot read properties of undefined (reading 'name')\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Cannot read properties of undefined (reading 'name')\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Cannot read properties of undefined (reading 'name')\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorizat",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "0a96c20e0d0019c10b4c3c06de846e004aa2f342e4518aeb50cfc6687d06629e",
+      "sampleId": "566",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 18,
+          "line": 123
+        },
+        "start": {
+          "column": 14,
+          "line": 123
+        }
+      },
+      "original": "\"id\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "ad2a32672d64b073fc2c6469a123f443dc2665b9eb5d8eccde1a424e14a12533",
+      "sampleId": "567",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 41,
+          "line": 123
+        },
+        "start": {
+          "column": 31,
+          "line": 123
+        }
+      },
+      "original": "`uuidv7()`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "deferred production DDL expression coverage",
+      "reason": "The actual exported column/index metadata is checked, but these tests do not compile and apply its UUID-default or partial-index SQL expressions against a production workers schema. An empty SQL expression can change or invalidate generated DDL. This is a real migration-level coverage gap, not an acceptable semantic equivalence."
+    },
+    {
+      "fingerprint": "1608e663147f41c1e2dc3841d9f3a719e53c3a103bcdce19676bd30710035d38",
+      "sampleId": "569",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 125
+        },
+        "start": {
+          "column": 20,
+          "line": 125
+        }
+      },
+      "original": "\"identity\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "87180386736f6425b77e72e960df2b7a897f214e486a74ba4a754f0023669a0f",
+      "sampleId": "570",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 126
+        },
+        "start": {
+          "column": 17,
+          "line": 126
+        }
+      },
+      "original": "\"queue\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 2,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "6360173957a94ddf97b7506ee471e622ee9594183606f9f1002aa7d43f4e3247",
+      "sampleId": "571",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 127
+        },
+        "start": {
+          "column": 20,
+          "line": 127
+        }
+      },
+      "original": "\"payload\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "3b5ca02d0d473a3fe9d1ab6dbb990771d98f554d116232c4dcf56b8795f533aa",
+      "sampleId": "572",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 128
+        },
+        "start": {
+          "column": 24,
+          "line": 128
+        }
+      },
+      "original": "\"correlation\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "1850803f58ca095a9ea5dd5f79aad7c52ca4b9568683d6332ea3ab42787f02be",
+      "sampleId": "575",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 131
+        },
+        "start": {
+          "column": 22,
+          "line": 131
+        }
+      },
+      "original": "\"attempt\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "ae9a993b081120a51ab2047d7b60693a02af8fec79ec75e965dba36bcde27ff2",
+      "sampleId": "576",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 25,
+          "line": 132
+        },
+        "start": {
+          "column": 18,
+          "line": 132
+        }
+      },
+      "original": "\"error\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent inferred SQL column name",
+      "reason": "Drizzle replaces an empty builder name with its TypeScript property key. At this exact site the explicit SQL name and property key are identical, so the actual exported column mapping remains unchanged. Camel-case to snake-case sites are separately checked and are not part of this equivalence."
+    },
+    {
+      "fingerprint": "4b129fc07778f3ab39cd8305201188297724afe179ed22b39e5d059422cfc848",
+      "sampleId": "579",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 134
+        },
+        "start": {
+          "column": 13,
+          "line": 134
+        }
+      },
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 4,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent native timestamp-mode fallback",
+      "reason": "The installed Drizzle timestamp factory selects string mode only for mode === \"string\"; both \"date\" and the mutated empty value select PgTimestampBuilder. Actual exported-schema tests confirm the Date data type and timezone-aware SQL type. Re-review when changing Drizzle."
+    },
+    {
+      "fingerprint": "2683ee4416f9efc35479d2f8a4ebfd9883e93eb468957c8cc62a1ccad4ce5a55",
+      "sampleId": "583",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 138
+        },
+        "start": {
+          "column": 13,
+          "line": 138
+        }
+      },
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 5,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "equivalent native timestamp-mode fallback",
+      "reason": "The installed Drizzle timestamp factory selects string mode only for mode === \"string\"; both \"date\" and the mutated empty value select PgTimestampBuilder. Actual exported-schema tests confirm the Date data type and timezone-aware SQL type. Re-review when changing Drizzle."
+    },
+    {
+      "fingerprint": "489f16fd04a378bb6765dc82ac7e67b2391b218c9613d185e8c908a4cd906420",
+      "sampleId": "585",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 148
+        },
+        "start": {
+          "column": 3,
+          "line": 142
+        }
+      },
+      "original": "(table) => [\n    index(\"dead_letter_queue_queue_failed_idx\").on(\n      table.queue,\n      table.failedAt,\n    ),\n    index(\"dead_letter_queue_original_job_idx\").on(table.originalJobId),\n  ]",
+      "mutatorName": "ArrowFunction",
+      "replacement": "() => undefined",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts: Cannot convert undefined or null to object\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Cannot convert undefined or null to object\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Cannot convert undefined or null to object\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Cannot convert undefined or null to object\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Cannot conver",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "66cc4422340d2f51ee3fefb2538cd105043ef6c210ee85ffbaad75ea92a53f7a",
+      "sampleId": "591",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 2,
+          "line": 168
+        },
+        "start": {
+          "column": 55,
+          "line": 152
+        }
+      },
+      "original": "{\n  description: \"Terminally failed jobs retained separately from the active reservation table.\",\n  columns: {\n    id: \"Stable identifier of the dead-letter record.\",\n    originalJobId: \"Identifier used by the job while it was in the active queue.\",\n    identity: \"Optional application-defined deduplication identity copied from the original job.\",\n    queue: \"Queue in which the original job was processed.\",\n    payload: \"Application-defined input copied from the original job.\",\n    correlation: \"Optional completion-correlation metadata copied from the original job.\",\n    groupId: \"Optional scheduling group copied from the original job.\",\n    executionId: \"Optional observability execution identifier copied from the original job.\",\n    attempt: \"Number of handler attempts made before the job became terminal.\",\n    error: \"Structured terminal error that caused the job to be dead-lettered.\",\n    createdAt: \"Date and time when the original job was created.\",\n    failedAt: \"Date and time when the job moved to the dead-letter queue.\",\n  },\n}",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts: Database table descriptions for workers.dead_letter_queue require a table or column description.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database table descriptions for workers.dead_letter_queue require a table or column description.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database table descriptions for workers.dead_letter_queue require a table or column description.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database table descript",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "56c26d457b5bb681245a4354a2da558798b43891a2786dd1623b065d548816e4",
+      "sampleId": "592",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 95,
+          "line": 153
+        },
+        "start": {
+          "column": 16,
+          "line": 153
+        }
+      },
+      "original": "\"Terminally failed jobs retained separately from the active reservation table.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts: Database description for table workers.dead_letter_queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for table workers.dead_letter_queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for table workers.dead_letter_queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for table workers.dead_letter_queue cannot be empty.\n/Users/antarestupin/works",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "41c2f2998b9b516b07b4b3251509bfbd6e1ae7cf0ec5d6453c889680984cf471",
+      "sampleId": "593",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 167
+        },
+        "start": {
+          "column": 12,
+          "line": 154
+        }
+      },
+      "original": "{\n    id: \"Stable identifier of the dead-letter record.\",\n    originalJobId: \"Identifier used by the job while it was in the active queue.\",\n    identity: \"Optional application-defined deduplication identity copied from the original job.\",\n    queue: \"Queue in which the original job was processed.\",\n    payload: \"Application-defined input copied from the original job.\",\n    correlation: \"Optional completion-correlation metadata copied from the original job.\",\n    groupId: \"Optional scheduling group copied from the original job.\",\n    executionId: \"Optional observability execution identifier copied from the original job.\",\n    attempt: \"Number of handler attempts made before the job became terminal.\",\n    error: \"Structured terminal error that caused the job to be dead-lettered.\",\n    createdAt: \"Date and time when the original job was created.\",\n    failedAt: \"Date and time when the job moved to the dead-letter queue.\",\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 0,
+      "status": "Survived",
+      "testsCompleted": 187,
+      "classification": "deferred optional schema-description surface",
+      "reason": "The mutation removes per-column descriptions while leaving the required table description and executable schema intact. This changes introspection/documentation metadata and is not strict equivalence. Actual metadata wording is not pinned solely to improve a score; description-presence contracts can be added if this tooling surface is prioritized."
+    },
+    {
+      "fingerprint": "afd705896ad5be4b191913af48fe2b72a7711cd8dc538dadc8b00f4eae08b96b",
+      "sampleId": "594",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 55,
+          "line": 155
+        },
+        "start": {
+          "column": 9,
+          "line": 155
+        }
+      },
+      "original": "\"Stable identifier of the dead-letter record.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.dead_letter_queue.id cannot be empty.\n/Users/antarestupin/wo",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "a761ae75cfecf2b54aa1d032aeca5b3db3e8a9eedfca988b63afe3fbb231f5c6",
+      "sampleId": "595",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 82,
+          "line": 156
+        },
+        "start": {
+          "column": 20,
+          "line": 156
+        }
+      },
+      "original": "\"Identifier used by the job while it was in the active queue.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.original_job_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.original_job_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.original_job_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.dead_letter_queue.ori",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "571bc598cf63e7296c889ab8d0da218c2775b6f3cd96bf41215943818e3473f7",
+      "sampleId": "596",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 98,
+          "line": 157
+        },
+        "start": {
+          "column": 15,
+          "line": 157
+        }
+      },
+      "original": "\"Optional application-defined deduplication identity copied from the original job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts: Database description for column workers.dead_letter_queue.identity cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/workflows/runtime.test.ts: Database description for column workers.dead_letter_queue.identity cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.dead_letter_queue.identity cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/provider.test.ts: Database description for column workers.dead_letter_queue",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "cd4ae6a4dde5e9472e87c9b46c066bfd1f6a1e4246f4511aa4add2cc036d28c5",
+      "sampleId": "597",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 60,
+          "line": 158
+        },
+        "start": {
+          "column": 12,
+          "line": 158
+        }
+      },
+      "original": "\"Queue in which the original job was processed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.queue cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.dead_letter_queue.queue cannot be empty.\n/Users/ant",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "25c1f14bd016845b3a1d3ac3211873c6e898aafb36e4368037b7ee0408118c3a",
+      "sampleId": "598",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 71,
+          "line": 159
+        },
+        "start": {
+          "column": 14,
+          "line": 159
+        }
+      },
+      "original": "\"Application-defined input copied from the original job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.payload cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.dead_letter_queue.payload cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.payload cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.payload cannot be empty.\n/Us",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "7860e4916bf0b36bbd2ed92d99d990ef43ed52f9f0f61b949c5a84be7ee1b0e3",
+      "sampleId": "599",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 90,
+          "line": 160
+        },
+        "start": {
+          "column": 18,
+          "line": 160
+        }
+      },
+      "original": "\"Optional completion-correlation metadata copied from the original job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.correlation cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.correlation cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.correlation cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.dead_letter_queue.correlation can",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "c5c8b35dcde12f4ceb885341b717863389f0a96941e15bac303b70ce82876ac7",
+      "sampleId": "600",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 71,
+          "line": 161
+        },
+        "start": {
+          "column": 14,
+          "line": 161
+        }
+      },
+      "original": "\"Optional scheduling group copied from the original job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.group_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.dead_letter_queue.group_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.group_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.group_id cannot be empty.",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "082f280d22557f393807bcf43700cf31edc438ef5eecaaf2cd6e32851428fa56",
+      "sampleId": "601",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 93,
+          "line": 162
+        },
+        "start": {
+          "column": 18,
+          "line": 162
+        }
+      },
+      "original": "\"Optional observability execution identifier copied from the original job.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.execution_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.execution_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.execution_id cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.dead_letter_queue.execution_id",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "9768614269ec7e9e3baac97525c1f6935f093a8dd61838f96642e40fc6d387ef",
+      "sampleId": "602",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 163
+        },
+        "start": {
+          "column": 14,
+          "line": 163
+        }
+      },
+      "original": "\"Number of handler attempts made before the job became terminal.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.attempt cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.dead_letter_queue.attempt cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.attempt cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.attempt cannot be empty.\n/Us",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "0ffac24975e49df2f933528e90c260595a799b2a6b70c61998f5959ea77a8ac9",
+      "sampleId": "603",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 80,
+          "line": 164
+        },
+        "start": {
+          "column": 12,
+          "line": 164
+        }
+      },
+      "original": "\"Structured terminal error that caused the job to be dead-lettered.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.error cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.error cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.error cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.dead_letter_queue.error cannot be empty.\n/Users/ant",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "c5b61fba44ed8a04b1fab3bdf1a00c42a3cbed7cad41f3310b722235ece69b1c",
+      "sampleId": "604",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 66,
+          "line": 165
+        },
+        "start": {
+          "column": 16,
+          "line": 165
+        }
+      },
+      "original": "\"Date and time when the original job was created.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.created_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/background/runtime.test.ts: Database description for column workers.dead_letter_queue.created_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.created_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.created_at cannot b",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    },
+    {
+      "fingerprint": "d5692c4a4971a1d58485e7dd95c52ded2dd19d66818c0f658c4f8d53d19df8f4",
+      "sampleId": "605",
+      "file": "src/packages/kestrel/src/workers/adapters/postgres/schema.ts",
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 166
+        },
+        "start": {
+          "column": 15,
+          "line": 166
+        }
+      },
+      "original": "\"Date and time when the job moved to the dead-letter queue.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 0,
+      "status": "RuntimeError",
+      "testsCompleted": 0,
+      "statusReasonExcerpt": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/app/catalog.test.ts: Database description for column workers.dead_letter_queue.failed_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/appearance.test.ts: Database description for column workers.dead_letter_queue.failed_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/atlas.test.ts: Database description for column workers.dead_letter_queue.failed_at cannot be empty.\n/Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-wWgh0y/src/packages/kestrel/src/atlas/authorization.test.ts: Database description for column workers.dead_letter_queue.failed_at cannot be e",
+      "classification": "invalid mutated module at import boundary",
+      "reason": "This variant fails during module loading, usually because schema-description validation rejects the malformed export. Stryker records RuntimeError, not Killed; this is not evidence of an assertion detecting a valid behavioral mutation."
+    }
+  ],
+  "scorePolicy": "Preserve every raw status. No exclusions, adjusted score, or blocking threshold. Deferred fault injection and data-shape differences are not unconditional semantic equivalences.",
+  "deferred": "Four UUID-default/partial-index DDL expression mutants require generated-DDL application or focused SQL-expression validation. Three per-column description maps affect tooling metadata. One overflow selected-ID mutation depends on untested duplicate queue preferences; the scheduler emits unique queue preferences. Conditional map-overlay and optional-property differences are not universal equivalences. Schema module RuntimeErrors remain raw RuntimeError statuses, never assertion kills.",
+  "sourceAndTestHashes": {
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "d8eb58bb419220feecb823742b2e514c05ca3208a9bb0d995856ab88657be182",
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.ts": "0d671ddd0899357500be19be08624ed10f8b1046bd59900212da49e1a78e9466",
+    "src/packages/kestrel/src/workers/adapter_definition.ts": "7c2549c2903b9ca5bdd1aff1490d2662be846f34edcec2cde85f5a6a9304b6c5",
+    "src/packages/kestrel/src/workers/adapters/index.ts": "23cb3253606abad68d13b8f35d2e4ad9a0f0307a617bbcfb3d948c5a6fb83ac6",
+    "src/packages/kestrel/src/workers/adapters/memory/adapter.test.ts": "39fec985ea5bcc7902768104640ff465f60a6f980158bc8530269713dd6d8b4d",
+    "src/packages/kestrel/src/workers/adapters/memory/adapter.ts": "1994c9e0e12a4d6010b402b7b7d72f659ca88ec36d10fe32993c3454f0086721",
+    "src/packages/kestrel/src/workers/adapters/memory/definition.test.ts": "4f54129de0c21fdabb8f0a4807ca80fb96fc29921b0f2b9cbc8cd57158555d20",
+    "src/packages/kestrel/src/workers/adapters/memory/definition.ts": "6fff8e8cc43ac4205c33a76eb1f07dfaa35a83903d9554256458a5c724b4fc17",
+    "src/packages/kestrel/src/workers/adapters/memory/index.ts": "43e6e1ee685d12449705c346edecc45304297c9e60eb7613f4679578e5e81002",
+    "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts": "800a78a25a2a28e15d6cc519a3d6e8d8c477511cfcfac935496427565cced686",
+    "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts": "3e5136f258f04309f0c1deeb1824af34ea4f5e19c929486da9a2b5baaba25a2c",
+    "src/packages/kestrel/src/workers/adapters/postgres/definition.test.ts": "6a9436ceb30d32459f73a177b7440a4f136d43b352e7a29e30b33fd734de2e53",
+    "src/packages/kestrel/src/workers/adapters/postgres/definition.ts": "91dd76912c93f9876a1881e9cb0fb67232a0c8d4ae5d6e8fbf18d744edf73819",
+    "src/packages/kestrel/src/workers/adapters/postgres/index.ts": "6c912a86055eb327b3146fa13c5dad0cc1f16f581e83359f27011dfb0e622855",
+    "src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts": "59754224954e2e858384ee9c77804a5cfd9437b93f641d2abb7034a4a1e2026a",
+    "src/packages/kestrel/src/workers/adapters/postgres/schema.ts": "31df134a46e7b8406f3038d3e7477f64f79243b58648ece20f3bfdcd8b43a229",
+    "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+    "src/packages/kestrel/src/workers/client.ts": "89c739b77104ef7bbd511e086b13082588327f919bf022a7b30df73b1ea7a305",
+    "src/packages/kestrel/src/workers/configuration.test.ts": "d560923960df766c2880eb555ee3c209c05dbb6884e9ec8abaa4499a75b60a3e",
+    "src/packages/kestrel/src/workers/configuration.ts": "ed3992278844045d76030c1cdece602c0212826401a1e0cda05775de95b9199b",
+    "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "0cefd1a9eeb1212ab7eba2c0df1c5a27f9a95f74dfb421659e8b10d5e746e33f",
+    "src/packages/kestrel/src/workers/deferral_buffer.ts": "1755cce7f1bac01f8571b387d4308d700179d5a6a1c3f96c0e2137acc94b26b0",
+    "src/packages/kestrel/src/workers/definition_contract.test.ts": "7160d9b7061a48337b73da160cb522d917a1b6d08cdea8a66006f5d436bcdfa0",
+    "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+    "src/packages/kestrel/src/workers/dependencies.ts": "471adfd3bd82879c49ba1670948f976671bcf0ef07bb5cbed28867e02c534272",
+    "src/packages/kestrel/src/workers/errors.ts": "2011d5e8950bb40ad51bb854a2ace17a076e8340d9a178c9cd57c3f0940b7552",
+    "src/packages/kestrel/src/workers/index.ts": "e0f31ae3263a518de404fd45119aeafcbb24020d25de4238e7dba54bf2ce0e17",
+    "src/packages/kestrel/src/workers/metadata_contract.test.ts": "df06b75cf10eb49e46ca418f77f6f091fb5b23c671431749c19274a90821d27b",
+    "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+    "src/packages/kestrel/src/workers/provider.ts": "a33b4bb9708f7700f19c10daeb1ad969cc748c3dfe3a43694a3d91f6554ac78a",
+    "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+    "src/packages/kestrel/src/workers/publication.ts": "c7923158f7a24441ed1c5292df6ba3fe3c3923c1981ff9a119d4a77dc1fc644a",
+    "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba",
+    "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+    "src/packages/kestrel/src/workers/runtime.ts": "0128fa3914a4573d622e242765bb0f9dd11f0d1c459283c3b9061099f3bff48f",
+    "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+    "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+    "src/packages/kestrel/src/workers/scheduler.ts": "94e9aedee6abd04055d67d2c34818ac3c63f746ecdcbd9c8eabdd222382fb78b",
+    "src/packages/kestrel/src/workers/serialization.ts": "8b38b21769fbf5cb85ca234a7e3506082e4c03153f6bfd3b4a5118bab2730fe2",
+    "src/packages/kestrel/src/workers/testing/payload_conformance.ts": "7e29a933c60380d1e9dbc973f5178e02ce8134eee75d787270ad21757eca8aaf",
+    "src/packages/kestrel/src/workers/types.ts": "4cb8a838d137f1688cae39393c4a177d02dde076f5439567350f44475a5ac1ef",
+    "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+    "src/packages/kestrel/src/workers/worker.ts": "f468ec7d7389fa97223f9fdffd690cc6136c4efd9df8e74cb0b5279af5c922a8"
+  },
+  "reportHashes": {
+    "artifacts/mutation/workers-adapters-before-two-hour-tests/mutation.json": "f5cece7daee9e111d6c3506f3c1fdc0f7a576f6cf2c14d406b457e927ce3584b",
+    "artifacts/mutation/workers-adapters/mutation.json": "92d88c687fa18d5007e8b40825fc34fc751c55e2b0036a642d7896abf57eb16f"
+  },
+  "backendImplementationReferences": {
+    "node_modules/drizzle-orm/pg-core/columns/timestamp.js": "d903316b96274428378ee2d475171f9df2f6011cb28d8bb82c6d0a18a89ed602",
+    "node_modules/drizzle-orm/column-builder.js": "49574520e9f52b18cd4ba701995717256f0525b42542f40062cab2d8548717b4",
+    "node_modules/drizzle-orm/pg-core/table.js": "d4b20b49d3bd38b2301e7761a7ce2cd7c8402f5cf64fff9c5bf3392bccc25468"
+  }
+}

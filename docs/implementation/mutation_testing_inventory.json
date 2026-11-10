@@ -23,27 +23,34 @@
       "id": "actions",
       "scope": "actions/**/*",
       "sourceFiles": 9,
-      "state": "not-assessed",
-      "focus": "Validation, CRUD repository contracts, cursor and page pagination",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "All nine current source candidates assessed; 12 diagnostic/optional-metadata residuals classified; re-review after contract changes",
+      "evidence": [
+        "actions-crud-pagination",
+        "actions-component"
+      ]
     },
     {
       "id": "app",
       "scope": "app/**/*",
       "sourceFiles": 11,
       "state": "partial",
-      "focus": "Startup, execution ownership and catalog pending; shutdown slice reviewed (three equivalents)",
+      "focus": "Shutdown, diagnostic budgets/destinations and CLI/worker identity wiring reviewed; startup, ownership and other catalog paths pending",
       "evidence": [
-        "app-shutdown"
+        "app-shutdown",
+        "execution-diagnostics",
+        "catalog-identities"
       ]
     },
     {
       "id": "atlas",
       "scope": "atlas/**/*",
       "sourceFiles": 51,
-      "state": "not-assessed",
-      "focus": "Collections, routing, actions/responses, rendering and adapters",
-      "evidence": []
+      "state": "partial",
+      "focus": "Portable collection URL helper reviewed; other client/server, routing, rendering and adapter scopes pending",
+      "evidence": [
+        "atlas-collection-query"
+      ]
     },
     {
       "id": "authentication",
@@ -71,17 +78,21 @@
       "id": "background",
       "scope": "background/**/*",
       "sourceFiles": 4,
-      "state": "not-assessed",
-      "focus": "Runtime admission, drain and failure propagation",
-      "evidence": []
+      "state": "assessment-complete-review-pending",
+      "focus": "All four candidate files assessed; synchronous stop-drain bug fixed; controlled steady-state completion assertions and residual policy follow-up pending",
+      "evidence": [
+        "component-background"
+      ]
     },
     {
       "id": "cache",
       "scope": "cache/**/*",
       "sourceFiles": 24,
-      "state": "not-assessed",
-      "focus": "Memory, PostgreSQL and Redis contracts; expiry and pruning",
-      "evidence": []
+      "state": "partial",
+      "focus": "Memory/PostgreSQL pruning reviewed; other adapter methods, Redis and broader concurrency contracts pending",
+      "evidence": [
+        "cache-pruning"
+      ]
     },
     {
       "id": "cli",
@@ -229,18 +240,23 @@
       "id": "outbound_http",
       "scope": "outbound_http/**/*",
       "sourceFiles": 17,
-      "state": "not-assessed",
-      "focus": "Retries, budgets, abort, middleware and dependency failures",
-      "evidence": []
+      "state": "partial",
+      "focus": "Entire deadline/body/retry files assessed; remaining client/middleware/provider files and resource/interleaving residuals pending",
+      "evidence": [
+        "outbound-resilience"
+      ]
     },
     {
       "id": "scheduled_tasks",
       "scope": "scheduled_tasks/**/*",
       "sourceFiles": 19,
-      "state": "partial",
-      "focus": "PostgreSQL extendLease reviewed; reservation lifecycle, scheduler and other adapter operations pending",
+      "state": "assessment-complete-review-pending",
+      "focus": "All 19 candidate files assessed in three disjoint profiles; material lifecycle/date/recovery cases and schema/interleaving follow-up pending",
       "evidence": [
-        "postgres-ownership"
+        "postgres-ownership",
+        "scheduled-runtime",
+        "scheduled-adapters",
+        "scheduled-contracts"
       ]
     },
     {
@@ -309,18 +325,26 @@
       "id": "workers",
       "scope": "workers/**/*",
       "sourceFiles": 23,
-      "state": "not-assessed",
-      "focus": "Delivery, retries, scheduler, publication and adapters",
-      "evidence": []
+      "state": "partial",
+      "focus": "Publication, adapter and definition/provider/runtime files assessed plus selected delivery ranges; scheduler admission/pressure/allocation/lease maintenance and material residuals pending",
+      "evidence": [
+        "workers-publication",
+        "workers-delivery",
+        "workers-adapters",
+        "workers-contracts"
+      ]
     },
     {
       "id": "workflows",
       "scope": "workflows/**/*",
       "sourceFiles": 38,
       "state": "partial",
-      "focus": "PostgreSQL retryTask reviewed; serialization, runtime, scheduler and other adapter operations pending",
+      "focus": "Memory/PostgreSQL task ownership, operator retry and terminal-control slices assessed; runtime/scheduler/serialization, other adapter methods and concurrency/parent-graph gaps pending",
       "evidence": [
-        "postgres-ownership"
+        "postgres-ownership",
+        "workflow-task-ownership",
+        "workflow-execution-retry",
+        "workflow-terminal-control"
       ]
     }
   ],
@@ -519,6 +543,386 @@
       "analysis": "mutation_testing_framework.md#security-and-coordination-follow-up",
       "classification": "mutation_testing_lock_renewal_classification.json",
       "limits": "Two conditional equivalents and three dormant defensive/invariant diagnostics retained. Custom handle substitution outside the assessment. Final run has zero timeout-driven kills; other lock sources outside scope."
+    },
+    {
+      "id": "actions-crud-pagination",
+      "date": "2026-11-10",
+      "components": [
+        "actions"
+      ],
+      "extent": "Entire model_actions.ts, pagination.ts and cursor_pagination.ts; includes a numbered default configuration fix",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 168,
+        "Survived": 8
+      },
+      "seconds": 70,
+      "report": "artifacts/mutation/actions-crud-pagination/mutation.json",
+      "analysis": "mutation_testing_actions_followup.md",
+      "classification": "mutation_testing_actions_classification.json",
+      "limits": "Three-file selected scope overlaps the full actions component. Production fix changes seven mutation variants; use source-change-aware comparison. Eight unconstrained diagnostic survivors."
+    },
+    {
+      "id": "actions-component",
+      "date": "2026-11-10",
+      "components": [
+        "actions"
+      ],
+      "extent": "All nine candidate files in actions/**/*, including export-only index with no mutants",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 226,
+        "Survived": 12
+      },
+      "seconds": 100,
+      "report": "artifacts/mutation/component-actions/mutation.json",
+      "analysis": "mutation_testing_actions_followup.md",
+      "classification": "mutation_testing_actions_component_classification.json",
+      "limits": "Full current component reviewed; ten diagnostic changes and two optional-property representations retained. No claim for downstream db/utils or type-level contracts."
+    },
+    {
+      "id": "cache-pruning",
+      "date": "2026-11-10",
+      "components": [
+        "cache"
+      ],
+      "extent": "Memory/PostgreSQL prune operations, deletion helpers and limit guards",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 51,
+        "Survived": 7
+      },
+      "seconds": 13,
+      "report": "artifacts/mutation/cache-pruning/mutation.json",
+      "analysis": "mutation_testing_actions_followup.md",
+      "classification": "mutation_testing_cache_pruning_classification.json",
+      "limits": "Seven residuals include four bounded-work/failure-observation differences, one count invariant and two unconstrained diagnostic strings. Other cache methods/backends outside scope."
+    },
+    {
+      "id": "execution-diagnostics",
+      "date": "2026-11-10",
+      "components": [
+        "app"
+      ],
+      "extent": "ExecutionContext diagnostic entry/total byte budgets, replacement accounting and destination normalization",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 38,
+        "Survived": 1
+      },
+      "seconds": 21,
+      "report": "artifacts/mutation/execution-diagnostics/mutation.json",
+      "analysis": "mutation_testing_actions_followup.md",
+      "classification": "mutation_testing_execution_diagnostics_classification.json",
+      "limits": "One diagnostic string survivor. Other execution-context and app methods outside scope."
+    },
+    {
+      "id": "catalog-identities",
+      "date": "2026-11-10",
+      "components": [
+        "app"
+      ],
+      "extent": "CLI command and worker queue registry identity initializer wiring",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 4,
+        "Survived": 2
+      },
+      "seconds": 13,
+      "report": "artifacts/mutation/catalog-identities/mutation.json",
+      "analysis": "mutation_testing_actions_followup.md",
+      "classification": "mutation_testing_catalog_identities_classification.json",
+      "limits": "Two diagnostic category-label survivors. Does not establish arbitrary multi-definition rollback or the rest of catalog/registry implementation."
+    },
+    {
+      "id": "atlas-collection-query",
+      "date": "2026-11-10",
+      "components": [
+        "atlas"
+      ],
+      "extent": "Entire portable atlas/client/src/collection.ts helper",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 156,
+        "Survived": 6
+      },
+      "seconds": 18,
+      "report": "artifacts/mutation/atlas-collection-query/mutation.json",
+      "analysis": "mutation_testing_actions_followup.md",
+      "classification": "mutation_testing_atlas_collection_classification.json",
+      "limits": "Six residuals under primitive-string/JSON and optional-property contracts. URL normalization rather than backend schema enforcement; browser interactions, backend limits and arbitrary delimiter-bearing sort field round trips outside claim."
+    },
+    {
+      "id": "scheduled-runtime",
+      "date": "2026-11-10",
+      "components": [
+        "scheduled_tasks"
+      ],
+      "extent": "Entire scheduler/runtime files",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "NoCoverage": 5,
+        "Killed": 419,
+        "Survived": 71,
+        "Timeout": 18
+      },
+      "seconds": 312,
+      "report": "artifacts/mutation/scheduled-runtime/mutation.json",
+      "beforeReport": "artifacts/mutation/scheduled-runtime-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_scheduled_tasks.md",
+      "classification": "mutation_testing_scheduled_runtime_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Material admission, cancellation and ownership-maintenance combinations remain; timeout evidence is separate."
+    },
+    {
+      "id": "scheduled-adapters",
+      "date": "2026-11-10",
+      "components": [
+        "scheduled_tasks"
+      ],
+      "extent": "All adapter implementation, definition and schema candidates",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "NoCoverage": 8,
+        "Killed": 586,
+        "Survived": 51,
+        "RuntimeError": 25
+      },
+      "seconds": 180,
+      "report": "artifacts/mutation/scheduled-adapters/mutation.json",
+      "beforeReport": "artifacts/mutation/scheduled-adapters-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_scheduled_tasks.md",
+      "classification": "mutation_testing_scheduled_adapters_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Material date/recovery/metadata cases remain; exported schema tested but DDL/SQL interleavings are not exhaustive;25 runtime-invalid declarations retained."
+    },
+    {
+      "id": "scheduled-contracts",
+      "date": "2026-11-10",
+      "components": [
+        "scheduled_tasks"
+      ],
+      "extent": "All remaining definition/configuration/provider/registry/calendar/type candidates",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "Killed": 275,
+        "Survived": 16,
+        "Timeout": 1
+      },
+      "seconds": 87,
+      "report": "artifacts/mutation/scheduled-contracts/mutation.json",
+      "beforeReport": "artifacts/mutation/scheduled-contracts-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_scheduled_tasks.md",
+      "classification": "mutation_testing_scheduled_contracts_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Optional-property/validation-work/diagnostic distinctions retained;1 hit-limit Timeout."
+    },
+    {
+      "id": "workers-publication",
+      "date": "2026-11-10",
+      "components": [
+        "workers"
+      ],
+      "extent": "Entire client/publication/serialization/acknowledgement/deferral files",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "Killed": 159,
+        "Survived": 20
+      },
+      "seconds": 56,
+      "report": "artifacts/mutation/workers-publication/mutation.json",
+      "beforeReport": "artifacts/mutation/workers-publication-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_workers_followup.md",
+      "classification": "mutation_testing_workers_publication_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Synthetic-cause and optional-property differences retained separately from invariants/diagnostics."
+    },
+    {
+      "id": "workers-delivery",
+      "date": "2026-11-10",
+      "components": [
+        "workers"
+      ],
+      "extent": "Selected scheduler cycle, individual/batch invocation, result handoff, outcome and retry-helper ranges",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "NoCoverage": 2,
+        "Killed": 271,
+        "Survived": 35,
+        "Timeout": 5
+      },
+      "seconds": 79,
+      "report": "artifacts/mutation/workers-delivery/mutation.json",
+      "beforeReport": "artifacts/mutation/workers-delivery-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_workers_followup.md",
+      "classification": "mutation_testing_workers_delivery_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Admission/pressure/allocation/lease-maintenance ranges outside scope; material correlated-results and failure-cleanup cases remain."
+    },
+    {
+      "id": "workers-adapters",
+      "date": "2026-11-10",
+      "components": [
+        "workers"
+      ],
+      "extent": "All adapter implementation, definition and schema candidates",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "Killed": 498,
+        "Survived": 55,
+        "RuntimeError": 41
+      },
+      "seconds": 170,
+      "report": "artifacts/mutation/workers-adapters/mutation.json",
+      "beforeReport": "artifacts/mutation/workers-adapters-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_workers_followup.md",
+      "classification": "mutation_testing_workers_adapters_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Schema constraints and concurrency require follow-up;41 runtime-invalid declarations retained separately."
+    },
+    {
+      "id": "workers-contracts",
+      "date": "2026-11-10",
+      "components": [
+        "workers"
+      ],
+      "extent": "Remaining definition/configuration/dependency/error/provider/runtime/type candidates",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "Killed": 317,
+        "Survived": 27
+      },
+      "seconds": 97,
+      "report": "artifacts/mutation/workers-contracts/mutation.json",
+      "beforeReport": "artifacts/mutation/workers-contracts-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_workers_followup.md",
+      "classification": "mutation_testing_workers_contracts_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Metadata shape/diagnostics and remaining forwarding/robustness distinctions are classified separately."
+    },
+    {
+      "id": "workflow-task-ownership",
+      "date": "2026-11-10",
+      "components": [
+        "workflows"
+      ],
+      "extent": "Memory/PostgreSQL release/extend task methods and ownership helpers",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "Killed": 71,
+        "Survived": 4
+      },
+      "seconds": 19,
+      "report": "artifacts/mutation/workflow-task-ownership/mutation.json",
+      "beforeReport": "artifacts/mutation/workflow-task-ownership-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_async_runtime.md",
+      "classification": "mutation_testing_workflow_task_ownership_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Two lease diagnostics and two extra empty-transaction/failure-observation distinctions retained; later unrelated source changes do not alter selected expressions."
+    },
+    {
+      "id": "workflow-execution-retry",
+      "date": "2026-11-10",
+      "components": [
+        "workflows"
+      ],
+      "extent": "Memory/PostgreSQL operator retry implementations including new memory creation helper",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "NoCoverage": 2,
+        "Killed": 121,
+        "Survived": 13
+      },
+      "seconds": 37,
+      "report": "artifacts/mutation/workflow-execution-retry/mutation.json",
+      "beforeReport": "artifacts/mutation/workflow-execution-retry-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_async_runtime.md",
+      "classification": "mutation_testing_workflow_retry_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Multi-connection advisory-lock races/contention and defensive empty RETURNING paths remain deferred."
+    },
+    {
+      "id": "workflow-terminal-control",
+      "date": "2026-11-10",
+      "components": [
+        "workflows"
+      ],
+      "extent": "Memory/PostgreSQL cancellation/pause/resume/termination and descendant-cleanup ranges",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "NoCoverage": 1,
+        "Killed": 282,
+        "Survived": 31,
+        "Timeout": 6
+      },
+      "seconds": 75,
+      "report": "artifacts/mutation/workflow-terminal-control/mutation.json",
+      "beforeReport": "artifacts/mutation/workflow-terminal-control-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_async_runtime.md",
+      "classification": "mutation_testing_workflow_terminal_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Cyclic/partial parent graphs, terminal-parent operations and other material residuals remain; supporting applyActivationOutcome waiter fix lies outside mutation ranges."
+    },
+    {
+      "id": "outbound-resilience",
+      "date": "2026-11-10",
+      "components": [
+        "outbound_http"
+      ],
+      "extent": "Entire deadline, body-budget and retry implementations",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "NoCoverage": 1,
+        "Killed": 313,
+        "Timeout": 1,
+        "Survived": 33
+      },
+      "seconds": 154,
+      "report": "artifacts/mutation/outbound-resilience/mutation.json",
+      "beforeReport": "artifacts/mutation/outbound-resilience-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_async_runtime.md",
+      "classification": "mutation_testing_outbound_resilience_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Other fourteen candidate files unassessed; process liveness, object retention and cancellation interleavings remain separate resource/robustness gaps."
+    },
+    {
+      "id": "component-background",
+      "date": "2026-11-10",
+      "components": [
+        "background"
+      ],
+      "extent": "All four background runtime/provider/dependency/export candidates",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "counts": {
+        "Killed": 134,
+        "Survived": 10,
+        "Timeout": 1
+      },
+      "seconds": 54,
+      "report": "artifacts/mutation/component-background/mutation.json",
+      "beforeReport": "artifacts/mutation/component-background-before-two-hour-tests/mutation.json",
+      "analysis": "mutation_testing_background.md",
+      "classification": "mutation_testing_background_classification.json",
+      "session": "mutation_testing_async_runtime_session.json",
+      "limits": "Full component assessment; diagnostic, startup-signal and CLI preparation boundaries retain explicit review limits."
     }
   ]
 }

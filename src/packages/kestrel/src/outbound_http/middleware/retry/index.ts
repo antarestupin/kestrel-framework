@@ -110,7 +110,8 @@ function jitteredDelay(
   const base = Math.min(maxDelayMs, initialDelayMs * 2 ** (attempt - 1));
   const factor = 1 + (random() * 2 - 1) * jitterRatio;
 
-  return Math.max(0, base * factor);
+  // The configured maximum bounds jittered transport failures as well as HTTP responses.
+  return Math.min(maxDelayMs, Math.max(0, base * factor));
 }
 
 function sleepWithSignal(delayMs: number, signal: AbortSignal): Promise<void> {
@@ -127,7 +128,21 @@ function sleepWithSignal(delayMs: number, signal: AbortSignal): Promise<void> {
       clearTimeout(timeout);
       reject(getAbortReason(signal));
     };
-    const timeout = setTimeout(finish, delayMs);
+    // Native timers clamp larger delays to one millisecond. Keep one logical
+    // monotonic deadline while rearming bounded intervals under the same signal.
+    const expiresAt = performance.now() + delayMs;
+    let timeout: ReturnType<typeof setTimeout>;
+    const wake = () => {
+      const remaining = expiresAt - performance.now();
+      if (remaining > 0) {
+        timeout = setTimeout(wake, Math.min(remaining, 2_147_483_647));
+        timeout.unref();
+      } else {
+        finish();
+      }
+    };
+    // Preserve an asynchronous timer turn even for an explicitly zero delay.
+    timeout = setTimeout(wake, Math.min(delayMs, 2_147_483_647));
     timeout.unref();
     signal.addEventListener("abort", abort, { once: true });
   });

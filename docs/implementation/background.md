@@ -35,9 +35,9 @@ For application setup and task-oriented examples, see the [Background runtime us
 
 ## Design and implementation
 
-The library depends only on the common start/stop shape and the narrow application runtime port. Each scheduler retains its own catalog selection, admission, leases and draining. Startup is sequential so failure has a deterministic boundary. The `finally` path stops only successfully started runtimes, in reverse order, then stops application admission.
+The library depends only on the common start/stop shape and the narrow application runtime port. Each scheduler retains its own catalog selection, admission, leases and draining. Startup is sequential so failure has a deterministic boundary. The `finally` path closes application admission, then asks every admitted runtime to stop in reverse order, including a runtime whose startup only partially completed.
 
-Shutdown uses `Promise.allSettled()` so one failing runtime does not prevent the others from being asked to stop. Multiple failures are reported as one `AggregateError` after every cleanup attempt.
+Shutdown schedules each stop callback through a promise before using `Promise.allSettled()`, so either a synchronous callback throw or an asynchronous rejection still allows every peer to be asked to stop. Multiple failures are reported as one `AggregateError` after every cleanup attempt.
 
 ## Execution scenarios
 
@@ -55,14 +55,14 @@ sequenceDiagram
     Background->>Tasks: start()
     Background->>Workflows: start()
     Background->>Background: Wait for shutdown signal
+    Background->>App: stop admission
     Background->>Workflows: stop()
     Background->>Tasks: stop()
     Background->>Workers: stop()
-    Background->>App: stop()
     Background-->>CLI: Complete or aggregate shutdown failures
 ```
 
-If startup fails partway through, the same reverse cleanup runs for the workloads that already started. Unknown or unavailable selections fail before any runtime starts.
+If startup fails partway through, the same reverse cleanup runs for every workload whose start was attempted. Unknown or unavailable selections fail before any runtime starts.
 
 ## Public API
 
@@ -78,7 +78,7 @@ If startup fails partway through, the same reverse cleanup runs for the workload
 
 ## Adapter API
 
-`BackgroundWorkloadRuntime` is the hosting adapter contract. `start()` may be synchronous or asynchronous and must return only when the workload is ready to own background work; if it rejects, it must clean up resources created by its incomplete startup because the host records only successfully started runtimes. After a successful start, `stop()` must stop admission, drain or cooperatively cancel owned work according to that runtime's documented policy and release its resources. Stop failures reject and are aggregated by the host.
+`BackgroundWorkloadRuntime` is the hosting adapter contract. `start()` may be synchronous or asynchronous and must return only when the workload is ready to own background work. The host records the workload before invoking start and calls `stop()` even after partial startup failure; stop must therefore tolerate incomplete startup as well as ready state. It stops admission, drains or cooperatively cancels owned work according to that runtime's documented policy and releases its resources. Stop failures, including throws before a promise is returned, are aggregated by the host.
 
 The host calls each selected runtime at most once per `run()` invocation. Implementations retain their own idempotency policy because dedicated process entrypoints may also call them directly.
 

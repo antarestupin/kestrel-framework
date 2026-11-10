@@ -99,3 +99,49 @@ describe("cursor pagination contracts", () => {
     } }).pageInfo.nextCursor).toBeNull();
   });
 });
+
+// Cursor sizes additionally reserve a safely representable item for lookahead.
+describe("cursor pagination boundary contracts", () => {
+  for (const field of ["defaultPageSize", "maxPageSize"] as const) {
+    it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER + 1])(`rejects invalid ${field} %s`, (value) => {
+      const options = { defaultPageSize: 1, [field]: value };
+      expect(() => createCursorPaginationInputSchema(cursorCodec, options)).toThrow(TypeError);
+      expect(() => createCursorPaginationControllerInputSchema(cursorCodec, options)).toThrow(TypeError);
+    });
+  }
+
+  it("accepts equal minimum bounds and preserves a safely representable lookahead", () => {
+    const smallest = createCursorPaginationInputSchema(cursorCodec, { defaultPageSize: 1, maxPageSize: 1 });
+    expect(smallest.parse(undefined)).toStrictEqual({ type: "cursor", pageSize: 1 });
+    expect(smallest.parse({ type: "cursor", after: undefined })).toStrictEqual({ type: "cursor", pageSize: 1 });
+    const size = Number.MAX_SAFE_INTEGER - 1;
+    const largest = createCursorPaginationInputSchema(cursorCodec, { defaultPageSize: size, maxPageSize: size });
+    expect(largest.parse(undefined)).toStrictEqual({ type: "cursor", pageSize: size });
+    expect(createCursorPaginationControllerInputSchema(cursorCodec, { defaultPageSize: size, maxPageSize: size }).parse({ pageSize: String(size) })).toEqual({ pageSize: size });
+  });
+
+  it("rejects a null structured cursor even when the underlying value schema accepts null", () => {
+    const nullable = createPaginationCursorCodec(z.object({ id: z.number() }).nullable());
+    expect(createCursorPaginationInputSchema(nullable).safeParse({ type: "cursor", after: null }).success).toBe(false);
+  });
+
+  it("rejects invalid cursor tokens and oversized explicit nested input", () => {
+    const input = createCursorPaginationInputSchema(cursorCodec, { defaultPageSize: 1, maxPageSize: 2 });
+    for (const pageSize of [0, -1, 1.5, 3]) expect(input.safeParse({ type: "cursor", pageSize }).success).toBe(false);
+    const controller = createCursorPaginationControllerInputSchema(cursorCodec);
+    for (const after of ["!", "", "e30", z.encode(createPaginationCursorCodec(z.number()), 5)]) {
+      expect(controller.safeParse({ after }).success).toBe(false);
+    }
+  });
+
+  it("reports invalid outgoing cursor values as a custom cursor issue", () => {
+    const schema = createCursorPaginatedOutputSchema(z.string(), cursorCodec);
+    const result = schema.safeParse({ items: ["one"], pageInfo: {
+      type: "cursor", pageSize: 1, hasNextPage: true, nextCursor: { id: "not-a-number", label: "one" },
+    } });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues).toMatchObject([
+      { code: "custom", path: ["pageInfo", "nextCursor"] },
+    ]);
+  });
+});

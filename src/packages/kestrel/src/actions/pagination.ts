@@ -234,9 +234,10 @@ function assertPageSizeOption(
   name: string,
   value: number,
 ): void {
-  if (!Number.isInteger(value) || value < 1) {
+  // Zod defaults skip field parsing, so configuration must enforce its safe-integer contract too.
+  if (!Number.isSafeInteger(value) || value < 1) {
     throw new TypeError(
-      `The pagination ${name} must be a positive integer.`,
+      `The pagination ${name} must be a positive safe integer.`,
     );
   }
 }

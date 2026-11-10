@@ -36,6 +36,8 @@ classDiagram
     ScheduledTaskScheduler --> ScheduledTaskAdapter
 ```
 
+The scheduler tracks failure presence separately from the thrown value. A handler or ownership renewal that fails with `undefined` or `null` still persists a failed outcome, emits a failed observation and reports its original cause; a later sibling renewal or cleanup error does not replace that cause. The cooperative abort signal keeps native `AbortController` normalization, while persisted and reported errors retain the backend's raw value.
+
 ## Usage guide
 
 For application setup and task-oriented examples, see the [Scheduled tasks usage guide](../usage/scheduled_tasks.md).
@@ -180,7 +182,7 @@ Memory state avoids storage traffic for frequent process-local work. Persistent 
 
 The PostgreSQL schema contains `scheduled_tasks.state` and `scheduled_tasks.run`. A task can have several active run rows for `parallel`. Completion and lease extension require both task id and reservation token. Expired reservations restore their exact manual or scheduled occurrence before new admission, providing at-least-once execution after a crash. Handlers must consequently be idempotent.
 
-Normal completion and explicit release remove a run immediately. Admission and state reads recover expired runs for the relevant definitions. `pruneExpiredRuns()` additionally claims a bounded global batch with `FOR UPDATE SKIP LOCKED`, restores each occurrence and deletes its expired run. This global path also handles definitions that were removed, renamed or excluded from the current scheduler selection.
+Normal completion and explicit release remove a run immediately. Releasing or recovering a manual reservation coalesces it with any newer pending manual request at the earliest unhandled occurrence time, consistently across memory and PostgreSQL adapters. Admission and state reads recover expired runs for the relevant definitions. `pruneExpiredRuns()` additionally claims a bounded global batch with `FOR UPDATE SKIP LOCKED`, restores each occurrence and deletes its expired run. This global path also handles definitions that were removed, renamed or excluded from the current scheduler selection.
 
 The scheduler reconciles only its selected definitions and never deletes unrelated state. A newly discovered task receives the initial occurrence calculated at reconciliation time, while an existing task retains its controls and cadence.
 
@@ -188,7 +190,9 @@ The scheduler reconciles only its selected definitions and never deletes unrelat
 
 `ScheduledTaskScheduler` polls state adapters, orders due occurrences, admits at most its available slots and executes each reservation in a dedicated `ExecutionScope`. Dependencies are resolved from that scope. Start and completion observations use the `scheduled-task` transport, and handler failures are persisted without terminating the polling loop.
 
-Occurrence reservations and distributed locks are extended halfway through the configured lease. Shutdown stops admission, aborts cooperative handlers, waits for active invocations and then allows the application to dispose scoped resources. A handler failure does not cause an immediate retry; the task continues according to its normal schedule. Persistent delivery remains at-least-once when a process disappears before it confirms completion.
+Scheduler startup ownership is published before reconciliation can reenter admission. Concurrent scheduler starts are rejected while reconciliation is pending; the public runtime wrapper shares its published startup promise with reentrant callers. Stop waits for pending reconciliation and admission, prevents a late handler start, and restores a reservation obtained after stop was requested.
+
+Occurrence reservations and distributed locks are extended halfway through the configured lease. A refused reservation renewal or renewal rejection aborts only the affected invocation with the original failure as its signal reason. Its heartbeat retains every in-flight reservation/lock renewal until both settle before completion and lock release; a sibling task is not cancelled by this failure. Shutdown stops admission, aborts cooperative handlers, waits for active invocations and then allows the application to dispose scoped resources. A handler failure does not cause an immediate retry; the task continues according to its normal schedule. Persistent delivery remains at-least-once when a process disappears before it confirms completion.
 
 `ScheduledTaskAdapter` defines reconciliation, state listing, exact occurrence reservation, skipping, completion, release, lease extension, global expired-run pruning, manual requests and pause controls. `MemoryScheduledTaskAdapter` provides process-local state and deterministic tests. `PostgresScheduledTaskAdapter` implements durable state using short transactions and row locks; no transaction remains open while a handler executes.
 

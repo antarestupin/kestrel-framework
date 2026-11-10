@@ -1,0 +1,1646 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Complete background component: runtime/provider/dependency declaration, including static mutants.",
+  "command": "npm run test:mutation:component -- background",
+  "budgetMs": 600000,
+  "ignoreStatic": false,
+  "report": "artifacts/mutation/component-background/mutation.json",
+  "beforeReport": "artifacts/mutation/component-background-before-two-hour-tests/mutation.json",
+  "beforeCounts": {
+    "NoCoverage": 39,
+    "Killed": 78,
+    "Survived": 26,
+    "Timeout": 1
+  },
+  "counts": {
+    "Killed": 134,
+    "Survived": 10,
+    "Timeout": 1
+  },
+  "beforeScopeMutants": 144,
+  "scopeMutants": 145,
+  "baselineTests": {
+    "before": 8,
+    "after": 24
+  },
+  "newTestCases": 16,
+  "productionChangesInScope": true,
+  "sourceComparison": "Stop callback scheduling changed. Compare file/method/normalized original-expression/operator/replacement/occurrence fingerprints, not equal totals or whole-file identity.",
+  "matchedSites": 140,
+  "removedBeforeSites": 4,
+  "newAfterSites": 5,
+  "matchedPriorKillsPreserved": true,
+  "matchedSitePairs": [
+    {
+      "file": "src/packages/kestrel/src/background/dependencies.ts",
+      "method": "module",
+      "beforeId": "0",
+      "afterId": "0",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "availableWorkloads",
+      "beforeId": "29",
+      "afterId": "29",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "availableWorkloads",
+      "beforeId": "28",
+      "afterId": "28",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "availableWorkloads",
+      "beforeId": "27",
+      "afterId": "27",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "module",
+      "beforeId": "3",
+      "afterId": "3",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "module",
+      "beforeId": "2",
+      "afterId": "2",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "module",
+      "beforeId": "1",
+      "afterId": "1",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "78",
+      "afterId": "78",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "80",
+      "afterId": "80",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "79",
+      "afterId": "79",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "72",
+      "afterId": "72",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "74",
+      "afterId": "74",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "73",
+      "afterId": "73",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "52",
+      "afterId": "52",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "63",
+      "afterId": "63",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "67",
+      "afterId": "67",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "43",
+      "afterId": "43",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "83",
+      "afterId": "83",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "77",
+      "afterId": "77",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "66",
+      "afterId": "66",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "61",
+      "afterId": "61",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "60",
+      "afterId": "60",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "62",
+      "afterId": "62",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "50",
+      "afterId": "50",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "49",
+      "afterId": "49",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "51",
+      "afterId": "51",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "54",
+      "afterId": "54",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "47",
+      "afterId": "47",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "59",
+      "afterId": "59",
+      "before": "Timeout",
+      "after": "Timeout"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "44",
+      "afterId": "44",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "45",
+      "afterId": "45",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "46",
+      "afterId": "46",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "69",
+      "afterId": "69",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "68",
+      "afterId": "68",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "70",
+      "afterId": "70",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "58",
+      "afterId": "58",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "56",
+      "afterId": "56",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "55",
+      "afterId": "55",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "57",
+      "afterId": "57",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "48",
+      "afterId": "48",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "42",
+      "afterId": "42",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "53",
+      "afterId": "53",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "71",
+      "afterId": "71",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "64",
+      "afterId": "64",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "81",
+      "afterId": "81",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "beforeId": "75",
+      "afterId": "75",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "17",
+      "afterId": "17",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "23",
+      "afterId": "23",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "6",
+      "afterId": "6",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "26",
+      "afterId": "26",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "16",
+      "afterId": "16",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "9",
+      "afterId": "9",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "19",
+      "afterId": "19",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "7",
+      "afterId": "7",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "21",
+      "afterId": "21",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "22",
+      "afterId": "22",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "24",
+      "afterId": "24",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "11",
+      "afterId": "11",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "13",
+      "afterId": "13",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "15",
+      "afterId": "15",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "4",
+      "afterId": "4",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "12",
+      "afterId": "12",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "25",
+      "afterId": "25",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "8",
+      "afterId": "8",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "14",
+      "afterId": "14",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "20",
+      "afterId": "20",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "register",
+      "beforeId": "18",
+      "afterId": "18",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "34",
+      "afterId": "34",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "40",
+      "afterId": "40",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "32",
+      "afterId": "32",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "39",
+      "afterId": "39",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "36",
+      "afterId": "36",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "41",
+      "afterId": "41",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "35",
+      "afterId": "35",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "31",
+      "afterId": "31",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "30",
+      "afterId": "30",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "38",
+      "afterId": "38",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "33",
+      "afterId": "33",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "resolveRuntimes",
+      "beforeId": "37",
+      "afterId": "37",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "availableWorkloads",
+      "beforeId": "86",
+      "afterId": "86",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "availableWorkloads",
+      "beforeId": "85",
+      "afterId": "85",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "availableWorkloads",
+      "beforeId": "88",
+      "afterId": "88",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "availableWorkloads",
+      "beforeId": "87",
+      "afterId": "87",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "availableWorkloads",
+      "beforeId": "89",
+      "afterId": "89",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "availableWorkloads",
+      "beforeId": "84",
+      "afterId": "84",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "124",
+      "afterId": "124",
+      "before": "NoCoverage",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "151",
+      "afterId": "152",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "143",
+      "afterId": "144",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "113",
+      "afterId": "113",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "121",
+      "afterId": "121",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "139",
+      "afterId": "140",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "114",
+      "afterId": "114",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "126",
+      "afterId": "126",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "95",
+      "afterId": "95",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "94",
+      "afterId": "94",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "137",
+      "afterId": "137",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "136",
+      "afterId": "136",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "105",
+      "afterId": "105",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "118",
+      "afterId": "118",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "130",
+      "afterId": "130",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "145",
+      "afterId": "146",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "144",
+      "afterId": "145",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "119",
+      "afterId": "119",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "131",
+      "afterId": "131",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "120",
+      "afterId": "120",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "104",
+      "afterId": "104",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "133",
+      "afterId": "133",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "132",
+      "afterId": "132",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "134",
+      "afterId": "134",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "147",
+      "afterId": "148",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "146",
+      "afterId": "147",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "149",
+      "afterId": "150",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "148",
+      "afterId": "149",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "141",
+      "afterId": "142",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "140",
+      "afterId": "141",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "142",
+      "afterId": "143",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "116",
+      "afterId": "116",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "115",
+      "afterId": "115",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "117",
+      "afterId": "117",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "128",
+      "afterId": "128",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "127",
+      "afterId": "127",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "129",
+      "afterId": "129",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "110",
+      "afterId": "110",
+      "before": "Survived",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "109",
+      "afterId": "109",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "111",
+      "afterId": "111",
+      "before": "Survived",
+      "after": "Survived"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "112",
+      "afterId": "112",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "97",
+      "afterId": "97",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "96",
+      "afterId": "96",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "98",
+      "afterId": "98",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "100",
+      "afterId": "100",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "99",
+      "afterId": "99",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "101",
+      "afterId": "101",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "92",
+      "afterId": "92",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "91",
+      "afterId": "91",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "93",
+      "afterId": "93",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "125",
+      "afterId": "125",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "107",
+      "afterId": "107",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "108",
+      "afterId": "108",
+      "before": "Killed",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "122",
+      "afterId": "122",
+      "before": "NoCoverage",
+      "after": "Killed"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "beforeId": "102",
+      "afterId": "102",
+      "before": "Killed",
+      "after": "Killed"
+    }
+  ],
+  "removedBeforeIds": [
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "sampleId": "138"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "sampleId": "135"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "sampleId": "90"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "sampleId": "106"
+    }
+  ],
+  "newAfterIds": [
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "sampleId": "139"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "sampleId": "138"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "sampleId": "135"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "sampleId": "90"
+    },
+    {
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "sampleId": "106"
+    }
+  ],
+  "allExecutedMutantsHavePositiveTestsCompleted": true,
+  "vitestTimeoutKills": 5,
+  "timeoutKills": [
+    {
+      "sampleId": "125",
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 65
+        },
+        "start": {
+          "column": 24,
+          "line": 62
+        }
+      },
+      "original": "{\n        const completions = started.flatMap((runtime) => runtime.completion === undefined ? [] : [runtime.completion]);\n        return completions.length === 0 ? undefined : Promise.race(completions);\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Killed",
+      "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+      "killedBy": [
+        "5"
+      ],
+      "testsCompleted": 5
+    },
+    {
+      "sampleId": "127",
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "location": {
+        "end": {
+          "column": 90,
+          "line": 63
+        },
+        "start": {
+          "column": 58,
+          "line": 63
+        }
+      },
+      "original": "runtime.completion === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Killed",
+      "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+      "killedBy": [
+        "5"
+      ],
+      "testsCompleted": 5
+    },
+    {
+      "sampleId": "131",
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "location": {
+        "end": {
+          "column": 118,
+          "line": 63
+        },
+        "start": {
+          "column": 98,
+          "line": 63
+        }
+      },
+      "original": "[runtime.completion]",
+      "mutatorName": "ArrayDeclaration",
+      "replacement": "[]",
+      "status": "Killed",
+      "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+      "killedBy": [
+        "5"
+      ],
+      "testsCompleted": 1
+    },
+    {
+      "sampleId": "132",
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "location": {
+        "end": {
+          "column": 40,
+          "line": 64
+        },
+        "start": {
+          "column": 16,
+          "line": 64
+        }
+      },
+      "original": "completions.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Killed",
+      "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+      "killedBy": [
+        "5"
+      ],
+      "testsCompleted": 5
+    },
+    {
+      "sampleId": "134",
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "location": {
+        "end": {
+          "column": 40,
+          "line": 64
+        },
+        "start": {
+          "column": 16,
+          "line": 64
+        }
+      },
+      "original": "completions.length === 0",
+      "mutatorName": "EqualityOperator",
+      "replacement": "completions.length !== 0",
+      "status": "Killed",
+      "statusReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+      "killedBy": [
+        "5"
+      ],
+      "testsCompleted": 1
+    }
+  ],
+  "timeoutKillLimitation": "Five completion-getter mutants are killed by the existing WorkflowRuntime composite-supervision case reaching its5s Vitest deadline. Preserve raw statuses, but do not count them as direct assertion evidence. A controlled steady-state completion fixture should observe rejection before releasing its fallback shutdown gate, then drain without waiting on a blocked mutation.",
+  "remaining": [
+    {
+      "sampleId": "55",
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 101
+        },
+        "start": {
+          "column": 11,
+          "line": 101
+        }
+      },
+      "original": "value !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 3,
+      "classification": "deferred trailing missing-value CLI behavior",
+      "reason": "A trailing --workload has no next argument. Original preselection ignores it and falls back to available workloads; this mutant pushes undefined and rejects later. The main CLI parser owns option arity validation, while this exported preselection helper does not specify that malformed-input fallback. Clarify whether it should reject immediately instead of pinning the incidental fallback; keep this survivor visible."
+    },
+    {
+      "sampleId": "59",
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "location": {
+        "end": {
+          "column": 17,
+          "line": 102
+        },
+        "start": {
+          "column": 7,
+          "line": 102
+        }
+      },
+      "original": "index += 1",
+      "mutatorName": "AssignmentOperator",
+      "replacement": "index -= 1",
+      "status": "Timeout",
+      "statusReason": "Hit limit reached (301/300)",
+      "testsCompleted": 0,
+      "classification": "non-progress parser loop detected by instrumentation hit limit",
+      "reason": "Changing the option-value index increment to a decrement leaves the outer loop revisiting the same option. Stryker stops it with its 301/300 hit limit; this is a Timeout outcome, not an assertion kill or a measured wall-clock storage deadline."
+    },
+    {
+      "sampleId": "74",
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "location": {
+        "end": {
+          "column": 70,
+          "line": 111
+        },
+        "start": {
+          "column": 9,
+          "line": 111
+        }
+      },
+      "original": "!backgroundWorkloads.includes(workload as BackgroundWorkload)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 10,
+      "classification": "same invalid-selection rejection with diagnostic distinction",
+      "reason": "For a valid available-workload list, an unknown workload is also unavailable and is rejected with TypeError by the next check. Removing the vocabulary check changes the human-readable Unknown diagnostic to Unavailable, but never admits an invalid selection. Re-review if distinct public error classes or codes are introduced."
+    },
+    {
+      "sampleId": "75",
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 113
+        },
+        "start": {
+          "column": 72,
+          "line": 111
+        }
+      },
+      "original": "{\n      throw new TypeError(`Unknown background workload: \"${workload}\".`);\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 2,
+      "classification": "same invalid-selection rejection with diagnostic distinction",
+      "reason": "The next availability guard rejects every unknown workload for a valid available list. Omitting this error block preserves TypeError and prevents startup, while changing diagnostic wording/order. It is not a supported-selection behavior gap."
+    },
+    {
+      "sampleId": "77",
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 112
+        },
+        "start": {
+          "column": 27,
+          "line": 112
+        }
+      },
+      "original": "`Unknown background workload: \"${workload}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 2,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "Unknown selection still rejects with TypeError before startup. Only its unpinned human-readable message changes."
+    },
+    {
+      "sampleId": "83",
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "readRequestedWorkloads",
+      "location": {
+        "end": {
+          "column": 76,
+          "line": 115
+        },
+        "start": {
+          "column": 27,
+          "line": 115
+        }
+      },
+      "original": "`Unavailable background workload: \"${workload}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 1,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "Known but unavailable selection still rejects with TypeError before startup. Only unpinned human-readable wording changes."
+    },
+    {
+      "sampleId": "3",
+      "file": "src/packages/kestrel/src/background/provider.ts",
+      "method": "module",
+      "location": {
+        "end": {
+          "column": 56,
+          "line": 18
+        },
+        "start": {
+          "column": 15,
+          "line": 18
+        }
+      },
+      "original": "\"Background workload to run; repeatable.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 20,
+      "classification": "deferred CLI help metadata quality",
+      "reason": "Removing only the workload schema description preserves parsing, selection and runtime behavior, but loses explanatory help metadata. Current contracts pin the controller description, not this nested help text. This is lower-priority help quality, not strict output equivalence."
+    },
+    {
+      "sampleId": "111",
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 51
+        },
+        "start": {
+          "column": 15,
+          "line": 51
+        }
+      },
+      "original": "signal?.aborted",
+      "mutatorName": "OptionalChaining",
+      "replacement": "signal.aborted",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 9,
+      "classification": "equivalent under supervised callback ownership invariant",
+      "reason": "This start callback is created privately in run() and passed only to runSupervisedRuntime, which always calls start with its AbortSignal. Optional chaining is therefore redundant in the actual call graph. Re-review if callback invocation ownership changes; no artificial undefined-signal invocation was added."
+    },
+    {
+      "sampleId": "124",
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "location": {
+        "end": {
+          "column": 76,
+          "line": 58
+        },
+        "start": {
+          "column": 29,
+          "line": 58
+        }
+      },
+      "original": "\"Background polling terminated during startup.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 1,
+      "classification": "unconstrained startup-completion diagnostic wording",
+      "reason": "Unexpected successful polling completion is still converted into an Error and drains peers. The strengthened third-workload test preserves startup admission; this mutant only empties its diagnostic text."
+    },
+    {
+      "sampleId": "133",
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "location": {
+        "end": {
+          "column": 40,
+          "line": 64
+        },
+        "start": {
+          "column": 16,
+          "line": 64
+        }
+      },
+      "original": "completions.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 5,
+      "classification": "same lifecycle outcome with extra pending-promise work",
+      "reason": "For workloads without completion promises, Promise.race([]) never settles instead of returning undefined. The outer supervisor still waits for shutdown, requests every stop and preserves errors. This adds promise allocations/chaining but no public lifecycle result under the current owner. Do not call it strict work equivalence; retain the empty-completion guard."
+    },
+    {
+      "sampleId": "152",
+      "file": "src/packages/kestrel/src/background/runtime.ts",
+      "method": "run",
+      "location": {
+        "end": {
+          "column": 107,
+          "line": 71
+        },
+        "start": {
+          "column": 69,
+          "line": 71
+        }
+      },
+      "original": "\"Background workload shutdown failed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "statusReason": null,
+      "testsCompleted": 2,
+      "classification": "unconstrained aggregate diagnostic wording",
+      "reason": "Every stop attempt and original error identity/order remain tested. Only AggregateError.message changes, without losing nested causes."
+    }
+  ],
+  "remainingCategories": {
+    "deferred trailing missing-value CLI behavior": 1,
+    "non-progress parser loop detected by instrumentation hit limit": 1,
+    "same invalid-selection rejection with diagnostic distinction": 2,
+    "unconstrained diagnostic wording": 2,
+    "deferred CLI help metadata quality": 1,
+    "equivalent under supervised callback ownership invariant": 1,
+    "unconstrained startup-completion diagnostic wording": 1,
+    "same lifecycle outcome with extra pending-promise work": 1,
+    "unconstrained aggregate diagnostic wording": 1
+  },
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 74
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 35
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Survived",
+      "count": 4
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 20
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 6
+    },
+    {
+      "before": "Timeout",
+      "after": "Timeout",
+      "count": 1
+    }
+  ],
+  "reportHashes": {
+    "artifacts/mutation/component-background-before-two-hour-tests/mutation.json": "3d69733a83b6ae3bdda1d99f876505a40ca7498cb8f0adf15027ec583effca83",
+    "artifacts/mutation/component-background/mutation.json": "6b2ee038e9984b1faec57d4933ff8813ba420d915b2a97b01453440bdd9e2e87"
+  },
+  "embeddedProductionSourceHashes": {
+    "src/packages/kestrel/src/background/provider.ts": "a086767aa091a2fb573ab8c57f710d384120aa16a467d0e8b4371a29bc583735",
+    "src/packages/kestrel/src/background/runtime.ts": "c203be32e704c880ad7d05a0272c7601ab0a38805be1a81554b69ce137ae064c",
+    "src/packages/kestrel/src/background/dependencies.ts": "f0878f6e157190825c4ebfd1e0e1f34fb7c22aee0530743329a121659b5501ed"
+  },
+  "executedTestSourceHashes": {
+    "src/packages/kestrel/src/background/provider_contract.test.ts": "4a5706818230a2fe0f943710867988bb9c3688fe0dfe62356fced61a78be4ba2",
+    "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+    "src/packages/kestrel/src/background/runtime.test.ts": "7c4c48810ab067e8868b4496d25817144167dd23216c3ccf75c51a78b2badfe8"
+  },
+  "configurationHashesAtReview": {
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/mutation-profile.mjs": "255d6bc141dacae71439e7b4501404e577f295376696ea2b958c0015fcf7c9c7"
+  },
+  "review": "assessment complete; review pending for5 deadline kills and trailing CLI value/help metadata contracts",
+  "scorePolicy": "Ten survivors,one hit-limit Timeout and5 Vitest-deadline Killed outcomes remain visible; no exclusions or blocking threshold. No claim of strict performance equivalence for pending promise allocation.",
+  "reviewAgainWhen": "Re-review after shared supervisor callback ownership, CLI option-arity preselection contract, user help generation or stop-drain semantics change.",
+  "seconds": {
+    "before": 49,
+    "after": 54
+  },
+  "vitestTimeoutKillsBefore": 7
+}

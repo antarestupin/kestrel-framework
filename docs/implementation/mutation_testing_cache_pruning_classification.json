@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "MemoryCacheAdapter.prune and validateLimit; PostgresCacheAdapter.prune/deleteExpired/deleteOverflow and validatePruneLimit. Other adapter operations/constructors are unmutated dependencies.",
+  "command": "npm run test:mutation:cache-pruning",
+  "budgetMs": 600000,
+  "beforeReport": "artifacts/mutation/cache-pruning-before-tests/mutation.json",
+  "report": "artifacts/mutation/cache-pruning/mutation.json",
+  "scopeMutants": 58,
+  "counts": {
+    "Killed": 51,
+    "Survived": 7
+  },
+  "beforeCounts": {
+    "NoCoverage": 4,
+    "Survived": 17,
+    "Killed": 37
+  },
+  "seconds": {
+    "before": 12,
+    "after": 13
+  },
+  "baselineTests": {
+    "before": 83,
+    "after": 101
+  },
+  "newTestCases": 18,
+  "productionChanges": false,
+  "bugsFound": false,
+  "review": "complete with bounded-work/failure-observation limitations",
+  "sameProductionSource": true,
+  "sameMutationFingerprints": true,
+  "allPriorKillsPreserved": true,
+  "allExecutedMutantsCompletedTests": true,
+  "vitestTimeoutKills": 0,
+  "protectionOnlyKills": 0,
+  "sourceAndTestHashes": {
+    "src/packages/kestrel/src/cache/adapters/memory/adapter.ts": "2d2cbe2f064d15381960900ae6e2a50ac01f425e62e3fda7892ee458aec1c851",
+    "src/packages/kestrel/src/cache/adapters/memory/adapter.test.ts": "c57b412b98588212e5d9893c88799c8c283d69f2ba5b17ea4d478dd35babfa25",
+    "src/packages/kestrel/src/cache/adapters/postgres/adapter.ts": "0a220e49127d9f3787bbdec1f73bdcbf3ba4c62ca0d2fbad9f3a2506ad289e7d",
+    "src/packages/kestrel/src/cache/adapters/postgres/adapter.test.ts": "d7696e1969e39bd3cd12cbfa0bc2ae9cc17b30ae46cd4d9bf6482e13563460ae"
+  },
+  "reportHashes": {
+    "artifacts/mutation/cache-pruning-before-tests/mutation.json": "d142ddd0be092f051165326cc2e49889c18b673ab40cff1d51f181d640c9a48b",
+    "artifacts/mutation/cache-pruning/mutation.json": "7556fd089208a67585e50517220b985b3ce8ae26dc02ce7cfce4c6c90fb70e41"
+  },
+  "transitions": [
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 12
+    },
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 37
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Survived",
+      "count": 2
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 2
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 5
+    }
+  ],
+  "remainingCategoryCounts": {
+    "unconstrained diagnostic text": 2,
+    "same deletion result with additional bounded work and failure observation": 2,
+    "equivalent under standard ungrouped PostgreSQL count contract": 1,
+    "same deletion result with additional zero-limit SQL work and failure observation": 2
+  },
+  "remaining": [
+    {
+      "sampleId": "26",
+      "file": "src/packages/kestrel/src/cache/adapters/memory/adapter.ts",
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 172
+        },
+        "start": {
+          "column": 25,
+          "line": 172
+        }
+      },
+      "original": "\"Cache prune limit must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The invalid-limit contract still rejects with TypeError for zero, negative, fractional, NaN and infinite input. Only the otherwise undocumented human-readable diagnostic becomes empty. No stable exact-message contract is asserted; reassess if one is introduced.",
+      "reviewAgainWhen": "Pruning phases, helper guards, PostgreSQL count behavior, configured limits or failure-observation contracts change."
+    },
+    {
+      "sampleId": "31",
+      "file": "src/packages/kestrel/src/cache/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 149
+        },
+        "start": {
+          "column": 9,
+          "line": 149
+        }
+      },
+      "original": "remainingLimit === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "classification": "same deletion result with additional bounded work and failure observation",
+      "reason": "When expired deletions consume the whole limit, remainingLimit is zero. Removing this early return calls deleteOverflow(0): a standard COUNT query runs, evictionLimit becomes zero and the unchanged inner guard returns zero. The returned deletion count and retained rows are identical on a healthy database, but the extra read costs work and can expose an otherwise unobserved database failure. This is not a strict equivalence. Preserve the guard; controlled fault/read-count observation remains outside these output-and-row-state tests.",
+      "reviewAgainWhen": "Pruning phases, helper guards, PostgreSQL count behavior, configured limits or failure-observation contracts change."
+    },
+    {
+      "sampleId": "33",
+      "file": "src/packages/kestrel/src/cache/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 151
+        },
+        "start": {
+          "column": 31,
+          "line": 149
+        }
+      },
+      "original": "{\n      return expired;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Survived",
+      "testsCompleted": 3,
+      "classification": "same deletion result with additional bounded work and failure observation",
+      "reason": "When expired deletions consume the whole limit, remainingLimit is zero. Removing this early return calls deleteOverflow(0): a standard COUNT query runs, evictionLimit becomes zero and the unchanged inner guard returns zero. The returned deletion count and retained rows are identical on a healthy database, but the extra read costs work and can expose an otherwise unobserved database failure. This is not a strict equivalence. Preserve the guard; controlled fault/read-count observation remains outside these output-and-row-state tests.",
+      "reviewAgainWhen": "Pruning phases, helper guards, PostgreSQL count behavior, configured limits or failure-observation contracts change."
+    },
+    {
+      "sampleId": "42",
+      "file": "src/packages/kestrel/src/cache/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 22,
+          "line": 186
+        },
+        "start": {
+          "column": 8,
+          "line": 186
+        }
+      },
+      "original": "current?.count",
+      "mutatorName": "OptionalChaining",
+      "replacement": "current.count",
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "equivalent under standard ungrouped PostgreSQL count contract",
+      "reason": "The ungrouped SELECT count(*) used by deleteOverflow always returns one row, including an empty table. Consequently current is defined for the real PostgreSQL/Drizzle composition. Removing only this optional chain changes no result under that contract. Empty/malformed mocked result sets and database-contract changes are outside this classification.",
+      "reviewAgainWhen": "Pruning phases, helper guards, PostgreSQL count behavior, configured limits or failure-observation contracts change."
+    },
+    {
+      "sampleId": "45",
+      "file": "src/packages/kestrel/src/cache/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 191
+        },
+        "start": {
+          "column": 9,
+          "line": 191
+        }
+      },
+      "original": "evictionLimit === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "same deletion result with additional zero-limit SQL work and failure observation",
+      "reason": "When no overflow deletion is allowed, removing this early return executes the unchanged eviction SQL with LIMIT 0. The candidate set is empty, so the result remains zero with unchanged retained rows on a healthy database. An additional SQL statement is sent and can fail, so this is not a strict work/failure equivalence. Preserve the guard; controlled fault/statement-count observation remains outside the assessed output-and-row-state contract.",
+      "reviewAgainWhen": "Pruning phases, helper guards, PostgreSQL count behavior, configured limits or failure-observation contracts change."
+    },
+    {
+      "sampleId": "47",
+      "file": "src/packages/kestrel/src/cache/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 193
+        },
+        "start": {
+          "column": 30,
+          "line": 191
+        }
+      },
+      "original": "{\n      return 0;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "classification": "same deletion result with additional zero-limit SQL work and failure observation",
+      "reason": "When no overflow deletion is allowed, removing this early return executes the unchanged eviction SQL with LIMIT 0. The candidate set is empty, so the result remains zero with unchanged retained rows on a healthy database. An additional SQL statement is sent and can fail, so this is not a strict work/failure equivalence. Preserve the guard; controlled fault/statement-count observation remains outside the assessed output-and-row-state contract.",
+      "reviewAgainWhen": "Pruning phases, helper guards, PostgreSQL count behavior, configured limits or failure-observation contracts change."
+    },
+    {
+      "sampleId": "59",
+      "file": "src/packages/kestrel/src/cache/adapters/postgres/adapter.ts",
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 232
+        },
+        "start": {
+          "column": 25,
+          "line": 232
+        }
+      },
+      "original": "\"Cache prune limit must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 5,
+      "classification": "unconstrained diagnostic text",
+      "reason": "The invalid-limit contract still rejects with TypeError for zero, negative, fractional, NaN and infinite input. Only the otherwise undocumented human-readable diagnostic becomes empty. No stable exact-message contract is asserted; reassess if one is introduced.",
+      "reviewAgainWhen": "Pruning phases, helper guards, PostgreSQL count behavior, configured limits or failure-observation contracts change."
+    }
+  ],
+  "sqlMutationLimitation": "Stryker mutates TypeScript syntax, not arbitrary embedded SQL semantics. Empty SQL template mutations are killed by query failures rather than ownership/order assertions; direct row/count tests separately cover expiry boundaries, deterministic ties and one shared deletion budget.",
+  "scorePolicy": "Keep all seven Survived statuses visible; raw and covered score 87.93%. No ignores, adjusted score or gate. Four survivors are bounded-work/failure-observation differences, one is equivalent under PostgreSQL COUNT and two are unconstrained messages.",
+  "deferred": "Controlled failure/read/statement-count observation for zero-work guard paths; other cache adapter operations and backends remain outside scope."
+}

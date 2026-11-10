@@ -18,6 +18,8 @@ npm run test:mutation:fast -- --incremental
 # Keep static mutants and assess one existing framework component, including its adapters.
 npm run test:mutation:component -- throttling
 npm run test:mutation:component -- di --incremental
+# Assess the combined background host, including provider and selection contracts.
+npm run test:mutation:component -- background
 # Measure nine selected import-time declarations, stopping mutation work after ten minutes.
 npm run test:mutation:static-sample -- --incremental --force
 # Assess application stop/disposal/error collection with the same ten-minute budget.
@@ -39,8 +41,26 @@ Focused behavioral profiles retain static mutants, use separate report/cache dir
 | `npm run test:mutation:postgres-ownership` | Workflow PostgreSQL `retryTask` and scheduled-task PostgreSQL `extendLease` |
 | `npm run test:mutation:throttling-inspection` | Leased throttling `reconcile` and `inspectMany` |
 | `npm run test:mutation:lock-renewal` | Lock-manager `extendMany` and extension-batch validation |
+| `npm run test:mutation:actions-crud-pagination` | Model action factories, numbered pagination and cursor pagination |
+| `npm run test:mutation:cache-pruning` | Memory/PostgreSQL prune methods, deletion helpers and limit guards |
+| `npm run test:mutation:execution-diagnostics` | Execution diagnostic byte budgets, replacement accounting and destinations |
+| `npm run test:mutation:catalog-identities` | CLI command and worker queue identity wiring |
+| `npm run test:mutation:atlas-collection-query` | Portable Atlas collection URL parsing and serialization |
+| `npm run test:mutation:scheduled-runtime` | Entire scheduled-task scheduler and runtime |
+| `npm run test:mutation:scheduled-adapters` | All scheduled-task adapters, definitions and schemas |
+| `npm run test:mutation:scheduled-contracts` | Scheduled-task definitions, configuration, registry, provider and calendar contracts |
+| `npm run test:mutation:workers-publication` | Worker client, publication, serialization and acknowledgement/deferral buffers |
+| `npm run test:mutation:workers-delivery` | Selected scheduler cycle, invocation, result handoff and outcome persistence paths |
+| `npm run test:mutation:workers-adapters` | All worker adapters, definitions and schemas |
+| `npm run test:mutation:workers-contracts` | Worker definitions, configuration, metadata, provider and runtime |
+| `npm run test:mutation:workflow-task-ownership` | Memory/PostgreSQL task release, extension and ownership helpers |
+| `npm run test:mutation:workflow-execution-retry` | Memory/PostgreSQL operator retry creation and identity preservation |
+| `npm run test:mutation:workflow-terminal-control` | Memory/PostgreSQL cancellation, pause/resume, termination and descendant cleanup |
+| `npm run test:mutation:outbound-resilience` | Entire outbound deadline, body-budget and retry implementations |
 
-These are selected sublots, not complete parent-component assessments. Range profiles resolve method/function anchors from the current source and fail if a boundary disappears. Preserve the previous report before changing tests; run fresh references for before/after comparisons. See the [security and coordination assessment](../implementation/mutation_testing_framework.md#security-and-coordination-follow-up).
+These are selected sublots, not complete parent-component assessments. Use `npm run test:mutation:component -- actions` to assess the complete actions component, including its collection and execution helpers. Range profiles resolve method/function anchors from the current source and fail if a boundary disappears. A start-only function selection extends to the end of its file. Preserve the previous report before changing tests; run fresh references for before/after comparisons. See the [security and coordination assessment](../implementation/mutation_testing_framework.md#security-and-coordination-follow-up).
+
+The three scheduled-task profiles partition all current candidate files in that component. The worker profiles leave scheduler admission, pressure, allocation and lease-maintenance ranges unassessed; the workflow and outbound profiles cover selected operations rather than complete components. Follow the [asynchronous runtime assessment](../implementation/mutation_testing_async_runtime.md) for their before/after evidence and remaining gaps. An assessment completing within its budget does not establish that its survivors have been resolved.
 
 From the repository root, prepare the dedicated PostgreSQL and Redis test infrastructure, then validate the instrumented test run before starting a complete mutation assessment:
 

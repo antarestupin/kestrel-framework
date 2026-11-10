@@ -1,0 +1,555 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "budgetMs": 600000,
+  "report": "artifacts/mutation/scheduled-contracts/mutation.json",
+  "beforeReport": "artifacts/mutation/scheduled-contracts-before-two-hour-tests/mutation.json",
+  "reportSha256": "e4253d5b3cfeb4ff7b66dfc1b3f3ee0fa9dc9e9c65731bfd29d4ddd8cad68bd4",
+  "beforeReportSha256": "d4bc031dc73f3979afc89101b44bab3bd8f64f16dd1ae0866914337df361c896",
+  "counts": {
+    "Killed": 275,
+    "Survived": 16,
+    "Timeout": 1
+  },
+  "beforeCounts": {
+    "Survived": 95,
+    "Killed": 164,
+    "NoCoverage": 36,
+    "Timeout": 1
+  },
+  "byStatic": {
+    "static": {
+      "Killed": 80,
+      "Survived": 5
+    },
+    "runtime": {
+      "Killed": 195,
+      "Survived": 11,
+      "Timeout": 1
+    }
+  },
+  "scopeMutants": 292,
+  "sourceSha256": {
+    "src/packages/kestrel/src/scheduled_tasks/provider.ts": "736730dd7d2e1ece119ed9c0dda0caa008140470477fbebd2a0e4275ce9f63b2",
+    "src/packages/kestrel/src/scheduled_tasks/adapter_definition.ts": "5bdd5af82712f1fe0357fde4105440c0bec35f7d6f822fc91dc06411b0564d74",
+    "src/packages/kestrel/src/scheduled_tasks/registry.ts": "adcb3e3ae9f0d0be42d7844826032ea69dd8197870db8be2160ed805d9cf80db",
+    "src/packages/kestrel/src/scheduled_tasks/schedule.ts": "521c8b47dbb64b27b94503f63ab909f5da4e49232aa0c98f2eff6b2c32d5718c",
+    "src/packages/kestrel/src/scheduled_tasks/task.ts": "99f6dddd1fa0998b126e4b328999b0379b791f47e8e6761577b7b8febacd6ae5",
+    "src/packages/kestrel/src/scheduled_tasks/types.ts": "031cc5e741759d5344a24e26c15158674df43b5d66e66135962e9d54cd4b52bc",
+    "src/packages/kestrel/src/scheduled_tasks/configuration.ts": "2658849bfea599ec3cb16de886becd4fddae7bae02ecceafb9d93ab08958c884",
+    "src/packages/kestrel/src/scheduled_tasks/dependencies.ts": "30b5d9acf522bc5f3ee26dcf7b00d23f07327aa377c6ffe7ba1b774337a5117a"
+  },
+  "beforeSourceSha256": {
+    "src/packages/kestrel/src/scheduled_tasks/provider.ts": "736730dd7d2e1ece119ed9c0dda0caa008140470477fbebd2a0e4275ce9f63b2",
+    "src/packages/kestrel/src/scheduled_tasks/registry.ts": "adcb3e3ae9f0d0be42d7844826032ea69dd8197870db8be2160ed805d9cf80db",
+    "src/packages/kestrel/src/scheduled_tasks/schedule.ts": "794bc59cf8c7b74b9a871527a0c92a3678dfcf3cf05b71006500f7b59382ff67",
+    "src/packages/kestrel/src/scheduled_tasks/task.ts": "99f6dddd1fa0998b126e4b328999b0379b791f47e8e6761577b7b8febacd6ae5",
+    "src/packages/kestrel/src/scheduled_tasks/types.ts": "031cc5e741759d5344a24e26c15158674df43b5d66e66135962e9d54cd4b52bc",
+    "src/packages/kestrel/src/scheduled_tasks/adapter_definition.ts": "5bdd5af82712f1fe0357fde4105440c0bec35f7d6f822fc91dc06411b0564d74",
+    "src/packages/kestrel/src/scheduled_tasks/configuration.ts": "2658849bfea599ec3cb16de886becd4fddae7bae02ecceafb9d93ab08958c884",
+    "src/packages/kestrel/src/scheduled_tasks/dependencies.ts": "30b5d9acf522bc5f3ee26dcf7b00d23f07327aa377c6ffe7ba1b774337a5117a"
+  },
+  "sourceComparison": "Compare common original-expression/operator/replacement/occurrence fingerprints, not raw counts: production fixes changed the mutation corpus. Fingerprints and both report digests preserve the exact reviewed references.",
+  "commonFingerprintCount": 283,
+  "beforeOnlyFingerprints": 13,
+  "afterOnlyFingerprints": 9,
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 160
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 27
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Survived",
+      "count": 9
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 79
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 7
+    },
+    {
+      "before": "Timeout",
+      "after": "Timeout",
+      "count": 1
+    }
+  ],
+  "commonPriorAssertionKillsChanged": [],
+  "remaining": [
+    {
+      "sampleId": "16",
+      "fingerprintSha256": "532bcb63b3adaee6b6c0143ea72146efdd65ac0044321aae3c00ab618f6ad25a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/provider.ts",
+      "original": "\"Run tasks from this group; repeatable.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 99,
+          "line": 25
+        },
+        "start": {
+          "column": 59,
+          "line": 25
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained help or description wording",
+      "reason": "The public definition still exposes its command, selection, schedule and execution policies. Only human-readable help or description prose becomes empty; exact prose is deliberately not pinned."
+    },
+    {
+      "sampleId": "19",
+      "fingerprintSha256": "23b27c4e5b0f6cda9e769fa9783765fa29d4a6b06283c44062643c9159841028",
+      "file": "src/packages/kestrel/src/scheduled_tasks/provider.ts",
+      "original": "\"Run this task id; repeatable.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 91,
+          "line": 26
+        },
+        "start": {
+          "column": 60,
+          "line": 26
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained help or description wording",
+      "reason": "The public definition still exposes its command, selection, schedule and execution policies. Only human-readable help or description prose becomes empty; exact prose is deliberately not pinned."
+    },
+    {
+      "sampleId": "37",
+      "fingerprintSha256": "3c11e1704cbe24239c40526a024180de633ca0723d6b5630d34d3d0bd85adffb",
+      "file": "src/packages/kestrel/src/scheduled_tasks/provider.ts",
+      "original": "\"Run recurring scheduled tasks.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 62,
+          "line": 57
+        },
+        "start": {
+          "column": 30,
+          "line": 57
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained help or description wording",
+      "reason": "The public definition still exposes its command, selection, schedule and execution policies. Only human-readable help or description prose becomes empty; exact prose is deliberately not pinned."
+    },
+    {
+      "sampleId": "69",
+      "fingerprintSha256": "3695377411da401febd5032803ea5d2eadae98af85e0bcf1b4662a041a947602",
+      "file": "src/packages/kestrel/src/scheduled_tasks/provider.ts",
+      "original": "\"Restore and remove expired scheduled task runs.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 69,
+          "line": 104
+        },
+        "start": {
+          "column": 20,
+          "line": 104
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained help or description wording",
+      "reason": "The public definition still exposes its command, selection, schedule and execution policies. Only human-readable help or description prose becomes empty; exact prose is deliberately not pinned."
+    },
+    {
+      "sampleId": "89",
+      "fingerprintSha256": "b631b6b2ea7879df92975721ba6310f1bd900e08c782e1223b5c3d0947d6aac6",
+      "file": "src/packages/kestrel/src/scheduled_tasks/provider.ts",
+      "original": "\"Pruned expired scheduled task runs\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 73,
+          "line": 121
+        },
+        "start": {
+          "column": 37,
+          "line": 121
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same operation or invalid-input rejection remains observable. This mutation changes a log message or exception text/formatting only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "105",
+      "fingerprintSha256": "679344ccea56300d22d46c7fff019406cb0b3c157a22e165e5fe7f16fef34223",
+      "file": "src/packages/kestrel/src/scheduled_tasks/registry.ts",
+      "original": "`Scheduled task catalog path \"${path.join(\".\")}\" collides with \"${collidingPath.path.join(\".\")}\".`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 107,
+          "line": 43
+        },
+        "start": {
+          "column": 9,
+          "line": 43
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same operation or invalid-input rejection remains observable. This mutation changes a log message or exception text/formatting only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "106",
+      "fingerprintSha256": "627cff8c6698ba3fe7d4bdc6c657969c48c6e6b825be0c84c2ca4cd01187c734",
+      "file": "src/packages/kestrel/src/scheduled_tasks/registry.ts",
+      "original": "\".\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 54,
+          "line": 43
+        },
+        "start": {
+          "column": 51,
+          "line": 43
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same operation or invalid-input rejection remains observable. This mutation changes a log message or exception text/formatting only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "107",
+      "fingerprintSha256": "2c81d4ab08bf889a2410dfe71bc274b0aec0b2bc53f1b413b5861eaa59322d08",
+      "file": "src/packages/kestrel/src/scheduled_tasks/registry.ts",
+      "original": "\".\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 102,
+          "line": 43
+        },
+        "start": {
+          "column": 99,
+          "line": 43
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same operation or invalid-input rejection remains observable. This mutation changes a log message or exception text/formatting only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "119",
+      "fingerprintSha256": "a1f6ae16b70ed48f609cc4894e977522438f95de99dd42802c19f386607c7f17",
+      "file": "src/packages/kestrel/src/scheduled_tasks/registry.ts",
+      "original": "isScheduledTask(value)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 72
+        },
+        "start": {
+          "column": 11,
+          "line": 72
+        }
+      },
+      "status": "Timeout",
+      "static": false,
+      "statusReason": "Hit limit reached (901/900)",
+      "statusReasonTruncated": false,
+      "statusReasonSha256": "1c0abf47f3311d715cc089d060cb134fee98eab2ee3dee11c0d6ab2278e509df",
+      "classification": "execution hit-limit detection",
+      "reason": "Treating every scheduled task as a catalog branch recursively descends through the task object rather than recognizing its leaf. Stryker reported Hit limit reached (901/900). Preserve Timeout as an execution-guard detection; it is neither an assertion kill nor evidence of a Vitest test timeout."
+    },
+    {
+      "sampleId": "213",
+      "fingerprintSha256": "41c5d761b3d1747a6f296f1a3a180dd6dbc62b7911bcaebce072284ba8fc3462",
+      "file": "src/packages/kestrel/src/scheduled_tasks/schedule.ts",
+      "original": "`${name} must be a non-negative finite number.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 74,
+          "line": 140
+        },
+        "start": {
+          "column": 27,
+          "line": 140
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same operation or invalid-input rejection remains observable. This mutation changes a log message or exception text/formatting only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "244",
+      "fingerprintSha256": "2bfdb4bc6f90f93d9820e36b422d7c4a66d68622024039743504b95569c673fd",
+      "file": "src/packages/kestrel/src/scheduled_tasks/task.ts",
+      "original": "options.description === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 76
+        },
+        "start": {
+          "column": 9,
+          "line": 76
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "optional metadata shape; deferred contract decision",
+      "reason": "An omitted description gains an own property whose value is undefined. Property access and JSON serialization remain the same, but Object.hasOwn or strict structural comparison can distinguish it. The public metadata contract does not currently pin own-property absence; keep this visible rather than claiming strict equivalence."
+    },
+    {
+      "sampleId": "266",
+      "fingerprintSha256": "64cd093a51570cc97dda76fe1ab8ce35a0d783dd1b31d8872521cfc248e07b23",
+      "file": "src/packages/kestrel/src/scheduled_tasks/task.ts",
+      "original": "options.id.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 30,
+          "line": 111
+        },
+        "start": {
+          "column": 7,
+          "line": 111
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant rejection with a different diagnostic",
+      "reason": "The following anchored task-id regex also rejects the empty string with TypeError. Removing or disabling the earlier empty-id rejection changes its message but does not accept an invalid id. This is rejection equivalence, not strict equivalence of diagnostics."
+    },
+    {
+      "sampleId": "268",
+      "fingerprintSha256": "90d7d0def341c796d1e17e91ec054fb41f53a1138fef5f4d7fcdce37fd94f992",
+      "file": "src/packages/kestrel/src/scheduled_tasks/task.ts",
+      "original": "{\n    throw new TypeError(\"Scheduled task ids cannot be empty.\");\n  }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 113
+        },
+        "start": {
+          "column": 32,
+          "line": 111
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "redundant rejection with a different diagnostic",
+      "reason": "The following anchored task-id regex also rejects the empty string with TypeError. Removing or disabling the earlier empty-id rejection changes its message but does not accept an invalid id. This is rejection equivalence, not strict equivalence of diagnostics."
+    },
+    {
+      "sampleId": "270",
+      "fingerprintSha256": "fceea302a464972c608c36a12ad463bd63f79a553f4f633fde358c60116a8be1",
+      "file": "src/packages/kestrel/src/scheduled_tasks/task.ts",
+      "original": "\"Scheduled task ids cannot be empty.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 62,
+          "line": 112
+        },
+        "start": {
+          "column": 25,
+          "line": 112
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same operation or invalid-input rejection remains observable. This mutation changes a log message or exception text/formatting only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "284",
+      "fingerprintSha256": "99a2414f22c8d689baaef327119d67dbd7e54382ac576bdddc3b9eeecea9ddc0",
+      "file": "src/packages/kestrel/src/scheduled_tasks/task.ts",
+      "original": "\"Scheduled task ids must contain lowercase segments separated by '.', '_' or '-'.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 89,
+          "line": 117
+        },
+        "start": {
+          "column": 7,
+          "line": 117
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same operation or invalid-input rejection remains observable. This mutation changes a log message or exception text/formatting only; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "286",
+      "fingerprintSha256": "db90b7e16f05fc04680a3e02d1213b87ffc713b4aa786ed67fbc2c41591cb8be",
+      "file": "src/packages/kestrel/src/scheduled_tasks/task.ts",
+      "original": "[]",
+      "mutatorName": "ArrayDeclaration",
+      "replacement": "[\"Stryker was here\"]",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 121
+        },
+        "start": {
+          "column": 41,
+          "line": 121
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "additional validation work without a contract result change",
+      "reason": "When groups are omitted, the validator checks one fabricated non-empty group and still accepts the definition. The separately constructed task still contains groups: []; explicit groups still use their original input. This adds unnecessary validation work rather than changing the task result, so it is not strict work equivalence."
+    },
+    {
+      "sampleId": "293",
+      "fingerprintSha256": "f91a0d303165d1afd93f98973db54d61da3574d61ddd4ca9f5bea12d977e7cc5",
+      "file": "src/packages/kestrel/src/scheduled_tasks/task.ts",
+      "original": "\"Scheduled task groups cannot be empty.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 67,
+          "line": 123
+        },
+        "start": {
+          "column": 27,
+          "line": 123
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same operation or invalid-input rejection remains observable. This mutation changes a log message or exception text/formatting only; exact wording is deliberately not pinned."
+    }
+  ],
+  "vitestDeadlineKills": [],
+  "vitestDeadlineKillCount": 0,
+  "beforeVitestDeadlineKillCount": 0,
+  "killedWithoutReportedVitestDeadline": 275,
+  "commonPriorAssertionKillsNowTimeout": [],
+  "commonPriorDetectionsLost": [],
+  "command": "npm run test:mutation:scheduled-contracts",
+  "newTestCases": 43,
+  "seconds": {
+    "before": 88,
+    "after": 87
+  },
+  "baselineTests": {
+    "before": 869,
+    "after": 981
+  },
+  "review": "behavioral gaps covered; optional metadata shape remains a deferred contract decision",
+  "bugsFound": [
+    "Cron schedules without an explicit timezone used the host process timezone despite the documented UTC default. Occurrence calculation and eager validation now explicitly use UTC."
+  ],
+  "scorePolicy": "Keep all residuals visible. No exclusions, adjusted score or blocking threshold.",
+  "strictlyEquivalentResiduals": 0
+}

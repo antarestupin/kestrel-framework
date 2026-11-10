@@ -4,6 +4,8 @@
 
 ## Assessment status
 
+Current bounded follow-ups are tracked separately from the historical global campaign below. The [asynchronous runtime assessment](./mutation_testing_async_runtime.md) records scheduled-task, worker, workflow and outbound HTTP before/after results, demonstrated bugs and remaining material gaps; the [inventory](./mutation_testing_inventory.md) is the current scope/status reference.
+
 **PRELIMINARY: the campaign was stopped at the user's request at 21:35 Europe/Paris on November 9, 2026.** The complete framework assessment has not finished. The final saved checkpoint contains 18,525 of 42,816 mutation statuses: 6,135 killed, 2,212 survived, 31 timed out, 10,143 uncovered and four ignored; 24,291 remain unresolved. No runtime or compilation errors are recorded. These are partial observations, not a framework mutation score. Stryker scheduled static mutants after runtime mutants, so the early results cannot establish the quality of configuration, schema declarations or other module-initialization behavior. The guarded campaign started at 20:52 with no cached outcomes reused, then resumed from checkpoints as described below.
 
 The stopped snapshot is `artifacts/mutation/checkpoint-stopped-by-user.json`, with a machine-readable summary in `artifacts/mutation/checkpoint-stopped-by-user-summary.json`. Its results remain available in the incremental cache. The wrapper stopped its process group and completed temporary database cleanup; no mutation process remains active. Existing `mutation.html` and `mutation.json` files must not be presented as a completed framework report. Stryker's last remaining-time estimate was approximately 35 hours, but it was unstable and static mutants had not yet been measured; this is not a reliable completion forecast.
@@ -188,6 +190,10 @@ The archived pre-follow-up report is `artifacts/mutation/password-verification-b
 The remaining 21 mutations comprise ten equivalents, six bounded-work distinctions and five unconstrained literals. The only NoCoverage mutation is the decoded-length rejection block already bounded by the encoded-field guards. Four unrelated success-path promise mutations still rely on Vitest progress timeouts; the new three failure-path kills do not. No ignored mutation, score adjustment or blocking gate is introduced.
 
 No production bug was demonstrated: the current implementation already preserved native errors. Only tests and evidence changed. Validation passes 1,808 ordinary tests, framework typechecking and the framework/playground build. The dedicated classification and inventory record the current results and exact report/input hashes. The bounded-work observations remain outside output-only assertions; the callback-error propagation limitation is resolved.
+
+## Actions and subsequent boundary review
+
+The [actions, cache and application follow-up](./mutation_testing_actions_followup.md) records the next bounded session: a real unsafe numbered-default bug fixed, the complete actions component reviewed, and selected cache pruning, execution diagnostics, catalog identities and Atlas URL state assessed. The [inventory](./mutation_testing_inventory.md) is the current source of component states. The complete actions scope retains 12 diagnostic/optional-property survivors; it is not an adjusted 100% claim. Historical CRUD/pruning/diagnostic/Atlas observations below explain the original gaps and are superseded where the follow-up states an exact scope.
 
 ## Historical execution and interpretation
 

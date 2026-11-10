@@ -50,6 +50,8 @@ For application setup and task-oriented examples, see the [Pagination usage guid
 
 The page strategy uses one-based indexes and offset pagination. Query helpers request `pageSize + 1` records, remove the lookahead item and derive `hasNextPage` without a count query. The repository must apply deterministic ordering before pagination. Cursor pagination uses an exclusive keyset predicate and no offset. A repository explicitly declares cursor ordering, extraction and comparison together. Conditional TypeScript types retain the exact `pageInfo` variant selected by the caller, including the cursor type on the first page.
 
+Numbered pagination validates both configured page-size options as positive safe integers before creating defaults; Zod defaults otherwise bypass field validation. This preserves the same safe-integer contract for omitted and explicit input. Cursor page-size options additionally remain below `Number.MAX_SAFE_INTEGER` to leave room for a safe lookahead item. Numbered query-window and offset arithmetic are separate lower-level contracts and are not newly constrained by that configuration check.
+
 Transport coercion is deliberately separated from repository types. The repository receives numbers and a discriminated strategy, while HTTP and CLI controllers may accept strings and flat fields before Zod maps them to that contract.
 
 ## Execution scenario

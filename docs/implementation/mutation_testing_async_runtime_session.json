@@ -1,0 +1,2179 @@
+{
+  "schemaVersion": 1,
+  "reportedNewTestCasesByComponent": {
+    "scheduled_tasks": 174,
+    "workers": 162,
+    "workflows": 75,
+    "outbound_http": 69,
+    "background": 16
+  },
+  "testCountPolicy": "Component counts record added cases; final ordinary-suite totals are authoritative for validation. Existing tests were also strengthened.",
+  "date": "2026-11-10",
+  "startedAt": "2026-11-10T13:28:42Z",
+  "consolidationReservedFrom": "2026-11-10T15:13:42Z",
+  "hardDeadline": "2026-11-10T15:28:42Z",
+  "executionBudgetMs": 600000,
+  "policy": "Fresh static-inclusive bounded runs, at most two simultaneous mutation campaigns with isolated databases. Durations are observations, not controlled performance benchmarks. No score gate, ignored residuals or adjusted score. Do not merge with historical global results or overlapping older ownership profiles.",
+  "sharedInputs": {
+    "package.json": "bd836a98362c81340c919b8dc9a5ecab59c7b01dedb7ce33ae66a7b78482dc92",
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "scripts/testing/mutation-profile.mjs": "255d6bc141dacae71439e7b4501404e577f295376696ea2b958c0015fcf7c9c7",
+    "scripts/testing/mutation-profile.test.mjs": "11332cb3f409ed720810cd29d726f6be268067a9bf4e2d6e16e6f064575e7727",
+    "scripts/testing/mutation.mjs": "62ff8561ff9407b83e9072b81e88465c3c24984255af6313885edb8d37082c84",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72"
+  },
+  "scopeAudit": {
+    "scopes": {
+      "scheduled-runtime": [
+        "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+        "src/packages/kestrel/src/scheduled_tasks/runtime.ts"
+      ],
+      "scheduled-adapters": [
+        "src/packages/kestrel/src/scheduled_tasks/adapters/**/*.ts"
+      ],
+      "scheduled-contracts": [
+        "src/packages/kestrel/src/scheduled_tasks/adapter_definition.ts",
+        "src/packages/kestrel/src/scheduled_tasks/configuration.ts",
+        "src/packages/kestrel/src/scheduled_tasks/dependencies.ts",
+        "src/packages/kestrel/src/scheduled_tasks/index.ts",
+        "src/packages/kestrel/src/scheduled_tasks/provider.ts",
+        "src/packages/kestrel/src/scheduled_tasks/registry.ts",
+        "src/packages/kestrel/src/scheduled_tasks/schedule.ts",
+        "src/packages/kestrel/src/scheduled_tasks/task.ts",
+        "src/packages/kestrel/src/scheduled_tasks/types.ts"
+      ],
+      "workers-publication": [
+        "src/packages/kestrel/src/workers/client.ts",
+        "src/packages/kestrel/src/workers/publication.ts",
+        "src/packages/kestrel/src/workers/serialization.ts",
+        "src/packages/kestrel/src/workers/acknowledgement_buffer.ts",
+        "src/packages/kestrel/src/workers/deferral_buffer.ts"
+      ],
+      "workers-delivery": [
+        "src/packages/kestrel/src/workers/scheduler.ts:307-427",
+        "src/packages/kestrel/src/workers/scheduler.ts:832-1039",
+        "src/packages/kestrel/src/workers/scheduler.ts:1106-1205",
+        "src/packages/kestrel/src/workers/scheduler.ts:1215-1252"
+      ],
+      "workers-adapters": [
+        "src/packages/kestrel/src/workers/adapters/**/*.ts"
+      ],
+      "workers-contracts": [
+        "src/packages/kestrel/src/workers/adapter_definition.ts",
+        "src/packages/kestrel/src/workers/configuration.ts",
+        "src/packages/kestrel/src/workers/dependencies.ts",
+        "src/packages/kestrel/src/workers/errors.ts",
+        "src/packages/kestrel/src/workers/index.ts",
+        "src/packages/kestrel/src/workers/provider.ts",
+        "src/packages/kestrel/src/workers/runtime.ts",
+        "src/packages/kestrel/src/workers/types.ts",
+        "src/packages/kestrel/src/workers/worker.ts"
+      ],
+      "workflow-task-ownership": [
+        "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:949-976",
+        "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1657-1688",
+        "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1957-1992",
+        "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:2163-2208"
+      ],
+      "workflow-execution-retry": [
+        "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:879-948",
+        "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1868-1956"
+      ],
+      "workflow-terminal-control": [
+        "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:783-878",
+        "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1605-1632",
+        "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1817-1867",
+        "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:2209-2422"
+      ],
+      "outbound-resilience": [
+        "src/packages/kestrel/src/outbound_http/deadline.ts",
+        "src/packages/kestrel/src/outbound_http/body.ts",
+        "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts"
+      ],
+      "component-background": [
+        "src/packages/kestrel/src/background/**/*.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.d.ts",
+        "!src/packages/kestrel/src/testing/postgres.ts",
+        "!src/packages/kestrel/src/testing/redis.ts",
+        "!src/packages/kestrel/src/workers/testing/**"
+      ]
+    },
+    "scheduledPartition": {
+      "candidateFiles": 19,
+      "eachAssignedExactlyOnce": true,
+      "assignments": {
+        "src/packages/kestrel/src/scheduled_tasks/adapter_definition.ts": [
+          "scheduled-contracts"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/configuration.ts": [
+          "scheduled-contracts"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/dependencies.ts": [
+          "scheduled-contracts"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/index.ts": [
+          "scheduled-contracts"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/provider.ts": [
+          "scheduled-contracts"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/registry.ts": [
+          "scheduled-contracts"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/runtime.ts": [
+          "scheduled-runtime"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/schedule.ts": [
+          "scheduled-contracts"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/scheduler.ts": [
+          "scheduled-runtime"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/task.ts": [
+          "scheduled-contracts"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/types.ts": [
+          "scheduled-contracts"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/adapters/index.ts": [
+          "scheduled-adapters"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts": [
+          "scheduled-adapters"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/adapters/memory/definition.ts": [
+          "scheduled-adapters"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/adapters/memory/index.ts": [
+          "scheduled-adapters"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts": [
+          "scheduled-adapters"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/definition.ts": [
+          "scheduled-adapters"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/index.ts": [
+          "scheduled-adapters"
+        ],
+        "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts": [
+          "scheduled-adapters"
+        ]
+      }
+    },
+    "limits": "Only the scheduled component full-file partition is audited here. Worker/workflow ranges leave documented source outside their scopes; older ownership profiles overlap these results.",
+    "backgroundExtent": {
+      "candidateFiles": 4,
+      "extent": "Full existing component selection, including all nested candidates. No range slicing."
+    }
+  },
+  "lots": [
+    {
+      "id": "scheduled-runtime",
+      "command": "npm run test:mutation:scheduled-runtime",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/scheduled-runtime-before-two-hour-tests/mutation.json",
+        "reportHash": "e2f0d6e35a3049efbbed667fe132ed2bdeb7fcfa9a9e0112bdd4b42ef3b6ca03",
+        "counts": {
+          "NoCoverage": 181,
+          "Killed": 142,
+          "Survived": 137
+        },
+        "executionGuardKills": [],
+        "mutants": 460,
+        "static": 0,
+        "reportedTestCases": 375,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "284",
+          "292"
+        ],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/runtime.ts": "5ba0e46a4f71c966ddac671218e3fe7671ec6e2dc44e706b05d5c0dbe188b48d",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.ts": "31a2e6708277e5f72cdabb510534fc735ed04817843b0a76ef9503202d459ae1"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/authentication/provider.test.ts": "8d48b5ed18bb4d16168ef79655b188ab7153708d2f9060fc1eae91102be2a568",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/authorization/manager.test.ts": "ae71bcc25a1d449b6c586e2e5d5c0a59a1f899ca6ee05560bc870f497dc58955",
+          "src/packages/kestrel/src/authorization/middleware.test.ts": "90f83f35435715adea19ac8125be0bca58db0d7cd43fbf8bc59a62ee2e12bb03",
+          "src/packages/kestrel/src/cache/cache_pool.test.ts": "25a3c3835c3598d4925baeeacfa13bbaf6ca355899f14f474348d943cc359444",
+          "src/packages/kestrel/src/cache/provider.test.ts": "768fa7cb5086cefcc439dd1b69ca2a719fd4c4e52f4f31f25a85a5e904d424ff",
+          "src/packages/kestrel/src/lock/provider.test.ts": "898a4933073321798d13c8171d5a97279ee9565fd9b9dee1fc6a87863f151cd7",
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/scheduled_tasks/provider.test.ts": "bc22f8d92134afd58f77e32a2dbc1a878a4087a7c29fef246af291dad12feb00",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.test.ts": "aefb9b5c8663c71c5e163949ba65e2d08fe61e006b8e34726248a69a80266109",
+          "src/packages/kestrel/src/throttling/circuit.test.ts": "9246c363c96372b6f920128ea670d8d527016ae4824232b755b626160d7bf907",
+          "src/packages/kestrel/src/throttling/composition.test.ts": "9b3b2023d03a16adbdf0d9fb7bd89eef555940963852bda6a9638c20f9b17e20",
+          "src/packages/kestrel/src/throttling/definitions.test.ts": "507bb7795b97ec5916683bba92abe4f3d169f947f534531b5e98535be5feb484",
+          "src/packages/kestrel/src/throttling/manager.test.ts": "d8534083d7727dd2260c133ecb69311ac9a2793325c8390ff82bf0a6f562210e",
+          "src/packages/kestrel/src/throttling/pressure.test.ts": "2280519a42a84e9c63df6c4760094b24c7335d56f1b20ff26aba3ab499c3771e",
+          "src/packages/kestrel/src/throttling/provider.test.ts": "385df56cc19d0f8f626402532712604ab37706b7603990b09f41d2eac6494af0",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "af3f881b61ace36249ba45ff788284ebd137b527e217fb2d7b73edc55ddf6a52",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/authentication/guards/throttling.test.ts": "e6f1446193b3cd64daeec59b8128fbfedfeb46403172c5532aca75e5fe90ffe0",
+          "src/packages/kestrel/src/authentication/http/controllers.test.ts": "ac1a7e1bc6436e2c3398a39af6144220852cc72b409aa2e2d2c347de073df21d",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/lock/adapters/redis/adapter.unit.test.ts": "fd4d4b5c9141de4d03d165cf97f8c046d5a9a83af21cb36915c5d02a1c885960",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6",
+          "src/packages/kestrel/src/studio/extensions/scheduled_tasks/extension.test.ts": "b468dcac41f95d52ebd285fadb47e404165a52c68d8f79dfb9d14fdcfa484716",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/throttling/adapters/redis/adapter.unit.test.ts": "1958f8412d4e473aef9f8587556f9b62072ea491d101cdebdd53a2c547f9f1ed",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/scheduled-runtime/mutation.json",
+        "reportHash": "b107d0ec36d78ee00595d0bf6c7e48e5190a9c377ec263972da80e5841689294",
+        "counts": {
+          "NoCoverage": 5,
+          "Killed": 419,
+          "Survived": 71,
+          "Timeout": 18
+        },
+        "executionGuardKills": [],
+        "mutants": 513,
+        "static": 0,
+        "reportedTestCases": 531,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "98",
+          "103",
+          "111",
+          "119",
+          "120",
+          "134",
+          "135",
+          "137",
+          "149",
+          "159",
+          "164",
+          "165",
+          "167",
+          "168",
+          "172",
+          "174",
+          "175",
+          "177",
+          "178",
+          "185",
+          "186",
+          "194",
+          "205",
+          "206",
+          "211",
+          "213",
+          "214",
+          "216",
+          "218",
+          "241",
+          "244",
+          "246",
+          "247",
+          "248",
+          "250",
+          "252",
+          "254",
+          "256",
+          "263",
+          "269",
+          "295",
+          "302",
+          "304",
+          "307",
+          "319",
+          "320",
+          "325",
+          "330",
+          "333",
+          "504",
+          "64",
+          "65",
+          "67"
+        ],
+        "timeouts": [
+          {
+            "id": "124",
+            "reason": "Hit limit reached (901/900)"
+          },
+          {
+            "id": "128",
+            "reason": "Hit limit reached (901/900)"
+          },
+          {
+            "id": "129",
+            "reason": "Hit limit reached (301/300)"
+          },
+          {
+            "id": "130",
+            "reason": "Hit limit reached (301/300)"
+          },
+          {
+            "id": "132",
+            "reason": "Hit limit reached (301/300)"
+          },
+          {
+            "id": "133",
+            "reason": "Hit limit reached (201/200)"
+          },
+          {
+            "id": "139",
+            "reason": null
+          },
+          {
+            "id": "212",
+            "reason": null
+          },
+          {
+            "id": "215",
+            "reason": null
+          },
+          {
+            "id": "217",
+            "reason": null
+          },
+          {
+            "id": "225",
+            "reason": null
+          },
+          {
+            "id": "227",
+            "reason": null
+          },
+          {
+            "id": "279",
+            "reason": null
+          },
+          {
+            "id": "280",
+            "reason": null
+          },
+          {
+            "id": "329",
+            "reason": null
+          },
+          {
+            "id": "340",
+            "reason": null
+          },
+          {
+            "id": "350",
+            "reason": null
+          },
+          {
+            "id": "352",
+            "reason": null
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.ts": "8cf7613913faf6dd21298fc01779b5e5c7fb99eda9f49d7ef55d5da9a3965761",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.ts": "838ba4b7c85fbfb564b9e631c3a35878d9d6d03953c8f080f71a6e7c3cef5d12"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/cache/cache_pool.test.ts": "25a3c3835c3598d4925baeeacfa13bbaf6ca355899f14f474348d943cc359444",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/studio/extensions/scheduled_tasks/extension.test.ts": "b468dcac41f95d52ebd285fadb47e404165a52c68d8f79dfb9d14fdcfa484716",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler_contract.test.ts": "5de9ffcd58604035c7bb6773cf70a4053a5c31ef1c86211dc506fd4babef7a7a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/authentication/http/controllers.test.ts": "ac1a7e1bc6436e2c3398a39af6144220852cc72b409aa2e2d2c347de073df21d",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/throttling/circuit.test.ts": "9246c363c96372b6f920128ea670d8d527016ae4824232b755b626160d7bf907",
+          "src/packages/kestrel/src/cache/provider.test.ts": "768fa7cb5086cefcc439dd1b69ca2a719fd4c4e52f4f31f25a85a5e904d424ff",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/throttling/adapters/redis/adapter.unit.test.ts": "1958f8412d4e473aef9f8587556f9b62072ea491d101cdebdd53a2c547f9f1ed",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/throttling/composition.test.ts": "9b3b2023d03a16adbdf0d9fb7bd89eef555940963852bda6a9638c20f9b17e20",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/throttling/manager.test.ts": "d8534083d7727dd2260c133ecb69311ac9a2793325c8390ff82bf0a6f562210e",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/authentication/provider.test.ts": "8d48b5ed18bb4d16168ef79655b188ab7153708d2f9060fc1eae91102be2a568",
+          "src/packages/kestrel/src/workers/definition_contract.test.ts": "7160d9b7061a48337b73da160cb522d917a1b6d08cdea8a66006f5d436bcdfa0",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/throttling/pressure.test.ts": "2280519a42a84e9c63df6c4760094b24c7335d56f1b20ff26aba3ab499c3771e",
+          "src/packages/kestrel/src/lock/provider.test.ts": "898a4933073321798d13c8171d5a97279ee9565fd9b9dee1fc6a87863f151cd7",
+          "src/packages/kestrel/src/throttling/provider.test.ts": "385df56cc19d0f8f626402532712604ab37706b7603990b09f41d2eac6494af0",
+          "src/packages/kestrel/src/throttling/definitions.test.ts": "507bb7795b97ec5916683bba92abe4f3d169f947f534531b5e98535be5feb484",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/authorization/manager.test.ts": "ae71bcc25a1d449b6c586e2e5d5c0a59a1f899ca6ee05560bc870f497dc58955",
+          "src/packages/kestrel/src/authorization/middleware.test.ts": "90f83f35435715adea19ac8125be0bca58db0d7cd43fbf8bc59a62ee2e12bb03",
+          "src/packages/kestrel/src/authentication/guards/throttling.test.ts": "e6f1446193b3cd64daeec59b8128fbfedfeb46403172c5532aca75e5fe90ffe0",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/lock/adapters/redis/adapter.unit.test.ts": "fd4d4b5c9141de4d03d165cf97f8c046d5a9a83af21cb36915c5d02a1c885960",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/scheduled_tasks/provider.test.ts": "bc22f8d92134afd58f77e32a2dbc1a878a4087a7c29fef246af291dad12feb00",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/scheduled_tasks/provider_contract.test.ts": "a15d9b851385a3afbb6297a3fb9e0ca903fb2132535fad84e79db98225ad030a",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.test.ts": "ed6ea5f11666e8344cbb4a97bc69d09c07037ae5535bd1db291f70a8e19a9cd9",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.test.ts": "aefb9b5c8663c71c5e163949ba65e2d08fe61e006b8e34726248a69a80266109",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7"
+        }
+      },
+      "seconds": {
+        "before": 66,
+        "after": 312
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 377,
+        "after": 533
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_scheduled_runtime_classification.json",
+      "analysis": "mutation_testing_scheduled_tasks.md"
+    },
+    {
+      "id": "scheduled-adapters",
+      "command": "npm run test:mutation:scheduled-adapters",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/scheduled-adapters-before-two-hour-tests/mutation.json",
+        "reportHash": "59ddaf30bbfc96e0d4abee3ff14ff8bbd82c96d3a4bd3deb3779f59b06f719b1",
+        "counts": {
+          "NoCoverage": 173,
+          "Killed": 263,
+          "Survived": 209,
+          "RuntimeError": 25
+        },
+        "executionGuardKills": [],
+        "mutants": 670,
+        "static": 77,
+        "reportedTestCases": 425,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "3",
+          "18",
+          "263"
+        ],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts": "eb94c78bd47371689807bd11cbde7ce875082e7a6b96224fd00328ff357b2225",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/memory/definition.ts": "82abfc4b6aa15f13f78e78ed4128751d9d7e284169010bc39dfd79c4b751daba",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts": "7ff8ce2405375284a62b46ee13668f579246b2c2f39ee72a6e0f48454b407a84",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/definition.ts": "563fe656782970c067a6f969abde1450a3a8cf7efd960353d02666b8d97db231",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts": "0c193829097dd7b0e00a954e49834bf2ebae77d2162a1e6e78e51d3235b3515c"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.test.ts": "aefb9b5c8663c71c5e163949ba65e2d08fe61e006b8e34726248a69a80266109",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.test.ts": "ef2474390edf3e78dd28d150caecef3013f12c6687c9ffe838b82bf725e59ca9",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "af3f881b61ace36249ba45ff788284ebd137b527e217fb2d7b73edc55ddf6a52",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.test.ts": "297d26d155ccc4b897f58559bd8ea61318ff12ae9196e7061ba38f111430aff2",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/authentication/provider.test.ts": "8d48b5ed18bb4d16168ef79655b188ab7153708d2f9060fc1eae91102be2a568",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.test.ts": "a984eaadb896bc4eb3d50a3b03eeedb3c5c443931651757ab364938bbcd72ab5",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler_contract.test.ts": "56d857e344b510a5aff20ebaeae12072d7848e7c031fe850e58301cfc8a2af11",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/cache/cache_pool.test.ts": "25a3c3835c3598d4925baeeacfa13bbaf6ca355899f14f474348d943cc359444",
+          "src/packages/kestrel/src/cache/provider.test.ts": "768fa7cb5086cefcc439dd1b69ca2a719fd4c4e52f4f31f25a85a5e904d424ff",
+          "src/packages/kestrel/src/authorization/manager.test.ts": "ae71bcc25a1d449b6c586e2e5d5c0a59a1f899ca6ee05560bc870f497dc58955",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "4fba6052937a38fd11fa402e7bb493e512375c7f20b41cd2c09392243ead9742",
+          "src/packages/kestrel/src/authorization/middleware.test.ts": "90f83f35435715adea19ac8125be0bca58db0d7cd43fbf8bc59a62ee2e12bb03",
+          "src/packages/kestrel/src/lock/provider.test.ts": "898a4933073321798d13c8171d5a97279ee9565fd9b9dee1fc6a87863f151cd7",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/scheduled_tasks/provider.test.ts": "bc22f8d92134afd58f77e32a2dbc1a878a4087a7c29fef246af291dad12feb00",
+          "src/packages/kestrel/src/throttling/circuit.test.ts": "9246c363c96372b6f920128ea670d8d527016ae4824232b755b626160d7bf907",
+          "src/packages/kestrel/src/throttling/composition.test.ts": "9b3b2023d03a16adbdf0d9fb7bd89eef555940963852bda6a9638c20f9b17e20",
+          "src/packages/kestrel/src/throttling/definitions.test.ts": "507bb7795b97ec5916683bba92abe4f3d169f947f534531b5e98535be5feb484",
+          "src/packages/kestrel/src/throttling/manager.test.ts": "d8534083d7727dd2260c133ecb69311ac9a2793325c8390ff82bf0a6f562210e",
+          "src/packages/kestrel/src/throttling/pressure.test.ts": "2280519a42a84e9c63df6c4760094b24c7335d56f1b20ff26aba3ab499c3771e",
+          "src/packages/kestrel/src/throttling/provider.test.ts": "385df56cc19d0f8f626402532712604ab37706b7603990b09f41d2eac6494af0",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/authentication/guards/throttling.test.ts": "e6f1446193b3cd64daeec59b8128fbfedfeb46403172c5532aca75e5fe90ffe0",
+          "src/packages/kestrel/src/authentication/http/controllers.test.ts": "ac1a7e1bc6436e2c3398a39af6144220852cc72b409aa2e2d2c347de073df21d",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/lock/adapters/redis/adapter.unit.test.ts": "fd4d4b5c9141de4d03d165cf97f8c046d5a9a83af21cb36915c5d02a1c885960",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6",
+          "src/packages/kestrel/src/studio/extensions/scheduled_tasks/extension.test.ts": "b468dcac41f95d52ebd285fadb47e404165a52c68d8f79dfb9d14fdcfa484716",
+          "src/packages/kestrel/src/throttling/adapters/redis/adapter.unit.test.ts": "1958f8412d4e473aef9f8587556f9b62072ea491d101cdebdd53a2c547f9f1ed",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/scheduled-adapters/mutation.json",
+        "reportHash": "09458f9f01ceba8032b45b4025fdf2d09eec3409f92409845acb019bea1ad942",
+        "counts": {
+          "NoCoverage": 8,
+          "Killed": 586,
+          "Survived": 51,
+          "RuntimeError": 25
+        },
+        "executionGuardKills": [],
+        "mutants": 670,
+        "static": 77,
+        "reportedTestCases": 587,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "3",
+          "8",
+          "9",
+          "11",
+          "12",
+          "20",
+          "263"
+        ],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts": "ab9eefccbca59a138c981529ce5a11c3798180a7ba4ec249aa2e286bd5c479b7",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts": "7ff8ce2405375284a62b46ee13668f579246b2c2f39ee72a6e0f48454b407a84",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/memory/definition.ts": "82abfc4b6aa15f13f78e78ed4128751d9d7e284169010bc39dfd79c4b751daba",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/definition.ts": "563fe656782970c067a6f969abde1450a3a8cf7efd960353d02666b8d97db231",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts": "0c193829097dd7b0e00a954e49834bf2ebae77d2162a1e6e78e51d3235b3515c"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/scheduler_contract.test.ts": "edbfb42ecfa3fd2fec4fa8412c1f89c64bc54ec7d232dbdce2f6c0126e3ceb23",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/memory/ownership_contract.test.ts": "aadaddf3f28e9184351791153cff5b0f1334ab8e29c891c2b959a43389102af7",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.test.ts": "f24af67e0d789d6aa3b13942f25ec97c6c5083de46fe3b9764006f1af56f1296",
+          "src/packages/kestrel/src/cache/cache_pool.test.ts": "25a3c3835c3598d4925baeeacfa13bbaf6ca355899f14f474348d943cc359444",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/authentication/http/controllers.test.ts": "ac1a7e1bc6436e2c3398a39af6144220852cc72b409aa2e2d2c347de073df21d",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/throttling/circuit.test.ts": "9246c363c96372b6f920128ea670d8d527016ae4824232b755b626160d7bf907",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/cache/provider.test.ts": "768fa7cb5086cefcc439dd1b69ca2a719fd4c4e52f4f31f25a85a5e904d424ff",
+          "src/packages/kestrel/src/studio/extensions/scheduled_tasks/extension.test.ts": "b468dcac41f95d52ebd285fadb47e404165a52c68d8f79dfb9d14fdcfa484716",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/throttling/composition.test.ts": "9b3b2023d03a16adbdf0d9fb7bd89eef555940963852bda6a9638c20f9b17e20",
+          "src/packages/kestrel/src/throttling/adapters/redis/adapter.unit.test.ts": "1958f8412d4e473aef9f8587556f9b62072ea491d101cdebdd53a2c547f9f1ed",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/authentication/provider.test.ts": "8d48b5ed18bb4d16168ef79655b188ab7153708d2f9060fc1eae91102be2a568",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/throttling/manager.test.ts": "d8534083d7727dd2260c133ecb69311ac9a2793325c8390ff82bf0a6f562210e",
+          "src/packages/kestrel/src/workers/definition_contract.test.ts": "7160d9b7061a48337b73da160cb522d917a1b6d08cdea8a66006f5d436bcdfa0",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "a15e071ac0cfe8f62b87006e66af0ad2d9c07c1272476967b7cf548e5fd1d6f3",
+          "src/packages/kestrel/src/throttling/pressure.test.ts": "2280519a42a84e9c63df6c4760094b24c7335d56f1b20ff26aba3ab499c3771e",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/throttling/provider.test.ts": "385df56cc19d0f8f626402532712604ab37706b7603990b09f41d2eac6494af0",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.test.ts": "5372d29cb7d9d9de59d1bfbbfb09020b4bd2f2fcd1ebcde27d39d11b042ce46b",
+          "src/packages/kestrel/src/lock/provider.test.ts": "898a4933073321798d13c8171d5a97279ee9565fd9b9dee1fc6a87863f151cd7",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/throttling/definitions.test.ts": "507bb7795b97ec5916683bba92abe4f3d169f947f534531b5e98535be5feb484",
+          "src/packages/kestrel/src/authorization/middleware.test.ts": "90f83f35435715adea19ac8125be0bca58db0d7cd43fbf8bc59a62ee2e12bb03",
+          "src/packages/kestrel/src/authorization/manager.test.ts": "ae71bcc25a1d449b6c586e2e5d5c0a59a1f899ca6ee05560bc870f497dc58955",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "0c1eada5884e0979bf921a1c0e66e46b9ca66a21c80e96821f1e6c7b8ec2da35",
+          "src/packages/kestrel/src/scheduled_tasks/provider.test.ts": "bc22f8d92134afd58f77e32a2dbc1a878a4087a7c29fef246af291dad12feb00",
+          "src/packages/kestrel/src/authentication/guards/throttling.test.ts": "e6f1446193b3cd64daeec59b8128fbfedfeb46403172c5532aca75e5fe90ffe0",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/lock/adapters/redis/adapter.unit.test.ts": "fd4d4b5c9141de4d03d165cf97f8c046d5a9a83af21cb36915c5d02a1c885960",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/scheduled_tasks/provider_contract.test.ts": "a15d9b851385a3afbb6297a3fb9e0ca903fb2132535fad84e79db98225ad030a",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.test.ts": "29185b316ddb08e4490131067fb3f252ff94adc3bb12c251b558083513ffb3b8",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.test.ts": "aefb9b5c8663c71c5e163949ba65e2d08fe61e006b8e34726248a69a80266109",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.test.ts": "297d26d155ccc4b897f58559bd8ea61318ff12ae9196e7061ba38f111430aff2",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/memory/definition.test.ts": "54672ea0cb8fe7134a7d935d3a4b16ed2656b3ad2c5b3bcb8b34c8c6f3f435b2",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/definition.test.ts": "8063283d2a1898311856258ee7301e66ac6b3a9e108ab02f049cdad469704f95"
+        }
+      },
+      "seconds": {
+        "before": 140,
+        "after": 180
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 427,
+        "after": 589
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_scheduled_adapters_classification.json",
+      "analysis": "mutation_testing_scheduled_tasks.md"
+    },
+    {
+      "id": "scheduled-contracts",
+      "command": "npm run test:mutation:scheduled-contracts",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/scheduled-contracts-before-two-hour-tests/mutation.json",
+        "reportHash": "d4bc031dc73f3979afc89101b44bab3bd8f64f16dd1ae0866914337df361c896",
+        "counts": {
+          "NoCoverage": 36,
+          "Killed": 164,
+          "Survived": 95,
+          "Timeout": 1
+        },
+        "executionGuardKills": [],
+        "mutants": 296,
+        "static": 85,
+        "reportedTestCases": 867,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [
+          {
+            "id": "119",
+            "reason": "Hit limit reached (401/400)"
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/provider.ts": "736730dd7d2e1ece119ed9c0dda0caa008140470477fbebd2a0e4275ce9f63b2",
+          "src/packages/kestrel/src/scheduled_tasks/registry.ts": "adcb3e3ae9f0d0be42d7844826032ea69dd8197870db8be2160ed805d9cf80db",
+          "src/packages/kestrel/src/scheduled_tasks/schedule.ts": "794bc59cf8c7b74b9a871527a0c92a3678dfcf3cf05b71006500f7b59382ff67",
+          "src/packages/kestrel/src/scheduled_tasks/task.ts": "99f6dddd1fa0998b126e4b328999b0379b791f47e8e6761577b7b8febacd6ae5",
+          "src/packages/kestrel/src/scheduled_tasks/types.ts": "031cc5e741759d5344a24e26c15158674df43b5d66e66135962e9d54cd4b52bc",
+          "src/packages/kestrel/src/scheduled_tasks/adapter_definition.ts": "5bdd5af82712f1fe0357fde4105440c0bec35f7d6f822fc91dc06411b0564d74",
+          "src/packages/kestrel/src/scheduled_tasks/configuration.ts": "2658849bfea599ec3cb16de886becd4fddae7bae02ecceafb9d93ab08958c884",
+          "src/packages/kestrel/src/scheduled_tasks/dependencies.ts": "30b5d9acf522bc5f3ee26dcf7b00d23f07327aa377c6ffe7ba1b774337a5117a"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "af3f881b61ace36249ba45ff788284ebd137b527e217fb2d7b73edc55ddf6a52",
+          "src/packages/kestrel/src/actions/pagination.test.ts": "e715f9666f86762cc47baf69d3a8d88b59fec23f4f7d797b80342256733413f5",
+          "src/packages/kestrel/src/actions/model_actions.test.ts": "8bf08a55a0390fc03bea53ca8c30865258ea47f2fbffa6f58264d577c067d212",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/authentication/provider.test.ts": "8d48b5ed18bb4d16168ef79655b188ab7153708d2f9060fc1eae91102be2a568",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/cache/cache_pool.test.ts": "25a3c3835c3598d4925baeeacfa13bbaf6ca355899f14f474348d943cc359444",
+          "src/packages/kestrel/src/cache/provider.test.ts": "768fa7cb5086cefcc439dd1b69ca2a719fd4c4e52f4f31f25a85a5e904d424ff",
+          "src/packages/kestrel/src/authorization/manager.test.ts": "ae71bcc25a1d449b6c586e2e5d5c0a59a1f899ca6ee05560bc870f497dc58955",
+          "src/packages/kestrel/src/authorization/middleware.test.ts": "90f83f35435715adea19ac8125be0bca58db0d7cd43fbf8bc59a62ee2e12bb03",
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/scheduled_tasks/provider.test.ts": "bc22f8d92134afd58f77e32a2dbc1a878a4087a7c29fef246af291dad12feb00",
+          "src/packages/kestrel/src/lock/provider.test.ts": "898a4933073321798d13c8171d5a97279ee9565fd9b9dee1fc6a87863f151cd7",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/authentication/guards/throttling.test.ts": "e6f1446193b3cd64daeec59b8128fbfedfeb46403172c5532aca75e5fe90ffe0",
+          "src/packages/kestrel/src/throttling/circuit.test.ts": "9246c363c96372b6f920128ea670d8d527016ae4824232b755b626160d7bf907",
+          "src/packages/kestrel/src/throttling/composition.test.ts": "9b3b2023d03a16adbdf0d9fb7bd89eef555940963852bda6a9638c20f9b17e20",
+          "src/packages/kestrel/src/throttling/definitions.test.ts": "507bb7795b97ec5916683bba92abe4f3d169f947f534531b5e98535be5feb484",
+          "src/packages/kestrel/src/throttling/manager.test.ts": "d8534083d7727dd2260c133ecb69311ac9a2793325c8390ff82bf0a6f562210e",
+          "src/packages/kestrel/src/throttling/pressure.test.ts": "2280519a42a84e9c63df6c4760094b24c7335d56f1b20ff26aba3ab499c3771e",
+          "src/packages/kestrel/src/throttling/provider.test.ts": "385df56cc19d0f8f626402532712604ab37706b7603990b09f41d2eac6494af0",
+          "src/packages/kestrel/src/authentication/http/controllers.test.ts": "ac1a7e1bc6436e2c3398a39af6144220852cc72b409aa2e2d2c347de073df21d",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6",
+          "src/packages/kestrel/src/lock/adapters/redis/adapter.unit.test.ts": "fd4d4b5c9141de4d03d165cf97f8c046d5a9a83af21cb36915c5d02a1c885960",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/throttling/adapters/redis/adapter.unit.test.ts": "1958f8412d4e473aef9f8587556f9b62072ea491d101cdebdd53a2c547f9f1ed",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/scheduled_tasks/schedule.test.ts": "1b18e17f2af99303a450f1fcdb62d2d70b5cda344d3d0f69471705127c6bee43",
+          "src/packages/kestrel/src/scheduled_tasks/registry.test.ts": "ef9c41ec6813d1c22bb9eeeca3a2f844b991b90a6a1707977c7f821fbe5fe664",
+          "src/packages/kestrel/src/actions/action.test.ts": "c22f0ec96cb1eaa21d1c4ed5324b602f9011c5a86be0ad5cd62708c90950a464",
+          "src/packages/kestrel/src/actions/action_dependencies.test.ts": "ea41adfc9feee97dbc29ba63a628c6aa0d2ca397737317771973bdef07a0fd0e",
+          "src/packages/kestrel/src/actions/cursor_pagination.test.ts": "b46449de1396187cb1738b625b2967f6b41e9c50a52cef57a0ce8d0bb684ccd0",
+          "src/packages/kestrel/src/app/app.test.ts": "a7c23d9eada9b86e9181ff9db1a24b561974853fb3a99c0f57158b82e4160c49",
+          "src/packages/kestrel/src/app/catalog_identities.test.ts": "3cea743a2c71c1b1bdc46f705ecab51b801fe8aac5e3c5370198310af04fc752",
+          "src/packages/kestrel/src/app/shutdown.test.ts": "8d792a2fd04b2e679cebc16d3b0f0c077bf8008c5b6ad5e6acbb973b3e8ef76b",
+          "src/packages/kestrel/src/app/shutdown_contract.test.ts": "516bc2ff960d182edabe8febe436ef3a63c474626888175b8f149447c1c1d96e",
+          "src/packages/kestrel/src/app/shutdown_errors.test.ts": "ed215c4adfb1102dd1624b2dc68d38d54694adba85e58716ee0acde7ba177c5e",
+          "src/packages/kestrel/src/cli/command_manager.test.ts": "5f585cd6466902a4f95f00a8f33888ab9b607509cf2a24a9de086e08a268f531",
+          "src/packages/kestrel/src/client/provider.test.ts": "a9d2fcc805fef6c17a5107a2f9eb27ecace960c0851ec3b8664640b9a5af36a6",
+          "src/packages/kestrel/src/db/pool_runtime.integration.test.ts": "9b0ab04af36d2ab877d9380073fa4fb15b6d649c77a36169799fc180d4408ad8",
+          "src/packages/kestrel/src/db/provider.test.ts": "870de5f880926830b41d5f845d5897b5d8af35362bbf1b7fb5b9532d83aff953",
+          "src/packages/kestrel/src/email/provider.test.ts": "91d41bf1f46a4d6222ba07db0a44cec5c0b827a1ae7f7793967cd5a9c3f84110",
+          "src/packages/kestrel/src/http/controller_manager.test.ts": "afed0625b4743f24542b241598352d12dd252bee188c4ec5165dd5ff33074a53",
+          "src/packages/kestrel/src/http/cursor_pagination.test.ts": "cf1dc376a515d5017054e2916ae62474b080ac0746fa5859c8eb6aea51306997",
+          "src/packages/kestrel/src/http/default_access.test.ts": "8e37fddd784ed3d087de1884ef9a3e9b3b1b92c1e9828a80f1105fd3bc835c39",
+          "src/packages/kestrel/src/http/runtime.test.ts": "75f3bb4a5961298f8594cd3d6493737e3cabb351c2e7d300d6d19c884d82246d",
+          "src/packages/kestrel/src/log/logger.test.ts": "80623fb565a4423d11b60e024e4af4d68bd3f7708bff26c029cf7a692b13b165",
+          "src/packages/kestrel/src/log/provider.test.ts": "de41a8afaa92903926a14f5c0688a948909e72627b5cf3aca7d76be46e4aba35",
+          "src/packages/kestrel/src/observability/provider.test.ts": "921832e80ef85df47a0fe18286405b3150c3e3a6bacb2d8f9d0a8b77bb36e43b",
+          "src/packages/kestrel/src/outbound_http/provider.test.ts": "140d8e5331e3cf1896fd4760dd0937966947bf7f9c155584108d349b52f9a9a6",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.test.ts": "a984eaadb896bc4eb3d50a3b03eeedb3c5c443931651757ab364938bbcd72ab5",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.test.ts": "aefb9b5c8663c71c5e163949ba65e2d08fe61e006b8e34726248a69a80266109",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler_contract.test.ts": "7cf99958e68574727c63c6a199c0dc0d45fe4e41eb61846ca161094c9c21ffab",
+          "src/packages/kestrel/src/studio/provider.test.ts": "14f004cdc63c19f9d35413ba2d999e1314c954d2592bc2235c131bfff2c2937c",
+          "src/packages/kestrel/src/studio/studio.test.ts": "c9fa9267dc60d87caa6b0561ff17629ff823c6d200826d779b2276d3488e1d89",
+          "src/packages/kestrel/src/tokens/provider.test.ts": "1eaf998f32a82878237420dcd152100d964b4f468450981d1768990cfc5415cd",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "c031dfc2962aeb6aea111f09eb3588dce92012d217e350751fbdc097ff3f0fd1",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/db/reference_counter/cli.test.ts": "a65c704a9451d8ce8eddbdfcfcf07ec073fc1794845445a759d690f6c3487659",
+          "src/packages/kestrel/src/db/reference_counter/counter.integration.test.ts": "ef28adae3dc5f05d9dfad493e028d4278954acd30e0f4d67cece9dc8d3ea7b07",
+          "src/packages/kestrel/src/http/maintenance/maintenance.test.ts": "8b351b6284b9b97866c290479fa3151425e4764d2fd2cf104da0c9ec77b3e40c",
+          "src/packages/kestrel/src/http/client_generation/provider.test.ts": "e7751c9278262afd8a7394bb1f3b0ac043503ac9b341a0c91afbc78b96d7e3af",
+          "src/packages/kestrel/src/authentication/adapters/redis/adapter.test.ts": "d7597c51fce7ac1e040664c830c8e13357d9e37ff80d830ff7100602f14ec7f2",
+          "src/packages/kestrel/src/authorization/resolvers/roles/resolver.test.ts": "56171a92f5a0ed9275a9898f9912b6963db7de14df2abbe2569345a793b947a1",
+          "src/packages/kestrel/src/studio/adapters/client/adapter.test.ts": "056d38bd9a2dd8b3664b463712da4b60511b9e9246f50d110ca1b6a1751937ae",
+          "src/packages/kestrel/src/studio/extensions/controllers/extension.test.ts": "381d938e7825f0cfd197565c2206df11f4e0a9a16f45e6a031b7c89560da3017",
+          "src/packages/kestrel/src/studio/extensions/actions/extension.test.ts": "ae46c1fba0d564fc8cb31f3d3c16c2b8d4ba62a4d2405dd49d2641cb1ef1b2d1",
+          "src/packages/kestrel/src/studio/extensions/email/extension.test.ts": "bcd6d19762ddcea8bd3cda0af95f7c2b6c80063861c6e24522f08dbf6ff1d7c2",
+          "src/packages/kestrel/src/studio/extensions/logs/extension.test.ts": "870f67e6c508b2ec0559bfc962478fe18364bac7a1edfaaf82e7a73c7c5f5911",
+          "src/packages/kestrel/src/studio/extensions/database/extension.test.ts": "d53fdcd128364fb5d12da1c635ebd9ad7ee25a0bd80e8022863d24f2bdb09195",
+          "src/packages/kestrel/src/studio/extensions/workers/extension.test.ts": "c7f8d430f8b7a80d817af25ba4920a670c17a434c2b502156664e3fb564b8bf1",
+          "src/packages/kestrel/src/studio/extensions/scheduled_tasks/extension.test.ts": "b468dcac41f95d52ebd285fadb47e404165a52c68d8f79dfb9d14fdcfa484716",
+          "src/packages/kestrel/src/studio/extensions/observability/extension.test.ts": "301fdf0f0e0108a2a0676104360e809d88b06ce2aaac814693cda5d5f0c0d09f"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/scheduled-contracts/mutation.json",
+        "reportHash": "e4253d5b3cfeb4ff7b66dfc1b3f3ee0fa9dc9e9c65731bfd29d4ddd8cad68bd4",
+        "counts": {
+          "Killed": 275,
+          "Survived": 16,
+          "Timeout": 1
+        },
+        "executionGuardKills": [],
+        "mutants": 292,
+        "static": 85,
+        "reportedTestCases": 979,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [
+          {
+            "id": "119",
+            "reason": "Hit limit reached (901/900)"
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/provider.ts": "736730dd7d2e1ece119ed9c0dda0caa008140470477fbebd2a0e4275ce9f63b2",
+          "src/packages/kestrel/src/scheduled_tasks/adapter_definition.ts": "5bdd5af82712f1fe0357fde4105440c0bec35f7d6f822fc91dc06411b0564d74",
+          "src/packages/kestrel/src/scheduled_tasks/registry.ts": "adcb3e3ae9f0d0be42d7844826032ea69dd8197870db8be2160ed805d9cf80db",
+          "src/packages/kestrel/src/scheduled_tasks/schedule.ts": "521c8b47dbb64b27b94503f63ab909f5da4e49232aa0c98f2eff6b2c32d5718c",
+          "src/packages/kestrel/src/scheduled_tasks/task.ts": "99f6dddd1fa0998b126e4b328999b0379b791f47e8e6761577b7b8febacd6ae5",
+          "src/packages/kestrel/src/scheduled_tasks/types.ts": "031cc5e741759d5344a24e26c15158674df43b5d66e66135962e9d54cd4b52bc",
+          "src/packages/kestrel/src/scheduled_tasks/configuration.ts": "2658849bfea599ec3cb16de886becd4fddae7bae02ecceafb9d93ab08958c884",
+          "src/packages/kestrel/src/scheduled_tasks/dependencies.ts": "30b5d9acf522bc5f3ee26dcf7b00d23f07327aa377c6ffe7ba1b774337a5117a"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/actions/pagination.test.ts": "e715f9666f86762cc47baf69d3a8d88b59fec23f4f7d797b80342256733413f5",
+          "src/packages/kestrel/src/actions/model_actions.test.ts": "8bf08a55a0390fc03bea53ca8c30865258ea47f2fbffa6f58264d577c067d212",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/authentication/provider.test.ts": "8d48b5ed18bb4d16168ef79655b188ab7153708d2f9060fc1eae91102be2a568",
+          "src/packages/kestrel/src/authorization/manager.test.ts": "ae71bcc25a1d449b6c586e2e5d5c0a59a1f899ca6ee05560bc870f497dc58955",
+          "src/packages/kestrel/src/authorization/middleware.test.ts": "90f83f35435715adea19ac8125be0bca58db0d7cd43fbf8bc59a62ee2e12bb03",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/cache/cache_pool.test.ts": "25a3c3835c3598d4925baeeacfa13bbaf6ca355899f14f474348d943cc359444",
+          "src/packages/kestrel/src/cache/provider.test.ts": "768fa7cb5086cefcc439dd1b69ca2a719fd4c4e52f4f31f25a85a5e904d424ff",
+          "src/packages/kestrel/src/lock/provider.test.ts": "898a4933073321798d13c8171d5a97279ee9565fd9b9dee1fc6a87863f151cd7",
+          "src/packages/kestrel/src/scheduled_tasks/provider.test.ts": "bc22f8d92134afd58f77e32a2dbc1a878a4087a7c29fef246af291dad12feb00",
+          "src/packages/kestrel/src/throttling/circuit.test.ts": "9246c363c96372b6f920128ea670d8d527016ae4824232b755b626160d7bf907",
+          "src/packages/kestrel/src/throttling/composition.test.ts": "9b3b2023d03a16adbdf0d9fb7bd89eef555940963852bda6a9638c20f9b17e20",
+          "src/packages/kestrel/src/throttling/definitions.test.ts": "507bb7795b97ec5916683bba92abe4f3d169f947f534531b5e98535be5feb484",
+          "src/packages/kestrel/src/throttling/manager.test.ts": "d8534083d7727dd2260c133ecb69311ac9a2793325c8390ff82bf0a6f562210e",
+          "src/packages/kestrel/src/throttling/pressure.test.ts": "2280519a42a84e9c63df6c4760094b24c7335d56f1b20ff26aba3ab499c3771e",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/lock/adapters/redis/adapter.unit.test.ts": "fd4d4b5c9141de4d03d165cf97f8c046d5a9a83af21cb36915c5d02a1c885960",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/throttling/adapters/redis/adapter.unit.test.ts": "1958f8412d4e473aef9f8587556f9b62072ea491d101cdebdd53a2c547f9f1ed",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/scheduled_tasks/schedule.test.ts": "cdeab729265155e686f253be0ded178998ea3af23790a387b0e2625350205e29",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler_contract.test.ts": "94868c5b9a55bddda128f0942e6ab0eea91f2167e367fdb61ca77dbb099ca74b",
+          "src/packages/kestrel/src/scheduled_tasks/registry.test.ts": "bc9d4ae5a16e8f18c6f6dab22256474f63854e3471a315d0073bb55c5f13c577",
+          "src/packages/kestrel/src/actions/action.test.ts": "c22f0ec96cb1eaa21d1c4ed5324b602f9011c5a86be0ad5cd62708c90950a464",
+          "src/packages/kestrel/src/actions/action_dependencies.test.ts": "ea41adfc9feee97dbc29ba63a628c6aa0d2ca397737317771973bdef07a0fd0e",
+          "src/packages/kestrel/src/actions/cursor_pagination.test.ts": "b46449de1396187cb1738b625b2967f6b41e9c50a52cef57a0ce8d0bb684ccd0",
+          "src/packages/kestrel/src/app/app.test.ts": "a7c23d9eada9b86e9181ff9db1a24b561974853fb3a99c0f57158b82e4160c49",
+          "src/packages/kestrel/src/app/catalog_identities.test.ts": "3cea743a2c71c1b1bdc46f705ecab51b801fe8aac5e3c5370198310af04fc752",
+          "src/packages/kestrel/src/app/shutdown.test.ts": "8d792a2fd04b2e679cebc16d3b0f0c077bf8008c5b6ad5e6acbb973b3e8ef76b",
+          "src/packages/kestrel/src/app/shutdown_contract.test.ts": "516bc2ff960d182edabe8febe436ef3a63c474626888175b8f149447c1c1d96e",
+          "src/packages/kestrel/src/app/shutdown_errors.test.ts": "ed215c4adfb1102dd1624b2dc68d38d54694adba85e58716ee0acde7ba177c5e",
+          "src/packages/kestrel/src/client/provider.test.ts": "a9d2fcc805fef6c17a5107a2f9eb27ecace960c0851ec3b8664640b9a5af36a6",
+          "src/packages/kestrel/src/cli/command_manager.test.ts": "5f585cd6466902a4f95f00a8f33888ab9b607509cf2a24a9de086e08a268f531",
+          "src/packages/kestrel/src/email/provider.test.ts": "91d41bf1f46a4d6222ba07db0a44cec5c0b827a1ae7f7793967cd5a9c3f84110",
+          "src/packages/kestrel/src/db/pool_runtime.integration.test.ts": "9b0ab04af36d2ab877d9380073fa4fb15b6d649c77a36169799fc180d4408ad8",
+          "src/packages/kestrel/src/db/provider.test.ts": "870de5f880926830b41d5f845d5897b5d8af35362bbf1b7fb5b9532d83aff953",
+          "src/packages/kestrel/src/http/controller_manager.test.ts": "afed0625b4743f24542b241598352d12dd252bee188c4ec5165dd5ff33074a53",
+          "src/packages/kestrel/src/http/cursor_pagination.test.ts": "cf1dc376a515d5017054e2916ae62474b080ac0746fa5859c8eb6aea51306997",
+          "src/packages/kestrel/src/http/default_access.test.ts": "8e37fddd784ed3d087de1884ef9a3e9b3b1b92c1e9828a80f1105fd3bc835c39",
+          "src/packages/kestrel/src/http/runtime.test.ts": "75f3bb4a5961298f8594cd3d6493737e3cabb351c2e7d300d6d19c884d82246d",
+          "src/packages/kestrel/src/log/logger.test.ts": "80623fb565a4423d11b60e024e4af4d68bd3f7708bff26c029cf7a692b13b165",
+          "src/packages/kestrel/src/log/provider.test.ts": "de41a8afaa92903926a14f5c0688a948909e72627b5cf3aca7d76be46e4aba35",
+          "src/packages/kestrel/src/observability/provider.test.ts": "921832e80ef85df47a0fe18286405b3150c3e3a6bacb2d8f9d0a8b77bb36e43b",
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/outbound_http/provider.test.ts": "140d8e5331e3cf1896fd4760dd0937966947bf7f9c155584108d349b52f9a9a6",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.test.ts": "29185b316ddb08e4490131067fb3f252ff94adc3bb12c251b558083513ffb3b8",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.test.ts": "aefb9b5c8663c71c5e163949ba65e2d08fe61e006b8e34726248a69a80266109",
+          "src/packages/kestrel/src/authentication/adapters/redis/adapter.test.ts": "d7597c51fce7ac1e040664c830c8e13357d9e37ff80d830ff7100602f14ec7f2",
+          "src/packages/kestrel/src/studio/extensions/actions/extension.test.ts": "ae46c1fba0d564fc8cb31f3d3c16c2b8d4ba62a4d2405dd49d2641cb1ef1b2d1",
+          "src/packages/kestrel/src/studio/extensions/workers/extension.test.ts": "c7f8d430f8b7a80d817af25ba4920a670c17a434c2b502156664e3fb564b8bf1",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "8be2e83bb7b986c39320d29cec61742137d1508b8794601017f72d6846cf6367",
+          "src/packages/kestrel/src/scheduled_tasks/provider_contract.test.ts": "a15d9b851385a3afbb6297a3fb9e0ca903fb2132535fad84e79db98225ad030a",
+          "src/packages/kestrel/src/workers/definition_contract.test.ts": "7160d9b7061a48337b73da160cb522d917a1b6d08cdea8a66006f5d436bcdfa0",
+          "src/packages/kestrel/src/throttling/provider.test.ts": "385df56cc19d0f8f626402532712604ab37706b7603990b09f41d2eac6494af0",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/authentication/http/controllers.test.ts": "ac1a7e1bc6436e2c3398a39af6144220852cc72b409aa2e2d2c347de073df21d",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/db/reference_counter/counter.integration.test.ts": "ef28adae3dc5f05d9dfad493e028d4278954acd30e0f4d67cece9dc8d3ea7b07",
+          "src/packages/kestrel/src/http/maintenance/maintenance.test.ts": "8b351b6284b9b97866c290479fa3151425e4764d2fd2cf104da0c9ec77b3e40c",
+          "src/packages/kestrel/src/studio/adapters/client/adapter.test.ts": "056d38bd9a2dd8b3664b463712da4b60511b9e9246f50d110ca1b6a1751937ae",
+          "src/packages/kestrel/src/studio/extensions/logs/extension.test.ts": "870f67e6c508b2ec0559bfc962478fe18364bac7a1edfaaf82e7a73c7c5f5911",
+          "src/packages/kestrel/src/studio/extensions/controllers/extension.test.ts": "381d938e7825f0cfd197565c2206df11f4e0a9a16f45e6a031b7c89560da3017",
+          "src/packages/kestrel/src/scheduled_tasks/task.test.ts": "ec788342aca6554a312e67e6790f09f09987d7dd42cce989196ab547b9d42f2e",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "0c1eada5884e0979bf921a1c0e66e46b9ca66a21c80e96821f1e6c7b8ec2da35",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/authentication/guards/throttling.test.ts": "e6f1446193b3cd64daeec59b8128fbfedfeb46403172c5532aca75e5fe90ffe0",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/studio/provider.test.ts": "14f004cdc63c19f9d35413ba2d999e1314c954d2592bc2235c131bfff2c2937c",
+          "src/packages/kestrel/src/studio/studio.test.ts": "c9fa9267dc60d87caa6b0561ff17629ff823c6d200826d779b2276d3488e1d89",
+          "src/packages/kestrel/src/tokens/provider.test.ts": "1eaf998f32a82878237420dcd152100d964b4f468450981d1768990cfc5415cd",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/db/reference_counter/cli.test.ts": "a65c704a9451d8ce8eddbdfcfcf07ec073fc1794845445a759d690f6c3487659",
+          "src/packages/kestrel/src/http/client_generation/provider.test.ts": "e7751c9278262afd8a7394bb1f3b0ac043503ac9b341a0c91afbc78b96d7e3af",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/authorization/resolvers/roles/resolver.test.ts": "56171a92f5a0ed9275a9898f9912b6963db7de14df2abbe2569345a793b947a1",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6",
+          "src/packages/kestrel/src/studio/extensions/email/extension.test.ts": "bcd6d19762ddcea8bd3cda0af95f7c2b6c80063861c6e24522f08dbf6ff1d7c2",
+          "src/packages/kestrel/src/studio/extensions/observability/extension.test.ts": "301fdf0f0e0108a2a0676104360e809d88b06ce2aaac814693cda5d5f0c0d09f",
+          "src/packages/kestrel/src/studio/extensions/database/extension.test.ts": "d53fdcd128364fb5d12da1c635ebd9ad7ee25a0bd80e8022863d24f2bdb09195",
+          "src/packages/kestrel/src/studio/extensions/scheduled_tasks/extension.test.ts": "b468dcac41f95d52ebd285fadb47e404165a52c68d8f79dfb9d14fdcfa484716",
+          "src/packages/kestrel/src/scheduled_tasks/configuration.test.ts": "ab8a02f549ffa4d4e00b3b7b86d5c243810bc475e8f8df83e1aad0c2e8e810eb",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/definition.test.ts": "8063283d2a1898311856258ee7301e66ac6b3a9e108ab02f049cdad469704f95",
+          "src/packages/kestrel/src/scheduled_tasks/adapters/memory/definition.test.ts": "54672ea0cb8fe7134a7d935d3a4b16ed2656b3ad2c5b3bcb8b34c8c6f3f435b2",
+          "src/packages/kestrel/src/scheduled_tasks/types.test.ts": "c82ff4be88608f0f6810718a5d08a70e66e48f0826737eb98c69d0c3e20d9344"
+        }
+      },
+      "seconds": {
+        "before": 88,
+        "after": 87
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 869,
+        "after": 981
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_scheduled_contracts_classification.json",
+      "analysis": "mutation_testing_scheduled_tasks.md"
+    },
+    {
+      "id": "workers-publication",
+      "command": "npm run test:mutation:workers-publication",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/workers-publication-before-two-hour-tests/mutation.json",
+        "reportHash": "c9bd3824176e94fed95480bb22ccca831d248d954b7d91cfb43865b098596709",
+        "counts": {
+          "NoCoverage": 12,
+          "Killed": 128,
+          "Survived": 23
+        },
+        "executionGuardKills": [],
+        "mutants": 163,
+        "static": 8,
+        "reportedTestCases": 245,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "97"
+        ],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/acknowledgement_buffer.ts": "26f26e4ff890561aa59e8a34c3ebaefaefbeba2a0d54c51fab12bc5961b5cd04",
+          "src/packages/kestrel/src/workers/client.ts": "89c739b77104ef7bbd511e086b13082588327f919bf022a7b30df73b1ea7a305",
+          "src/packages/kestrel/src/workers/deferral_buffer.ts": "1755cce7f1bac01f8571b387d4308d700179d5a6a1c3f96c0e2137acc94b26b0",
+          "src/packages/kestrel/src/workers/publication.ts": "c7923158f7a24441ed1c5292df6ba3fe3c3923c1981ff9a119d4a77dc1fc644a",
+          "src/packages/kestrel/src/workers/serialization.ts": "8b38b21769fbf5cb85ca234a7e3506082e4c03153f6bfd3b4a5118bab2730fe2"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts": "7171a319af8e712656d96ea6fdea8e59eb731cabcab9c50eeaf2680a58f5f67c",
+          "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "e3f3580bd0770eef6e95fc21285cbff41725d9ac09474bdccd0e5ca44cbdda9a",
+          "src/packages/kestrel/src/workers/adapters/memory/adapter.test.ts": "a90c0ff60e93c3d1c2caec331ec2ab53f05e72b5f7478c0457923565bf566930",
+          "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+          "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "d48a46948367de9941d3e4b4c7964179d1a9253e2af5c5dffbd1fe2fbb2adafc",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "af3f881b61ace36249ba45ff788284ebd137b527e217fb2d7b73edc55ddf6a52",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/studio/extensions/workers/extension.test.ts": "c7f8d430f8b7a80d817af25ba4920a670c17a434c2b502156664e3fb564b8bf1",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/workers-publication/mutation.json",
+        "reportHash": "f90fa48976653a228e0d99c1d0262bbcd9841d893dbdfb186a029e15e8589222",
+        "counts": {
+          "Killed": 159,
+          "Survived": 20
+        },
+        "executionGuardKills": [],
+        "mutants": 179,
+        "static": 8,
+        "reportedTestCases": 328,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/acknowledgement_buffer.ts": "0d671ddd0899357500be19be08624ed10f8b1046bd59900212da49e1a78e9466",
+          "src/packages/kestrel/src/workers/client.ts": "89c739b77104ef7bbd511e086b13082588327f919bf022a7b30df73b1ea7a305",
+          "src/packages/kestrel/src/workers/deferral_buffer.ts": "1755cce7f1bac01f8571b387d4308d700179d5a6a1c3f96c0e2137acc94b26b0",
+          "src/packages/kestrel/src/workers/publication.ts": "c7923158f7a24441ed1c5292df6ba3fe3c3923c1981ff9a119d4a77dc1fc644a",
+          "src/packages/kestrel/src/workers/serialization.ts": "8b38b21769fbf5cb85ca234a7e3506082e4c03153f6bfd3b4a5118bab2730fe2"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts": "1178774eb374874ef6d6f79a9a083b8adc31fa36987ccaffce30852c6c3c9340",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/workers/adapters/memory/adapter.test.ts": "ab94e508d315402facaab3719fd05d0795699fcecc938b131a0a09a8d704a741",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "d8eb58bb419220feecb823742b2e514c05ca3208a9bb0d995856ab88657be182",
+          "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+          "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "0cefd1a9eeb1212ab7eba2c0df1c5a27f9a95f74dfb421659e8b10d5e746e33f",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "0c1eada5884e0979bf921a1c0e66e46b9ca66a21c80e96821f1e6c7b8ec2da35",
+          "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "9a05dac25be93f8140d15aa7d08a518d4675ff876c1597d5af088414acfe008f",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/studio/extensions/workers/extension.test.ts": "c7f8d430f8b7a80d817af25ba4920a670c17a434c2b502156664e3fb564b8bf1",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workers/adapters/postgres/definition.test.ts": "6a9436ceb30d32459f73a177b7440a4f136d43b352e7a29e30b33fd734de2e53",
+          "src/packages/kestrel/src/workers/adapters/memory/definition.test.ts": "4f54129de0c21fdabb8f0a4807ca80fb96fc29921b0f2b9cbc8cd57158555d20"
+        }
+      },
+      "seconds": {
+        "before": 45,
+        "after": 56
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 245,
+        "after": 328
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_workers_publication_classification.json",
+      "analysis": "mutation_testing_workers_followup.md"
+    },
+    {
+      "id": "workers-delivery",
+      "command": "npm run test:mutation:workers-delivery",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/workers-delivery-before-two-hour-tests/mutation.json",
+        "reportHash": "a747f454ea83230942e5b9e5bfefb149f277fac3200e3fdf29079bd43ad63a27",
+        "counts": {
+          "NoCoverage": 38,
+          "Killed": 168,
+          "Survived": 54,
+          "Timeout": 3
+        },
+        "executionGuardKills": [],
+        "mutants": 263,
+        "static": 0,
+        "reportedTestCases": 159,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "10",
+          "11",
+          "12",
+          "14",
+          "28",
+          "33",
+          "56",
+          "92",
+          "94",
+          "187",
+          "192",
+          "194",
+          "195",
+          "196",
+          "197",
+          "199",
+          "200",
+          "201"
+        ],
+        "timeouts": [
+          {
+            "id": "0",
+            "reason": "Hit limit reached (3205/3200)"
+          },
+          {
+            "id": "13",
+            "reason": "Hit limit reached (101/100)"
+          },
+          {
+            "id": "27",
+            "reason": "Hit limit reached (3205/3200)"
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.ts": "7a46916b357e37b51f814b266ad129103379efeaf253ec1991fb6b5f322a9fb2"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "af3f881b61ace36249ba45ff788284ebd137b527e217fb2d7b73edc55ddf6a52",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/workers-delivery/mutation.json",
+        "reportHash": "2a9535521476b23aa85b60c85d2fb247e30ea4a11c23300a0064a049f4f2796f",
+        "counts": {
+          "NoCoverage": 2,
+          "Killed": 271,
+          "Survived": 35,
+          "Timeout": 5
+        },
+        "executionGuardKills": [],
+        "mutants": 313,
+        "static": 0,
+        "reportedTestCases": 192,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [
+          {
+            "id": "13",
+            "reason": "Hit limit reached (601/600)"
+          },
+          {
+            "id": "18",
+            "reason": "Hit limit reached (601/600)"
+          },
+          {
+            "id": "19",
+            "reason": "Hit limit reached (601/600)"
+          },
+          {
+            "id": "20",
+            "reason": "Hit limit reached (601/600)"
+          },
+          {
+            "id": "21",
+            "reason": "Hit limit reached (601/600)"
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.ts": "94e9aedee6abd04055d67d2c34818ac3c63f746ecdcbd9c8eabdd222382fb78b"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "194ca4a2ca56dfeeeb758edf4c71c2561f319655de8524efff137d21a69007cf",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7"
+        }
+      },
+      "seconds": {
+        "before": 107,
+        "after": 79
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 159,
+        "after": 192
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_workers_delivery_classification.json",
+      "analysis": "mutation_testing_workers_followup.md"
+    },
+    {
+      "id": "workers-adapters",
+      "command": "npm run test:mutation:workers-adapters",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/workers-adapters-before-two-hour-tests/mutation.json",
+        "reportHash": "f5cece7daee9e111d6c3506f3c1fdc0f7a576f6cf2c14d406b457e927ce3584b",
+        "counts": {
+          "NoCoverage": 51,
+          "Killed": 313,
+          "Survived": 189,
+          "RuntimeError": 41
+        },
+        "executionGuardKills": [],
+        "mutants": 594,
+        "static": 112,
+        "reportedTestCases": 275,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "34",
+          "36",
+          "37"
+        ],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/adapters/memory/adapter.ts": "1994c9e0e12a4d6010b402b7b7d72f659ca88ec36d10fe32993c3454f0086721",
+          "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts": "6f67c78fafac5070b8fbdc35bb98f2d85d14953bf76b702f2351044f60cc647a",
+          "src/packages/kestrel/src/workers/adapters/memory/definition.ts": "6fff8e8cc43ac4205c33a76eb1f07dfaa35a83903d9554256458a5c724b4fc17",
+          "src/packages/kestrel/src/workers/adapters/postgres/definition.ts": "91dd76912c93f9876a1881e9cb0fb67232a0c8d4ae5d6e8fbf18d744edf73819",
+          "src/packages/kestrel/src/workers/adapters/postgres/schema.ts": "31df134a46e7b8406f3038d3e7477f64f79243b58648ece20f3bfdcd8b43a229"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts": "7171a319af8e712656d96ea6fdea8e59eb731cabcab9c50eeaf2680a58f5f67c",
+          "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "d8eb58bb419220feecb823742b2e514c05ca3208a9bb0d995856ab88657be182",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "af3f881b61ace36249ba45ff788284ebd137b527e217fb2d7b73edc55ddf6a52",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "c031dfc2962aeb6aea111f09eb3588dce92012d217e350751fbdc097ff3f0fd1",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+          "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "0cefd1a9eeb1212ab7eba2c0df1c5a27f9a95f74dfb421659e8b10d5e746e33f",
+          "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba",
+          "src/packages/kestrel/src/studio/extensions/workers/extension.test.ts": "c7f8d430f8b7a80d817af25ba4920a670c17a434c2b502156664e3fb564b8bf1",
+          "src/packages/kestrel/src/workers/adapters/memory/adapter.test.ts": "a90c0ff60e93c3d1c2caec331ec2ab53f05e72b5f7478c0457923565bf566930"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/workers-adapters/mutation.json",
+        "reportHash": "92d88c687fa18d5007e8b40825fc34fc751c55e2b0036a642d7896abf57eb16f",
+        "counts": {
+          "Killed": 498,
+          "Survived": 55,
+          "RuntimeError": 41
+        },
+        "executionGuardKills": [],
+        "mutants": 594,
+        "static": 112,
+        "reportedTestCases": 336,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/adapters/memory/adapter.ts": "1994c9e0e12a4d6010b402b7b7d72f659ca88ec36d10fe32993c3454f0086721",
+          "src/packages/kestrel/src/workers/adapters/memory/definition.ts": "6fff8e8cc43ac4205c33a76eb1f07dfaa35a83903d9554256458a5c724b4fc17",
+          "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts": "3e5136f258f04309f0c1deeb1824af34ea4f5e19c929486da9a2b5baaba25a2c",
+          "src/packages/kestrel/src/workers/adapters/postgres/definition.ts": "91dd76912c93f9876a1881e9cb0fb67232a0c8d4ae5d6e8fbf18d744edf73819",
+          "src/packages/kestrel/src/workers/adapters/postgres/schema.ts": "31df134a46e7b8406f3038d3e7477f64f79243b58648ece20f3bfdcd8b43a229"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/workers/adapters/postgres/schema.test.ts": "59754224954e2e858384ee9c77804a5cfd9437b93f641d2abb7034a4a1e2026a",
+          "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "d8eb58bb419220feecb823742b2e514c05ca3208a9bb0d995856ab88657be182",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts": "800a78a25a2a28e15d6cc519a3d6e8d8c477511cfcfac935496427565cced686",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/studio/extensions/workers/extension.test.ts": "c7f8d430f8b7a80d817af25ba4920a670c17a434c2b502156664e3fb564b8bf1",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/workers/adapters/memory/adapter.test.ts": "39fec985ea5bcc7902768104640ff465f60a6f980158bc8530269713dd6d8b4d",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/adapters/memory/definition.test.ts": "4f54129de0c21fdabb8f0a4807ca80fb96fc29921b0f2b9cbc8cd57158555d20",
+          "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workers/adapters/postgres/definition.test.ts": "6a9436ceb30d32459f73a177b7440a4f136d43b352e7a29e30b33fd734de2e53",
+          "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba",
+          "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "0cefd1a9eeb1212ab7eba2c0df1c5a27f9a95f74dfb421659e8b10d5e746e33f",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7"
+        }
+      },
+      "seconds": {
+        "before": 175,
+        "after": 170
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 275,
+        "after": 336
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_workers_adapters_classification.json",
+      "analysis": "mutation_testing_workers_followup.md"
+    },
+    {
+      "id": "workers-contracts",
+      "command": "npm run test:mutation:workers-contracts",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/workers-contracts-before-two-hour-tests/mutation.json",
+        "reportHash": "1ecb6decb2a5e4858223f4bd00c07830669133a59513228c8bd4a86c501f82aa",
+        "counts": {
+          "NoCoverage": 55,
+          "Survived": 103,
+          "Killed": 186
+        },
+        "executionGuardKills": [],
+        "mutants": 344,
+        "static": 66,
+        "reportedTestCases": 289,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "118",
+          "143",
+          "149",
+          "150",
+          "151",
+          "153",
+          "154",
+          "246"
+        ],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/dependencies.ts": "471adfd3bd82879c49ba1670948f976671bcf0ef07bb5cbed28867e02c534272",
+          "src/packages/kestrel/src/workers/errors.ts": "2011d5e8950bb40ad51bb854a2ace17a076e8340d9a178c9cd57c3f0940b7552",
+          "src/packages/kestrel/src/workers/provider.ts": "a33b4bb9708f7700f19c10daeb1ad969cc748c3dfe3a43694a3d91f6554ac78a",
+          "src/packages/kestrel/src/workers/runtime.ts": "0128fa3914a4573d622e242765bb0f9dd11f0d1c459283c3b9061099f3bff48f",
+          "src/packages/kestrel/src/workers/types.ts": "4cb8a838d137f1688cae39393c4a177d02dde076f5439567350f44475a5ac1ef",
+          "src/packages/kestrel/src/workers/worker.ts": "f468ec7d7389fa97223f9fdffd690cc6136c4efd9df8e74cb0b5279af5c922a8",
+          "src/packages/kestrel/src/workers/adapter_definition.ts": "7c2549c2903b9ca5bdd1aff1490d2662be846f34edcec2cde85f5a6a9304b6c5",
+          "src/packages/kestrel/src/workers/configuration.ts": "ed3992278844045d76030c1cdece602c0212826401a1e0cda05775de95b9199b"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "c031dfc2962aeb6aea111f09eb3588dce92012d217e350751fbdc097ff3f0fd1",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts": "7171a319af8e712656d96ea6fdea8e59eb731cabcab9c50eeaf2680a58f5f67c",
+          "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "d8eb58bb419220feecb823742b2e514c05ca3208a9bb0d995856ab88657be182",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/app/catalog_identities.test.ts": "3cea743a2c71c1b1bdc46f705ecab51b801fe8aac5e3c5370198310af04fc752",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+          "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "0cefd1a9eeb1212ab7eba2c0df1c5a27f9a95f74dfb421659e8b10d5e746e33f",
+          "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "af3f881b61ace36249ba45ff788284ebd137b527e217fb2d7b73edc55ddf6a52",
+          "src/packages/kestrel/src/studio/extensions/workers/extension.test.ts": "c7f8d430f8b7a80d817af25ba4920a670c17a434c2b502156664e3fb564b8bf1",
+          "src/packages/kestrel/src/workers/adapters/memory/adapter.test.ts": "843507c399848ffbe54cb901e88928a0a08b3f274d9efed8a65189ad742e8e3b"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/workers-contracts/mutation.json",
+        "reportHash": "0c3006f72d5dae470c0a720e5c8b1e00d2d27fd585ea112428eee450131cf6c7",
+        "counts": {
+          "Killed": 317,
+          "Survived": 27
+        },
+        "executionGuardKills": [],
+        "mutants": 344,
+        "static": 66,
+        "reportedTestCases": 410,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "118",
+          "246"
+        ],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/dependencies.ts": "471adfd3bd82879c49ba1670948f976671bcf0ef07bb5cbed28867e02c534272",
+          "src/packages/kestrel/src/workers/adapter_definition.ts": "7c2549c2903b9ca5bdd1aff1490d2662be846f34edcec2cde85f5a6a9304b6c5",
+          "src/packages/kestrel/src/workers/errors.ts": "2011d5e8950bb40ad51bb854a2ace17a076e8340d9a178c9cd57c3f0940b7552",
+          "src/packages/kestrel/src/workers/provider.ts": "a33b4bb9708f7700f19c10daeb1ad969cc748c3dfe3a43694a3d91f6554ac78a",
+          "src/packages/kestrel/src/workers/runtime.ts": "0128fa3914a4573d622e242765bb0f9dd11f0d1c459283c3b9061099f3bff48f",
+          "src/packages/kestrel/src/workers/types.ts": "4cb8a838d137f1688cae39393c4a177d02dde076f5439567350f44475a5ac1ef",
+          "src/packages/kestrel/src/workers/worker.ts": "f468ec7d7389fa97223f9fdffd690cc6136c4efd9df8e74cb0b5279af5c922a8",
+          "src/packages/kestrel/src/workers/configuration.ts": "ed3992278844045d76030c1cdece602c0212826401a1e0cda05775de95b9199b"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts": "800a78a25a2a28e15d6cc519a3d6e8d8c477511cfcfac935496427565cced686",
+          "src/packages/kestrel/src/workers/adapters/postgres/definition.test.ts": "6a9436ceb30d32459f73a177b7440a4f136d43b352e7a29e30b33fd734de2e53",
+          "src/packages/kestrel/src/workers/acknowledgement_buffer.test.ts": "d8eb58bb419220feecb823742b2e514c05ca3208a9bb0d995856ab88657be182",
+          "src/packages/kestrel/src/workers/adapters/memory/adapter.test.ts": "39fec985ea5bcc7902768104640ff465f60a6f980158bc8530269713dd6d8b4d",
+          "src/packages/kestrel/src/workers/configuration.test.ts": "d560923960df766c2880eb555ee3c209c05dbb6884e9ec8abaa4499a75b60a3e",
+          "src/packages/kestrel/src/workers/definition_contract.test.ts": "7160d9b7061a48337b73da160cb522d917a1b6d08cdea8a66006f5d436bcdfa0",
+          "src/packages/kestrel/src/app/catalog_identities.test.ts": "3cea743a2c71c1b1bdc46f705ecab51b801fe8aac5e3c5370198310af04fc752",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/workers/metadata_contract.test.ts": "df06b75cf10eb49e46ca418f77f6f091fb5b23c671431749c19274a90821d27b",
+          "src/packages/kestrel/src/workers/client.test.ts": "5db190691790d5d8f4203c3871a38f1d8b969702009daeca1f61d986b572a9a9",
+          "src/packages/kestrel/src/workers/deferral_buffer.test.ts": "0cefd1a9eeb1212ab7eba2c0df1c5a27f9a95f74dfb421659e8b10d5e746e33f",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+          "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/studio/extensions/workers/extension.test.ts": "c7f8d430f8b7a80d817af25ba4920a670c17a434c2b502156664e3fb564b8bf1",
+          "src/packages/kestrel/src/workers/adapters/memory/definition.test.ts": "4f54129de0c21fdabb8f0a4807ca80fb96fc29921b0f2b9cbc8cd57158555d20"
+        }
+      },
+      "seconds": {
+        "before": 102,
+        "after": 97
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 291,
+        "after": 412
+      },
+      "sameWholeProductionSources": true,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_workers_contracts_classification.json",
+      "analysis": "mutation_testing_workers_followup.md"
+    },
+    {
+      "id": "workflow-task-ownership",
+      "command": "npm run test:mutation:workflow-task-ownership",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/workflow-task-ownership-before-two-hour-tests/mutation.json",
+        "reportHash": "8b3e68262b1f2edc043bd5bff0710e265ce5aecca6440dce77c572a9831ba403",
+        "counts": {
+          "NoCoverage": 29,
+          "Killed": 30,
+          "Survived": 16
+        },
+        "executionGuardKills": [],
+        "mutants": 75,
+        "static": 0,
+        "reportedTestCases": 139,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "21"
+        ],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "b21adb698a6d0422095b85e9c0f7c99bf0dde0b0bddc05f372dfe8413c867552",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "bc6c2cca7ca574cf3e493695648fd9e70254ad4d907acc15666eaba23429d7d2"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "aac1c1fabbca980105fa9af09ead255758734bb5acb23afe08ff20dd41569d3a",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+          "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+          "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+          "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+          "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/workflow-task-ownership/mutation.json",
+        "reportHash": "788dce2b9bc3be21ed4b50359b657825cdfac33edb7e0d35041771a3ddfbaf37",
+        "counts": {
+          "Killed": 71,
+          "Survived": 4
+        },
+        "executionGuardKills": [],
+        "mutants": 75,
+        "static": 0,
+        "reportedTestCases": 179,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "33f944e9a2722257c3a14d7f7d2bdc6009b36e82633a774f94e18874316802d6",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "9249d00f0e7a6b6565f6b7a8ebb36f881c7f679f941413c41f45ab0f9dbb3a8c"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "ffd0aee2c882ec1dc424d43041b3c8577dc786a9200643a1b14417b89436630c",
+          "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+          "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+          "src/packages/kestrel/src/workflows/adapters/memory/retry_execution.test.ts": "5503843ffbc4982c4e4cfa60330dd81647c3b80e9ef90d55e6ef66d7de831034",
+          "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+          "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+          "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "seconds": {
+        "before": 16,
+        "after": 19
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 139,
+        "after": 179
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_workflow_task_ownership_classification.json",
+      "analysis": "mutation_testing_async_runtime.md"
+    },
+    {
+      "id": "workflow-execution-retry",
+      "command": "npm run test:mutation:workflow-execution-retry",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/workflow-execution-retry-before-two-hour-tests/mutation.json",
+        "reportHash": "3d717d6f6dafa92329e39afe33dc67096e684a4f23937329b54959454be4c92b",
+        "counts": {
+          "NoCoverage": 41,
+          "Survived": 28,
+          "Killed": 28
+        },
+        "executionGuardKills": [],
+        "mutants": 97,
+        "static": 0,
+        "reportedTestCases": 139,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "b21adb698a6d0422095b85e9c0f7c99bf0dde0b0bddc05f372dfe8413c867552",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "bc6c2cca7ca574cf3e493695648fd9e70254ad4d907acc15666eaba23429d7d2"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "aac1c1fabbca980105fa9af09ead255758734bb5acb23afe08ff20dd41569d3a",
+          "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+          "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+          "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+          "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+          "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/workflow-execution-retry/mutation.json",
+        "reportHash": "3c0ae089c9cd12564443b98ccc6c6fa9cfa14ead39383edec29ed2f797de5285",
+        "counts": {
+          "NoCoverage": 2,
+          "Killed": 121,
+          "Survived": 13
+        },
+        "executionGuardKills": [],
+        "mutants": 136,
+        "static": 0,
+        "reportedTestCases": 214,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "743a52cbd4e326406d6b1ebf615d3617c49239be34187aec109ad0ea7e25e5f4",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "4569fb5cb69d9225ec245d1c4b87f030f573b781be5fae8ad83f7efcbb19f861"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "d3f453d0d363c08101867f4ceebf44268a37a6088585c1f73f88e0a313d5dbca",
+          "src/packages/kestrel/src/workflows/adapters/memory/terminal_control.test.ts": "1140a02c17bec12394f878a6a53112bbe0d09576a5fdd7177f4e84d0f5947363",
+          "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+          "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+          "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+          "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+          "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+          "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+          "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/adapters/memory/retry_execution.test.ts": "4ff4a5a303fb7e8402397b31d11fd398440adbd4628ead6ecd96b03f94a39176"
+        }
+      },
+      "seconds": {
+        "before": 18,
+        "after": 37
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 139,
+        "after": 214
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_workflow_retry_classification.json",
+      "analysis": "mutation_testing_async_runtime.md"
+    },
+    {
+      "id": "workflow-terminal-control",
+      "command": "npm run test:mutation:workflow-terminal-control",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/workflow-terminal-control-before-two-hour-tests/mutation.json",
+        "reportHash": "fa5ee9d2d401fd467494dadbbd0f188d5b083b868e4a0e5067bf27b994fdd849",
+        "counts": {
+          "NoCoverage": 81,
+          "Killed": 99,
+          "Survived": 91,
+          "Timeout": 4
+        },
+        "executionGuardKills": [],
+        "mutants": 275,
+        "static": 0,
+        "reportedTestCases": 184,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [
+          {
+            "id": "141",
+            "reason": "Hit limit reached (201/200)"
+          },
+          {
+            "id": "143",
+            "reason": "Hit limit reached (101/100)"
+          },
+          {
+            "id": "225",
+            "reason": "Hit limit reached (501/500)"
+          },
+          {
+            "id": "227",
+            "reason": "Hit limit reached (301/300)"
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "33f944e9a2722257c3a14d7f7d2bdc6009b36e82633a774f94e18874316802d6",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "9249d00f0e7a6b6565f6b7a8ebb36f881c7f679f941413c41f45ab0f9dbb3a8c"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "304a07286131eddb55e5775f2edef6a6346791ba3f3a5db41cf0ff9811ab07d4",
+          "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+          "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+          "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+          "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+          "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+          "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/adapters/memory/retry_execution.test.ts": "4ff4a5a303fb7e8402397b31d11fd398440adbd4628ead6ecd96b03f94a39176"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/workflow-terminal-control/mutation.json",
+        "reportHash": "e4127cc56e4b9caea81161d028b92d5ac062b23977973a86f4d627b4586a38d1",
+        "counts": {
+          "NoCoverage": 1,
+          "Killed": 282,
+          "Survived": 31,
+          "Timeout": 6
+        },
+        "executionGuardKills": [],
+        "mutants": 320,
+        "static": 0,
+        "reportedTestCases": 214,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [],
+        "timeouts": [
+          {
+            "id": "150",
+            "reason": "Hit limit reached (2501/2500)"
+          },
+          {
+            "id": "152",
+            "reason": "Hit limit reached (1501/1500)"
+          },
+          {
+            "id": "234",
+            "reason": "Hit limit reached (2801/2800)"
+          },
+          {
+            "id": "236",
+            "reason": "Hit limit reached (1601/1600)"
+          },
+          {
+            "id": "96",
+            "reason": "Hit limit reached (3402/3400)"
+          },
+          {
+            "id": "98",
+            "reason": "Hit limit reached (1801/1800)"
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "743a52cbd4e326406d6b1ebf615d3617c49239be34187aec109ad0ea7e25e5f4",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "4569fb5cb69d9225ec245d1c4b87f030f573b781be5fae8ad83f7efcbb19f861"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "d3f453d0d363c08101867f4ceebf44268a37a6088585c1f73f88e0a313d5dbca",
+          "src/packages/kestrel/src/workflows/adapters/memory/terminal_control.test.ts": "1140a02c17bec12394f878a6a53112bbe0d09576a5fdd7177f4e84d0f5947363",
+          "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+          "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+          "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+          "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+          "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+          "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+          "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/adapters/memory/retry_execution.test.ts": "4ff4a5a303fb7e8402397b31d11fd398440adbd4628ead6ecd96b03f94a39176"
+        }
+      },
+      "seconds": {
+        "before": 54,
+        "after": 75
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 184,
+        "after": 214
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_workflow_terminal_classification.json",
+      "analysis": "mutation_testing_async_runtime.md"
+    },
+    {
+      "id": "outbound-resilience",
+      "command": "npm run test:mutation:outbound-resilience",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/outbound-resilience-before-two-hour-tests/mutation.json",
+        "reportHash": "b1b107b8ac95e015e8856ac81d755dc06b370c89d13919fd35ce7d2bed883efa",
+        "counts": {
+          "NoCoverage": 50,
+          "Killed": 188,
+          "Survived": 96
+        },
+        "executionGuardKills": [],
+        "mutants": 334,
+        "static": 7,
+        "reportedTestCases": 67,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "46",
+          "51",
+          "52",
+          "53",
+          "59",
+          "61",
+          "63",
+          "66",
+          "71",
+          "79",
+          "81",
+          "82",
+          "94",
+          "123",
+          "126",
+          "128",
+          "135",
+          "136",
+          "137",
+          "139",
+          "168",
+          "175",
+          "176",
+          "178",
+          "179",
+          "181",
+          "182",
+          "183",
+          "184",
+          "186",
+          "187"
+        ],
+        "timeouts": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/outbound_http/body.ts": "59365fab17372a7966f5bd91c3cd21160a7ced8540933af3ffd58eed641137ea",
+          "src/packages/kestrel/src/outbound_http/deadline.ts": "df2334ac244a88795d3bea72f4829731330544ed5293b50f30fc143c33538450",
+          "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts": "fc2e5c260243843aac429a1f73a103fe69ae7521a1bac97d78c2a8438ae732d0"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/outbound_http/provider.test.ts": "140d8e5331e3cf1896fd4760dd0937966947bf7f9c155584108d349b52f9a9a6",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/outbound-resilience/mutation.json",
+        "reportHash": "1333d37dc3e503ff52e859a5162673b3eeb670dcbc80a759f7ba2324c2d47b9b",
+        "counts": {
+          "NoCoverage": 1,
+          "Killed": 313,
+          "Timeout": 1,
+          "Survived": 33
+        },
+        "executionGuardKills": [],
+        "mutants": 348,
+        "static": 7,
+        "reportedTestCases": 136,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "280",
+          "281",
+          "286",
+          "285",
+          "290",
+          "292",
+          "293",
+          "294",
+          "296",
+          "297",
+          "298",
+          "301",
+          "302",
+          "303",
+          "306",
+          "53",
+          "59",
+          "61",
+          "71",
+          "79",
+          "81",
+          "82",
+          "94",
+          "123",
+          "126",
+          "128",
+          "168",
+          "184",
+          "186",
+          "187"
+        ],
+        "timeouts": [
+          {
+            "id": "215",
+            "reason": "Hit limit reached (4401/4400)"
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts": "bdf00fb29b3c0ad4d924d16be05ef25c6d8de0481314c24b5689021c245f4c7d",
+          "src/packages/kestrel/src/outbound_http/body.ts": "59365fab17372a7966f5bd91c3cd21160a7ced8540933af3ffd58eed641137ea",
+          "src/packages/kestrel/src/outbound_http/deadline.ts": "df2334ac244a88795d3bea72f4829731330544ed5293b50f30fc143c33538450"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/outbound_http/resilience_contract.test.ts": "a7df46c46413829f6c9c6c88447d9f187898eac01b3663b4eca770a73d841f24",
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/outbound_http/provider.test.ts": "140d8e5331e3cf1896fd4760dd0937966947bf7f9c155584108d349b52f9a9a6",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6"
+        }
+      },
+      "seconds": {
+        "before": 146,
+        "after": 154
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 67,
+        "after": 136
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_outbound_resilience_classification.json",
+      "analysis": "mutation_testing_async_runtime.md"
+    },
+    {
+      "id": "component-background",
+      "command": "npm run test:mutation:component -- background",
+      "assessment": "complete",
+      "review": "classified with documented limits; material follow-up remains where listed",
+      "before": {
+        "report": "artifacts/mutation/component-background-before-two-hour-tests/mutation.json",
+        "reportHash": "3d69733a83b6ae3bdda1d99f876505a40ca7498cb8f0adf15027ec583effca83",
+        "counts": {
+          "NoCoverage": 39,
+          "Killed": 78,
+          "Survived": 26,
+          "Timeout": 1
+        },
+        "executionGuardKills": [],
+        "mutants": 144,
+        "static": 8,
+        "reportedTestCases": 8,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "92",
+          "108",
+          "125",
+          "127",
+          "131",
+          "132",
+          "134"
+        ],
+        "timeouts": [
+          {
+            "id": "59",
+            "reason": "Hit limit reached (101/100)"
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/background/provider.ts": "a086767aa091a2fb573ab8c57f710d384120aa16a467d0e8b4371a29bc583735",
+          "src/packages/kestrel/src/background/runtime.ts": "597cb3be5d9983d9d5dfb59cd4a3bb978182b788a6c53d402b41d863aa9de988",
+          "src/packages/kestrel/src/background/dependencies.ts": "f0878f6e157190825c4ebfd1e0e1f34fb7c22aee0530743329a121659b5501ed"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/component-background/mutation.json",
+        "reportHash": "6b2ee038e9984b1faec57d4933ff8813ba420d915b2a97b01453440bdd9e2e87",
+        "counts": {
+          "Killed": 134,
+          "Survived": 10,
+          "Timeout": 1
+        },
+        "executionGuardKills": [],
+        "mutants": 145,
+        "static": 8,
+        "reportedTestCases": 23,
+        "executedWithoutCompletedTests": [],
+        "vitestTimeoutKills": [
+          "125",
+          "127",
+          "131",
+          "132",
+          "134"
+        ],
+        "timeouts": [
+          {
+            "id": "59",
+            "reason": "Hit limit reached (301/300)"
+          }
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/background/provider.ts": "a086767aa091a2fb573ab8c57f710d384120aa16a467d0e8b4371a29bc583735",
+          "src/packages/kestrel/src/background/runtime.ts": "c203be32e704c880ad7d05a0272c7601ab0a38805be1a81554b69ce137ae064c",
+          "src/packages/kestrel/src/background/dependencies.ts": "f0878f6e157190825c4ebfd1e0e1f34fb7c22aee0530743329a121659b5501ed"
+        },
+        "executedTestSourceHashes": {
+          "src/packages/kestrel/src/background/provider_contract.test.ts": "4a5706818230a2fe0f943710867988bb9c3688fe0dfe62356fced61a78be4ba2",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/background/runtime.test.ts": "7c4c48810ab067e8868b4496d25817144167dd23216c3ccf75c51a78b2badfe8"
+        }
+      },
+      "seconds": {
+        "before": 49,
+        "after": 54
+      },
+      "baselineTestsFromRunnerLog": {
+        "before": 8,
+        "after": 24
+      },
+      "sameWholeProductionSources": false,
+      "comparisonPolicy": "Production fixes change mutation corpora. Raw count changes are descriptive, not an identical-site causal comparison. Dedicated classifications record normalized expression matches where available.",
+      "classification": "mutation_testing_background_classification.json",
+      "analysis": "mutation_testing_background.md"
+    }
+  ],
+  "validation": {
+    "test:ai": "2449 tests passed in 286 files, --no-isolate; 7.02s",
+    "build:ai": "framework and playground passed after final production fix",
+    "frameworkTypecheck": "passed after all source/test changes",
+    "docs:build": "passed; 96 documentation pages indexed",
+    "mutationInfrastructure": "56 checks passed after all 11 new named profiles were added",
+    "check:mutation-inventory": "35 lots / 631 candidate sources aligned",
+    "check:boundaries": "passed; no new production imports since this check",
+    "diffCheck": "passed"
+  },
+  "sourceFrozenAt": "2026-11-10T14:53:20Z",
+  "consolidationStartedAt": "2026-11-10T14:54:17Z",
+  "productionChanges": [
+    "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+    "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+    "src/packages/kestrel/src/scheduled_tasks/schedule.ts",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+    "src/packages/kestrel/src/workers/acknowledgement_buffer.ts",
+    "src/packages/kestrel/src/workers/scheduler.ts",
+    "src/packages/kestrel/src/workers/adapters/postgres/adapter.ts",
+    "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+    "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+    "src/packages/kestrel/src/outbound_http/middleware/retry/index.ts",
+    "src/packages/kestrel/src/background/runtime.ts"
+  ],
+  "evidenceAudit": {
+    "pairedReportsVerified": 12,
+    "reportCountsHashesAndLedgerLinks": "passed",
+    "allFinalRunsFreshAndStaticInclusive": true,
+    "allExecutedMutantsCompleteTests": true,
+    "vitestDeadlineKills": 97,
+    "limits": "Raw Killed includes documented Vitest deadline detections. These are not direct assertion kills. Final reports represent their own recorded test inputs; later adjacent tests do not rewrite earlier reports. No framework-wide score is inferred."
+  },
+  "completedAt": "2026-11-10T15:03:11.413088+00:00",
+  "elapsedMinutesApprox": 94.5,
+  "newTestCases": 496
+}

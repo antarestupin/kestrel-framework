@@ -186,6 +186,81 @@ describe("PostgresCacheAdapter", () => {
       .resolves.toBeUndefined();
   });
 
+  it("shares one deletion budget across expired rows and overflow eviction", async () => {
+    const adapter = createAdapter({ maxEntries: 2 });
+    await adapter.set(key("expired"), entry("expired", {
+      expiresAt: new Date("2026-01-01T00:00:00.000Z"),
+    }));
+    for (let index = 1; index <= 5; index += 1) {
+      await adapter.set(key(`fresh-${index}`), entry(index, {
+        expiresAt: new Date(`2026-01-01T0${index}:00:00.000Z`),
+      }));
+    }
+
+    // One expired deletion leaves only two slots for overflow work, even though overflow is three.
+    await expect(adapter.prune({ limit: 3 })).resolves.toBe(3);
+    expect((await client.query("SELECT key FROM cache_entry ORDER BY key")).rows).toEqual([
+      { key: key("fresh-3") }, { key: key("fresh-4") }, { key: key("fresh-5") },
+    ]);
+    await expect(adapter.prune({ limit: 3 })).resolves.toBe(1);
+    expect((await client.query("SELECT key FROM cache_entry ORDER BY key")).rows).toEqual([
+      { key: key("fresh-4") }, { key: key("fresh-5") },
+    ]);
+  });
+
+  it("leaves fresh overflow untouched when expired rows exhaust the whole budget", async () => {
+    const adapter = createAdapter({ maxEntries: 1 });
+    await adapter.set(key("expired"), entry("expired", {
+      expiresAt: new Date("2026-01-01T00:00:00.000Z"),
+    }));
+    await adapter.set(key("fresh-first"), entry("first"));
+    await adapter.set(key("fresh-second"), entry("second"));
+
+    await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
+    // Read retained rows directly, without a get() predicate hiding an undeleted expired row.
+    expect((await client.query("SELECT key FROM cache_entry ORDER BY key")).rows).toEqual([
+      { key: key("fresh-first") }, { key: key("fresh-second") },
+    ]);
+  });
+
+  it("uses the configured default limit and preserves nonexpired rows", async () => {
+    const adapter = createAdapter({ defaultPruneLimit: 2 });
+    const expiresAt = new Date("2026-01-01T00:00:00.000Z");
+    for (const name of ["first", "second", "third"]) {
+      await adapter.set(key(name), entry(name, { expiresAt }));
+    }
+    await adapter.set(key("fresh"), entry("fresh"));
+
+    await expect(adapter.prune({})).resolves.toBe(2);
+    expect((await client.query("SELECT key FROM cache_entry ORDER BY key")).rows).toEqual([
+      { key: key("fresh") }, { key: key("third") },
+    ]);
+    await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
+    expect((await client.query("SELECT key FROM cache_entry")).rows).toEqual([{ key: key("fresh") }]);
+  });
+
+  it("prunes exact-boundary expiration with deterministic overflow tie breaking", async () => {
+    const adapter = createAdapter({ maxEntries: 1 });
+    await adapter.set(key("boundary"), entry("boundary", {
+      expiresAt: new Date("2026-01-01T00:30:00.000Z"),
+    }));
+    const expiresAt = new Date("2026-01-01T01:00:00.000Z");
+    await adapter.set(key("second"), entry("second", { expiresAt }));
+    await adapter.set(key("first"), entry("first", { expiresAt }));
+
+    await expect(adapter.prune({ limit: 2 })).resolves.toBe(2);
+    expect((await client.query("SELECT key FROM cache_entry")).rows).toEqual([{ key: key("second") }]);
+  });
+
+  for (const limit of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    it(`rejects an invalid prune limit of ${limit} before modifying rows`, async () => {
+      const adapter = createAdapter();
+      await adapter.set(key("fresh"), entry("fresh"));
+      await expect(adapter.prune({ limit })).rejects.toBeInstanceOf(TypeError);
+      expect((await client.query("SELECT key FROM cache_entry")).rows).toEqual([{ key: key("fresh") }]);
+    });
+  }
+
   it("prunes expired entries in bounded batches", async () => {
     const adapter = createAdapter();
     const expired = new Date("2026-01-01T00:00:00.000Z");

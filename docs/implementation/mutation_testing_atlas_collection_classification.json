@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "scope": "Entire atlas/client/src/collection.ts: URL query parsing/serialization, positive integer normalization, filter parsing/type recognition and sorting parsing. Atlas rendering, resource/gateway validation, server adapters and remaining client modules are outside scope.",
+  "command": "npm run test:mutation:atlas-collection-query",
+  "budgetMs": 600000,
+  "beforeReport": "artifacts/mutation/atlas-collection-query-before-tests/mutation.json",
+  "report": "artifacts/mutation/atlas-collection-query/mutation.json",
+  "scopeMutants": 162,
+  "beforeCounts": {
+    "NoCoverage": 8,
+    "Killed": 93,
+    "Survived": 61
+  },
+  "counts": {
+    "Killed": 156,
+    "Survived": 6
+  },
+  "seconds": {
+    "before": 15,
+    "after": 18
+  },
+  "baselineTests": {
+    "before": 32,
+    "after": 85
+  },
+  "newTestCases": 53,
+  "productionChanges": false,
+  "bugsFound": false,
+  "review": "complete with documented optional-property and string/JSON built-in invariants",
+  "scorePolicy": "Keep all six survivors visible: five semantic equivalents under stated invariants and one optional-field value equivalence with different own-property presence. Raw/covered score 96.30%; no exclusions, adjusted score or gate.",
+  "sameProductionSource": true,
+  "sameMutationFingerprints": true,
+  "allPriorKillsPreserved": true,
+  "allExecutedMutantsCompletedTests": true,
+  "vitestTimeoutKills": 0,
+  "zeroCompletedExecutedMutants": [],
+  "mutantFingerprintsSha256": "30341983c08ad3de3e33a9e3d770bc954bd3ebeac0a8a0a54df238810a5575f1",
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 93
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 55
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 6
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 8
+    }
+  ],
+  "fingerprintInputsAtReview": {
+    "src/packages/kestrel/src/atlas/client/src/collection.ts": "60421106262cb4a1bba70724d79659c3f60f1a2d8437eb028d14d0dbbb96c617",
+    "src/packages/kestrel/src/atlas/client/src/collection.test.ts": "57f0da811596100d3e5a849a7cff5643ad71350982e38da1a33fc9ffb344a9f1",
+    "src/packages/kestrel/src/atlas/contract.ts": "138ecbacf1d1ab2c7c1217c8804a4394c8f1690e15fc6d5a3be1fb6d5601f82c",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "scripts/testing/mutation-profile.mjs": "be936c5fed703b450ec608f18b6d0f94d7ff2c8839a9ca9b9a30c0d5c8c602fe",
+    "scripts/testing/mutation.mjs": "62ff8561ff9407b83e9072b81e88465c3c24984255af6313885edb8d37082c84",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72",
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033"
+  },
+  "reportHashes": {
+    "artifacts/mutation/atlas-collection-query-before-tests/mutation.json": "44b6fc031a1554428a16827fe89e12285968e5e7d58c3ec475e7eb8f46bf255b",
+    "artifacts/mutation/atlas-collection-query/mutation.json": "a5a2a245dc7e57e37510236ab3c352ec25c8a97564a831ef468012593f9f44f7"
+  },
+  "remaining": [
+    {
+      "sampleId": "29",
+      "file": "src/packages/kestrel/src/atlas/client/src/collection.ts",
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 29
+        },
+        "start": {
+          "column": 9,
+          "line": 29
+        }
+      },
+      "original": "query === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 55,
+      "classification": "same published optional-field value; different own-property presence",
+      "proof": "Forcing this branch false adds search:undefined when there is no search, instead of omitting the property. AtlasCollectionQuery explicitly permits an optional search with undefined. Ordinary consumers read its value and JSON transport drops undefined, so the published query value is unchanged. Own-property presence differs: this is not unconditional structural equivalence. Revisit if property presence becomes a contract or callers distinguish missing keys from explicit undefined."
+    },
+    {
+      "sampleId": "80",
+      "file": "src/packages/kestrel/src/atlas/client/src/collection.ts",
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 57
+        },
+        "start": {
+          "column": 36,
+          "line": 57
+        }
+      },
+      "original": "value !== \"\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 18,
+      "classification": "equivalent under ordinary numeric conversion and positivity guard",
+      "proof": "For a string value, forcing the nonempty comparison true additionally converts the empty string through Number(\"\")=0. The unchanged parsed>0 test rejects zero, producing the same default. Other strings follow the same conversion as before."
+    },
+    {
+      "sampleId": "82",
+      "file": "src/packages/kestrel/src/atlas/client/src/collection.ts",
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 57
+        },
+        "start": {
+          "column": 46,
+          "line": 57
+        }
+      },
+      "original": "\"\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"Stryker was here!\"",
+      "status": "Survived",
+      "testsCompleted": 18,
+      "classification": "equivalent under ordinary numeric conversion and positivity guard",
+      "proof": "Changing the excluded empty string to a nonnumeric marker changes only two paths: empty input now converts to zero, while the marker uses NaN directly instead of converting to NaN. Neither passes the unchanged positive-integer guard. Supported URL values resolve identically."
+    },
+    {
+      "sampleId": "109",
+      "file": "src/packages/kestrel/src/atlas/client/src/collection.ts",
+      "location": {
+        "end": {
+          "column": 32,
+          "line": 81
+        },
+        "start": {
+          "column": 7,
+          "line": 81
+        }
+      },
+      "original": "typeof value !== \"object\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 14,
+      "classification": "equivalent for JSON-decoded values with ordinary built-ins",
+      "proof": "Removing the non-object rejection still retains null and array rejection. Remaining JSON primitive values cannot expose the required string field/operator properties under ordinary built-ins, so the later property checks reject them. Valid JSON objects remain governed by those checks. Custom prototype mutation, a JSON reviver producing nonstandard values, or exporting this private helper would require re-review."
+    },
+    {
+      "sampleId": "124",
+      "file": "src/packages/kestrel/src/atlas/client/src/collection.ts",
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 88
+        },
+        "start": {
+          "column": 8,
+          "line": 88
+        }
+      },
+      "original": "typeof filter.operator === \"string\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 14,
+      "classification": "equivalent under the fixed string operator membership set",
+      "proof": "The following filterOperators.has check accepts only the declared string members. Successful membership therefore already implies a string operator, so removing this separate typeof check does not admit an otherwise rejected JSON operator."
+    },
+    {
+      "sampleId": "146",
+      "file": "src/packages/kestrel/src/atlas/client/src/collection.ts",
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 101
+        },
+        "start": {
+          "column": 12,
+          "line": 101
+        }
+      },
+      "original": "field !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 4,
+      "classification": "equivalent under String.split result invariant",
+      "proof": "Splitting an ordinary string always returns at least its first string element, even for empty input. The separate field!==empty-string and direction checks remain. Removing only the undefined comparison cannot admit a malformed segment."
+    }
+  ],
+  "testCoverageNotes": "53 cases supplement the original two: nonpositive/fractional/nonfinite/non-numeric page/pageSize values, positive number/string values, default and empty URL clearing, all 12 filter operators, mixed malformed filter neighbors, coercible repeated-query array rejection, invalid/non-array JSON, ordered sorting amid invalid segments and non-string sorting inputs. Tests cover the established normalization contract: invalid URL integers fall back to defaults; server/resource maxima remain a separate validation boundary. No browser is started.",
+  "deferred": "Sorting field identifiers containing reserved colon/comma delimiters may not round-trip through the current wire format. The accepted domain/encoding policy needs a separate contract decision before changing existing URLs; no encoding API change or production bug claim is included in this assessment. Safe-integer and resource-specific maximum policies are likewise not introduced into this URL parser. Re-review residuals if optional property presence or ordinary Number/JSON/String/Set invariants change.",
+  "beforeFingerprintInputs": {
+    "scripts/testing/mutation-profile.mjs": "be936c5fed703b450ec608f18b6d0f94d7ff2c8839a9ca9b9a30c0d5c8c602fe",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "src/packages/kestrel/src/atlas/client/src/collection.ts": "60421106262cb4a1bba70724d79659c3f60f1a2d8437eb028d14d0dbbb96c617",
+    "src/packages/kestrel/src/atlas/client/src/collection.test.ts": "07eb8e5e1d87d665d882fedfd87dcd14d284b57aaca4d8dec6eb08d6e12afc23"
+  }
+}

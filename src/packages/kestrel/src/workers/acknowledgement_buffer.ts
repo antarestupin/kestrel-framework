@@ -69,10 +69,18 @@ export class WorkerAcknowledgementBuffer {
       ? [...Map.groupBy(batch, (item) => item.queue).values()]
       : [batch];
 
-    await Promise.all(groups.map(async (group) => {
+    // A failed queue must not end the drain while sibling acknowledgements are
+    // still using storage or relying on the scheduler's reservation heartbeat.
+    const results = await Promise.allSettled(groups.map(async (group) => {
       const reservations = group.map((item) => item.reservation);
       await this.adapter.ack(reservations);
       this.options.onAcknowledged?.(reservations);
     }));
+    const errors = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason as unknown] : []);
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, "Several worker queue acknowledgements failed.");
+    }
   }
 }

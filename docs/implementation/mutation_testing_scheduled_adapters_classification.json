@@ -1,0 +1,2467 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-10",
+  "budgetMs": 600000,
+  "report": "artifacts/mutation/scheduled-adapters/mutation.json",
+  "beforeReport": "artifacts/mutation/scheduled-adapters-before-two-hour-tests/mutation.json",
+  "reportSha256": "09458f9f01ceba8032b45b4025fdf2d09eec3409f92409845acb019bea1ad942",
+  "beforeReportSha256": "59ddaf30bbfc96e0d4abee3ff14ff8bbd82c96d3a4bd3deb3779f59b06f719b1",
+  "counts": {
+    "Killed": 586,
+    "Survived": 51,
+    "NoCoverage": 8,
+    "RuntimeError": 25
+  },
+  "beforeCounts": {
+    "Killed": 263,
+    "Survived": 209,
+    "NoCoverage": 173,
+    "RuntimeError": 25
+  },
+  "byStatic": {
+    "static": {
+      "Killed": 39,
+      "RuntimeError": 25,
+      "Survived": 13
+    },
+    "runtime": {
+      "Killed": 547,
+      "Survived": 38,
+      "NoCoverage": 8
+    }
+  },
+  "scopeMutants": 670,
+  "sourceSha256": {
+    "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts": "ab9eefccbca59a138c981529ce5a11c3798180a7ba4ec249aa2e286bd5c479b7",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts": "7ff8ce2405375284a62b46ee13668f579246b2c2f39ee72a6e0f48454b407a84",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/memory/definition.ts": "82abfc4b6aa15f13f78e78ed4128751d9d7e284169010bc39dfd79c4b751daba",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/definition.ts": "563fe656782970c067a6f969abde1450a3a8cf7efd960353d02666b8d97db231",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts": "0c193829097dd7b0e00a954e49834bf2ebae77d2162a1e6e78e51d3235b3515c"
+  },
+  "beforeSourceSha256": {
+    "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts": "eb94c78bd47371689807bd11cbde7ce875082e7a6b96224fd00328ff357b2225",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/memory/definition.ts": "82abfc4b6aa15f13f78e78ed4128751d9d7e284169010bc39dfd79c4b751daba",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts": "7ff8ce2405375284a62b46ee13668f579246b2c2f39ee72a6e0f48454b407a84",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/definition.ts": "563fe656782970c067a6f969abde1450a3a8cf7efd960353d02666b8d97db231",
+    "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts": "0c193829097dd7b0e00a954e49834bf2ebae77d2162a1e6e78e51d3235b3515c"
+  },
+  "sourceComparison": "Compare common original-expression/operator/replacement/occurrence fingerprints, not raw counts: production fixes changed the mutation corpus. Fingerprints and both report digests preserve the exact reviewed references.",
+  "commonFingerprintCount": 668,
+  "beforeOnlyFingerprints": 2,
+  "afterOnlyFingerprints": 2,
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 262
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Killed",
+      "count": 148
+    },
+    {
+      "before": "NoCoverage",
+      "after": "NoCoverage",
+      "count": 8
+    },
+    {
+      "before": "NoCoverage",
+      "after": "Survived",
+      "count": 16
+    },
+    {
+      "before": "RuntimeError",
+      "after": "RuntimeError",
+      "count": 25
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 174
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 35
+    }
+  ],
+  "commonPriorAssertionKillsChanged": [],
+  "remaining": [
+    {
+      "sampleId": "30",
+      "fingerprintSha256": "4a3d4a4d6f44eb5918f561f9b8f35dddadaa9ae5fddc6860b06f25de52f93ad5",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "state === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 3,
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 82
+        },
+        "start": {
+          "column": 24,
+          "line": 82
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict reachable-branch equivalence",
+      "reason": "This conditional is inside an already-established state === undefined branch. Replacing the repeated test with true retains the stale result for every reachable input; the paused alternative cannot execute."
+    },
+    {
+      "sampleId": "34",
+      "fingerprintSha256": "2e86b961890736f2a960c4b16d5e351db4746ace89cbd869b4875e41d63d3b10",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "\"paused\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 64,
+          "line": 82
+        },
+        "start": {
+          "column": 56,
+          "line": 82
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreachable diagnostic alternative",
+      "reason": "The paused string is the false arm of a repeated state === undefined conditional inside its true branch. No public input reaches this text; preserve its NoCoverage status."
+    },
+    {
+      "sampleId": "64",
+      "fingerprintSha256": "13e0fdef4b4f5d216904f27cd296ac1f50e15b239d07eecaba5b58adbb1e07ab",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "state === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 4,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 129
+        },
+        "start": {
+          "column": 9,
+          "line": 129
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreachable missing-state defense under the public memory API",
+      "reason": "An owned stored run can only be created after its task state exists. Public reconciliation adds states and no public operation deletes them. Completion and restoration therefore cannot own a run while its state is missing; no private Map mutation was added to fabricate this state."
+    },
+    {
+      "sampleId": "66",
+      "fingerprintSha256": "18587928df367c1656b09c8729c4920143f81809f713c9d87bab2ae3922a89dc",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "{\n      return false;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 131
+        },
+        "start": {
+          "column": 30,
+          "line": 129
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreachable missing-state defense under the public memory API",
+      "reason": "An owned stored run can only be created after its task state exists. Public reconciliation adds states and no public operation deletes them. Completion and restoration therefore cannot own a run while its state is missing; no private Map mutation was added to fabricate this state."
+    },
+    {
+      "sampleId": "67",
+      "fingerprintSha256": "81ce49d53108d092549ada9e0d485c70656693d0ecf394f0196ddc42f99c61c8",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "false",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "true",
+      "occurrence": 3,
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 130
+        },
+        "start": {
+          "column": 14,
+          "line": 130
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreachable missing-state defense under the public memory API",
+      "reason": "An owned stored run can only be created after its task state exists. Public reconciliation adds states and no public operation deletes them. Completion and restoration therefore cannot own a run while its state is missing; no private Map mutation was added to fabricate this state."
+    },
+    {
+      "sampleId": "70",
+      "fingerprintSha256": "938aafb27bfe404a4f1c397116540157c81b7fed50a4193ba3237c207c372b0b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "request.error === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 136
+        },
+        "start": {
+          "column": 9,
+          "line": 136
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "optional error-property shape; deferred contract decision",
+      "reason": "Completing without an error stores lastError: undefined instead of deleting that own property. Value access and JSON serialization agree, but Object.hasOwn or strict shape comparison can distinguish the snapshot. Do not claim unconditional JavaScript equivalence."
+    },
+    {
+      "sampleId": "83",
+      "fingerprintSha256": "26e17ae9abfeb3aad18365d1f9ab6e6e62fe34dbaa2dd50c692c34bb1c5d9dc8",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "request.postponeUntil !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 44,
+          "line": 149
+        },
+        "start": {
+          "column": 9,
+          "line": 149
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed optional-date combination",
+      "reason": "Always applying the postpone branch passes an absent date into laterDate. Existing cases already have a cadence or supply another next date; an owned loop completion with neither date can distinguish absent scheduling from an invalid date. Keep this completion-policy gap visible."
+    },
+    {
+      "sampleId": "92",
+      "fingerprintSha256": "8bdb57bf4e424f3b16e299a06a46fefd934479a23e4c350ae780915c3d331ef7",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "state === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 5,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 162
+        },
+        "start": {
+          "column": 9,
+          "line": 162
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict guard equivalence under the public memory API",
+      "reason": "If task state is absent, no public operation could have created an active run for that task. The following activeRuns(taskId) === 0 disjunct still returns false, so removing only the missing-state disjunct preserves skip results."
+    },
+    {
+      "sampleId": "106",
+      "fingerprintSha256": "53426faac455829de7fb649e0276e6094aef08fd228ab62ef27bc0510a78b545",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "trigger === \"scheduled\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 170
+        },
+        "start": {
+          "column": 25,
+          "line": 170
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed paused manual skip",
+      "reason": "Forcing the scheduled-trigger pause test true can reject a paused manual skip. Tests cover paused scheduled skips and unpaused manual skips, but not their paused-manual combination. Manual operator requests are allowed while automatic scheduling is paused."
+    },
+    {
+      "sampleId": "187",
+      "fingerprintSha256": "a5c34c5eaf7d3ef5fcc7289831c72889c2d566109d5621bc3bf09b7ee6eb0ffa",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "state === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 6,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 278
+        },
+        "start": {
+          "column": 9,
+          "line": 278
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreachable missing-state defense under the public memory API",
+      "reason": "An owned stored run can only be created after its task state exists. Public reconciliation adds states and no public operation deletes them. Completion and restoration therefore cannot own a run while its state is missing; no private Map mutation was added to fabricate this state."
+    },
+    {
+      "sampleId": "189",
+      "fingerprintSha256": "982313904fcb98d8b988c38a4e1f116e0722ed812b83748217b8949e43ca2a99",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "{\n      return;\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 280
+        },
+        "start": {
+          "column": 30,
+          "line": 278
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreachable missing-state defense under the public memory API",
+      "reason": "An owned stored run can only be created after its task state exists. Public reconciliation adds states and no public operation deletes them. Completion and restoration therefore cannot own a run while its state is missing; no private Map mutation was added to fabricate this state."
+    },
+    {
+      "sampleId": "198",
+      "fingerprintSha256": "2e2f4c72cd1cb41edb8bc5b6ff0e414aae20600d376c7118bc8ade311fb939d7",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "state === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 7,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 299
+        },
+        "start": {
+          "column": 9,
+          "line": 299
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed rejection-category distinction",
+      "reason": "Removing the explicit missing-task rejection still throws when the code dereferences missing state, but changes an intentional Error into an incidental TypeError. Existing tests require rejection without pinning that category. This is not strict error equivalence; decide the intended error contract before adding an assertion."
+    },
+    {
+      "sampleId": "200",
+      "fingerprintSha256": "58ec94c8d509f60fbd95627e28cc78f74314a11b9438a177229b77d05e676c55",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "{\n      throw new Error(`Scheduled task \"${taskId}\" is not registered.`);\n    }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 6,
+          "line": 301
+        },
+        "start": {
+          "column": 30,
+          "line": 299
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unassessed rejection-category distinction",
+      "reason": "Removing the explicit missing-task rejection still throws when the code dereferences missing state, but changes an intentional Error into an incidental TypeError. Existing tests require rejection without pinning that category. This is not strict error equivalence; decide the intended error contract before adding an assertion."
+    },
+    {
+      "sampleId": "202",
+      "fingerprintSha256": "de95773d7a5d32af7b033dde019563cadf5e3123d5440bf522b0f3ee69c8a8ac",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "`Scheduled task \"${taskId}\" is not registered.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 70,
+          "line": 300
+        },
+        "start": {
+          "column": 23,
+          "line": 300
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same invalid-input or unregistered-task operation remains rejected. Only its human-readable message becomes empty; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "245",
+      "fingerprintSha256": "aa54d48dc50de77864f641ef69bbda96b8eae54351890102a48954b94535f79d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "current === undefined || candidate > current",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 54,
+          "line": 361
+        },
+        "start": {
+          "column": 10,
+          "line": 361
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed monotonic completion date",
+      "reason": "Always selecting the candidate can overwrite a later existing cadence with an earlier completion or deferral date. Existing cases exercise later candidates; add an earlier candidate while a later occurrence is already retained."
+    },
+    {
+      "sampleId": "251",
+      "fingerprintSha256": "025dbe1c1a3cc9cb299c30d53d8ec584ab998438efc3cd11a2a1ae7331ceb15f",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "candidate > current",
+      "mutatorName": "EqualityOperator",
+      "replacement": "candidate >= current",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 54,
+          "line": 361
+        },
+        "start": {
+          "column": 35,
+          "line": 361
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "equal-instant date identity; accepted contract limitation",
+      "reason": "Changing strict date ordering to inclusive ordering only chooses another Date instance representing the same instant when timestamps tie. Date value, ownership and persisted SQL timestamp semantics agree. Public snapshot APIs do not promise identity with the selected input Date, so exact object identity is not pinned."
+    },
+    {
+      "sampleId": "257",
+      "fingerprintSha256": "2a4d04daf368cf1a6a86289e72e6b35931cecdc9460884f434b46b180733d332",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "current === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 370
+        },
+        "start": {
+          "column": 10,
+          "line": 370
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed empty pending-manual restoration",
+      "reason": "The prior recovery cases leave a newer pending manual timestamp before restoring the old run. Restoring or expiring a manual reservation with no pending manual request must also recreate its timestamp; removing the undefined-current branch can lose it."
+    },
+    {
+      "sampleId": "258",
+      "fingerprintSha256": "b2fddc55473dcfb470439d3201c1a72225f723fda9cc7489294fac1025c582b1",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "current === undefined",
+      "mutatorName": "EqualityOperator",
+      "replacement": "current !== undefined",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 370
+        },
+        "start": {
+          "column": 10,
+          "line": 370
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed empty pending-manual restoration",
+      "reason": "The prior recovery cases leave a newer pending manual timestamp before restoring the old run. Restoring or expiring a manual reservation with no pending manual request must also recreate its timestamp; removing the undefined-current branch can lose it."
+    },
+    {
+      "sampleId": "254",
+      "fingerprintSha256": "502c09f5ebf742ba6f20490a4785e66593aa71e7ec01f660249c8213855eca86",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "current === undefined || candidate < current",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 54,
+          "line": 370
+        },
+        "start": {
+          "column": 10,
+          "line": 370
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed earliest restoration ordering",
+      "reason": "Always selecting the candidate can replace an earlier pending occurrence with a later restored run. Current public recovery regressions restore an older run ahead of a newer request; the reverse ordering remains to be tested."
+    },
+    {
+      "sampleId": "260",
+      "fingerprintSha256": "4f44e26fb14b05f87798aa5195a66826a203d4b455eea5ce2cd0e71a7c227290",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "candidate < current",
+      "mutatorName": "EqualityOperator",
+      "replacement": "candidate <= current",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 54,
+          "line": 370
+        },
+        "start": {
+          "column": 35,
+          "line": 370
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "equal-instant date identity; accepted contract limitation",
+      "reason": "Changing strict date ordering to inclusive ordering only chooses another Date instance representing the same instant when timestamps tie. Date value, ownership and persisted SQL timestamp semantics agree. Public snapshot APIs do not promise identity with the selected input Date, so exact object identity is not pinned."
+    },
+    {
+      "sampleId": "272",
+      "fingerprintSha256": "916672929f57c96262626a114011f81335113f375d3daee67abb0012105e5736",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "\"leaseMs must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 62,
+          "line": 377
+        },
+        "start": {
+          "column": 25,
+          "line": 377
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same invalid-input or unregistered-task operation remains rejected. Only its human-readable message becomes empty; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "283",
+      "fingerprintSha256": "8be89115e68b8ae4742949d0db21495b7ebc5cbac43a3426cdd4f91705ed5a80",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "\"Scheduled task prune limit must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 81,
+          "line": 383
+        },
+        "start": {
+          "column": 25,
+          "line": 383
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same invalid-input or unregistered-task operation remains rejected. Only its human-readable message becomes empty; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "312",
+      "fingerprintSha256": "db3ee1db4b44c074ef499ded447f489a586da6c9430439040fc4091d6ae449e9",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "state === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 45,
+          "line": 121
+        },
+        "start": {
+          "column": 26,
+          "line": 121
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict reachable-branch equivalence",
+      "reason": "This conditional is inside an already-established state === undefined branch. Replacing the repeated test with true retains the stale result for every reachable input; the paused alternative cannot execute."
+    },
+    {
+      "sampleId": "316",
+      "fingerprintSha256": "8bec7f6cb547f065191022be8e7ae9013e87627878d4d9c8ee2f1f2427c3482c",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "\"paused\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 66,
+          "line": 121
+        },
+        "start": {
+          "column": 58,
+          "line": 121
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreachable diagnostic alternative",
+      "reason": "The paused string is the false arm of a repeated state === undefined conditional inside its true branch. No public input reaches this text; preserve its NoCoverage status."
+    },
+    {
+      "sampleId": "337",
+      "fingerprintSha256": "cc9e5133029cc3f49e557cc140f4684dcd53102b5293715033fd27d89bab1753",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "run === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 150
+        },
+        "start": {
+          "column": 11,
+          "line": 150
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreached PostgreSQL returning-row defense",
+      "reason": "A successful ordinary INSERT RETURNING against the exported run table returns its inserted row. The built-in schema has no suppressing insert trigger. No current integration case fabricates a database returning no row; custom trigger or malformed-database behavior remains outside this demonstrated invariant, so do not infer general backend equivalence."
+    },
+    {
+      "sampleId": "339",
+      "fingerprintSha256": "a91825b6bb264b3300d05b83a35bedded9d28a25a3004633a6bee7efbeb93fc3",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "{\n        throw new Error(\"PostgreSQL did not return the scheduled task run.\");\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 152
+        },
+        "start": {
+          "column": 30,
+          "line": 150
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreached PostgreSQL returning-row defense",
+      "reason": "A successful ordinary INSERT RETURNING against the exported run table returns its inserted row. The built-in schema has no suppressing insert trigger. No current integration case fabricates a database returning no row; custom trigger or malformed-database behavior remains outside this demonstrated invariant, so do not infer general backend equivalence."
+    },
+    {
+      "sampleId": "341",
+      "fingerprintSha256": "0b44e5ef40281d1873705132d56a3ba3f4b0457525762847459a33b092bf3117",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "\"PostgreSQL did not return the scheduled task run.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 76,
+          "line": 151
+        },
+        "start": {
+          "column": 25,
+          "line": 151
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreached PostgreSQL returning-row defense",
+      "reason": "A successful ordinary INSERT RETURNING against the exported run table returns its inserted row. The built-in schema has no suppressing insert trigger. No current integration case fabricates a database returning no row; custom trigger or malformed-database behavior remains outside this demonstrated invariant, so do not infer general backend equivalence."
+    },
+    {
+      "sampleId": "382",
+      "fingerprintSha256": "4ed3e0e4c498ec37233b7f09c89735a37f95540e0ae792a923f5a8c4dbb8c7e6",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "trigger === \"scheduled\"",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 50,
+          "line": 228
+        },
+        "start": {
+          "column": 27,
+          "line": 228
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed paused manual skip",
+      "reason": "Forcing the scheduled-trigger pause test true can reject a paused manual skip. Tests cover paused scheduled skips and unpaused manual skips, but not their paused-manual combination. Manual operator requests are allowed while automatic scheduling is paused."
+    },
+    {
+      "sampleId": "393",
+      "fingerprintSha256": "24bfdd9b463dc395ce887bd5e950b03acc662226273364352a81710ccc6be55b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "active?.count",
+      "mutatorName": "OptionalChaining",
+      "replacement": "active.count",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 25,
+          "line": 236
+        },
+        "start": {
+          "column": 12,
+          "line": 236
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict PostgreSQL aggregate-row equivalence",
+      "reason": "The active-run query is an ungrouped SELECT COUNT(*). PostgreSQL returns one aggregate row even when zero runs match, so active is defined and optional chaining does not change this query result."
+    },
+    {
+      "sampleId": "428",
+      "fingerprintSha256": "9d5fd3df5cb66416a4293c5cbdb87ffc25e9835657d5c53fdec0180b45a53264",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "resumeAt === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 43,
+          "line": 325
+        },
+        "start": {
+          "column": 21,
+          "line": 325
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Drizzle undefined-update omission under the current backend",
+      "reason": "The mutation adds an update property with value undefined when the optional resume/start timestamp is absent. Drizzle omits undefined fields from UPDATE assignments; existing provided dates retain their ordinary behavior. This is emitted-update equivalence for the current backend, not identity of the intermediate JavaScript object."
+    },
+    {
+      "sampleId": "438",
+      "fingerprintSha256": "88e114e78c94f899aac71b70c9deddd5a2bfa781669f4041a8ecf8c3c74aa65f",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "taskIds?.length === 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 358
+        },
+        "start": {
+          "column": 7,
+          "line": 358
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreachable empty-task recovery guard through public callers",
+      "reason": "listStates([]) returns before recovery; reserve and skip pass one requested id, and global prune passes undefined. No public caller passes an empty array into this private helper. Preserve NoCoverage for the unexecuted return rather than forcing private access."
+    },
+    {
+      "sampleId": "441",
+      "fingerprintSha256": "47fe84950a0399b41c0d8cabfb34b9b376099f8f4918a115d2e09a86af278d04",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "{\n    return 0;\n  }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 360
+        },
+        "start": {
+          "column": 30,
+          "line": 358
+        }
+      },
+      "status": "NoCoverage",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unreachable empty-task recovery guard through public callers",
+      "reason": "listStates([]) returns before recovery; reserve and skip pass one requested id, and global prune passes undefined. No public caller passes an empty array into this private helper. Preserve NoCoverage for the unexecuted return rather than forcing private access."
+    },
+    {
+      "sampleId": "494",
+      "fingerprintSha256": "e7b3ebb3acb6b40e79b0f8ecfe06d095cd639d2a979dd701227ab55c7aba608c",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "startedAt === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 32,
+          "line": 446
+        },
+        "start": {
+          "column": 9,
+          "line": 446
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "Drizzle undefined-update omission under the current backend",
+      "reason": "The mutation adds an update property with value undefined when the optional resume/start timestamp is absent. Drizzle omits undefined fields from UPDATE assignments; existing provided dates retain their ordinary behavior. This is emitted-update equivalence for the current backend, not identity of the intermediate JavaScript object."
+    },
+    {
+      "sampleId": "513",
+      "fingerprintSha256": "88056146a21d4ea3088bbcf69fad62f2c7f1506a851c77464943ac45a4bf1953",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "row.next_scheduled_at === null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 39,
+          "line": 473
+        },
+        "start": {
+          "column": 9,
+          "line": 473
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed nullable state mapping",
+      "reason": "The mutation removes omission of an SQL NULL state field. It can return an epoch Date or explicit null instead of the public optional value. Existing state assertions mostly inspect populated fields; initial or cadence-less snapshots must check absent optional timestamps/outcome explicitly."
+    },
+    {
+      "sampleId": "521",
+      "fingerprintSha256": "c4d2152f300c84e296e7f61e6d5c817659201b2f0032f4aecda03bf52f1eaae7",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "row.last_started_at === null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 37,
+          "line": 479
+        },
+        "start": {
+          "column": 9,
+          "line": 479
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed nullable state mapping",
+      "reason": "The mutation removes omission of an SQL NULL state field. It can return an epoch Date or explicit null instead of the public optional value. Existing state assertions mostly inspect populated fields; initial or cadence-less snapshots must check absent optional timestamps/outcome explicitly."
+    },
+    {
+      "sampleId": "525",
+      "fingerprintSha256": "89d52520f5c7ac68d7f4e931c119c424cbc3d78614b212a7ade490b4bdf11050",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "row.last_completed_at === null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 39,
+          "line": 482
+        },
+        "start": {
+          "column": 9,
+          "line": 482
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed nullable state mapping",
+      "reason": "The mutation removes omission of an SQL NULL state field. It can return an epoch Date or explicit null instead of the public optional value. Existing state assertions mostly inspect populated fields; initial or cadence-less snapshots must check absent optional timestamps/outcome explicitly."
+    },
+    {
+      "sampleId": "529",
+      "fingerprintSha256": "6213b57106381039f17e4fc4a77f360764a87eda4aa418935a7471cda5bd8933",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "row.last_outcome === null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 34,
+          "line": 485
+        },
+        "start": {
+          "column": 9,
+          "line": 485
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed nullable state mapping",
+      "reason": "The mutation removes omission of an SQL NULL state field. It can return an epoch Date or explicit null instead of the public optional value. Existing state assertions mostly inspect populated fields; initial or cadence-less snapshots must check absent optional timestamps/outcome explicitly."
+    },
+    {
+      "sampleId": "538",
+      "fingerprintSha256": "05fc829f1d3ba633e408de18e7c8e04c50de855718cd7000ceb97424ee4e2bb7",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "value === null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 491
+        },
+        "start": {
+          "column": 10,
+          "line": 491
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed null timestamp trigger",
+      "reason": "Treating SQL NULL as a date makes new Date(null) equal the Unix epoch. A reserve/skip request at that valid instant can be mistaken for an absent manual occurrence. Existing task dates do not exercise the epoch boundary; retain this input-mapping gap."
+    },
+    {
+      "sampleId": "548",
+      "fingerprintSha256": "29e6e12ec69bc430144d71126b7a40ce0023b6f4a09300239e8f91c57f8b95f6",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "left === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 25,
+          "line": 506
+        },
+        "start": {
+          "column": 7,
+          "line": 506
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict optional-date branch equivalence",
+      "reason": "If left is undefined and right exists, the final left > right comparison is false and returns right; if both are undefined, the next guard returns undefined. Removing only the first return therefore preserves every Date/undefined return value and selected instance."
+    },
+    {
+      "sampleId": "550",
+      "fingerprintSha256": "314c48ab17e3f6e72b3668ee873ff58de956f74db7bb10c525b4b8ba4d812b05",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "{\n    return right;\n  }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 508
+        },
+        "start": {
+          "column": 27,
+          "line": 506
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "strict optional-date branch equivalence",
+      "reason": "If left is undefined and right exists, the final left > right comparison is false and returns right; if both are undefined, the next guard returns undefined. Removing only the first return therefore preserves every Date/undefined return value and selected instance."
+    },
+    {
+      "sampleId": "557",
+      "fingerprintSha256": "a38f2fe95a78084d0a89cf959782eb906d5fbc0826d1edb60c7ecf97c3e45694",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "left > right",
+      "mutatorName": "EqualityOperator",
+      "replacement": "left >= right",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 22,
+          "line": 512
+        },
+        "start": {
+          "column": 10,
+          "line": 512
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "equal-instant date identity; accepted contract limitation",
+      "reason": "Changing strict date ordering to inclusive ordering only chooses another Date instance representing the same instant when timestamps tie. Date value, ownership and persisted SQL timestamp semantics agree. Public snapshot APIs do not promise identity with the selected input Date, so exact object identity is not pinned."
+    },
+    {
+      "sampleId": "561",
+      "fingerprintSha256": "8589de27629989f29303381e80c6084681fbe8affcae7e46c912e49d8fe18b7c",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "current === undefined || date < current",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 63,
+          "line": 517
+        },
+        "start": {
+          "column": 24,
+          "line": 517
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed restoration reduction ordering",
+      "reason": "The current mixed-run fixture puts the oldest timestamp last within each trigger group. An always-select-current-date reduction therefore matches that fixture while failing a group whose earliest timestamp occurs earlier. SQL DELETE RETURNING row order is not a public ordering guarantee; cover both arrangements."
+    },
+    {
+      "sampleId": "567",
+      "fingerprintSha256": "fba6375f5eba38051d79ee201a55cc36ef2f6121db35db7162b3cedd86d36287",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "date < current",
+      "mutatorName": "EqualityOperator",
+      "replacement": "date <= current",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 63,
+          "line": 517
+        },
+        "start": {
+          "column": 49,
+          "line": 517
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "equal-instant date identity; accepted contract limitation",
+      "reason": "Changing strict date ordering to inclusive ordering only chooses another Date instance representing the same instant when timestamps tie. Date value, ownership and persisted SQL timestamp semantics agree. Public snapshot APIs do not promise identity with the selected input Date, so exact object identity is not pinned."
+    },
+    {
+      "sampleId": "575",
+      "fingerprintSha256": "1fdf9815b674ed8e33460c57a185fd32935701d3e66c0992f4688a4a55ee9af4",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "`Scheduled task \"${taskId}\" is not registered.`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 68,
+          "line": 527
+        },
+        "start": {
+          "column": 21,
+          "line": 527
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same invalid-input or unregistered-task operation remains rejected. Only its human-readable message becomes empty; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "586",
+      "fingerprintSha256": "68c998b522a6e7a554ed38e305e7d8d6ce448e6d344e887070a2676b0fd6744d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "\"leaseMs must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 62,
+          "line": 533
+        },
+        "start": {
+          "column": 25,
+          "line": 533
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same invalid-input or unregistered-task operation remains rejected. Only its human-readable message becomes empty; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "597",
+      "fingerprintSha256": "4afecd05af6eee1e036270c2653ecef62df6b13a182a0d953458b124c871f953",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts",
+      "original": "\"Scheduled task prune limit must be a positive integer.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 81,
+          "line": 539
+        },
+        "start": {
+          "column": 25,
+          "line": 539
+        }
+      },
+      "status": "Survived",
+      "static": false,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "unconstrained diagnostic wording",
+      "reason": "The same invalid-input or unregistered-task operation remains rejected. Only its human-readable message becomes empty; exact wording is deliberately not pinned."
+    },
+    {
+      "sampleId": "603",
+      "fingerprintSha256": "1c76f6aa39e82ed095fca0781c30e80781effb0f71e7327805ea8674089e71a5",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Durable schedules, operator controls, and active scheduled-task reservations.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 82,
+          "line": 21
+        },
+        "start": {
+          "column": 3,
+          "line": 21
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/studio/extensions/scheduled_tasks/extension.test.ts: Database description for schema scheduled_tasks cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "272149d11422dfcf688007716109f70a3b6c3f418ce2303d3b7d82b9049d28f2",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "605",
+      "fingerprintSha256": "c237a7eb7dc63798b4e15819b342c5c5fd55506e63372c25e17370e3504cc2f5",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "{\n    taskId: text(\"task_id\").primaryKey(),\n    paused: boolean(\"paused\").default(false).notNull(),\n    nextScheduledAt: timestamp(\"next_scheduled_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }),\n    manualRunRequestedAt: timestamp(\"manual_run_requested_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }),\n    lastStartedAt: timestamp(\"last_started_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }),\n    lastCompletedAt: timestamp(\"last_completed_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }),\n    lastOutcome: text(\"last_outcome\").$type<\"failure\" | \"success\">(),\n    lastError: jsonb(\"last_error\").$type<ScheduledTaskError>(),\n    updatedAt: timestamp(\"updated_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }).defaultNow().notNull(),\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 52
+        },
+        "start": {
+          "column": 3,
+          "line": 27
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Cannot read properties of undefined (reading 'name')",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "08cea5a2139176d0481522f1e4d4c6ba6ac3942c57db6b65f21b77570236ec53",
+      "classification": "invalid Drizzle schema construction during import",
+      "reason": "The mutation removes column/index construction required while creating or inspecting the exported Drizzle schema. Import/initial inspection fails outside a test run. Preserve RuntimeError; do not recast it as a killed mutant or an infrastructure outage."
+    },
+    {
+      "sampleId": "607",
+      "fingerprintSha256": "bb2df9169318216b3c657be444668d7f2d2fac88bfccabf10ee986f07997b9be",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"paused\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 29,
+          "line": 29
+        },
+        "start": {
+          "column": 21,
+          "line": 29
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "same emitted single-word SQL name; metadata distinction retained",
+      "reason": "An empty explicit Drizzle name falls back to the property key, which is the same single-word lower-case SQL identifier for this column. Emitted names and supported casing agree, while internal keyAsName metadata can differ; this is not unconditional metadata-object equivalence."
+    },
+    {
+      "sampleId": "611",
+      "fingerprintSha256": "24b6ae41132664494b18ebfee82cfa9c5a55c92e145816430686b66d225295d6",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 31
+        },
+        "start": {
+          "column": 13,
+          "line": 31
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "current Drizzle date-mode fallback equivalence",
+      "reason": "The installed Drizzle timestamp factory selects the string builder only for mode === \"string\" and otherwise constructs PgTimestampBuilder. Replacing \"date\" with an empty string therefore retains the runtime Date column and SQL type. This mutant would violate the typed configuration literal but cannot be usefully killed by pinning its source text in runtime tests."
+    },
+    {
+      "sampleId": "615",
+      "fingerprintSha256": "30b2ad1fb631f4516227fc11d5d6f74eb881602452a75e71189141e9b7b0d71b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 2,
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 35
+        },
+        "start": {
+          "column": 13,
+          "line": 35
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "current Drizzle date-mode fallback equivalence",
+      "reason": "The installed Drizzle timestamp factory selects the string builder only for mode === \"string\" and otherwise constructs PgTimestampBuilder. Replacing \"date\" with an empty string therefore retains the runtime Date column and SQL type. This mutant would violate the typed configuration literal but cannot be usefully killed by pinning its source text in runtime tests."
+    },
+    {
+      "sampleId": "619",
+      "fingerprintSha256": "605bdca94e95497a55fe6e554aea90e23c18fd4265e1dcd34e0567a175e196fb",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 3,
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 39
+        },
+        "start": {
+          "column": 13,
+          "line": 39
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "current Drizzle date-mode fallback equivalence",
+      "reason": "The installed Drizzle timestamp factory selects the string builder only for mode === \"string\" and otherwise constructs PgTimestampBuilder. Replacing \"date\" with an empty string therefore retains the runtime Date column and SQL type. This mutant would violate the typed configuration literal but cannot be usefully killed by pinning its source text in runtime tests."
+    },
+    {
+      "sampleId": "623",
+      "fingerprintSha256": "d573c720d69117d8b99861a090aaef9fb3b6a3aaaf93895615404850a51e8471",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 4,
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 43
+        },
+        "start": {
+          "column": 13,
+          "line": 43
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "current Drizzle date-mode fallback equivalence",
+      "reason": "The installed Drizzle timestamp factory selects the string builder only for mode === \"string\" and otherwise constructs PgTimestampBuilder. Replacing \"date\" with an empty string therefore retains the runtime Date column and SQL type. This mutant would violate the typed configuration literal but cannot be usefully killed by pinning its source text in runtime tests."
+    },
+    {
+      "sampleId": "629",
+      "fingerprintSha256": "dcb4ad06b50a907cd95f022df6007e39a72681ef65b306c012ed601745e25486",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 5,
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 49
+        },
+        "start": {
+          "column": 13,
+          "line": 49
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "current Drizzle date-mode fallback equivalence",
+      "reason": "The installed Drizzle timestamp factory selects the string builder only for mode === \"string\" and otherwise constructs PgTimestampBuilder. Replacing \"date\" with an empty string therefore retains the runtime Date column and SQL type. This mutant would violate the typed configuration literal but cannot be usefully killed by pinning its source text in runtime tests."
+    },
+    {
+      "sampleId": "631",
+      "fingerprintSha256": "fea0723879b8852f06d2154fd20d74578faa187d234d0468a24c8aeb3f12803f",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "(table) => [\n    index(\"state_due_idx\").on(table.paused, table.nextScheduledAt),\n  ]",
+      "mutatorName": "ArrowFunction",
+      "replacement": "() => undefined",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 55
+        },
+        "start": {
+          "column": 3,
+          "line": 53
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.test.ts: Cannot convert undefined or null to object",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "b265785cfa5f8ca43e788c3431e48ff9038c22eaedf77ad29bc7b932fed98d41",
+      "classification": "invalid Drizzle schema construction during import",
+      "reason": "The mutation removes column/index construction required while creating or inspecting the exported Drizzle schema. Import/initial inspection fails outside a test run. Preserve RuntimeError; do not recast it as a killed mutant or an infrastructure outage."
+    },
+    {
+      "sampleId": "636",
+      "fingerprintSha256": "f79d94d5b4f4c36e63395a886a85dafcf16dd4f9d747eac7e200e1b3a99a6acf",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "{\n  description: \"Durable schedule, operator controls, and latest execution summary for each registered task.\",\n  columns: {\n    taskId: \"Stable identifier of the registered scheduled-task definition.\",\n    paused: \"Whether automatic scheduling is paused by an operator.\",\n    nextScheduledAt: \"Date and time of the next automatic occurrence, or null when none is scheduled.\",\n    manualRunRequestedAt: \"Date and time of the outstanding coalesced manual-run request, if any.\",\n    lastStartedAt: \"Date and time when the task most recently started.\",\n    lastCompletedAt: \"Date and time when the task most recently completed.\",\n    lastOutcome: \"Outcome of the most recently completed task run.\",\n    lastError: \"Structured error produced by the most recent failed task run.\",\n    updatedAt: \"Date and time when this scheduling state was last updated.\",\n  },\n}",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 2,
+          "line": 72
+        },
+        "start": {
+          "column": 54,
+          "line": 59
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.test.ts: Database table descriptions for scheduled_tasks.state require a table or column description.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "56f4334d06a2ca414aec06cebcaa5e3294ad052f7d55c97575f493f07111d05a",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "637",
+      "fingerprintSha256": "1b9daa890c2376ca9ee07473f860bfa99a39f63364dcb716f68a695f0160aec4",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Durable schedule, operator controls, and latest execution summary for each registered task.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 109,
+          "line": 60
+        },
+        "start": {
+          "column": 16,
+          "line": 60
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.test.ts: Database description for table scheduled_tasks.state cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "8824a6c386be365f83ffd716775551e3a89c8d1be821ff1627b16a8f8403afa8",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "638",
+      "fingerprintSha256": "eef30ff13d8691238c66800e37577ff1b3452c7193787429653eeced6f9cb4af",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "{\n    taskId: \"Stable identifier of the registered scheduled-task definition.\",\n    paused: \"Whether automatic scheduling is paused by an operator.\",\n    nextScheduledAt: \"Date and time of the next automatic occurrence, or null when none is scheduled.\",\n    manualRunRequestedAt: \"Date and time of the outstanding coalesced manual-run request, if any.\",\n    lastStartedAt: \"Date and time when the task most recently started.\",\n    lastCompletedAt: \"Date and time when the task most recently completed.\",\n    lastOutcome: \"Outcome of the most recently completed task run.\",\n    lastError: \"Structured error produced by the most recent failed task run.\",\n    updatedAt: \"Date and time when this scheduling state was last updated.\",\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 71
+        },
+        "start": {
+          "column": 12,
+          "line": 61
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed schema documentation metadata",
+      "reason": "Removing the complete column-description map loses structured schema documentation consumed by framework tooling. Actual-schema tests cover names, types, defaults, ownership, provenance and index columns, but not presence of these column descriptions. Do not classify loss of the whole metadata map as equivalent prose wording."
+    },
+    {
+      "sampleId": "639",
+      "fingerprintSha256": "8b2eb36abd243cf608cd56518899d69bbeb59fce0545f26805c800877f7bad37",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Stable identifier of the registered scheduled-task definition.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 77,
+          "line": 62
+        },
+        "start": {
+          "column": 13,
+          "line": 62
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.state.task_id cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "581c2c05ff4f3f08d723c36fd86e14cb97e944ffb26af80ae3da811288513585",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "640",
+      "fingerprintSha256": "574e88e25cd8d7f6c5a53c602ae92cd59caa8729d1f6bfd4799de86d97b6fa88",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Whether automatic scheduling is paused by an operator.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 69,
+          "line": 63
+        },
+        "start": {
+          "column": 13,
+          "line": 63
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.state.paused cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "36d03edb1381b0b975f9a7d9af9ed487e379b35477403a59cea07897b2f58134",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "641",
+      "fingerprintSha256": "595fe59f0eb78c8ac115e5c14af9dc8dddc436e1586055dd646ac82467a0531e",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Date and time of the next automatic occurrence, or null when none is scheduled.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 103,
+          "line": 64
+        },
+        "start": {
+          "column": 22,
+          "line": 64
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/cache/cache_pool.test.ts: Database description for column scheduled_tasks.state.next_scheduled_at cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "ea55a932b4f4d00860ade8cbb1f7646f19ce0581889f794e9db1f8fd2e83db68",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "642",
+      "fingerprintSha256": "82c09ce370c1ec4120fa2c9608309e246922681af52470c1085f2e27336336ae",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Date and time of the outstanding coalesced manual-run request, if any.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 99,
+          "line": 65
+        },
+        "start": {
+          "column": 27,
+          "line": 65
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.state.manual_run_requested_at cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "2fdef1f441f0105c3106c2b18628e75f5ea1913a198967ebdf6ed5f3c4ad3a70",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "643",
+      "fingerprintSha256": "58596fa28923a462f8dcee16988f473cc68ad94d884a4c87a69a7eb56844c11b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Date and time when the task most recently started.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 66
+        },
+        "start": {
+          "column": 20,
+          "line": 66
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.state.last_started_at cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "f256141e0053c174adc22344870e2c741f48e082e7115995f7c0ed67f95017f7",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "644",
+      "fingerprintSha256": "74bd794f9593ba267ff9a54143dee7cadad837e6fe73cf5a4cbaebdc569626c0",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Date and time when the task most recently completed.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 76,
+          "line": 67
+        },
+        "start": {
+          "column": 22,
+          "line": 67
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.state.last_completed_at cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "25decc30f391307d92c6aa4e4b09a759c219f371211856568449f1d5cf06e990",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "645",
+      "fingerprintSha256": "286534e74ba420829534d9b691b523afebe3011ee0b516d235507dbc9702557f",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Outcome of the most recently completed task run.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 68,
+          "line": 68
+        },
+        "start": {
+          "column": 18,
+          "line": 68
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.state.last_outcome cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "39fc1df28af65fd1a0e714b95fb65268d849b07fe8df810baa64273287a587fb",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "646",
+      "fingerprintSha256": "692925d373939136d6fa1fb7485acc7445a1a5a81022d574eb8b9b4f321874ff",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Structured error produced by the most recent failed task run.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 69
+        },
+        "start": {
+          "column": 16,
+          "line": 69
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.state.last_error cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "5530c9c6b3bafd853be1fd0be931322d44d9917822ab035024673fae7ea635d1",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "647",
+      "fingerprintSha256": "8abfb21dfdb47ca6b670490349287eda9bd1dee40af65a896ebdacc939f91563",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Date and time when this scheduling state was last updated.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 76,
+          "line": 70
+        },
+        "start": {
+          "column": 16,
+          "line": 70
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.state.updated_at cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "7f1a9aa8acedc8dc5619d167c2f95ac43ba9d1418f6499a47229605e1fe04417",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "649",
+      "fingerprintSha256": "affde3fda65e0b17b30b403e6a8c48d1a5cd7674d59807d9f447f96c13376a3e",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "{\n    reservationToken: uuid(\"reservation_token\").primaryKey(),\n    taskId: text(\"task_id\").notNull(),\n    scheduledAt: timestamp(\"scheduled_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }).notNull(),\n    reservedAt: timestamp(\"reserved_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }).defaultNow().notNull(),\n    expiresAt: timestamp(\"expires_at\", {\n      mode: \"date\",\n      withTimezone: true,\n    }).notNull(),\n    trigger: text(\"trigger\").$type<\"manual\" | \"scheduled\">().notNull(),\n    attempt: integer(\"attempt\").default(1).notNull(),\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 94
+        },
+        "start": {
+          "column": 3,
+          "line": 77
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Cannot read properties of undefined (reading 'name')",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "b075bd80d93c446d31d1b468db34de4f8e1868662f5189622d77930b1fb9264b",
+      "classification": "invalid Drizzle schema construction during import",
+      "reason": "The mutation removes column/index construction required while creating or inspecting the exported Drizzle schema. Import/initial inspection fails outside a test run. Preserve RuntimeError; do not recast it as a killed mutant or an infrastructure outage."
+    },
+    {
+      "sampleId": "654",
+      "fingerprintSha256": "75be5127b596d6e09903e6c7d4e66336125a25166a17a5e4fc58f0ff5b99c707",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 6,
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 81
+        },
+        "start": {
+          "column": 13,
+          "line": 81
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "current Drizzle date-mode fallback equivalence",
+      "reason": "The installed Drizzle timestamp factory selects the string builder only for mode === \"string\" and otherwise constructs PgTimestampBuilder. Replacing \"date\" with an empty string therefore retains the runtime Date column and SQL type. This mutant would violate the typed configuration literal but cannot be usefully killed by pinning its source text in runtime tests."
+    },
+    {
+      "sampleId": "658",
+      "fingerprintSha256": "ed94ba9b361cb922dbea5994c428dee2d7effc06a6e7674553083ebe9188ba7e",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 7,
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 85
+        },
+        "start": {
+          "column": 13,
+          "line": 85
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "current Drizzle date-mode fallback equivalence",
+      "reason": "The installed Drizzle timestamp factory selects the string builder only for mode === \"string\" and otherwise constructs PgTimestampBuilder. Replacing \"date\" with an empty string therefore retains the runtime Date column and SQL type. This mutant would violate the typed configuration literal but cannot be usefully killed by pinning its source text in runtime tests."
+    },
+    {
+      "sampleId": "662",
+      "fingerprintSha256": "43d7ed72b3ee6c54b1af285020b2dfb7cd0ac5885b811b5b9c7f73a3bb68e26a",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"date\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 8,
+      "location": {
+        "end": {
+          "column": 19,
+          "line": 89
+        },
+        "start": {
+          "column": 13,
+          "line": 89
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "current Drizzle date-mode fallback equivalence",
+      "reason": "The installed Drizzle timestamp factory selects the string builder only for mode === \"string\" and otherwise constructs PgTimestampBuilder. Replacing \"date\" with an empty string therefore retains the runtime Date column and SQL type. This mutant would violate the typed configuration literal but cannot be usefully killed by pinning its source text in runtime tests."
+    },
+    {
+      "sampleId": "664",
+      "fingerprintSha256": "5521a33207951c51626b73ebfb6d23f1607ded528ffe0106dc859dfc6966b2ad",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"trigger\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 28,
+          "line": 92
+        },
+        "start": {
+          "column": 19,
+          "line": 92
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "same emitted single-word SQL name; metadata distinction retained",
+      "reason": "An empty explicit Drizzle name falls back to the property key, which is the same single-word lower-case SQL identifier for this column. Emitted names and supported casing agree, while internal keyAsName metadata can differ; this is not unconditional metadata-object equivalence."
+    },
+    {
+      "sampleId": "665",
+      "fingerprintSha256": "1d1faa7218ce8fd214282fb2cb40dbd7daae813338581a1cbd6ae547020e07df",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"attempt\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 31,
+          "line": 93
+        },
+        "start": {
+          "column": 22,
+          "line": 93
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "same emitted single-word SQL name; metadata distinction retained",
+      "reason": "An empty explicit Drizzle name falls back to the property key, which is the same single-word lower-case SQL identifier for this column. Emitted names and supported casing agree, while internal keyAsName metadata can differ; this is not unconditional metadata-object equivalence."
+    },
+    {
+      "sampleId": "666",
+      "fingerprintSha256": "59160a266bfe89755221e6e092f2a0fa9d8609e6b427f365ae330910d0f395ab",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "(table) => [\n    index(\"run_task_expires_idx\").on(table.taskId, table.expiresAt),\n  ]",
+      "mutatorName": "ArrowFunction",
+      "replacement": "() => undefined",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 97
+        },
+        "start": {
+          "column": 3,
+          "line": 95
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/cache/cache_pool.test.ts: Cannot convert undefined or null to object",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "084d5a88993dc467b3fa4f70ba39a57bed7006f492729b3dc01d92c370636be9",
+      "classification": "invalid Drizzle schema construction during import",
+      "reason": "The mutation removes column/index construction required while creating or inspecting the exported Drizzle schema. Import/initial inspection fails outside a test run. Preserve RuntimeError; do not recast it as a killed mutant or an infrastructure outage."
+    },
+    {
+      "sampleId": "671",
+      "fingerprintSha256": "e3769f88e54059117a8aa9cb9a32fd2af5810fb79a5c6ebf0baf1aaf21ae4fce",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "{\n  description: \"Active scheduled-task occurrence reservations retained until completion or lease expiry.\",\n  columns: {\n    reservationToken: \"Unique ownership token required to complete the reserved occurrence.\",\n    taskId: \"Scheduled-task definition associated with the occurrence.\",\n    scheduledAt: \"Logical date and time assigned to the occurrence.\",\n    reservedAt: \"Date and time when the current execution lease was acquired.\",\n    expiresAt: \"Date and time when the execution lease becomes available for recovery.\",\n    trigger: \"Whether the occurrence came from the schedule or a manual request.\",\n    attempt: \"Number of times this occurrence has been reserved for execution.\",\n  },\n}",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 2,
+          "line": 112
+        },
+        "start": {
+          "column": 52,
+          "line": 101
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.test.ts: Database table descriptions for scheduled_tasks.run require a table or column description.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "cb02a66853df6c2d7ac1a59969b167a166caad2b52513a0512e9ef6dbe3dcdfd",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "672",
+      "fingerprintSha256": "2bdba1912839b921384f7f930386e909260719a10cb1b6f19739871e0453ac3b",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Active scheduled-task occurrence reservations retained until completion or lease expiry.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 106,
+          "line": 102
+        },
+        "start": {
+          "column": 16,
+          "line": 102
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.test.ts: Database description for table scheduled_tasks.run cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "1c7c3a1664dc31a35c6f318c7539ae67669ddeb514c5e8ff4b22685078f431d4",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "673",
+      "fingerprintSha256": "88caf7ec6fb52be3c6b09ff7019a4bf91df3975814e71dd3fb81872225a93b89",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "{\n    reservationToken: \"Unique ownership token required to complete the reserved occurrence.\",\n    taskId: \"Scheduled-task definition associated with the occurrence.\",\n    scheduledAt: \"Logical date and time assigned to the occurrence.\",\n    reservedAt: \"Date and time when the current execution lease was acquired.\",\n    expiresAt: \"Date and time when the execution lease becomes available for recovery.\",\n    trigger: \"Whether the occurrence came from the schedule or a manual request.\",\n    attempt: \"Number of times this occurrence has been reserved for execution.\",\n  }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 111
+        },
+        "start": {
+          "column": 12,
+          "line": 103
+        }
+      },
+      "status": "Survived",
+      "static": true,
+      "statusReason": null,
+      "statusReasonTruncated": false,
+      "statusReasonSha256": null,
+      "classification": "material unassessed schema documentation metadata",
+      "reason": "Removing the complete column-description map loses structured schema documentation consumed by framework tooling. Actual-schema tests cover names, types, defaults, ownership, provenance and index columns, but not presence of these column descriptions. Do not classify loss of the whole metadata map as equivalent prose wording."
+    },
+    {
+      "sampleId": "674",
+      "fingerprintSha256": "8afbad5e14d46c3e18f5ed75d38509294267cb8dedbbcfaaa247bf772f554495",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Unique ownership token required to complete the reserved occurrence.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 93,
+          "line": 104
+        },
+        "start": {
+          "column": 23,
+          "line": 104
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.run.reservation_token cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "61b5521a437fc9a020ee1d63bcef73352f0501c993687674c93630ab42b83e41",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "675",
+      "fingerprintSha256": "6666fae2a077dd33624aefc395ca479b3b17690ebc300774d635821bbf961bcd",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Scheduled-task definition associated with the occurrence.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 72,
+          "line": 105
+        },
+        "start": {
+          "column": 13,
+          "line": 105
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.run.task_id cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "6b0ca434e4ea73b5438c31864b1cfe625ed8ad591e4523f19647c5e118938623",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "676",
+      "fingerprintSha256": "61e0bc3b8bc1ca90169671c335c02a6d460021b988b8897e95da4336c01dcf40",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Logical date and time assigned to the occurrence.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 69,
+          "line": 106
+        },
+        "start": {
+          "column": 18,
+          "line": 106
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/cache/cache_pool.test.ts: Database description for column scheduled_tasks.run.scheduled_at cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "d3b4d776f64df7bb1d85bfb3f8841fc3c7d93b743d53e27c5af4532050ab4d6b",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "677",
+      "fingerprintSha256": "a6b202cd85d6983ca41383df54178b9c460165f4a8ce15e9f7cf14aeba4c5678",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Date and time when the current execution lease was acquired.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 107
+        },
+        "start": {
+          "column": 17,
+          "line": 107
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.run.reserved_at cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "660e666bb43f95aaf9afd0769186faa01d78f35facc716da6f49254189350d24",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "678",
+      "fingerprintSha256": "901c5357b876a758fd672e0730cbbc302b4b505783d13c06f3b9b98acc0a02f9",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Date and time when the execution lease becomes available for recovery.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 88,
+          "line": 108
+        },
+        "start": {
+          "column": 16,
+          "line": 108
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.run.expires_at cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "54659d7647acd81dbd55a6fb0f73e80ce32aec52faed812c29eea076a09306f5",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "679",
+      "fingerprintSha256": "2f3137d45d969a27f8805d1350c9fb64e8627e5752ecf497e37ad56e13ba096d",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Whether the occurrence came from the schedule or a manual request.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 82,
+          "line": 109
+        },
+        "start": {
+          "column": 14,
+          "line": 109
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.run.trigger cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "e043aa94793ed57857ad0cc6ef429b26f4c213b5745b34682e69de941c4ba1dc",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    },
+    {
+      "sampleId": "680",
+      "fingerprintSha256": "5014ec0aae3701928296cc8aca5b9bd05ee6d4e6956d1b2d3dd35a6f39289d2f",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/schema.ts",
+      "original": "\"Number of times this occurrence has been reserved for execution.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 80,
+          "line": 110
+        },
+        "start": {
+          "column": 14,
+          "line": 110
+        }
+      },
+      "status": "RuntimeError",
+      "static": true,
+      "statusReason": "An error occurred outside of a test run: /Users/antarestupin/workspace/projects/canopy/kestrel/.stryker-tmp/sandbox-X5wao3/src/packages/kestrel/src/app/catalog.test.ts: Database description for column scheduled_tasks.run.attempt cannot be empty.",
+      "statusReasonTruncated": true,
+      "statusReasonSha256": "b54e9f04bb13797b9d7280533a754cd45a8a2a05a331b52c790e69f37004fed4",
+      "classification": "schema metadata validation during import",
+      "reason": "The mutated schema/description is rejected by the framework description validator while modules import. The report explicitly records RuntimeError outside a test run. This is a mutation-induced invalid declaration, not a PostgreSQL service failure or an assertion kill."
+    }
+  ],
+  "vitestDeadlineKills": [
+    {
+      "sampleId": "3",
+      "fingerprintSha256": "e83caa1e9401fde702ebdf12b438c757a5f0c2ea329591b6c2f917acdcfd8ff8",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "options.createReservationToken ?? uuidV7",
+      "mutatorName": "LogicalOperator",
+      "replacement": "options.createReservationToken && uuidV7",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 75,
+          "line": 42
+        },
+        "start": {
+          "column": 35,
+          "line": 42
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "8",
+      "fingerprintSha256": "27c563729c15b4f15dcc0c31f378d7aef82fdb926e107c9b8accb8506551333c",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "!this.states.has(registration.taskId)",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 48,
+          "line": 49
+        },
+        "start": {
+          "column": 11,
+          "line": 49
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "9",
+      "fingerprintSha256": "b22c2e104cb5c3af3f449aadd13d6c5a9f1bd770e2314a4784fb304050718b58",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "{\n        this.states.set(registration.taskId, {\n          taskId: registration.taskId,\n          paused: false,\n          nextScheduledAt: new Date(registration.nextScheduledAt),\n        });\n      }",
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 55
+        },
+        "start": {
+          "column": 50,
+          "line": 49
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "11",
+      "fingerprintSha256": "e7f67d268f989277d509434e46948f0442a060246026695b55f09729ff4c03a5",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "{\n          taskId: registration.taskId,\n          paused: false,\n          nextScheduledAt: new Date(registration.nextScheduledAt),\n        }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 54
+        },
+        "start": {
+          "column": 46,
+          "line": 50
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "12",
+      "fingerprintSha256": "c7e97d5473a03c833c4e21b1b96fb7e1291efbf3a2638940af3eb7715e4be0ae",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "false",
+      "mutatorName": "BooleanLiteral",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 24,
+          "line": 52
+        },
+        "start": {
+          "column": 19,
+          "line": 52
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "20",
+      "fingerprintSha256": "2906044253c02ec6509d9ee477ab64124548374cc99f1a8492d2374ded69d4ef",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "[{\n        ...cloneState(state),\n        activeRuns: this.activeRuns(taskId),\n      }]",
+      "mutatorName": "ArrayDeclaration",
+      "replacement": "[]",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 9,
+          "line": 70
+        },
+        "start": {
+          "column": 41,
+          "line": 67
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    },
+    {
+      "sampleId": "263",
+      "fingerprintSha256": "aedde54e933149c552d0d003aafaf51ac41f96e81e38c61638af81fa4998c46e",
+      "file": "src/packages/kestrel/src/scheduled_tasks/adapters/memory/adapter.ts",
+      "original": "!Number.isInteger(request.leaseMs) || request.leaseMs <= 0",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "occurrence": 1,
+      "location": {
+        "end": {
+          "column": 65,
+          "line": 376
+        },
+        "start": {
+          "column": 7,
+          "line": 376
+        }
+      },
+      "status": "Killed",
+      "static": false,
+      "statusReason": "Test timed out in 5000ms.",
+      "classification": "Vitest deadline reported as Killed",
+      "reason": "The raw Stryker status is Killed because a selected test reached its Vitest deadline. This establishes mutation detection through non-settlement, not a completed behavioral assertion. Keep it separate from Stryker Timeout and execution hit-limit statuses; harden gated fixtures in a follow-up."
+    }
+  ],
+  "vitestDeadlineKillCount": 7,
+  "beforeVitestDeadlineKillCount": 3,
+  "killedWithoutReportedVitestDeadline": 579,
+  "commonPriorAssertionKillsNowTimeout": [],
+  "commonPriorDetectionsLost": [],
+  "command": "npm run test:mutation:scheduled-adapters",
+  "newTestCases": 53,
+  "seconds": {
+    "before": 140,
+    "after": 180
+  },
+  "baselineTests": {
+    "before": 427,
+    "after": 589
+  },
+  "review": "assessed with material completion, restoration, nullable mapping and schema-documentation gaps retained",
+  "bugsFound": [
+    "Memory manual release/expiry selected the later outstanding timestamp, unlike ordinary earliest request coalescing and PostgreSQL LEAST restoration. It now restores the earliest unhandled manual occurrence."
+  ],
+  "scorePolicy": "Keep all residuals and25 RuntimeErrors visible; no exclusions, adjusted score or blocking threshold.",
+  "sqlLimitations": "Adapter integration tests use connection-local table fixtures. Separate actual-export tests inspect schema semantics but do not apply generated production DDL, and ordinary TypeScript mutation does not systematically vary every SQL predicate or concurrent interleaving."
+}

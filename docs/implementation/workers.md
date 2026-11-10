@@ -18,6 +18,8 @@ For application setup and task-oriented examples, see the [Workers usage guide](
 
 Definitions and publication are independent from scheduling. The scheduler rotates ready queues, reserves bounded batches through the adapter, applies process-wide and definition-level admission, creates execution scopes and maps outcomes to acknowledgement, retry, defer or dead-letter transitions. Lease heartbeat and acknowledgement buffering reduce storage traffic without weakening reservation-token ownership.
 
+An execution-scope failure in one invocation does not end already-started sibling handlers. The scheduler waits for every invocation, persists fulfilled peer outcomes and then propagates invocation/storage failures while leaving the failed invocation leased for replay.
+
 Queue state is adapter-owned; application catalogs remain the source of handler and policy definitions. No storage transaction remains open while user code runs. Correlated completions are routed before acknowledgement so workflows and interactive tooling can observe terminal results without owning queue storage.
 
 ## Public API
@@ -196,6 +198,8 @@ Each yielded outcome is validated before it is accepted. An unknown or duplicate
 
 The acknowledgement buffer is shared by concurrent invocations and delegates its in-memory batching lifecycle to the concurrency library's `BatchBuffer`. `ackBufferSize` is the strict maximum number of successes in one buffered batch and triggers processing when reached; `ackFlushIntervalMs` bounds the wait from the first success in a smaller batch. Acknowledgement batches execute sequentially. The adapter's `acknowledgementGrouping` capability is `global` by default; adapters that can only acknowledge one queue per backend call declare `queue`, causing the worker handler to partition each bounded batch accordingly.
 
+Queue-scoped acknowledgement groups settle together: one failed group does not end the buffer drain while another group is still persisting. After every started group settles, a single original cause is propagated directly and multiple causes are preserved in an `AggregateError`.
+
 The final return value of a batch generator becomes the aggregated result's global data. It is retained by the concurrency primitive but is not currently exposed outside the worker invocation.
 
 One ordinary batch handler invocation owns one observed execution for the complete batch. Its execution is marked as failed when validation, the handler, result collection or any per-job result fails, including when earlier yielded jobs were already acknowledged successfully. A job carrying a first-attempt execution ID is the exception: the scheduler flushes the ordinary jobs before it, invokes the batch handler with that job alone, then resumes ordinary batching in reservation order.
@@ -274,7 +278,7 @@ The optional `availableAt` value schedules a future delivery and `groupId` prepa
 
 `correlation` contains an adapter-neutral namespace, ID, and optional data. A successful individual handler calls `context.setResult(value)`; a batch uses `jobSuccess(jobId, value)`. Before acknowledging a correlated success or terminal failure, the scheduler invokes the optional `WorkerCorrelatedCompletionSink`. If result persistence fails, the queue mutation is not made and the leased delivery can be retried. Workflow activities use this ordering to durably append their completion before the Worker ACK.
 
-Pending correlated successes remain outside the acknowledgement buffer until the cycle's handoffs succeed. Reaching `ackBufferSize`, expiring `ackFlushIntervalMs`, or flushing during shutdown cannot acknowledge an uncommitted correlated result. The sink remains idempotent because a crash after result persistence and before queue acknowledgement can repeat the handoff.
+Pending correlated successes remain outside the acknowledgement buffer until the cycle's handoffs succeed. Reaching `ackBufferSize`, expiring `ackFlushIntervalMs`, or flushing during shutdown cannot acknowledge an uncommitted correlated result. The sink remains idempotent because a crash after result persistence and before queue acknowledgement can repeat the handoff. All selected result handoffs settle before a failure is propagated; a failed handoff cannot end lease maintenance while a sibling handoff is pending. Queue acknowledgements, retries and dead-letter writes likewise settle together, preserving a single original error or every cause in an `AggregateError`.
 
 ```mermaid
 sequenceDiagram
@@ -918,6 +922,8 @@ Selecting a worker navigates to its dedicated Studio page, keeping the global qu
 Native JSON conversions are intentional: `Date` and custom `toJSON()` results are serialized, unsupported object properties are omitted, unsupported array entries and non-finite numbers become `null`, and cycles or unsupported `BigInt` values fail publication. The scheduler still validates the stored value before execution, so schemas must accept the JSON representation. PostgreSQL-specific JSONB restrictions, such as rejection of the Unicode null character, remain database errors and roll back the publication. This contract does not broaden or narrow the existing strict default Workflow codec; a shared cross-feature codec remains a possible future API decision.
 
 Memory storage owns detached publication values and returns detached reservation and inspection snapshots. Mutating a handler's payload or correlation therefore cannot alter a retry, a later identity comparison or a dead letter. PostgreSQL compares normalized requests against stored JSONB values, including repeated identities within one batch. A JSON `null` root is inserted explicitly as JSONB `null` rather than SQL `NULL`. Native serialization is not a canonical string format: identity comparison remains structural and ignores object key ordering.
+
+Both built-in adapters return `ReservedJob.availableAt`, `reservedAt` and `createdAt` as `Date` instances. PostgreSQL normalizes these timestamp fields explicitly at the raw-query boundary because the driver's raw timestamp representation can differ from Drizzle's typed column mapping.
 
 Shared adapter fixtures cover root values, native conversions, repeated and conflicting identities, unsupported values and rejection without partial publication. Mutation regressions target the memory adapter, where reference aliasing is possible. WorkerClient coverage separately checks the boundary presented to an external adapter.
 
