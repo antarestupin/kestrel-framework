@@ -34,6 +34,17 @@ The creator creates `my-app/` automatically; an existing destination must be emp
 
 Repository setup, framework tests, local archive consumption, and release commands are documented in the [contribution guide](docs/contributing.md). External contributions remain closed at this stage.
 
+### Run locally
+
+```sh
+# Start PostgreSQL and Redis, then prepare the test database.
+npm run infra:up
+npm run infra:prepare
+
+# Run unit and integration tests.
+npm run test:ai
+```
+
 ## Documentation
 
 The Docusaurus website in `src/apps/docs` renders the guides below directly. Run `npm run docs:dev` for local authoring, or `npm run docs:build` followed by `npm run docs:preview` to include local search. See [website maintenance and GitHub Pages setup](src/apps/docs/README.md).

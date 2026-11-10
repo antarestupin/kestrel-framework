@@ -9,10 +9,12 @@ export interface StudioClientExtensionDefinition {
 
 // Definitions stay eager so Studio can discover page kinds without eagerly
 // loading the substantially larger React implementations behind them.
+// Stryker disable all: Vite requires compile-time literal glob patterns and options.
 const clientDefinitions = import.meta.glob<StudioClientExtensionDefinition>(
   "../../extensions/*/client/definition.ts",
   { eager: true, import: "studioClientExtension" },
 );
+// Stryker restore all
 
 const definitionsByPageKind = new Map<string, StudioClientExtensionDefinition>();
 const rendererLoads = new Map<

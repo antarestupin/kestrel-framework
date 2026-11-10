@@ -290,6 +290,8 @@ The protected factory surface is intentionally small. If repeated application su
 
 The DI layer exports `AdapterDefinition`, `AdapterFactoryOptions`, `defineAdapter` and `registerAdapter` without importing application or feature code. Feature-specific `define*Adapter` helpers constrain the returned storage interface, creation context and capability metadata. Concrete helpers, backend configuration schemas and exports live beside their owning adapter.
 
+Once an adapter lifecycle has been resolved, container-owned disposal closes its public registration synchronously before awaiting initialization or consumer draining. This shares the same terminal flag as explicit registration disposal: neither `get()`, `boot()` nor a fresh public DI resolution may recreate that adapter while its old resource is draining. Access checks use only this shared terminal flag. The internal disposal promise caches cleanup and retains its error so repeated disposal does not repeat draining or resource release. This is an adapter ownership guarantee, not a general prohibition on resolving arbitrary dependencies after container shutdown.
+
 ### Provider adapter convention
 
 Apply this convention when introducing or redesigning any provider with interchangeable backends. Cache, throttling, workers and workflows are the current implementations; this is not limited to storage backends. Existing providers outside this group can migrate separately when their backend API is revised.

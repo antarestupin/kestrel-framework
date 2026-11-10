@@ -3,6 +3,7 @@ dist/
 assets/
 artifacts/
 coverage/
+.stryker-tmp/
 .vite/
 .env
 .env.*

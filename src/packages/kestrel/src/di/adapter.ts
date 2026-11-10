@@ -73,7 +73,8 @@ export function registerAdapter<Config, Value, Context, Capabilities>(
     let invalid = false;
     resource = {
       get(): Value {
-        if (disposed || disposePromise !== undefined) throw new Error(`Adapter "${id}" is disposed.`);
+        // Both registration-owned and container-owned disposal set this terminal flag.
+        if (disposed) throw new Error(`Adapter "${id}" is disposed.`);
         if (invalid) throw validationError;
         if (!created) {
           value = definition.create((dependency) => container.resolve(dependency), context);
@@ -95,6 +96,8 @@ export function registerAdapter<Config, Value, Context, Capabilities>(
         return bootPromise;
       },
       dispose(): Promise<void> {
+        // Container-owned teardown must also close the public handle before cache re-entry.
+        disposed = true;
         disposePromise ??= (async () => {
           await bootPromise?.catch(() => undefined);
           try { await options.beforeDispose?.(); } finally {

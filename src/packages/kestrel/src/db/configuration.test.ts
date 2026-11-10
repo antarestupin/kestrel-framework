@@ -4,6 +4,19 @@ import { postgresDrizzleConfigBase } from "./configuration.js";
 const connection = { host: "localhost", user: "postgres", password: "secret", database: "test" };
 
 describe("PostgreSQL resource configuration", () => {
+  // Check the public opt-in as well as the privacy-preserving default used elsewhere.
+  it.each(["include", "omit"])("accepts explicit query parameter observation policy %s", (parameters) => {
+    expect(postgresDrizzleConfigBase.schema.parse({
+      ...connection, queryObservability: { parameters },
+    }).queryObservability.parameters).toBe(parameters);
+  });
+
+  it.each(["", "unsupported"])("rejects unknown query parameter observation policy %j", (parameters) => {
+    expect(() => postgresDrizzleConfigBase.schema.parse({
+      ...connection, queryObservability: { parameters },
+    })).toThrow();
+  });
+
   it("uses finite native budgets and a separate resource policy", () => {
     expect(postgresDrizzleConfigBase.schema.parse(connection)).toMatchObject({
       max: 10, min: 0, connectionTimeoutMillis: 5_000, idleTimeoutMillis: 30_000,

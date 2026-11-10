@@ -32,7 +32,8 @@ describe("JsonWorkflowPayloadCodec", () => {
     [undefined, "unsupported undefined"],
     [1n, "unsupported bigint"],
     [Number.POSITIVE_INFINITY, "finite number"],
-    [new Date(), "unsupported instance Date"],
+    // Keep the parameterized test name stable across Stryker's filtered reruns.
+    [new Date("2026-01-01T00:00:00.000Z"), "unsupported instance Date"],
   ])("rejects unsupported durable value %s", (value, message) => {
     const codec = new JsonWorkflowPayloadCodec();
 
