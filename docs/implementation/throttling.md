@@ -274,7 +274,7 @@ const account = await throttling.run(
 
 The application keeps a small integration exercise in `src/server/tests`: `POST /api/tests/throttling` runs a log-only simulated task through an exact five-request-per-minute definition. Its dedicated `testCatalog` keeps this diagnostic behavior separate from business and core application modules while still exercising the ordinary HTTP and throttling composition path. Restricting test catalogs to selected environments or audiences remains a future application-level policy when these exercises must not be exposed by every deployment.
 
-`maxWaitMs` starts before the first adapter reservation attempt and bounds the complete admission wait. It is not a timeout for the protected operation. Callers should pass the same `AbortSignal` to the dependency when they need one wider operation deadline.
+`maxWaitMs` starts before the first adapter reservation attempt and limits when admission can be granted. The protected operation uses its own deadline. An in-flight adapter call runs to completion. If it admits after the deadline, cancellation, or manager shutdown, the manager rejects the acquisition and releases its local concurrency slots and circuit probes. The backend may already have committed the rate charge. Callers should pass the same `AbortSignal` to the dependency when they need one wider operation deadline.
 
 Waiting follows FIFO order within one logical limit. `ThrottlingManagerOptions.maxPendingAcquisitions` bounds the total number of queued acquisitions across limits and defaults to 1,000. A full queue raises `ThrottlingQueueFullError` rather than allocating an unbounded waiter. `close()` rejects pending waiters, prevents later acquisitions and can be awaited repeatedly.
 
@@ -839,7 +839,7 @@ sequenceDiagram
     A->>P: New authoritative reservation
 ```
 
-`DenialCachingRateLimitAdapter` is a storage-neutral decorator backed by a bounded monotonic in-memory structure. It serializes only matching reservation signatures: requests waiting behind a rejection reuse its safe deadline, while requests waiting behind a successful admission still perform their own authoritative mutation. Batch denials are keyed by the complete sorted batch signature so a rejected AND composition cannot incorrectly deny an unrelated subset.
+`DenialCachingRateLimitAdapter` is a storage-neutral decorator backed by a bounded monotonic in-memory structure. It serializes only matching reservation signatures: requests waiting behind a rejection reuse its safe deadline, while requests waiting behind a successful admission still perform their own authoritative mutation. Batch denials use sorted tuples that preserve the boundaries of caller-supplied keys. Successful reconciliation invalidates cached denials and prevents older in-flight reservation replies from restoring them.
 
 The general Kestrel cache remains deliberately unused: that facade is asynchronous, JSON-oriented, fail-open, and may itself use PostgreSQL, while denial coalescing is a small correctness-aware adapter concern. PostgreSQL, Redis or another authoritative adapter can use the same decorator or provide a stronger native equivalent.
 
@@ -973,6 +973,10 @@ sequenceDiagram
 ```
 
 Expiration is deliberately conservative: unused local units are abandoned and are not refunded implicitly. A graceful return is idempotent because the lease UUID is a unique capability token and PostgreSQL marks it returned once; a stale return cannot affect a newer lease. A crash can therefore immobilize capacity until refill and lease pruning, but cannot create extra capacity. Existing unexpired local grants remain usable during a backend outage; only replenishment needs the backend. `throttling.lease` observations report issue, consume, exact fallback, rejection, expiration and return transitions so local/backend admission ratios, utilization and immobilized units can be derived without changing correctness.
+
+Closing the leased adapter rejects new reservations and waits for accepted reservations to settle. It then returns unused units from unexpired grants, including grants allocated by those reservations, before closing the authoritative adapter. A failed in-flight reservation still allows the lease return and backend cleanup to proceed.
+
+After an authoritative allocation returns, the coordinator checks every local dimension against a fresh monotonic timestamp before consuming any grant. If expiry leaves a dimension short of capacity, admission fails with backend unavailability and valid local grants remain available. Any exact reservation already committed by the backend remains charged.
 
 ### Completion and actual cost
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { validateRateLimitDefinition, validateThrottlingDefinition } from "./definitions.js";
 import {
   circuitBreaker,
   concurrencyLimit,
@@ -45,6 +46,11 @@ describe("throttling definitions", () => {
     expect(definition.burst).toBe(4);
     expect(throttlingDurationToMs(milliseconds(25))).toBe(25);
     expect(throttlingDurationToMs(minutes(2))).toBe(120_000);
+  });
+
+  it("rejects a negative duration field even if other fields make the total positive", () => {
+    expect(() => throttlingDurationToMs({ seconds: 2, milliseconds: -1 }))
+      .toThrow("milliseconds must be a non-negative finite number");
   });
 
   it.each([
@@ -168,6 +174,43 @@ describe("throttling definitions", () => {
     })).toThrow("degradedAt must be smaller");
   });
 
+  it("rejects pressure settings that cannot produce a valid admission policy", () => {
+    const signal = { degradedAt: 0.8, limitedAt: 0.9 };
+    expect(() => localResourcePressure({ id: "missing-signals", signals: {} }))
+      .toThrow("must contain at least one signal");
+    expect(() => localResourcePressure({ id: "process:cpu", signals: { cpu: signal } }))
+      .toThrow("identifiers cannot contain colons");
+    expect(() => localResourcePressure({ id: "cpu", signals: { cpu: { ...signal, degradedAt: -1 } } }))
+      .toThrow("degradedAt must be a non-negative finite number");
+    for (const recoveryRatio of [NaN, 0, 1]) {
+      expect(() => localResourcePressure({ id: "cpu", signals: { cpu: { ...signal, recoveryRatio } } }))
+        .toThrow("recoveryRatio must be between zero and one");
+    }
+    expect(() => Reflect.apply(localResourcePressure, undefined, [{
+      id: "cpu", signals: { cpu: signal }, onUnavailable: "unsupported",
+    }])).toThrow("Unsupported unavailable pressure behavior");
+  });
+
+  it("revalidates limits and policy kinds from JavaScript callers", () => {
+    const base = defineRateLimit({ id: "partner", requests: 1, per: seconds(1) });
+
+    // Unchecked definitions cannot bypass the simple rate-limit contract.
+    for (const [patch, error] of [
+      [{ kind: "unknown" }, "Unsupported throttling definition kind"],
+      [{ unit: "tokens" }, "Simple rate limits only support request units"],
+      [{ coordination: { strategy: "leased" } }, "Simple rate limits require exact coordination"],
+      [{ burst: 0.5 }, "burst must allow the default request cost"],
+    ] as const) {
+      expect(() => Reflect.apply(validateRateLimitDefinition, undefined, [{ ...base, ...patch }]))
+        .toThrow(error);
+    }
+    expect(() => Reflect.apply(validateThrottlingDefinition, undefined, [{ ...base, kind: "unknown" }]))
+      .toThrow("Unsupported throttling definition kind");
+    expect(() => Reflect.apply(defineAdmissionPolicy, undefined, [{
+      id: "policy", limits: [{ kind: "unknown", id: "constraint" }],
+    }])).toThrow("Unsupported admission constraint kind");
+  });
+
   it("rejects empty policies and duplicate constraint ids", () => {
     expect(() => defineAdmissionPolicy({ id: "empty", limits: [] }))
       .toThrow("at least one limit");
@@ -198,19 +241,20 @@ describe("throttling definitions", () => {
   });
 
   it("validates leased coordination and keeps multidimensional policies homogeneous", () => {
+    const coordination = {
+      strategy: "leased",
+      maxLeaseUnits: 10,
+      leaseMs: 5_000,
+      maxOutstandingUnits: 40,
+      guardBandUnits: 5,
+    } as const;
     const leased = rateLimit({
       id: "provider",
       unit: "requests",
       limit: 100,
       per: minutes(1),
       burst: 100,
-      coordination: {
-        strategy: "leased",
-        maxLeaseUnits: 10,
-        leaseMs: 5_000,
-        maxOutstandingUnits: 40,
-        guardBandUnits: 5,
-      },
+      coordination,
     });
 
     expect(leased.coordination).toMatchObject({
@@ -235,13 +279,15 @@ describe("throttling definitions", () => {
       limit: 100,
       per: minutes(1),
       burst: 5,
-      coordination: {
-        strategy: "leased",
-        maxLeaseUnits: 10,
-        leaseMs: 5_000,
-        maxOutstandingUnits: 40,
-        guardBandUnits: 5,
-      },
+      coordination,
     })).toThrow("cannot exceed burst");
+
+    const options = { id: "lease", unit: "requests", limit: 100, per: minutes(1) };
+    expect(() => rateLimit({
+      ...options, coordination: { ...coordination, maxOutstandingUnits: 5 },
+    })).toThrow("maxOutstandingUnits cannot be smaller than maxLeaseUnits");
+    expect(() => Reflect.apply(rateLimit, undefined, [{
+      ...options, coordination: { strategy: "unknown" },
+    }])).toThrow("Unsupported throttling coordination strategy");
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { localResourcePressure } from "../definitions.js";
 import {
@@ -90,6 +90,82 @@ describe("LocalResourcePressureMonitor", () => {
       nearThresholdIntervalMs: 200,
       pressuredIntervalMs: 50,
     })).toThrow("must increase from pressured to healthy");
+  });
+
+  it("treats invalid samples and reader exceptions as unavailable until the next refresh", () => {
+    let nowMs = 0;
+    const signal = { id: "cpu", degradedAt: 0.8, limitedAt: 0.9, recoveryRatio: 0.9 };
+    const read = vi.fn<LocalResourcePressureSource["read"]>()
+      .mockReturnValueOnce(-1)
+      .mockReturnValueOnce(Number.POSITIVE_INFINITY)
+      .mockImplementationOnce(() => { throw new Error("reader unavailable"); })
+      .mockReturnValue(0.2);
+    const monitor = new LocalResourcePressureMonitor([{ supports: () => true, read }], {
+      now: () => new Date(nowMs), monotonicNow: () => nowMs,
+    });
+
+    try {
+      for (let sample = 1; sample <= 3; sample += 1) {
+        expect(monitor.evaluate("process", [signal], "reject")).toEqual({
+          state: "unknown", signals: [{ signalId: "cpu", state: "unknown" }],
+          refreshAt: new Date(nowMs + 250),
+        });
+        expect(monitor.evaluate("permissive", [signal], "ignore").state).toBe("degraded");
+        expect(read).toHaveBeenCalledTimes(sample);
+        nowMs += 250;
+      }
+      expect(monitor.evaluate("process", [signal], "reject")).toEqual({
+        state: "healthy", signals: [{ signalId: "cpu", state: "healthy", previousState: "unknown", value: 0.2 }],
+        refreshAt: new Date(nowMs + 1_000),
+      });
+    } finally {
+      monitor.close();
+    }
+  });
+
+  it("closes each owned reader once and discards cached healthy readings", () => {
+    const close = vi.fn();
+    const read = vi.fn(() => 0.1);
+    const monitor = new LocalResourcePressureMonitor([{ supports: () => true, read, close }], {
+      now: () => new Date(0), monotonicNow: () => 0,
+    });
+    const signal = { id: "cpu", degradedAt: 0.8, limitedAt: 0.9, recoveryRatio: 0.9 };
+
+    expect(monitor.evaluate("process", [signal], "reject").state).toBe("healthy");
+    monitor.close();
+    monitor.close();
+    // Once closed, inspection is unavailable even with a previously healthy cached value.
+    expect(monitor.evaluate("process", [signal], "ignore")).toEqual({
+      state: "unknown", signals: [{ signalId: "cpu", state: "unknown" }], refreshAt: new Date(250),
+    });
+    expect(read).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { options: { healthyIntervalMs: 0 }, error: "healthyIntervalMs must be a positive finite number" },
+    { options: { pressuredIntervalMs: Infinity }, error: "pressuredIntervalMs must be a positive finite number" },
+    { options: { pressuredIntervalMs: 600 }, error: "must increase from pressured to healthy" },
+    { options: { nearThresholdRatio: -0.1 }, error: "nearThresholdRatio must be between zero and one" },
+    { options: { nearThresholdRatio: 1 }, error: "nearThresholdRatio must be between zero and one" },
+    { options: { nearThresholdRatio: NaN }, error: "nearThresholdRatio must be between zero and one" },
+  ])("rejects invalid sampling options $options", ({ options, error }) => {
+    expect(() => new LocalResourcePressureMonitor([], options)).toThrow(error);
+  });
+
+  it.each([
+    { options: { now: () => new Date(NaN) }, error: "clock returned an invalid date" },
+    { options: { monotonicNow: () => Infinity }, error: "monotonic clock returned an invalid value" },
+  ])("rejects an invalid clock before reading a signal ($error)", ({ options, error }) => {
+    const read = vi.fn(() => 0.1);
+    const monitor = new LocalResourcePressureMonitor([{ supports: () => true, read }], options);
+    try {
+      const signal = { id: "cpu", degradedAt: 0.8, limitedAt: 0.9, recoveryRatio: 0.9 };
+      expect(() => monitor.evaluate("process", [signal], "reject")).toThrow(error);
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      monitor.close();
+    }
   });
 });
 

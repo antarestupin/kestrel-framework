@@ -36,7 +36,10 @@ describe("RedisRateLimitAdapter", () => {
     await adapter.reserve(request("busy", { cost: 10 }));
     await expect(adapter.reserveMany([request("free"), request("busy")])).resolves.toMatchObject({ admitted: false });
     expect(await redis.client.get(bucketKey(redis.keyPrefix, "free"))).toBeNull();
-    await expect(adapter.inspectMany([request("free")])).resolves.toMatchObject([{ available: true, remaining: 10 }]);
+    const [free, busy] = await adapter.inspectMany([request("free"), request("busy")]);
+    expect(free).toEqual({ available: true, remaining: 10, source: "authoritative" });
+    expect(busy).toMatchObject({ available: false, source: "authoritative", retryAt: expect.any(Date) });
+    expect(busy!.retryAt!.getTime()).toBeGreaterThan(Date.now());
     expect(await redis.client.get(bucketKey(redis.keyPrefix, "free"))).toBeNull();
   });
 
@@ -82,6 +85,18 @@ describe("RedisRateLimitAdapter", () => {
     expect(denied.admitted).toBe(false);
     await expect(adapter.returnLeases([returned])).resolves.toBe(0);
     expect((await adapter.inspectMany([leased()]))[0]!.remaining).toBeCloseTo(7, 3);
+  });
+
+  it("can acknowledge completed grants without requesting any replacements", async ({ redis }) => {
+    const adapter = new RedisRateLimitAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+    const result = await adapter.allocateLeases("owner", [leased()]);
+    if (!result.admitted || result.allocations.quota?.mode !== "lease") throw new Error("Expected a lease.");
+    const completed = { key: "quota", leaseId: result.allocations.quota.leaseId, remaining: 3 };
+
+    // Returning through an empty replenishment call refunds only the old grant's unused units.
+    await expect(adapter.allocateLeases("owner", [], [completed])).resolves.toEqual({ admitted: true, allocations: {} });
+    await expect(adapter.returnLeases([completed])).resolves.toBe(0);
+    expect((await adapter.inspectMany([leased()]))[0]!.remaining).toBeCloseTo(9, 3);
   });
 
   it("retains full buckets while grants are live and expires ordinary buckets natively", async ({ redis }) => {

@@ -56,6 +56,8 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
 
   private readonly locks = new Map<string, Promise<void>>();
 
+  private readonly pendingReservations = new Set<Promise<RateLimitBatchReservationResult>>();
+
   private readonly monotonicNow: () => number;
 
   private readonly maxCachedDenials: number;
@@ -146,15 +148,15 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       );
     }
 
-    if (!strategies.has("leased")) {
-      return this.reserveExactly(requests);
-    }
-
     const leasedRequests = requests as readonly RateLimitLeaseRequest[];
-    return this.withLocks(
-      leasedRequests.map((request) => request.key),
-      () => this.reserveFromLeases(leasedRequests),
-    );
+    const reservation = strategies.has("leased")
+      ? this.withLocks(leasedRequests.map(({ key }) => key), () => this.reserveFromLeases(leasedRequests))
+      : this.reserveExactly(requests);
+    const pending = reservation.finally(() => {
+      this.pendingReservations.delete(pending);
+    });
+    this.pendingReservations.add(pending);
+    return pending;
   }
 
   public reconcile(
@@ -238,8 +240,10 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
   public close(): Promise<void> {
     if (this.closePromise !== undefined) return this.closePromise;
     this.closed = true;
-    this.closePromise = this.returnLocalLeases().finally(() =>
-      this.authoritative.close?.());
+    // A reservation already in flight can add a grant. Drain it before returning local capacity.
+    this.closePromise = Promise.allSettled(this.pendingReservations)
+      .then(() => this.returnLocalLeases())
+      .finally(() => this.authoritative.close?.());
     return this.closePromise;
   }
 
@@ -311,6 +315,18 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
           });
         } else {
           this.addLocalLease(request.key, granted);
+        }
+      }
+
+      // The allocation can outlive a local grant. Recheck every local dimension before spending any.
+      const commitMs = this.getMonotonicNow();
+      for (const request of requests) {
+        if (exactFallback.has(request.key)) continue;
+        this.discardExpired(request.key, commitMs);
+        if (this.localRemaining(request.key) + Number.EPSILON < request.cost) {
+          throw new ThrottlingBackendUnavailableError({
+            cause: new Error("A leased reservation lost local capacity during allocation."),
+          });
         }
       }
     }
@@ -610,18 +626,21 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
 }
 
 function batchSignature(requests: readonly RateLimitLeaseRequest[]): string {
-  return [...requests]
-    .sort((left, right) => left.key.localeCompare(right.key))
-    .map((request) => [
-      request.key,
-      request.limit,
-      request.periodMs,
-      request.burst,
-      request.cost,
-      request.coordination.maxLeaseUnits,
-      request.coordination.leaseMs,
-      request.coordination.maxOutstandingUnits,
-      request.coordination.guardBandUnits,
-    ].join(":"))
-    .join("|");
+  // Keys may contain separators, so encode each dimension as a structured tuple.
+  const ordered = [...requests].sort((left, right) => {
+    if (left.key < right.key) return -1;
+    if (left.key > right.key) return 1;
+    return 0;
+  });
+  return JSON.stringify(ordered.map((request) => [
+    request.key,
+    request.limit,
+    request.periodMs,
+    request.burst,
+    request.cost,
+    request.coordination.maxLeaseUnits,
+    request.coordination.leaseMs,
+    request.coordination.maxOutstandingUnits,
+    request.coordination.guardBandUnits,
+  ]));
 }

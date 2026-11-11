@@ -51,6 +51,8 @@ implements LeasableRateLimitAdapter {
 
   private readonly now: () => Date;
 
+  private reconciliationGeneration = 0;
+
   public constructor(
     private readonly adapter: RateLimitAdapter,
     options: DenialCachingRateLimitAdapterOptions = {},
@@ -84,11 +86,12 @@ implements LeasableRateLimitAdapter {
         };
       }
 
+      const generation = this.reconciliationGeneration;
       const result = await this.adapter.reserve(request);
 
       if (result.admitted) {
         this.singleDenials.delete(request.key);
-      } else {
+      } else if (generation === this.reconciliationGeneration) {
         this.cacheSingleDenial(request, result);
       }
 
@@ -134,11 +137,12 @@ implements LeasableRateLimitAdapter {
         throw new ThrottlingAdapterCapabilityError("atomic batch reservation");
       }
 
+      const generation = this.reconciliationGeneration;
       const result = await this.adapter.reserveMany(requests);
 
       if (result.admitted) {
         this.batchDenials.delete(signature);
-      } else {
+      } else if (generation === this.reconciliationGeneration) {
         this.cacheBatchDenial(signature, result);
       }
 
@@ -155,7 +159,8 @@ implements LeasableRateLimitAdapter {
 
     const result = await this.adapter.reconcile(requests);
 
-    // An authoritative adjustment can invalidate any composite denial.
+    // In-flight replies can still carry a denial observed before the adjustment.
+    this.reconciliationGeneration += 1;
     this.singleDenials.clear();
     this.batchDenials.clear();
     return result;
@@ -390,8 +395,12 @@ function requestSignature(request: RateLimitReservationRequest): string {
 function batchSignature(
   requests: readonly RateLimitReservationRequest[],
 ): string {
-  return [...requests]
-    .sort((left, right) => left.key.localeCompare(right.key))
-    .map((request) => `${request.key}:${requestSignature(request)}`)
-    .join("|");
+  // Sort by the exact key and keep separators in caller keys inside tuple values.
+  const ordered = [...requests].sort((left, right) => {
+    if (left.key < right.key) return -1;
+    if (left.key > right.key) return 1;
+    return 0;
+  });
+
+  return JSON.stringify(ordered.map((request) => [request.key, requestSignature(request)]));
 }

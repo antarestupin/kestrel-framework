@@ -38,7 +38,7 @@ async function readPartner<T>(read: () => Promise<T>, signal: AbortSignal) {
 // The resource owner must await throttling.close() during shutdown.
 ```
 
-Without `maxWaitMs`, exhaustion rejects immediately. Waiting is bounded and cancellable; the budget covers admission, not the protected operation. Pass cancellation to the dependency too. A `rateKey` partitions one stable definition by an opaque identity, without creating a definition for each user. Avoid personal data in that key.
+Without `maxWaitMs`, exhaustion rejects immediately. The deadline and cancellation prevent admission, including when an in-flight reservation succeeds later. The adapter call can finish after the deadline and may already have charged the rate limit. Pass cancellation to the protected dependency for its own work. A `rateKey` partitions one stable definition by an opaque identity, without creating a definition for each user. Avoid personal data in that key.
 
 ## Combine rate, concurrency and health limits
 

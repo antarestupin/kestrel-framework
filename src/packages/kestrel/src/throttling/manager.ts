@@ -114,6 +114,8 @@ interface DeniedAttempt {
 interface AdmittedAttempt {
   readonly admitted: true;
   readonly permit: ThrottlingPermit;
+  /** Releases reversible reservations when the caller can no longer accept the permit. */
+  readonly discard: () => void;
   readonly remaining?: number;
   readonly source?: RateLimitReservationSource;
 }
@@ -548,7 +550,15 @@ export class ThrottlingManager implements Throttling {
     attemptCounter.value += 1;
     const attempt = await this.tryAcquire(policy, estimatedCost);
 
-    if (attempt.admitted) return attempt;
+    if (attempt.admitted) {
+      this.checkAdmittedAttempt(
+        attempt,
+        policy.id,
+        signal,
+        maxWaitMs === 0 ? undefined : deadlineMs,
+      );
+      return attempt;
+    }
 
     if (maxWaitMs === 0) {
       if (attempt.blockedBy === "circuit") {
@@ -619,13 +629,17 @@ export class ThrottlingManager implements Throttling {
       return { admitted: false, blockedBy: "concurrency", source: "local" };
     }
 
+    const releaseLocalReservations = () => {
+      releaseConcurrency();
+      this.releaseCircuitReservations(circuitReservations);
+    };
+
     try {
       const requests = this.createRateRequests(policy, estimatedCost);
       const result = await this.reserveRates(requests);
 
       if (!result.admitted) {
-        releaseConcurrency();
-        this.releaseCircuitReservations(circuitReservations);
+        releaseLocalReservations();
         const remaining = minimumRemaining(result.remaining);
         return {
           admitted: false,
@@ -639,6 +653,7 @@ export class ThrottlingManager implements Throttling {
       const remaining = minimumRemaining(result.remaining);
       return {
         admitted: true,
+        discard: releaseLocalReservations,
         permit: this.createPermit(
           policy,
           estimatedCost,
@@ -650,8 +665,23 @@ export class ThrottlingManager implements Throttling {
         ...(result.source === undefined ? {} : { source: result.source }),
       };
     } catch (error) {
-      releaseConcurrency();
-      this.releaseCircuitReservations(circuitReservations);
+      releaseLocalReservations();
+      throw error;
+    }
+  }
+
+  private checkAdmittedAttempt(
+    attempt: AdmittedAttempt,
+    policyId: string,
+    signal: AbortSignal | undefined,
+    deadlineMs: number | undefined,
+  ): void {
+    try {
+      this.throwIfUnavailable(policyId, signal);
+      if (deadlineMs !== undefined) this.throwIfDeadlineElapsed(policyId, deadlineMs);
+    } catch (error) {
+      // The adapter may have committed a charge. Only local reservations can be returned safely.
+      attempt.discard();
       throw error;
     }
   }
@@ -955,6 +985,13 @@ export class ThrottlingManager implements Throttling {
 
       if (attempt.admitted) {
         queue.waiters.shift();
+        try {
+          this.checkAdmittedAttempt(attempt, waiter.policy.id, waiter.signal, waiter.deadlineMs);
+        } catch (error) {
+          // A late attempt belongs to this waiter alone. Later waiters retain their place.
+          this.rejectWaiter(queue, waiter, error);
+          continue;
+        }
         queue.nextAttemptAtMs = this.getNowMs();
         queue.blockedByConcurrency = false;
         delete queue.blockedCircuitId;
@@ -1321,9 +1358,9 @@ export class ThrottlingManager implements Throttling {
         state.halfOpenSuccesses += 1;
         if (state.halfOpenSuccesses >= constraint.halfOpen.successThreshold) {
           this.transitionCircuit(constraint, state, "closed");
-        } else {
-          this.wakeCircuitQueues(constraint.id);
         }
+        // A healthy probe restores capacity whether the circuit stays half-open or closes.
+        this.wakeCircuitQueues(constraint.id);
         continue;
       }
 
