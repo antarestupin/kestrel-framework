@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 // Integration suites always run when selected; unavailable infrastructure is a failure.
@@ -25,7 +26,24 @@ const integration = [
   "src/packages/kestrel/src/workers/adapters/postgres/adapter.test.ts",
   "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts"
 ];
-export default defineConfig({ test: { projects: [
+export default defineConfig({ test: {
+  // The dedicated coverage command enables this report for framework sources only.
+  coverage: {
+    provider: "v8",
+    include: ["src/packages/kestrel/src/**/*.{ts,tsx}"],
+    exclude: [
+      "**/*.test.{ts,tsx}", "**/*.d.ts",
+      "src/packages/kestrel/src/testing/{postgres,redis}.ts",
+      "src/packages/kestrel/src/workers/testing/**",
+    ],
+    reportsDirectory: "artifacts/coverage/kestrel",
+    reporter: [
+      fileURLToPath(new URL("./scripts/testing/branch-coverage-reporter.cjs", import.meta.url)),
+      "html",
+      "json-summary",
+    ],
+  },
+  projects: [
   { test: { name: "unit", include: ["src/packages/**/*.test.{ts,tsx}", "src/apps/**/*.test.{ts,tsx}"], exclude: ["**/node_modules/**", "src/packages/create-kestrel/**", ...integration] } },
   { test: { name: "integration", include: integration } },
   // Generator CLI scenarios own slower child processes and run through a dedicated command.

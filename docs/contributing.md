@@ -34,6 +34,12 @@ npm run test:ai
 
 At the repository root, `npm run test` and `npm run test:ai` run framework and playground unit/integration tests, excluding the slower application-generator scenarios; `test:ai` uses compact output. Use `npm run test:unit` for unit tests without Docker, `npm run test:integration` for database adapters, `npm run test:generator` for the creator without Docker, or `npm run test:all` for all three groups. Run the generator group whenever changing the creator or its template. The devcontainer reuses the repository service definitions.
 
+## Framework branch coverage
+
+Run `npm run test:coverage` after preparing the [integration-test infrastructure](#integration-test-infrastructure). Vitest runs the framework unit and integration suites together and reports covered and total branches for each top-level component under `src/packages/kestrel/src`, including its nested adapters. The report includes framework source files that the suites never import. Test files, declarations and repository-only fixtures are excluded.
+
+Open `artifacts/coverage/kestrel/index.html` for file-level detail or read `artifacts/coverage/kestrel/coverage-summary.json` for machine-readable counts. The command has no coverage threshold. Test and infrastructure failures still fail the run. Coverage measures code executed inside Vitest workers. Code exercised only in a separate CLI process or a browser needs separate coverage collection.
+
 ## Framework mutation testing
 
 Use the [mutation-testing contributor guide](contributing/mutation-testing.md) for Stryker profiles, ten-minute budgets, isolated test infrastructure, incremental reports and the framework coverage inventory. These repository checks assess framework tests; they are separate from testing an application that uses Kestrel.
