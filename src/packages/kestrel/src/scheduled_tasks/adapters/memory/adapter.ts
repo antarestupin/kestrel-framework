@@ -79,7 +79,7 @@ export class MemoryScheduledTaskAdapter implements ScheduledTaskAdapter {
     const state = this.states.get(request.taskId);
 
     if (state === undefined) {
-      return { status: state === undefined ? "stale" : "paused" };
+      return { status: "stale" };
     }
 
     const trigger = getRequestedTrigger(state, request.expectedScheduledAt);
@@ -91,7 +91,7 @@ export class MemoryScheduledTaskAdapter implements ScheduledTaskAdapter {
       return { status: "paused" };
     }
 
-    const now = this.now();
+    const now = new Date(this.now());
     const reservationToken = this.createReservationToken();
     consumeOccurrence(state, trigger, request.nextScheduledAt);
     state.lastStartedAt = now;
@@ -110,7 +110,8 @@ export class MemoryScheduledTaskAdapter implements ScheduledTaskAdapter {
         taskId: request.taskId,
         reservationToken,
         scheduledAt: new Date(request.expectedScheduledAt),
-        reservedAt: now,
+        // Keep the stored start time independent of the returned reservation.
+        reservedAt: new Date(now),
         trigger,
       },
     };
@@ -136,7 +137,7 @@ export class MemoryScheduledTaskAdapter implements ScheduledTaskAdapter {
     if (request.error === undefined) {
       delete state.lastError;
     } else {
-      state.lastError = request.error;
+      state.lastError = { ...request.error };
     }
 
     if (run.trigger === "scheduled" && request.nextScheduledAt !== undefined) {
@@ -158,8 +159,13 @@ export class MemoryScheduledTaskAdapter implements ScheduledTaskAdapter {
 
   public async skip(request: ReserveScheduledTaskRequest): Promise<boolean> {
     const state = this.states.get(request.taskId);
+    const now = this.now();
+    // An expired reservation can no longer justify discarding a pending occurrence.
+    const hasActiveRun = [...this.runs.values()].some((run) =>
+      run.taskId === request.taskId && run.expiresAt > now
+    );
 
-    if (state === undefined || this.activeRuns(request.taskId) === 0) {
+    if (state === undefined || !hasActiveRun) {
       return false;
     }
 
@@ -225,7 +231,7 @@ export class MemoryScheduledTaskAdapter implements ScheduledTaskAdapter {
 
   public async requestRun(taskId: string): Promise<void> {
     const state = this.requireState(taskId);
-    state.manualRunRequestedAt ??= this.now();
+    state.manualRunRequestedAt ??= new Date(this.now());
   }
 
   public async setPaused(
@@ -351,6 +357,9 @@ function cloneState(state: StoredState): StoredState {
     ...(state.lastCompletedAt === undefined
       ? {}
       : { lastCompletedAt: new Date(state.lastCompletedAt) }),
+    ...(state.lastError === undefined
+      ? {}
+      : { lastError: { ...state.lastError } }),
   };
 }
 

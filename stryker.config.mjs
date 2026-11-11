@@ -13,7 +13,10 @@ export default {
   // Runtime mutants additionally use Stryker's per-test coverage filtering.
   vitest: { configFile: "vitest.mutation.config.ts", related: true, pool: "forks" },
   // Generated output is unnecessary for source-only suites and can change during builds.
-  ignorePatterns: ["**/dist/**", "**/assets/**", "artifacts/**", "coverage/**", ".git/**"],
+  ignorePatterns: [
+    "**/dist/**", "**/assets/**", "src/apps/docs/build/**", "src/apps/docs/.docusaurus/**",
+    "artifacts/**", "coverage/**", ".git/**",
+  ],
   mutate: [
     // Keep the accounts/session assessment reproducible, including all manager helpers.
     ...(focusedPatterns(mode) ?? (mode === "authentication-sessions" ? ["src/packages/kestrel/src/authentication/manager.ts"]

@@ -1,8 +1,11 @@
 import { parseSchema } from "../definitions/index.js";
+import { abortableDelay } from "../scheduling/index.js";
 import type { ReservedWorkflowTask } from "./adapter.js";
 import type { ExecutionContext } from "../app/index.js";
 import type { Action } from "../actions/index.js";
 import type { ZodType } from "zod";
+import { WorkflowActivityTimeoutError } from "./errors.js";
+import { workflowCommandIdentity } from "./history.js";
 import {
   jsonWorkflowPayloadCodec,
   type WorkflowPayload,
@@ -13,6 +16,8 @@ export interface WorkflowActivityExecution {
   taskId: string;
   executionId: string;
   sequence: number;
+  /** History generation of the command; older activity contexts imply one. */
+  historyGeneration?: number;
   target: string;
   payload: WorkflowPayload;
   attempt: number;
@@ -38,6 +43,7 @@ export function setWorkflowActivityExecutionContext(
   // Diagnostic projections intentionally exclude payloads and retry errors.
   context.setDiagnostic("workflow.executionId", activity.executionId);
   context.setDiagnostic("workflow.commandSequence", activity.sequence);
+  context.setDiagnostic("workflow.generation", activity.historyGeneration ?? 1);
   context.setDiagnostic("workflow.activityTarget", activity.target);
   context.setDiagnostic("workflow.taskAttempt", activity.attempt);
   context.setDiagnostic("workflow.activityIdempotencyKey", activity.idempotencyKey);
@@ -91,6 +97,7 @@ implements WorkflowActivityTransport {
         taskId: activity.taskId,
         executionId: activity.executionId,
         sequence: activity.sequence,
+        ...(activity.historyGeneration === undefined ? {} : { historyGeneration: activity.historyGeneration }),
         target: activity.target,
         attempt: activity.attempt,
         idempotencyKey: activity.idempotencyKey,
@@ -150,6 +157,8 @@ implements WorkflowActivityTransport {
       decodedInput,
       action.validation.input,
     );
+    // Decoding and input validation may suspend while the activity loses its lease.
+    signal.throwIfAborted();
     const rawOutput = await this.options.execute(
       action,
       input,
@@ -176,7 +185,7 @@ export function toWorkflowActivityExecution(
     | "kind"
     | "payload"
     | "target"
-  >,
+  > & { historyGeneration?: number },
 ): WorkflowActivityExecution {
   if (
     task.kind !== "activity"
@@ -188,14 +197,18 @@ export function toWorkflowActivityExecution(
   }
 
   const envelope = readActivityEnvelope(task.payload);
-  return {
-    taskId: task.id,
+  const identity = {
     executionId: task.executionId,
     sequence: task.commandSequence,
+    historyGeneration: task.historyGeneration ?? 1,
+  };
+  return {
+    taskId: task.id,
+    ...identity,
     target: task.target,
     payload: envelope.input,
     attempt: task.attempt,
-    idempotencyKey: `${task.executionId}:${task.commandSequence}`,
+    idempotencyKey: workflowCommandIdentity(identity),
     retry: envelope.retry,
     ...(envelope.scheduleToCloseTimeoutMs === undefined
       ? {}
@@ -204,6 +217,32 @@ export function toWorkflowActivityExecution(
       ? {}
       : { startToCloseTimeoutMs: envelope.startToCloseTimeoutMs }),
   };
+}
+
+/** Shares the activity deadline across embedded and Worker-backed transports. */
+export async function executeWorkflowActivityWithTimeout(
+  transport: WorkflowActivityTransport,
+  activity: WorkflowActivityExecution,
+  signal: AbortSignal,
+  ref: boolean,
+): Promise<WorkflowPayload | undefined> {
+  if (activity.startToCloseTimeoutMs === undefined) return transport.execute(activity, signal);
+
+  const timer = new AbortController();
+  const timeout = new AbortController();
+  const activitySignal = AbortSignal.any([signal, timeout.signal]);
+  const expired = abortableDelay(activity.startToCloseTimeoutMs, timer.signal, { ref }).then(() => {
+    if (timer.signal.aborted) return undefined;
+    const error = new WorkflowActivityTimeoutError(activity.executionId, activity.sequence, "start-to-close");
+    timeout.abort(error);
+    throw error;
+  });
+
+  try {
+    return await Promise.race([transport.execute(activity, activitySignal), expired]);
+  } finally {
+    timer.abort();
+  }
 }
 
 function readActivityEnvelope(payload: WorkflowPayload): {

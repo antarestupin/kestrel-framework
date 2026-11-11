@@ -71,6 +71,10 @@ describe("scheduled task provider composition", () => {
     expect(source).toEqual({ kind: "provider", provider: "ScheduledTaskProvider" });
     expect(path).toEqual(["scheduledTaskRuntime", "runScheduledTasks"]);
     expect(controller).toMatchObject({ command: "run scheduled-tasks", runtime: "scheduled-tasks", workloads: ["scheduled-tasks"], observe: false, dependencies: { runtime: scheduledTaskRuntimeDependency }, bindings: { groups: { kind: "option", name: "group", repeatable: true }, taskIds: { kind: "option", name: "task", repeatable: true } } });
+    // CLI help reads the command description and the input field descriptions.
+    expect(controller.description).toMatch(/\S/u);
+    expect(controller.inputSchema.shape.groups.description).toMatch(/\S/u);
+    expect(controller.inputSchema.shape.taskIds.description).toMatch(/\S/u);
     expect(controller.inputSchema.parse({})).toEqual({ groups: [], taskIds: [] });
     expect(controller.inputSchema.safeParse({ groups: [""] }).success).toBe(false);
     expect(controller.inputSchema.safeParse({ taskIds: [""] }).success).toBe(false);
@@ -93,12 +97,13 @@ describe("scheduled task provider composition", () => {
     const { app, backend } = setup(13);
     const task = app.catalog.scheduledTasks.tasks[0]!;
     expect(task).toMatchObject({ id: "maintenance.scheduled-task-runs-prune", groups: ["maintenance"], overlap: "skip", executionLog: false, observe: false, runtime: { state: "persistent", coordination: "distributed" }, dependencies: { adapter: scheduledTaskAdapterDependency } });
+    expect(task.description).toMatch(/\S/u);
     expect(task.schedule).toMatchObject({ kind: "every", intervalMs: 13_000 });
     const prune = vi.spyOn(backend, "pruneExpiredRuns").mockResolvedValue(removed);
     const debug = vi.fn();
     await task.handler({ adapter: backend, logger: { debug } }, { signal: new AbortController().signal, scheduledAt: new Date(0), trigger: "scheduled", deferNextRun: () => undefined });
     expect(prune).toHaveBeenCalledExactlyOnceWith({ limit: 7 });
     expect(debug).toHaveBeenCalledTimes(removed > 0 ? 1 : 0);
-    if (removed > 0) expect(debug).toHaveBeenCalledWith({ removed }, expect.any(String));
+    if (removed > 0) expect(debug).toHaveBeenCalledWith({ removed }, expect.stringMatching(/\S/u));
   });
 });

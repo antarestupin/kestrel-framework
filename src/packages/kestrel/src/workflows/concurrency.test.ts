@@ -8,6 +8,7 @@ import { z } from "zod";
 import { MemoryWorkflowAdapter } from "./adapters/memory/index.js";
 import { EmbeddedWorkflowActivityTransport } from "./activity_transport.js";
 import { WorkflowClient } from "./client.js";
+import { resolveWorkflowConcurrency } from "./concurrency.js";
 import { WorkflowConcurrencyConflictError } from "./errors.js";
 import { WorkflowScheduler } from "./scheduler.js";
 import { defineWorkflowSignal } from "./signal.js";
@@ -117,7 +118,7 @@ describe("workflow concurrency", () => {
       name: "concurrency.invalid-limit",
       concurrency: { executions: { limit: 0 } },
       handler: () => undefined,
-    })).toThrow("positive integer");
+    })).toThrow(/definition concurrency limit/u);
     const workflow = defineWorkflow({
       name: "concurrency.invalid-key",
       input: z.string(),
@@ -127,6 +128,41 @@ describe("workflow concurrency", () => {
 
     await expect(createRuntime(workflow).client.start(workflow, "input"))
       .rejects.toThrow("non-empty strings");
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["number", 42],
+  ])("rejects an invalid %s business key before persisting the workflow", async (_label, key) => {
+    const workflow = defineWorkflow({
+      name: "concurrency.required-key",
+      input: z.string(),
+      // A JS caller or unchecked application callback can return a value outside the declaration.
+      concurrency: { keyed: { key: () => key as unknown as string } },
+      handler: () => undefined,
+    });
+    const { client, adapter } = createRuntime(workflow);
+    await expect(client.start(workflow, "input", { executionId: "invalid-key" })).rejects.toThrow(/non-empty strings/u);
+    expect(await adapter.get("invalid-key")).toBeUndefined();
+  });
+
+  it("resolves explicit and default keyed policy alongside the definition limit", () => {
+    const key = (value: string) => `order:${value}`;
+    expect(resolveWorkflowConcurrency(undefined, "a")).toBeUndefined();
+    expect(resolveWorkflowConcurrency({ executions: { limit: 2 } }, "a")).toStrictEqual({ definitionLimit: 2 });
+    expect(resolveWorkflowConcurrency({ keyed: { key } }, "a")).toStrictEqual({
+      keyed: { key: "order:a", limit: 1, conflict: "enqueue", scope: "execution" },
+    });
+    expect(resolveWorkflowConcurrency({ executions: { limit: 2 }, keyed: { key, limit: 4, conflict: "reject", scope: "active-work" } }, "a")).toStrictEqual({
+      definitionLimit: 2, keyed: { key: "order:a", limit: 4, conflict: "reject", scope: "active-work" },
+    });
+  });
+
+  it.each([0, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])("rejects an invalid keyed concurrency limit %s at definition time", (limit) => {
+    expect(() => defineWorkflow({
+      name: "concurrency.invalid-keyed-limit", concurrency: { keyed: { key: () => "key", limit } }, handler: () => undefined,
+    })).toThrow(/keyed concurrency limit/u);
   });
 });
 

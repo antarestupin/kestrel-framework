@@ -83,6 +83,8 @@ describe("MemoryWorkflowAdapter execution retry contracts", () => {
     const unrelated = await adapter.get("unrelated-target");
     await expect(adapter.retryExecution({ ...retry, executionId: "unrelated-target" })).rejects.toBeInstanceOf(WorkflowExecutionConflictError);
     expect(await adapter.get("unrelated-target")).toEqual(unrelated);
+    const linked = await adapter.listExecutions({ retryOfExecutionId: request.executionId, limit: 10 });
+    expect(linked.items.map(({ executionId }) => executionId)).toEqual([retry.executionId]);
   });
 
   it("deduplicates concurrent requests before the retry link is published", async () => {

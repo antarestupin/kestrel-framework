@@ -1,3 +1,5 @@
+import { addAbortListener } from "node:events";
+
 import { parseSchema } from "../definitions/index.js";
 import {
   type RuntimeApp,
@@ -951,7 +953,7 @@ export class WorkerScheduler<Config> {
     jobs: readonly ReservedJob[],
     signal: AbortSignal,
     successes: ReadonlyMap<string, unknown>,
-    failures: ReadonlyMap<string, WorkerBatchFailureData>,
+    failures: ReadonlyMap<string, JobFailure>,
   ): readonly ReservedJob[] {
     if (!(signal.reason instanceof WorkerReservationLostError)) return jobs;
 
@@ -1046,7 +1048,7 @@ export class WorkerScheduler<Config> {
         const yieldedJobIds = new Set<string>();
         const successfulResults = new Map<string, unknown>();
         const eagerlyAcknowledgedJobIds = new Set<string>();
-        const failuresByJobId = new Map<string, WorkerBatchFailureData>();
+        const failuresByJobId = new Map<string, JobFailure>();
         let reportableJobs: readonly ReservedJob[] | undefined;
 
         try {
@@ -1111,8 +1113,8 @@ export class WorkerScheduler<Config> {
                     );
                   }
                 } else {
-                  validateBatchFailure(result.error);
-                  failuresByJobId.set(result.key, result.error);
+                  // Capture the accepted failure before the generator can reuse its data object.
+                  failuresByJobId.set(result.key, failureOutcome(job, result.error));
                 }
               },
             },
@@ -1139,11 +1141,7 @@ export class WorkerScheduler<Config> {
               }];
             }
 
-            const failure = failuresByJobId.get(job.id);
-
-            return [failure === undefined
-              ? { kind: "failure", job, error }
-              : failureOutcome(job, failure)];
+            return [failuresByJobId.get(job.id) ?? { kind: "failure", job, error }];
           });
         }
       },
@@ -1156,7 +1154,7 @@ export class WorkerScheduler<Config> {
     yieldedCount: number,
     successfulResults: ReadonlyMap<string, unknown>,
     eagerlyAcknowledgedJobIds: ReadonlySet<string>,
-    failuresByJobId: ReadonlyMap<string, WorkerBatchFailureData>,
+    failuresByJobId: ReadonlyMap<string, JobFailure>,
   ): readonly JobOutcome[] {
     if (yieldedCount === 0) {
       return jobs.map((job) => ({ kind: "success", job }));
@@ -1177,11 +1175,7 @@ export class WorkerScheduler<Config> {
         }];
       }
 
-      const failure = failuresByJobId.get(job.id);
-
-      return [failure === undefined
-        ? { kind: "failure", job, error: missingResultError }
-        : failureOutcome(job, failure)];
+      return [failuresByJobId.get(job.id) ?? { kind: "failure", job, error: missingResultError }];
     });
   }
 
@@ -1194,53 +1188,63 @@ export class WorkerScheduler<Config> {
     ) => Promise<readonly JobOutcome[]>,
   ): Promise<readonly JobOutcome[]> {
     const execution = await this.app.createExecutionScope(executionId);
-    setExecutionLogContext(execution.context, {
-      operation: worker.name,
-      transport: "worker",
-      workload: "workers",
-    });
-    const observer = this.resolveObserver(execution);
-    const startedAt = performance.now();
-    let outcome: "failure" | "success" = "failure";
-    let executionError: unknown;
-
-    return this.app.runInObservationContext(observer, async () => {
-      observer?.record(executionStartedObservation, {
+    try {
+      setExecutionLogContext(execution.context, {
         operation: worker.name,
         transport: "worker",
+        workload: "workers",
       });
+      const observer = this.resolveObserver(execution);
+      const startedAt = performance.now();
 
-      try {
-        const outcomes = await callback(execution);
-        const failure = outcomes.find((item) => item.kind === "failure");
-        executionError = failure?.error;
-        outcome = failure === undefined
-          ? "success"
-          : "failure";
+      const run = async () => {
+        let outcome: "failure" | "success" = "failure";
+        let executionError: unknown;
+        try {
+          const outcomes = await callback(execution);
+          const failure = outcomes.find((item) => item.kind === "failure");
+          executionError = failure?.error;
+          outcome = failure === undefined ? "success" : "failure";
+          return outcomes;
+        } catch (error: unknown) {
+          executionError = error;
+          throw error;
+        } finally {
+          try {
+            observer?.record(
+              executionCompletedObservation,
+              {
+                operation: worker.name,
+                transport: "worker",
+                ...getExecutionObservationContext(execution.context),
+                ...(executionError === undefined
+                  ? {}
+                  : getExecutionObservationError(executionError)),
+              },
+              {
+                outcome,
+                durationMs: performance.now() - startedAt,
+              },
+            );
+          } finally {
+            await execution.dispose(outcome);
+          }
+        }
+      };
 
-        return outcomes;
-      } catch (error: unknown) {
-        executionError = error;
-        throw error;
-      } finally {
-        observer?.record(
-          executionCompletedObservation,
-          {
-            operation: worker.name,
-            transport: "worker",
-            ...getExecutionObservationContext(execution.context),
-            ...(executionError === undefined
-              ? {}
-              : getExecutionObservationError(executionError)),
-          },
-          {
-            outcome,
-            durationMs: performance.now() - startedAt,
-          },
-        );
-        await execution.dispose(outcome);
-      }
-    });
+      // Setup failures are synchronous. Once the handler starts, its promise
+      // owns disposal inside the observation context, including on rejection.
+      return this.app.runInObservationContext(observer, () => {
+        observer?.record(executionStartedObservation, {
+          operation: worker.name,
+          transport: "worker",
+        });
+        return run();
+      });
+    } catch (error: unknown) {
+      await execution.dispose("failure");
+      throw error;
+    }
   }
 
   /** Resolves optional instrumentation from the invocation scope. */
@@ -1388,18 +1392,20 @@ function failureOutcome(
   job: ReservedJob,
   failure: WorkerBatchFailureData,
 ): JobFailure {
-  validateBatchFailure(failure);
+  const { cause, retryDelayMs, maxAttempts } = failure;
+  if (retryDelayMs !== undefined && (!Number.isFinite(retryDelayMs) || retryDelayMs < 0)) {
+    throw new WorkerBatchResultError("Batch retry delays must be non-negative finite numbers.");
+  }
+  if (maxAttempts !== undefined && (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1)) {
+    throw new WorkerBatchResultError("Batch maxAttempts must be a positive integer.");
+  }
 
   return {
     kind: "failure",
     job,
-    error: failure.cause,
-    ...(failure.retryDelayMs === undefined
-      ? {}
-      : { retryDelayMs: failure.retryDelayMs }),
-    ...(failure.maxAttempts === undefined
-      ? {}
-      : { maxAttempts: failure.maxAttempts }),
+    error: cause,
+    ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
+    ...(maxAttempts === undefined ? {} : { maxAttempts }),
   };
 }
 
@@ -1535,29 +1541,9 @@ function getAdmissionRetryAt(error: unknown): Date | undefined {
   return error instanceof ThrottlingRejectedError ? error.retryAt : undefined;
 }
 
-function validateBatchFailure(failure: WorkerBatchFailureData): void {
-  if (
-    failure.retryDelayMs !== undefined
-    && (!Number.isFinite(failure.retryDelayMs) || failure.retryDelayMs < 0)
-  ) {
-    throw new WorkerBatchResultError(
-      "Batch retry delays must be non-negative finite numbers.",
-    );
-  }
-
-  if (failure.maxAttempts !== undefined
-    && (!Number.isSafeInteger(failure.maxAttempts) || failure.maxAttempts < 1)) {
-    throw new WorkerBatchResultError(
-      "Batch maxAttempts must be a positive integer.",
-    );
-  }
-}
-
 interface HandlerSlotWaiter {
-  reject(error: unknown): void;
   resolve(): void;
-  signal?: AbortSignal;
-  onAbort?: () => void;
+  abortSubscription: ReturnType<typeof addAbortListener>;
 }
 
 /** Limits handlers only; throttling waits happen before this semaphore. */
@@ -1570,20 +1556,20 @@ class HandlerSlotGate {
 
   public async run<Value>(
     operation: () => Promise<Value>,
-    signal?: AbortSignal,
+    signal: AbortSignal,
   ): Promise<Value> {
     await this.enter(signal);
 
     try {
-      signal?.throwIfAborted();
+      signal.throwIfAborted();
       return await operation();
     } finally {
       this.leave();
     }
   }
 
-  private enter(signal?: AbortSignal): Promise<void> {
-    if (signal?.aborted === true) return Promise.reject(signal.reason);
+  private enter(signal: AbortSignal): Promise<void> {
+    if (signal.aborted) return Promise.reject(signal.reason);
 
     if (this.active < this.capacity) {
       this.active += 1;
@@ -1591,30 +1577,23 @@ class HandlerSlotGate {
     }
 
     return new Promise<void>((resolve, reject) => {
-      const waiter: HandlerSlotWaiter = { resolve, reject };
-
-      if (signal !== undefined) {
-        waiter.signal = signal;
-        waiter.onAbort = () => {
+      const waiter: HandlerSlotWaiter = {
+        resolve,
+        // An admission facade may already listen to this invocation signal.
+        abortSubscription: addAbortListener(signal, () => {
           const index = this.waiters.indexOf(waiter);
           if (index >= 0) this.waiters.splice(index, 1);
           reject(signal.reason);
-        };
-        signal.addEventListener("abort", waiter.onAbort, { once: true });
-      }
-
+        }),
+      };
       this.waiters.push(waiter);
     });
   }
 
   private leave(): void {
-    while (this.waiters.length > 0) {
-      const waiter = this.waiters.shift()!;
-
-      if (waiter.signal?.aborted === true) continue;
-      if (waiter.signal !== undefined && waiter.onAbort !== undefined) {
-        waiter.signal.removeEventListener("abort", waiter.onAbort);
-      }
+    const waiter = this.waiters.shift();
+    if (waiter !== undefined) {
+      waiter.abortSubscription[Symbol.dispose]();
       waiter.resolve();
       return;
     }

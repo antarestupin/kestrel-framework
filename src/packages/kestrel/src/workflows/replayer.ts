@@ -1,6 +1,8 @@
+import { setImmediate as yieldNodeExecution } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
 
 import {
+  serializeWorkflowError,
   WorkflowActivityInfrastructureError,
   WorkflowActivityTimeoutError,
   WorkflowCancellationError,
@@ -14,7 +16,7 @@ import type {
   WorkflowCommandCompletedEvent,
   WorkflowCommandScheduledEvent,
 } from "./history.js";
-import type { WorkflowPayload } from "./serialization.js";
+import { WorkflowPayloadSerializationError, type WorkflowPayload } from "./serialization.js";
 
 /** Durable-only context supplied to production replay activations. */
 export interface WorkflowReplayContext {
@@ -23,6 +25,8 @@ export interface WorkflowReplayContext {
   readonly generation: number;
   /** True when cancellation can be injected without skipping durable history. */
   readonly canDeliverCancellation: boolean;
+  /** Keeps framework-owned validation and codec work inside this activation. */
+  prepare?<Value>(operation: () => Value | Promise<Value>): Promise<Value>;
   command<Result extends WorkflowPayload>(
     kind: string,
     target: string,
@@ -67,6 +71,13 @@ export interface WorkflowReplayerOptions {
   yieldExecution?: () => Promise<void>;
 }
 
+/** Keeps codec failures separate from replayable exceptions thrown by a capture. */
+export class WorkflowCaptureEncodingError extends Error {
+  public constructor(public override readonly cause: unknown) {
+    super("Workflow capture encoding failed.", { cause });
+  }
+}
+
 /** Rebuilds workflow state from immutable history during one short activation. */
 export class WorkflowReplayer {
   private readonly yieldExecution: () => Promise<void>;
@@ -97,9 +108,14 @@ export class WorkflowReplayer {
     }
 
     try {
-      while (outcome.status === "running") {
+      while (outcome.status === "running" || context.hasPendingPreparation) {
         context.flushRecordedCompletions();
         await this.yieldExecution();
+
+        if (context.hasPendingPreparation) {
+          if (!context.hasRecordedCompletions) await context.drainPreparation();
+          continue;
+        }
 
         if (outcome.status !== "running") {
           break;
@@ -196,6 +212,8 @@ class ReplayContext implements WorkflowReplayContext {
 
   private readonly recordedCompletions: ReplayResolution[] = [];
 
+  private readonly pendingPreparations = new Set<Promise<unknown>>();
+
   private consumedCommandCount = 0;
 
   public constructor(snapshot: WorkflowActivationSnapshot) {
@@ -225,6 +243,23 @@ class ReplayContext implements WorkflowReplayContext {
 
   public get canDeliverCancellation(): boolean {
     return this.consumedCommandCount >= this.cancellationDeliverySequence;
+  }
+
+  public get hasPendingPreparation(): boolean {
+    return this.pendingPreparations.size > 0;
+  }
+
+  public prepare<Value>(operation: () => Value | Promise<Value>): Promise<Value> {
+    const prepared = Promise.resolve().then(operation);
+    this.pendingPreparations.add(prepared);
+    // Preserve the existing completion order, including when replaying old history.
+    const forget = () => this.pendingPreparations.delete(prepared);
+    void prepared.then(forget, forget);
+    return prepared;
+  }
+
+  public async drainPreparation(): Promise<void> {
+    await Promise.allSettled(this.pendingPreparations);
   }
 
   public command<Result extends WorkflowPayload>(
@@ -269,23 +304,7 @@ class ReplayContext implements WorkflowReplayContext {
       throw cancellation;
     }
 
-    if (existing.completion === undefined) {
-      return new Promise<Result>(() => undefined);
-    }
-
-    const completion = existing.completion;
-    return new Promise<Result>((resolve, reject) => {
-      this.recordedCompletions.push({
-        completionOrder: completion.completionOrder,
-        ...(completion.error === undefined
-          ? completion.result === undefined
-            ? {}
-            : { result: completion.result }
-          : { error: restoreWorkflowError(completion.error) }),
-        resolve: (value) => resolve(value as Result),
-        reject,
-      });
-    });
+    return this.promiseForExistingCompletion<Result>(existing);
   }
 
   public capture<Result extends WorkflowPayload>(
@@ -323,12 +342,16 @@ class ReplayContext implements WorkflowReplayContext {
     };
     this.newCommands.push(command);
     return new Promise<Result>((_resolve, reject) => {
-      void Promise.resolve().then(capture).then(
-        (payload) => {
-          command.payload = payload;
-        },
-        reject,
-      );
+      void this.prepare(async () => {
+        try {
+          command.payload = await capture();
+        } catch (error: unknown) {
+          // Invalid values still fail before the adapter sees any staged work.
+          if (error instanceof WorkflowCaptureEncodingError || error instanceof WorkflowPayloadSerializationError) throw error;
+          // A replay must take the same catch branch after the process restarts.
+          command.captureError = serializeWorkflowError(error);
+        }
+      }).catch(reject);
     });
   }
 
@@ -485,8 +508,4 @@ function validateCommandIdentity(kind: string, target: string): void {
   if (kind.length === 0 || target.length === 0) {
     throw new TypeError("Workflow command kind and target must not be empty.");
   }
-}
-
-function yieldNodeExecution(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
 }

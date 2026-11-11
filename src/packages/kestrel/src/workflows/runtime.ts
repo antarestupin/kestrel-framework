@@ -9,6 +9,7 @@ import {
   getExecutionObservationError,
   setExecutionLogContext,
   type ActionExecution,
+  type ExecutionScope,
   type RuntimeApp,
 } from "../app/index.js";
 import { observerDependency, type Observer } from "../observability/index.js";
@@ -71,6 +72,8 @@ export class WorkflowRuntime<Config> {
     const transport = new ActionWorkflowActivityTransport(
       app.catalog.actions.definitions,
       {
+        // The scheduler and Action transport share the workflow's durable encoding.
+        ...(options.payloadCodec === undefined ? {} : { codec: options.payloadCodec }),
         execute: (action, input, activity) => {
           const execution = this.executions.getStore();
 
@@ -175,68 +178,85 @@ export class WorkflowRuntime<Config> {
     // retain their stable orchestration correlation.
     const taskExecutionId = `${task.id}:${task.attempt}`;
     const execution = await this.app.createExecutionScope(taskExecutionId);
-    setExecutionLogContext(execution.context, {
-      operation,
-      transport: "workflow",
-      workload: "workflows",
-    });
-    // Reservation already joins the execution, so diagnostics add no round trip.
-    execution.context.setDiagnostic("workflow.executionId", workflowExecutionId);
-    execution.context.setDiagnostic("workflow.taskId", task.id);
-    execution.context.setDiagnostic("workflow.name", task.workflowName);
-    execution.context.setDiagnostic("workflow.version", task.workflowVersion);
-    execution.context.setDiagnostic("workflow.generation", task.historyGeneration);
-    execution.context.setDiagnostic("workflow.rootExecutionId", task.rootExecutionId);
-    execution.context.setDiagnostic("workflow.replay", task.kind === "workflow");
-    execution.context.setDiagnostic("workflow.taskKind", task.kind);
-    execution.context.setDiagnostic("workflow.taskAttempt", task.attempt);
-    if (task.commandSequence !== undefined) {
-      execution.context.setDiagnostic("workflow.commandSequence", task.commandSequence);
+    try {
+      setExecutionLogContext(execution.context, {
+        operation,
+        transport: "workflow",
+        workload: "workflows",
+      });
+      // Reservation already joins the execution, so diagnostics add no round trip.
+      execution.context.setDiagnostic("workflow.executionId", workflowExecutionId);
+      execution.context.setDiagnostic("workflow.taskId", task.id);
+      execution.context.setDiagnostic("workflow.name", task.workflowName);
+      execution.context.setDiagnostic("workflow.version", task.workflowVersion);
+      execution.context.setDiagnostic("workflow.generation", task.historyGeneration);
+      execution.context.setDiagnostic("workflow.rootExecutionId", task.rootExecutionId);
+      execution.context.setDiagnostic("workflow.replay", task.kind === "workflow");
+      execution.context.setDiagnostic("workflow.taskKind", task.kind);
+      execution.context.setDiagnostic("workflow.taskAttempt", task.attempt);
+      if (task.commandSequence !== undefined) {
+        execution.context.setDiagnostic("workflow.commandSequence", task.commandSequence);
+      }
+      if (task.parentExecutionId !== undefined) {
+        execution.context.setDiagnostic("workflow.parentExecutionId", task.parentExecutionId);
+      }
+      const observer: Observer | undefined = execution.container.hasRegistration("observer")
+        ? execution.container.resolve(observerDependency)
+        : undefined;
+      const startedAt = performance.now();
+
+      // The callback owns the scope once it starts. Failures before it returns
+      // its promise are handled by the outer setup boundary.
+      return this.app.runInObservationContext(observer, () => {
+        observer?.record(
+          executionStartedObservation,
+          {
+            operation,
+            transport: "workflow",
+            ...getExecutionObservationContext(execution.context),
+          },
+        );
+        return this.runObservedTask(execution, observer, operation, startedAt, run);
+      });
+    } catch (error) {
+      await execution.dispose("failure");
+      throw error;
     }
-    if (task.parentExecutionId !== undefined) {
-      execution.context.setDiagnostic(
-        "workflow.parentExecutionId",
-        task.parentExecutionId,
-      );
-    }
-    const observer: Observer | undefined = execution.container.hasRegistration("observer")
-      ? execution.container.resolve(observerDependency)
-      : undefined;
-    const startedAt = performance.now();
+  }
+
+  /** Runs the task and disposes its resources inside the observation context. */
+  private async runObservedTask<Result>(
+    execution: ExecutionScope<Config>,
+    observer: Observer | undefined,
+    operation: string,
+    startedAt: number,
+    run: () => Promise<Result>,
+  ): Promise<Result> {
     let outcome: "failure" | "success" = "success";
     let executionError: unknown;
-
-    return this.app.runInObservationContext(observer, async () => {
-      observer?.record(
-        executionStartedObservation,
-        {
-          operation,
-          transport: "workflow",
-          ...getExecutionObservationContext(execution.context),
-        },
-      );
+    try {
+      return await this.executions.run(execution, run);
+    } catch (error) {
+      executionError = error;
+      outcome = "failure";
+      throw error;
+    } finally {
       try {
-        return await this.executions.run(execution, run);
-      } catch (error) {
-        executionError = error;
-        outcome = "failure";
-        throw error;
-      } finally {
         observer?.record(
           executionCompletedObservation,
           {
             operation,
             transport: "workflow",
             ...getExecutionObservationContext(execution.context),
-            ...(executionError === undefined
-              ? {}
-              : getExecutionObservationError(executionError)),
+            // A rejected task may have thrown undefined, which still represents a failure.
+            ...(outcome === "failure" ? getExecutionObservationError(executionError) : {}),
           },
           { outcome, durationMs: performance.now() - startedAt },
         );
+      } finally {
         await execution.dispose(outcome);
       }
-    });
+    }
   }
 
   private async runDispatcher(signal: AbortSignal): Promise<void> {

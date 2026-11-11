@@ -22,6 +22,7 @@
     "test:mutation": "node scripts/testing/mutation.mjs",
     "test:mutation:fast": "node scripts/testing/mutation.mjs --mode fast",
     "test:mutation:component": "node scripts/testing/mutation.mjs --mode component",
+    "test:mutation:focus": "node scripts/testing/mutation.mjs --mode",
     "test:mutation:static-sample": "node scripts/testing/mutation.mjs --mode static-sample",
     "test:mutation:shutdown": "node scripts/testing/mutation.mjs --mode shutdown",
     "test:mutation:authentication-sessions": "node scripts/testing/mutation.mjs --mode authentication-sessions",

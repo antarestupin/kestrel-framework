@@ -34,14 +34,17 @@ describe("defineWorker throttling", () => {
     });
   });
 
-  it("normalizes bounded hold defaults", () => {
+  it.each([
+    { options: {}, expectedMs: 30_000 },
+    { options: { maxHoldMs: 37 }, expectedMs: 37 },
+  ])("keeps the $expectedMs ms hold limit after normalization", ({ options, expectedMs }) => {
     const worker = defineWorker({
       name: "held-throttling",
       queue: "held-throttling",
       input: z.string(),
       throttling: {
         requirements: () => ({ admission: externalApiLimit }),
-        buffering: { strategy: "hold", maxBlockedJobs: 3 },
+        buffering: { strategy: "hold", maxBlockedJobs: 3, ...options },
       },
       handler: () => undefined,
     });
@@ -49,7 +52,7 @@ describe("defineWorker throttling", () => {
     expect(worker.throttling?.buffering).toEqual({
       strategy: "hold",
       maxBlockedJobs: 3,
-      maxHoldMs: 30_000,
+      maxHoldMs: expectedMs,
       fallbackDelayMs: 1_000,
     });
   });

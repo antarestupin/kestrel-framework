@@ -26,6 +26,7 @@ import { createPostgresTestPool } from "../../../testing/postgres.js";
 import { uuidV7 } from "../../../utils/uuid.js";
 import { WorkerJobIdentityConflictError } from "../../errors.js";
 import { workerPayloadConformance } from "../../testing/payload_conformance.js";
+import { workerReservationConformance } from "../../testing/reservation_conformance.js";
 import type { WorkerPublicationBudgets } from "../../types.js";
 import {
   workerDeadLetterJobs,
@@ -182,6 +183,7 @@ afterAll(async () => {
 
 describe("PostgresWorkerAdapter", () => {
   workerPayloadConformance((budgets) => createCountingAdapter([], budgets));
+  workerReservationConformance(() => adapter);
 
   it("rejects budget overflow without sending any SQL to the backend", async () => {
     const queries: string[] = [];

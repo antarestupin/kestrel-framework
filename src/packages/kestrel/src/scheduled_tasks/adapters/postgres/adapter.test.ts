@@ -147,8 +147,8 @@ describe("PostgresScheduledTaskAdapter", () => {
     await adapter.reconcile([{ taskId: "first", nextScheduledAt: new Date("2030-01-01T00:00:00.000Z") }]);
     expect((await client.query("SELECT * FROM scheduled_task_state WHERE task_id = 'first'")).rows[0]).toEqual(before);
     expect((await adapter.listStates(["missing", "second"])).map((state) => state.taskId)).toEqual(["second"]);
-    await expect(adapter.requestRun("missing")).rejects.toThrow(Error);
-    await expect(adapter.setPaused("missing", true)).rejects.toThrow(Error);
+    await expect(adapter.requestRun("missing")).rejects.toThrow(/"missing"/u);
+    await expect(adapter.setPaused("missing", true)).rejects.toThrow(/"missing"/u);
     expect(await adapter.listStates([])).toEqual([]);
     await adapter.reconcile([]);
   });
@@ -367,16 +367,22 @@ describe("PostgresScheduledTaskAdapter", () => {
 
 // Use explicit row state to exercise mixed recovery without depending on the wall-clock scheduler.
 describe("PostgreSQL scheduled-task recovery and completion policies", () => {
-  it("restores the earliest manual and scheduled occurrence independently for every task", async () => {
+  it.each(["earliest-first", "latest-first"] as const)("restores the earliest occurrence of each trigger for %s rows", async (order) => {
     const future = new Date("2035-01-01T00:00:00Z");
+    const firstScheduled = order === "earliest-first" ? "2020-01-01Z" : "2022-01-01Z";
+    const secondScheduled = order === "earliest-first" ? "2022-01-01Z" : "2020-01-01Z";
+    const firstManual = order === "earliest-first" ? "2021-01-01Z" : "2023-01-01Z";
+    const secondManual = order === "earliest-first" ? "2023-01-01Z" : "2021-01-01Z";
     await adapter.reconcile([{ taskId: "first", nextScheduledAt: future }, { taskId: "second", nextScheduledAt: future }]);
+    // A batch may present either candidate first; recovery must preserve both minima.
     await client.query(`INSERT INTO scheduled_task_run (reservation_token, task_id, scheduled_at, expires_at, trigger) VALUES
-      ('00000000-0000-4000-8000-000000000001', 'first', '2022-01-01Z', now() - interval '1 second', 'scheduled'),
-      ('00000000-0000-4000-8000-000000000002', 'first', '2020-01-01Z', now() - interval '1 second', 'scheduled'),
-      ('00000000-0000-4000-8000-000000000003', 'first', '2023-01-01Z', now() - interval '1 second', 'manual'),
-      ('00000000-0000-4000-8000-000000000004', 'first', '2021-01-01Z', now() - interval '1 second', 'manual'),
+      ('00000000-0000-4000-8000-000000000001', 'first', $1, now() - interval '1 second', 'scheduled'),
+      ('00000000-0000-4000-8000-000000000002', 'first', $2, now() - interval '1 second', 'scheduled'),
+      ('00000000-0000-4000-8000-000000000003', 'first', $3, now() - interval '1 second', 'manual'),
+      ('00000000-0000-4000-8000-000000000004', 'first', $4, now() - interval '1 second', 'manual'),
       ('00000000-0000-4000-8000-000000000005', 'second', '2024-01-01Z', now() - interval '1 second', 'manual'),
-      ('00000000-0000-4000-8000-000000000006', 'second', '2025-01-01Z', now() + interval '1 minute', 'scheduled')`);
+      ('00000000-0000-4000-8000-000000000006', 'second', '2025-01-01Z', now() + interval '1 minute', 'scheduled')`,
+    [firstScheduled, secondScheduled, firstManual, secondManual]);
     expect(await adapter.pruneExpiredRuns({})).toBe(5);
     const states = await adapter.listStates(["first", "second"]);
     expect(states.find(({ taskId }) => taskId === "first")).toMatchObject({ nextScheduledAt: new Date("2020-01-01Z"), manualRunRequestedAt: new Date("2021-01-01Z"), activeRuns: 0 });
@@ -419,17 +425,46 @@ describe("PostgreSQL scheduled-task recovery and completion policies", () => {
     expect((await adapter.listStates(["first"]))[0]!.nextScheduledAt).toEqual(later);
   });
 
-  it("consumes a skipped manual occurrence without changing cadence or the last start timestamp", async () => {
+  it("consumes a skipped manual occurrence while paused without changing cadence or the last start timestamp", async () => {
     const regular = new Date("2030-01-01T00:00:00Z");
     const manual = new Date("2020-01-01T00:00:00Z");
     const started = new Date("2022-01-01T00:00:00Z");
     await adapter.reconcile([{ taskId: "first", nextScheduledAt: regular }]);
+    await adapter.setPaused("first", true);
     await client.query("UPDATE scheduled_task_state SET manual_run_requested_at = $1, last_started_at = $2 WHERE task_id = 'first'", [manual, started]);
     await client.query(`INSERT INTO scheduled_task_run (reservation_token, task_id, scheduled_at, expires_at, trigger)
       VALUES ('00000000-0000-4000-8000-000000000001', 'first', $1, now() + interval '1 minute', 'scheduled')`, [started]);
     expect(await adapter.skip({ taskId: "first", expectedScheduledAt: manual, nextScheduledAt: new Date("2031-01-01T00:00:00Z"), overlap: "skip", leaseMs: 60_000 })).toBe(true);
     const [state] = await adapter.listStates(["first"]);
-    expect(state).toMatchObject({ lastStartedAt: started, nextScheduledAt: regular, activeRuns: 1 });
+    expect(state).toMatchObject({ paused: true, lastStartedAt: started, nextScheduledAt: regular, activeRuns: 1 });
     expect(state!.manualRunRequestedAt).toBeUndefined();
+  });
+
+  it("does not discard a pending manual occurrence when the last overlapping lease expires", async () => {
+    const scheduledAt = new Date("2020-01-01T00:00:00Z");
+    const nextScheduledAt = new Date("2030-01-01T00:00:00Z");
+    await adapter.reconcile([{ taskId: "first", nextScheduledAt: scheduledAt }]);
+    const result = await adapter.reserve({ taskId: "first", expectedScheduledAt: scheduledAt, nextScheduledAt, overlap: "wait", leaseMs: 60_000 });
+    if (result.status !== "reserved") throw new Error("Expected a scheduled reservation");
+    await adapter.requestRun("first");
+    const [beforeExpiry] = await adapter.listStates(["first"]);
+    expect(beforeExpiry!.activeRuns).toBe(1);
+    const manual = beforeExpiry!.manualRunRequestedAt!;
+    // Expire the lease between the scheduler's state read and its skip call, without sleeping.
+    await client.query("UPDATE scheduled_task_run SET expires_at = statement_timestamp() - interval '1 millisecond' WHERE reservation_token = $1", [result.reservation.reservationToken]);
+    expect(await adapter.skip({ taskId: "first", expectedScheduledAt: manual, overlap: "skip", leaseMs: 60_000 })).toBe(false);
+    expect((await adapter.listStates(["first"]))[0]).toMatchObject({ nextScheduledAt: scheduledAt, manualRunRequestedAt: manual, activeRuns: 0 });
+    expect(await adapter.release(result.reservation)).toBe(false);
+  });
+
+  it("omits null diagnostics and distinguishes a real epoch occurrence from an absent date", async () => {
+    const epoch = new Date(0);
+    await adapter.reconcile([{ taskId: "first", nextScheduledAt: epoch }]);
+    expect(await adapter.listStates(["first"])).toStrictEqual([{ taskId: "first", paused: false, activeRuns: 0, nextScheduledAt: epoch }]);
+    const request = { taskId: "first", expectedScheduledAt: epoch, overlap: "wait", leaseMs: 60_000 } as const;
+    const result = await adapter.reserve(request);
+    expect(result).toMatchObject({ status: "reserved", reservation: { trigger: "scheduled", scheduledAt: epoch } });
+    expect(await adapter.listStates(["first"])).toStrictEqual([{ taskId: "first", paused: false, activeRuns: 1, lastStartedAt: expect.any(Date) }]);
+    expect(await adapter.reserve(request)).toEqual({ status: "stale" });
   });
 });

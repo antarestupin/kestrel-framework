@@ -76,15 +76,12 @@ export class ScheduledTaskScheduler<Config> {
 
   private readonly activeTaskCounts = new Map<string, number>();
 
-  private loopAbortController: AbortController | undefined;
-
-  private handlerAbortController = new AbortController();
+  // Stop is terminal, including when it happens before polling has started.
+  private readonly stopController = new AbortController();
 
   private pollingLifetime: Promise<void> | undefined;
 
   private loopPromise: Promise<void> | undefined;
-
-  private stopRequested = false;
 
   private starting = false;
 
@@ -107,10 +104,8 @@ export class ScheduledTaskScheduler<Config> {
     this.resolvedTasks = resolveTasks(tasks, adapters, locks, options);
   }
 
-  private get executionSignal(): AbortSignal {
-    const applicationSignal = this.app.shutdown?.signal;
-    return applicationSignal === undefined ? this.handlerAbortController.signal
-      : AbortSignal.any([this.handlerAbortController.signal, applicationSignal]);
+  private get admissionStopped(): boolean {
+    return this.stopController.signal.aborted || this.app.shutdown.signal.aborted;
   }
 
   /** Current polling lifetime; ordinary cycle failures retain existing recovery. */
@@ -126,13 +121,11 @@ export class ScheduledTaskScheduler<Config> {
     this.starting = true;
     try {
       await this.initialize();
-      if (this.stopRequested) return;
-      this.handlerAbortController = new AbortController();
-      this.loopAbortController = new AbortController();
-      this.loopPromise = this.runLoop(this.loopAbortController.signal)
+      if (this.admissionStopped) return;
+      const signal = AbortSignal.any([this.stopController.signal, this.app.shutdown.signal]);
+      this.loopPromise = this.runLoop(signal)
         .finally(() => {
           this.loopPromise = undefined;
-          this.loopAbortController = undefined;
         });
       this.pollingLifetime = this.loopPromise;
       void this.loopPromise.catch(() => undefined);
@@ -141,9 +134,7 @@ export class ScheduledTaskScheduler<Config> {
 
   /** Stops admission, aborts cooperative handlers and drains active runs. */
   public async stop(): Promise<void> {
-    this.stopRequested = true;
-    this.loopAbortController?.abort();
-    this.handlerAbortController.abort();
+    this.stopController.abort();
     try {
       // Startup and one-shot admission can own adapter operations before a loop exists.
       await this.initializePromise?.catch(() => undefined);
@@ -215,14 +206,14 @@ export class ScheduledTaskScheduler<Config> {
   }
 
   private async executeAdmissionCycle(): Promise<readonly Promise<void>[]> {
-    if (this.stopRequested) return [];
+    if (this.admissionStopped) return [];
     const capacity = this.options.slots - this.activeInvocations.size;
     if (capacity <= 0 || this.resolvedTasks.length === 0) {
       return [];
     }
 
     const statesByTask = await this.loadStates();
-    if (this.stopRequested) return [];
+    if (this.admissionStopped) return [];
     const now = this.now();
     const candidates = this.resolvedTasks.flatMap((resolved) => {
       const state = statesByTask.get(resolved.task.id);
@@ -244,7 +235,7 @@ export class ScheduledTaskScheduler<Config> {
 
     // Admission is serialized per cycle so slot accounting stays deterministic.
     for (const candidate of candidates) {
-      if (this.stopRequested) break;
+      if (this.admissionStopped) break;
       const started = await this.tryStart(
         candidate.resolved,
         candidate.scheduledAt,
@@ -311,7 +302,7 @@ export class ScheduledTaskScheduler<Config> {
       }
     };
 
-    if (this.stopRequested) {
+    if (this.admissionStopped) {
       await releaseLock();
       return undefined;
     }
@@ -333,10 +324,10 @@ export class ScheduledTaskScheduler<Config> {
         return undefined;
       }
 
-      if (this.stopRequested) {
+      if (this.admissionStopped) {
         // Undo a late reservation instead of handing a stopped scheduler new work.
-        try { await adapter.release(result.reservation); }
-        finally { await releaseLock(); }
+        await adapter.release(result.reservation);
+        await releaseLock();
         return undefined;
       }
 
@@ -352,7 +343,7 @@ export class ScheduledTaskScheduler<Config> {
         task.id,
         (this.activeTaskCounts.get(task.id) ?? 0) + 1,
       );
-      void invocation.finally(() => {
+      const finishInvocation = () => {
         this.activeInvocations.delete(invocation);
         const remaining = (this.activeTaskCounts.get(task.id) ?? 1) - 1;
         if (remaining === 0) {
@@ -360,10 +351,15 @@ export class ScheduledTaskScheduler<Config> {
         } else {
           this.activeTaskCounts.set(task.id, remaining);
         }
-      });
+      };
+      // Observe reporter rejection as well so background polling retains no detached rejection.
+      void invocation.then(finishInvocation, finishInvocation);
       return { invocation };
     } catch (error) {
-      await releaseLock();
+      try { await releaseLock(); }
+      catch (releaseError) {
+        throw new AggregateError([error, releaseError], "Scheduled task admission and overlap lock release failed.");
+      }
       throw error;
     }
   }
@@ -400,7 +396,11 @@ export class ScheduledTaskScheduler<Config> {
     };
     // Ownership failure cancels this invocation without cancelling sibling tasks.
     const invocationAbort = new AbortController();
-    const signal = AbortSignal.any([this.executionSignal, invocationAbort.signal]);
+    const signal = AbortSignal.any([
+      this.stopController.signal,
+      this.app.shutdown.signal,
+      invocationAbort.signal,
+    ]);
     const maintenance = this.keepOwnershipAlive(
       resolved.adapter,
       reservation,
@@ -413,7 +413,7 @@ export class ScheduledTaskScheduler<Config> {
       },
     );
     let execution: ExecutionScope<Config> | undefined;
-    let completedAt = this.now();
+    let completedAt = reservation.reservedAt;
     let deferredDelayMs: number | undefined;
 
     try {
@@ -449,6 +449,8 @@ export class ScheduledTaskScheduler<Config> {
           const dependencies = await execution!.container.resolveDependenciesAsync(
             resolved.task.dependencies,
           );
+          // Scope setup can outlast shutdown or a failed ownership renewal.
+          signal.throwIfAborted();
           await resolved.task.handler(dependencies, {
             signal,
             scheduledAt: reservation.scheduledAt,
@@ -488,23 +490,20 @@ export class ScheduledTaskScheduler<Config> {
         await execution.dispose("failure").catch(() => undefined);
       }
     } finally {
+      await maintenance.close();
       try {
-        await maintenance.close();
-      } catch (maintenanceError) {
-        captureFailure(maintenanceError);
-      }
-      const nextScheduledAt = reservation.trigger === "scheduled"
-        && resolved.task.schedule.kind === "loop"
-        ? resolved.task.schedule.next({
-            scheduledAt: reservation.scheduledAt,
-            completedAt,
-          })
-        : undefined;
-      const postponeUntil = reservation.trigger === "scheduled"
-        && deferredDelayMs !== undefined
-        ? new Date(completedAt.getTime() + deferredDelayMs)
-        : undefined;
-      try {
+        // A failing schedule can leave the occurrence recoverable without retaining its lock.
+        const nextScheduledAt = reservation.trigger === "scheduled"
+          && resolved.task.schedule.kind === "loop"
+          ? resolved.task.schedule.next({
+              scheduledAt: reservation.scheduledAt,
+              completedAt,
+            })
+          : undefined;
+        const postponeUntil = reservation.trigger === "scheduled"
+          && deferredDelayMs !== undefined
+          ? new Date(completedAt.getTime() + deferredDelayMs)
+          : undefined;
         await resolved.adapter.complete({
           taskId: reservation.taskId,
           reservationToken: reservation.reservationToken,
@@ -527,9 +526,7 @@ export class ScheduledTaskScheduler<Config> {
       }
     }
 
-    if (failed) {
-      this.reportError(error);
-    }
+    if (failed) throw error;
   }
 
   private keepOwnershipAlive(
@@ -540,8 +537,6 @@ export class ScheduledTaskScheduler<Config> {
     onFailure: (error: unknown) => void,
   ): { close(): Promise<void> } {
     let activeExtension: Promise<unknown> | undefined;
-    let extensionError: unknown;
-    let extensionFailed = false;
     const stop = () => clearInterval(interval);
     const interval = setInterval(() => {
       if (signal.aborted) { stop(); return; }
@@ -552,13 +547,8 @@ export class ScheduledTaskScheduler<Config> {
       const attempt = (operation: () => Promise<unknown>) => Promise.resolve()
         .then(operation)
         .catch((error: unknown) => {
-          // Concurrent renewals retain their first failure even when it is nullish.
-          if (!extensionFailed) {
-            extensionFailed = true;
-            extensionError = error;
-          }
+          // The invocation owns the first failure, including a nullish cause.
           onFailure(error);
-          throw error;
         });
       // Detect lost ownership promptly, but retain every in-flight renewal until close.
       activeExtension = Promise.allSettled([
@@ -584,9 +574,6 @@ export class ScheduledTaskScheduler<Config> {
         clearInterval(interval);
         signal.removeEventListener("abort", stop);
         await activeExtension;
-        if (extensionFailed) {
-          throw extensionError;
-        }
       },
     };
   }

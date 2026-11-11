@@ -96,6 +96,13 @@ export async function exportWorkflowReplayFixture(
     throw new TypeError(`Unknown workflow execution "${executionId}".`);
   }
   const history = await adapter.getHistory(executionId);
+  const current = await adapter.get(executionId);
+  // Reject a mixed snapshot if history changed between these independent storage reads.
+  if (current === undefined
+    || current.historyGeneration !== execution.historyGeneration
+    || current.revision !== execution.revision) {
+    throw new Error(`Workflow execution "${executionId}" changed while exporting its replay fixture.`);
+  }
   const sanitize = options.sanitizePayload ?? ((payload: WorkflowPayload) =>
     cloneWorkflowPayload(payload));
   return {

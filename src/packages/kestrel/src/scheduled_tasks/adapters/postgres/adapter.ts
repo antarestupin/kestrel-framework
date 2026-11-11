@@ -1,6 +1,7 @@
 import {
   and,
   eq,
+  gt,
   sql,
 } from "drizzle-orm";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
@@ -118,7 +119,7 @@ export class PostgresScheduledTaskAdapter implements ScheduledTaskAdapter {
       const state = (result.rows as unknown as LockedStateRow[])[0];
 
       if (state === undefined) {
-        return { status: state === undefined ? "stale" : "paused" };
+        return { status: "stale" };
       }
 
       const trigger = getRequestedTrigger(state, request.expectedScheduledAt);
@@ -232,10 +233,12 @@ export class PostgresScheduledTaskAdapter implements ScheduledTaskAdapter {
       const [active] = await transaction
         .select({ count: sql<number>`count(*)::integer` })
         .from(this.runsTable)
-        .where(eq(this.runsTable.taskId, request.taskId));
+        .where(and(
+          eq(this.runsTable.taskId, request.taskId),
+          gt(this.runsTable.expiresAt, sql`statement_timestamp()`),
+        ));
       if ((active?.count ?? 0) === 0) {
-        // Avoid consuming an occurrence while another scheduler is between
-        // acquiring the overlap lock and persisting its reservation.
+        // Skip only when a live reservation corroborates the busy overlap lock.
         return false;
       }
 

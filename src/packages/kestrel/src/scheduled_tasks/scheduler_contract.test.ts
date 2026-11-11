@@ -1,3 +1,4 @@
+import { getEventListeners } from "node:events";
 import { setImmediate } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -38,8 +39,11 @@ async function setup(options: {
   schedule?: ScheduledTaskSchedule;
   overlap?: ScheduledTaskOverlap;
   now?: () => Date;
+  drainMs?: number;
 } = {}) {
-  const app = new App<Record<string, never>>({});
+  const app = new App<Record<string, never>>({}, options.drainMs === undefined
+    ? {}
+    : { shutdown: { drainMs: options.drainMs } });
   const scopes = new Set<ExecutionScope<Record<string, never>>>();
   activeScopes.set(app, scopes);
   const create = app.createExecutionScope.bind(app);
@@ -117,6 +121,73 @@ describe("scheduled task lifecycle and ownership contracts", () => {
     }
   });
 
+  it("rejects a second start during polling and accepts a delay rejection caused by stop", async () => {
+    const proceed = Promise.withResolvers<void>();
+    const sleep = vi.fn(async (_delay: number, signal: AbortSignal) => {
+      await proceed.promise;
+      // Fail independently even if a mutated start leaves a polling loop orphaned.
+      throw signal.reason ?? new Error("test polling cleanup");
+    });
+    const state = await setup({ handler: () => undefined, sleep });
+    try {
+      await state.scheduler.start();
+      await setImmediate();
+      const completion = state.scheduler.completion;
+      expect(sleep).toHaveBeenCalledOnce();
+      await expect(state.scheduler.start()).rejects.toThrow();
+      expect(state.scheduler.completion).toBe(completion);
+      const stopping = state.scheduler.stop();
+      proceed.resolve();
+      await expect(stopping).resolves.toBeUndefined();
+      await expect(completion).resolves.toBeUndefined();
+      expect(state.reportError).not.toHaveBeenCalled();
+    } finally {
+      const stopping = state.scheduler.stop();
+      proceed.resolve();
+      await Promise.allSettled([stopping, state.scheduler.completion]);
+    }
+  });
+
+  it("can start fresh polling after a previous polling loop terminates", async () => {
+    const first = new Error("first polling failure");
+    const second = new Error("second polling failure");
+    const sleep = vi.fn(async () => { throw second; }).mockRejectedValueOnce(first);
+    const state = await setup({ handler: () => undefined, sleep });
+    await state.scheduler.start();
+    await expect(state.scheduler.completion).rejects.toBe(first);
+    await state.scheduler.start();
+    await expect(state.scheduler.completion).rejects.toBe(second);
+    expect(sleep).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a one-shot handler cancellable when polling starts while it is active", async () => {
+    const state = await setup();
+    const running = state.scheduler.runOnce();
+    let stopping: Promise<void> | undefined;
+    try {
+      const signal = await startedSignal(state);
+      await state.scheduler.start();
+      expect(signal.aborted).toBe(false);
+      stopping = state.scheduler.stop();
+      expect(signal.aborted).toBe(true);
+    } finally { state.finish(); await Promise.allSettled([running, stopping]); }
+  });
+
+  it("forwards the application drain budget reason to an independently active invocation", async () => {
+    vi.useFakeTimers();
+    const state = await setup({ drainMs: 20 });
+    const running = state.scheduler.runOnce();
+    try {
+      const signal = await startedSignal(state);
+      await state.app.stop();
+      await vi.advanceTimersByTimeAsync(19);
+      expect(signal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signal.aborted).toBe(true);
+      expect(signal.reason).toBe(state.app.shutdown.signal.reason);
+    } finally { state.finish(); await running; }
+  });
+
   it("waits for startup reconciliation when stop races with start", async () => {
     const exitPolling = Promise.withResolvers<void>();
     const state = await setup({ handler: () => undefined, sleep: async () => {
@@ -147,28 +218,36 @@ describe("scheduled task lifecycle and ownership contracts", () => {
   });
 
   it("does not admit an invocation after stop while loading states", async () => {
-    const state = await setup({ handler: () => undefined });
+    const clock = vi.fn(() => epoch);
+    const state = await setup({ handler: () => undefined, now: clock });
     const proceed = Promise.withResolvers<void>();
     const original = state.adapter.listStates.bind(state.adapter);
     const list = vi.spyOn(state.adapter, "listStates").mockImplementation(async (ids) => {
+      const states = await original(ids);
       await proceed.promise;
-      return original(ids);
+      return states;
     });
     const running = state.scheduler.runOnce();
     void running.catch(() => undefined);
     try {
       await setImmediate();
       expect(list).toHaveBeenCalledOnce();
+      clock.mockClear();
       const stopping = state.scheduler.stop();
       proceed.resolve();
       await stopping;
       expect(await running).toBe(0);
       expect(state.handler).not.toHaveBeenCalled();
+      expect(clock).not.toHaveBeenCalled();
     } finally { proceed.resolve(); await running; }
   });
 
   it("returns a reservation instead of starting work when stop races with reserve", async () => {
-    const state = await setup({ distributed: true, handler: () => undefined });
+    const laterTask = defineScheduledTask({
+      id: "later.task", schedule: every({ seconds: 1, start: "immediate" }),
+      runtime: { state: "memory", coordination: "distributed" }, handler: vi.fn(),
+    });
+    const state = await setup({ distributed: true, handler: () => undefined, slots: 2, extraTasks: [laterTask] });
     const proceed = Promise.withResolvers<void>();
     const original = state.adapter.reserve.bind(state.adapter);
     let reserved: Awaited<ReturnType<typeof original>> | undefined;
@@ -192,9 +271,40 @@ describe("scheduled task lifecycle and ownership contracts", () => {
       await stopping;
       expect(await running).toBe(0);
       expect(state.handler).not.toHaveBeenCalled();
+      expect(laterTask.handler).not.toHaveBeenCalled();
+      expect(release).toHaveBeenCalledOnce();
+      expect(state.lock.release).toHaveBeenCalledOnce();
+      expect(state.locks.tryAcquire).toHaveBeenCalledOnce();
+      expect((await state.adapter.listStates([state.task.id]))[0]).toMatchObject({ activeRuns: 0, nextScheduledAt: epoch });
+    } finally { proceed.resolve(); await running; }
+  });
+
+  it("releases late reservations when the application drain expires independently of scheduler stop", async () => {
+    vi.useFakeTimers();
+    const state = await setup({ distributed: true, handler: () => undefined, drainMs: 20 });
+    const proceed = Promise.withResolvers<void>();
+    const reserve = state.adapter.reserve.bind(state.adapter);
+    const pendingReserve = vi.spyOn(state.adapter, "reserve").mockImplementation(async (request) => {
+      const result = await reserve(request);
+      await proceed.promise;
+      return result;
+    });
+    const release = vi.spyOn(state.adapter, "release");
+    const running = state.scheduler.runOnce();
+    try {
+      await setImmediate();
+      expect(pendingReserve).toHaveBeenCalledOnce();
+      await state.app.stop();
+      await vi.advanceTimersByTimeAsync(20);
+      expect(state.app.shutdown.signal.aborted).toBe(true);
+      proceed.resolve();
+      expect(await running).toBe(0);
+      expect(state.app.createExecutionScope).not.toHaveBeenCalled();
       expect(release).toHaveBeenCalledOnce();
       expect(state.lock.release).toHaveBeenCalledOnce();
       expect((await state.adapter.listStates([state.task.id]))[0]).toMatchObject({ activeRuns: 0, nextScheduledAt: epoch });
+      expect(await state.scheduler.runOnce()).toBe(0);
+      expect(pendingReserve).toHaveBeenCalledOnce();
     } finally { proceed.resolve(); await running; }
   });
 
@@ -220,6 +330,32 @@ describe("scheduled task lifecycle and ownership contracts", () => {
     expect(completed?.[2]).toMatchObject({ outcome: "failure" });
     expect(completed?.[1].error).toMatchObject({ name: "Error", message: signal.reason.message });
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("never enters a handler if reservation ownership is lost while creating its scope", async () => {
+    vi.useFakeTimers();
+    const state = await setup({ handler: () => undefined });
+    const releaseScope = Promise.withResolvers<void>();
+    const create = state.app.createExecutionScope.bind(state.app);
+    const createScope = vi.mocked(state.app.createExecutionScope).mockImplementationOnce(async (id) => {
+      await releaseScope.promise;
+      return create(id);
+    });
+    const ownershipFailure = new Error("reservation backend denied renewal");
+    const renew = vi.spyOn(state.adapter, "extendLease").mockRejectedValue(ownershipFailure);
+    const complete = vi.spyOn(state.adapter, "complete");
+    const running = state.scheduler.runOnce();
+    try {
+      await setImmediate();
+      expect(createScope).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(renew).toHaveBeenCalledOnce();
+      releaseScope.resolve();
+      expect(await running).toBe(1);
+      expect(state.handler).not.toHaveBeenCalled();
+      expect(state.reportError).toHaveBeenCalledExactlyOnceWith(ownershipFailure);
+      expect(complete).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failure" }));
+    } finally { releaseScope.resolve(); await running; }
   });
 
   it("waits for a pending lock renewal after the reservation renewal fails", async () => {
@@ -304,6 +440,7 @@ describe("scheduled task admission and error boundaries", () => {
 
   it("does not reserve beyond capacity and drains the active invocation", async () => {
     const state = await setup();
+    const list = vi.spyOn(state.adapter, "listStates");
     const running = state.scheduler.runOnce();
     void running.catch(() => undefined);
     let second: Promise<number> | undefined;
@@ -313,6 +450,7 @@ describe("scheduled task admission and error boundaries", () => {
       const secondOutcome = observeSettlement(second);
       await setImmediate();
       expect(secondOutcome()).toEqual({ status: "fulfilled", value: 0 });
+      expect(list).toHaveBeenCalledOnce();
       const stopping = state.scheduler.stop();
       let drained = false;
       void stopping.then(() => { drained = true; });
@@ -322,6 +460,7 @@ describe("scheduled task admission and error boundaries", () => {
       await stopping;
     } finally { state.finish(); await Promise.all([running, second]); }
     expect(await state.scheduler.runOnce()).toBe(0);
+    expect(list).toHaveBeenCalledOnce();
   });
 
   it("releases the overlap lock when adapter reservation rejects", async () => {
@@ -331,6 +470,27 @@ describe("scheduled task admission and error boundaries", () => {
     await expect(state.scheduler.runOnce()).rejects.toBe(failure);
     expect(state.handler).not.toHaveBeenCalled();
     expect(state.lock.release).toHaveBeenCalledOnce();
+  });
+
+  it("reports a failed early lock release without attempting it a second time", async () => {
+    const state = await setup({ distributed: true, handler: () => undefined });
+    const failure = new Error("lock release failed");
+    vi.mocked(state.lock.release).mockRejectedValue(failure);
+    vi.spyOn(state.adapter, "reserve").mockResolvedValue({ status: "stale" });
+    await expect(state.scheduler.runOnce()).rejects.toBe(failure);
+    expect(state.lock.release).toHaveBeenCalledOnce();
+    expect(state.handler).not.toHaveBeenCalled();
+  });
+
+  it("preserves both admission and lock cleanup failures", async () => {
+    const state = await setup({ distributed: true, handler: () => undefined });
+    const admission = new Error("reservation backend unavailable");
+    const cleanup = new Error("overlap lock backend unavailable");
+    vi.spyOn(state.adapter, "reserve").mockRejectedValue(admission);
+    vi.mocked(state.lock.release).mockRejectedValue(cleanup);
+    await expect(state.scheduler.runOnce()).rejects.toMatchObject({ name: "AggregateError", errors: [admission, cleanup] });
+    expect(state.lock.release).toHaveBeenCalledOnce();
+    expect(state.handler).not.toHaveBeenCalled();
   });
 
   for (const status of ["contended", "paused", "stale", "skipped"] as const) {
@@ -352,6 +512,28 @@ describe("scheduled task admission and error boundaries", () => {
     expect(state.handler).not.toHaveBeenCalled();
   });
 
+  it.each(["local", "distributed"] as const)("retains a %s wait occurrence under contention and runs it later", async (coordination) => {
+    const distributed = coordination === "distributed";
+    const state = await setup({ distributed, overlap: "wait", slots: 2 });
+    const skip = vi.spyOn(state.adapter, "skip");
+    const first = state.scheduler.runOnce();
+    let second: Promise<number> | undefined;
+    try {
+      await startedSignal(state);
+      await state.adapter.requestRun(state.task.id);
+      if (distributed) vi.mocked(state.locks.tryAcquire).mockResolvedValueOnce(undefined);
+      second = state.scheduler.runOnce();
+      const outcome = observeSettlement(second);
+      await setImmediate();
+      expect(outcome()).toEqual({ status: "fulfilled", value: 0 });
+      expect(skip).not.toHaveBeenCalled();
+      expect(state.locks.tryAcquire).toHaveBeenCalledTimes(distributed ? 2 : 0);
+      expect((await state.adapter.listStates([state.task.id]))[0]!.manualRunRequestedAt).toEqual(epoch);
+    } finally { state.finish(); await Promise.allSettled([first, second]); }
+    expect(await state.scheduler.runOnce()).toBe(1);
+    expect(state.handler.mock.calls.map(([, context]) => context.trigger)).toEqual(["scheduled", "manual"]);
+  });
+
   it("records an ordinary handler failure and keeps admission usable", async () => {
     const failure = new Error("handler failed");
     const state = await setup({ distributed: true, handler: () => { throw failure; } });
@@ -361,6 +543,20 @@ describe("scheduled task admission and error boundaries", () => {
     expect(state.reportError).toHaveBeenCalledExactlyOnceWith(failure);
     expect(state.lock.release).toHaveBeenCalledOnce();
     expect(await state.scheduler.runOnce()).toBe(0);
+  });
+
+  it("reports each task failure once even when the injected reporter itself throws", async () => {
+    const failure = new Error("handler failed");
+    const reporterFailure = new Error("diagnostic sink unavailable");
+    const state = await setup({ distributed: true, handler: () => { throw failure; } });
+    state.reportError.mockImplementationOnce(() => { throw reporterFailure; });
+    await expect(state.scheduler.runOnce()).rejects.toBe(reporterFailure);
+    expect(state.reportError).toHaveBeenCalledExactlyOnceWith(failure);
+    expect(state.lock.release).toHaveBeenCalledOnce();
+    expect((await state.adapter.listStates([state.task.id]))[0]).toMatchObject({ activeRuns: 0, lastOutcome: "failure" });
+    // Even a failed reporter must release the admission slot for another occurrence.
+    await state.adapter.requestRun(state.task.id);
+    expect(await state.scheduler.runOnce()).toBe(1);
   });
 
   it("continues releasing the overlap lock after completion storage fails", async () => {
@@ -395,6 +591,15 @@ describe("scheduled task admission and error boundaries", () => {
 });
 
 describe("scheduled task policy and polling contracts", () => {
+  it("does not read the clock to admit candidates when no tasks are selected", async () => {
+    const state = await setup({ handler: () => undefined });
+    const now = vi.fn(() => epoch);
+    const scheduler = new ScheduledTaskScheduler(state.app, {}, undefined, [], { slots: 1, leaseMs: 1_000, now });
+    owned.push({ app: state.app, scheduler });
+    expect(await scheduler.runOnce()).toBe(0);
+    expect(now).toHaveBeenCalledOnce(); // Reconciliation owns the initial read.
+  });
+
   it("skips missing adapter state instead of constructing an invalid reservation", async () => {
     const state = await setup({ handler: () => undefined });
     vi.spyOn(state.adapter, "listStates").mockResolvedValue([]);
@@ -547,6 +752,60 @@ describe("scheduled task policy and polling contracts", () => {
     } finally { pending.resolve(true); state.finish(); await running; }
   });
 
+  it("renews repeatedly at half the lease and removes its timer and listener on completion", async () => {
+    vi.useFakeTimers();
+    const state = await setup({ distributed: true });
+    const renew = vi.spyOn(state.adapter, "extendLease");
+    const running = state.scheduler.runOnce();
+    try {
+      const signal = await startedSignal(state);
+      for (const count of [1, 2]) {
+        await vi.advanceTimersByTimeAsync(499);
+        expect(renew).toHaveBeenCalledTimes(count - 1);
+        expect(state.lock.extend).toHaveBeenCalledTimes(count - 1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(renew).toHaveBeenCalledTimes(count);
+        expect(state.lock.extend).toHaveBeenCalledTimes(count);
+      }
+      expect(state.lock.extend).toHaveBeenLastCalledWith(1_000);
+      expect(signal.aborted).toBe(false);
+      state.finish();
+      expect(await running).toBe(1);
+      expect(getEventListeners(signal, "abort")).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(renew).toHaveBeenCalledTimes(2);
+    } finally { state.finish(); await running; }
+  });
+
+  it("stops the heartbeat immediately on abort even if the handler still drains", async () => {
+    vi.useFakeTimers();
+    const state = await setup();
+    const renew = vi.spyOn(state.adapter, "extendLease");
+    const running = state.scheduler.runOnce();
+    let stopping: Promise<void> | undefined;
+    try {
+      const signal = await startedSignal(state);
+      stopping = state.scheduler.stop();
+      expect(signal.aborted).toBe(true);
+      expect(getEventListeners(signal, "abort")).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(renew).not.toHaveBeenCalled();
+    } finally { state.finish(); await Promise.allSettled([running, stopping]); }
+  });
+
+  it("does not keep the process alive solely for a lease renewal timer", async () => {
+    const state = await setup();
+    const intervals = vi.spyOn(globalThis, "setInterval");
+    const running = state.scheduler.runOnce();
+    try {
+      await startedSignal(state);
+      expect(intervals).toHaveBeenCalledOnce();
+      expect(intervals.mock.results[0]!.value.hasRef()).toBe(false);
+    } finally { state.finish(); await running; intervals.mockRestore(); }
+  });
+
   it("retains polling failure on completion and removes the loop during stop", async () => {
     const failure = new Error("poll delay failed");
     const state = await setup({ handler: () => undefined, sleep: async () => { throw failure; } });
@@ -619,6 +878,43 @@ describe("scheduled task execution policies and observation", () => {
     expect((await state.adapter.listStates([state.task.id]))[0]!.nextScheduledAt).toEqual(new Date(epoch.getTime() + 2_000));
   });
 
+  it("does not send a deferral when a scheduled handler supplies none", async () => {
+    const state = await setup({ handler: () => undefined });
+    const complete = vi.spyOn(state.adapter, "complete");
+    expect(await state.scheduler.runOnce()).toBe(1);
+    expect(complete.mock.calls[0]![0]).not.toHaveProperty("postponeUntil");
+    expect((await state.adapter.listStates([state.task.id]))[0]!.nextScheduledAt).toEqual(new Date(epoch.getTime() + 1_000));
+  });
+
+  it("reports a throwing loop schedule and releases its overlap lock", async () => {
+    let now = epoch;
+    const failure = new Error("loop schedule could not determine its next occurrence");
+    const schedule = { ...loop({ delay: { seconds: 1 } }), next: () => { throw failure; } };
+    const state = await setup({ distributed: true, handler: () => undefined, now: () => now, schedule });
+    expect(await state.scheduler.runOnce()).toBe(1);
+    expect(state.handler).toHaveBeenCalledOnce();
+    expect(state.reportError).toHaveBeenCalledExactlyOnceWith(failure);
+    expect(state.lock.release).toHaveBeenCalledOnce();
+    // The uncompleted reservation remains recoverable at its ordinary expiry.
+    expect((await state.adapter.listStates([state.task.id]))[0]!.activeRuns).toBe(1);
+    now = new Date(epoch.getTime() + 1_000);
+    expect((await state.adapter.listStates([state.task.id]))[0]).toMatchObject({ activeRuns: 0, nextScheduledAt: epoch });
+  });
+
+  it.each(["scheduled", "manual"] as const)("admits the earlier %s occurrence while both triggers are due", async (trigger) => {
+    const manual = new Date(epoch.getTime() + 500);
+    const scheduled = trigger === "scheduled" ? epoch : new Date(epoch.getTime() + 1_000);
+    let now = manual;
+    const state = await setup({ handler: () => undefined, now: () => now });
+    await state.adapter.reconcile([{ taskId: state.task.id, nextScheduledAt: scheduled }]);
+    await state.adapter.requestRun(state.task.id);
+    now = new Date(epoch.getTime() + 1_000);
+    expect(await state.scheduler.runOnce()).toBe(1);
+    expect(state.handler.mock.calls[0]![1]).toMatchObject({ trigger, scheduledAt: trigger === "scheduled" ? scheduled : manual });
+    expect(await state.scheduler.runOnce()).toBe(1);
+    expect(state.handler.mock.calls[1]![1]).toMatchObject({ trigger: trigger === "scheduled" ? "manual" : "scheduled" });
+  });
+
   it.each([false, true])("allows parallel occurrences without overlap locks: distributed=%s", async (distributed) => {
     const state = await setup({ distributed, overlap: "parallel", slots: 2 });
     const first = state.scheduler.runOnce();
@@ -652,6 +948,32 @@ describe("scheduled task execution policies and observation", () => {
       expect(reserve).not.toHaveBeenCalled();
       expect(state.lock.release).toHaveBeenCalledOnce();
     } finally { proceed.resolve(); await running; }
+  });
+
+  it("does not try releasing an unowned lock when stop interrupts acquisition", async () => {
+    const state = await setup({ distributed: true, handler: () => undefined });
+    const proceed = Promise.withResolvers<void>();
+    vi.mocked(state.locks.tryAcquire).mockImplementation(async () => { await proceed.promise; return undefined; });
+    const running = state.scheduler.runOnce();
+    try {
+      await setImmediate();
+      expect(state.locks.tryAcquire).toHaveBeenCalledOnce();
+      const stopping = state.scheduler.stop();
+      proceed.resolve();
+      await stopping;
+      expect(await running).toBe(0);
+      expect(state.handler).not.toHaveBeenCalled();
+    } finally { proceed.resolve(); await Promise.allSettled([running]); }
+  });
+
+  it("sets scheduled-task metadata in the execution log context", async () => {
+    const state = await setup();
+    const running = state.scheduler.runOnce();
+    try {
+      await startedSignal(state);
+      const [scope] = activeScopes.get(state.app)!;
+      expect(scope?.context.toRecord("log")).toMatchObject({ operation: state.task.id, transport: "scheduled-task", workload: "scheduled-tasks" });
+    } finally { state.finish(); await running; }
   });
 
   it.each([false, true])("records the public observation result and execution metadata: failure=%s", async (failed) => {

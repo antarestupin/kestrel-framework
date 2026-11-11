@@ -179,6 +179,8 @@ export class PostgresWorkerAdapter implements WorkerAdapter {
       )`),
       sql`, `,
     );
+    // Repeated preferences can allocate more jobs from one queue. Overflow
+    // considers each eligible queue once at its earliest overflow position.
     const result = await this.database.execute(sql`
       WITH RECURSIVE preferred(
         queue,
@@ -214,6 +216,7 @@ export class PostgresWorkerAdapter implements WorkerAdapter {
             SELECT job.id
             FROM ${this.jobsTable} job
             WHERE job.queue = next_queue.queue
+              AND job.id <> ALL(current.job_ids)
               AND job.available_at <= statement_timestamp()
             ORDER BY job.available_at, job.id
             FOR UPDATE SKIP LOCKED
@@ -236,14 +239,19 @@ export class PostgresWorkerAdapter implements WorkerAdapter {
         FROM first_pass_state state
         CROSS JOIN LATERAL unnest(state.job_ids) AS selected(id)
       ),
+      overflow_preferred AS MATERIALIZED (
+        SELECT queue, MIN(queue_order) AS queue_order
+        FROM preferred
+        WHERE allow_overflow
+        GROUP BY queue
+      ),
       second_pass AS MATERIALIZED (
         SELECT job.id
         FROM ${this.jobsTable} job
-        INNER JOIN preferred preference
+        INNER JOIN overflow_preferred preference
           ON preference.queue = job.queue
         CROSS JOIN first_pass_state state
         WHERE state.remaining > 0
-          AND preference.allow_overflow
           AND job.available_at <= statement_timestamp()
           AND job.id <> ALL(state.job_ids)
         ORDER BY

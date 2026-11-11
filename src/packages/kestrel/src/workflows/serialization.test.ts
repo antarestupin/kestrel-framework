@@ -6,7 +6,6 @@ import {
 
 import {
   JsonWorkflowPayloadCodec,
-  WorkflowPayloadSerializationError,
 } from "./index.js";
 
 describe("JsonWorkflowPayloadCodec", () => {
@@ -26,6 +25,51 @@ describe("JsonWorkflowPayloadCodec", () => {
     expect(encoded).not.toBe(source);
     expect(decoded).toEqual(source);
     expect(decoded).not.toBe(encoded);
+  });
+
+  it("produces the same dense payload as a JSON persistence round trip", () => {
+    const codec = new JsonWorkflowPayloadCodec();
+    // Array-valued payloads must use their indexed values even with a custom map method.
+    const array = Object.assign([false, "", -0, null], { map: () => [] });
+    const value = codec.encode(Object.assign(Object.create(null), { array }));
+    expect(value).toStrictEqual({ array: [false, "", 0, null] });
+    expect(JSON.parse(JSON.stringify(value))).toStrictEqual(value);
+    expect(codec.decode(value)).toStrictEqual(value);
+  });
+
+  it("rejects sparse array entries at their exact payload path", () => {
+    const codec = new JsonWorkflowPayloadCodec();
+    const items = new Array(2);
+    items[0] = null;
+    expect(() => codec.encode({ items })).toThrow(expect.objectContaining({
+      name: "WorkflowPayloadSerializationError", path: "$.items[1]",
+    }));
+  });
+
+  it("encodes shared references independently without confusing them with cycles", () => {
+    const codec = new JsonWorkflowPayloadCodec();
+    const shared = { value: true };
+    const result = codec.encode([shared, shared]) as readonly object[];
+    expect(result).toStrictEqual([shared, shared]);
+    expect(result[0]).not.toBe(result[1]);
+    expect(result[0]).not.toBe(shared);
+  });
+
+  it("reports unsupported instance paths without reading a poisoned constructor property", () => {
+    const codec = new JsonWorkflowPayloadCodec();
+    const date = new Date(0);
+    Object.defineProperty(date, "constructor", { get() { throw new Error("caller getter invoked"); } });
+    expect(() => codec.encode({ date })).toThrow(expect.objectContaining({
+      name: "WorkflowPayloadSerializationError", path: "$.date", message: expect.stringContaining("Date"),
+    }));
+  });
+
+  it("reports unsupported instances without constructor metadata", () => {
+    const codec = new JsonWorkflowPayloadCodec();
+    const unsupported = Object.create(Object.create(null));
+    expect(() => codec.encode({ unsupported })).toThrow(expect.objectContaining({
+      name: "WorkflowPayloadSerializationError", path: "$.unsupported", message: expect.stringContaining("instance object"),
+    }));
   });
 
   it.each([
@@ -52,7 +96,8 @@ describe("JsonWorkflowPayloadCodec", () => {
     const value: { self?: unknown } = {};
     value.self = value;
 
-    expect(() => codec.encode(value))
-      .toThrow(WorkflowPayloadSerializationError);
+    expect(() => codec.encode(value)).toThrow(expect.objectContaining({
+      name: "WorkflowPayloadSerializationError", path: "$.self", message: expect.stringContaining("cycle"),
+    }));
   });
 });

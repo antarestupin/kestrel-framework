@@ -1,3 +1,5 @@
+import { setImmediate as yieldNodeExecution } from "node:timers/promises";
+
 import type {
   PendingWorkflowCommand,
   WorkflowActivationResult,
@@ -300,6 +302,3 @@ function validateCommandIdentity(kind: string, target: string): void {
 }
 
 /** Lets all promise reactions queued by one replay pass settle. */
-function yieldNodeExecution(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
-}

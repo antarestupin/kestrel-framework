@@ -1,0 +1,478 @@
+{
+  "date": "2026-11-11",
+  "profile": "component-scheduling",
+  "review": "complete",
+  "runBudgetMs": 600000,
+  "baselineRevision": "2e8beb8",
+  "staticInclusive": true,
+  "candidatesWithoutMutants": [
+    "src/packages/kestrel/src/scheduling/index.ts"
+  ],
+  "runs": {
+    "before": {
+      "report": "artifacts/mutation/nov11-complete-review/component-scheduling-before/mutation.json",
+      "sha256": "a8a08ab25eae5f939c942d8e5417219c2235fe7bb36f43acd056df31a8466431",
+      "seconds": 103,
+      "baselineTestsFromRunnerLog": 662,
+      "exitCode": 0,
+      "mutate": [
+        "src/packages/kestrel/src/scheduling/**/*.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.d.ts",
+        "!src/packages/kestrel/src/testing/postgres.ts",
+        "!src/packages/kestrel/src/testing/redis.ts",
+        "!src/packages/kestrel/src/workers/testing/**"
+      ],
+      "archivedAt": "2026-11-11T17:02:39.616360+00:00",
+      "counts": {
+        "NoCoverage": 4,
+        "Killed": 79,
+        "Survived": 47,
+        "Timeout": 6
+      },
+      "mutants": 136,
+      "static": 0,
+      "vitestDeadlineKills": [
+        "89",
+        "97",
+        "100",
+        "101",
+        "105",
+        "109",
+        "111",
+        "112",
+        "113",
+        "116",
+        "3",
+        "4",
+        "8"
+      ],
+      "timeouts": [
+        {
+          "id": "85",
+          "reason": "Hit limit reached (1101/1100)"
+        },
+        {
+          "id": "133",
+          "reason": "Hit limit reached (301/300)"
+        },
+        {
+          "id": "1",
+          "reason": "Hit limit reached (1501/1500)"
+        },
+        {
+          "id": "0",
+          "reason": "Hit limit reached (1501/1500)"
+        },
+        {
+          "id": "2",
+          "reason": null
+        },
+        {
+          "id": "11",
+          "reason": null
+        }
+      ],
+      "executedWithoutCompletedTests": [],
+      "sourceHashes": {
+        "src/packages/kestrel/src/scheduling/lease_heartbeat.ts": "133fed0ffd7008cd8e69a3b315e118e504229489359dd9c81b9c324c4ef7dab9",
+        "src/packages/kestrel/src/scheduling/polling.ts": "4d7c64b736f60c2954a4c067da5d8b393b08d0ccc25ea7020989eb83d1ea3e2c",
+        "src/packages/kestrel/src/scheduling/abortable_delay.ts": "efa19e5348d198237a3b9a51815923861d6a460b15ca3c898b9b85925a8cb275"
+      },
+      "testSetSha256": "5117488fd4cf5dd7b658bcf24898928ee7697775b64855d67cded4801da75699",
+      "schedulingTestHashes": {
+        "src/packages/kestrel/src/scheduling/polling.test.ts": "6694d40622532ac270a7d4f72172ecdc2ec432f09af1cd2cd979c361c2e04897",
+        "src/packages/kestrel/src/scheduling/lease_heartbeat.test.ts": "4155c0b13ba0a41a92fa7d2e5833e8805a0c6572dcb3eabe6fedead5731621da",
+        "src/packages/kestrel/src/scheduling/abortable_delay.test.ts": "d2869afad047a5c92cc8e3a8375abd2bafa26e6bfaae9ffb23849df45ace8a3f"
+      }
+    },
+    "after": {
+      "report": "artifacts/mutation/nov11-complete-review/component-scheduling-after/mutation.json",
+      "sha256": "2e3e3cd16429deec688aa1d07615dbacf29e15bda534a0085fff8fe2a07ec6bb",
+      "seconds": 58,
+      "baselineTestsFromRunnerLog": 714,
+      "exitCode": 0,
+      "mutate": [
+        "src/packages/kestrel/src/scheduling/**/*.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.d.ts",
+        "!src/packages/kestrel/src/testing/postgres.ts",
+        "!src/packages/kestrel/src/testing/redis.ts",
+        "!src/packages/kestrel/src/workers/testing/**"
+      ],
+      "archivedAt": "2026-11-11T17:10:39.015168+00:00",
+      "counts": {
+        "NoCoverage": 2,
+        "Killed": 135,
+        "Survived": 7,
+        "Timeout": 4
+      },
+      "mutants": 148,
+      "static": 0,
+      "vitestDeadlineKills": [
+        "115"
+      ],
+      "timeouts": [
+        {
+          "id": "1",
+          "reason": "Hit limit reached (2601/2600)"
+        },
+        {
+          "id": "0",
+          "reason": "Hit limit reached (2602/2600)"
+        },
+        {
+          "id": "3",
+          "reason": null
+        },
+        {
+          "id": "95",
+          "reason": "Hit limit reached (2001/2000)"
+        }
+      ],
+      "executedWithoutCompletedTests": [],
+      "sourceHashes": {
+        "src/packages/kestrel/src/scheduling/lease_heartbeat.ts": "f0ce0b41b331d5bd07be05b41085d49c39057adf2c9a8911061e81a925b7d90f",
+        "src/packages/kestrel/src/scheduling/abortable_delay.ts": "7e6950847cd02f4b434001417112339a664cf192c59b3f572cbbd0446ecba885",
+        "src/packages/kestrel/src/scheduling/polling.ts": "4d7c64b736f60c2954a4c067da5d8b393b08d0ccc25ea7020989eb83d1ea3e2c"
+      },
+      "testSetSha256": "81d2285240b32baeb7943a4f4dcb4405522002f4d302e3cc96d3cd5ec1a5d81c",
+      "schedulingTestHashes": {
+        "src/packages/kestrel/src/scheduling/polling.test.ts": "6518cbc4d211ae2c23b91d2c961d4eceeda8ca7fb41d95d082438c6482ed83d1",
+        "src/packages/kestrel/src/scheduling/lease_heartbeat.test.ts": "786fc63c5fda318689611de518f5d6130280abd953495932400ec23541f607c3",
+        "src/packages/kestrel/src/scheduling/abortable_delay.test.ts": "28898b3686e6b3d98a6a570fee3e52ecb2050a8110fc8cfa9aa24bd002a7b745"
+      }
+    },
+    "after-2": {
+      "report": "artifacts/mutation/nov11-complete-review/component-scheduling-after-2/mutation.json",
+      "sha256": "94cc44b6f7dd6ab48c0bb7bb06fb8abe5db4a578e23193213638bee53294e8c6",
+      "seconds": 46,
+      "baselineTestsFromRunnerLog": 750,
+      "exitCode": 0,
+      "mutate": [
+        "src/packages/kestrel/src/scheduling/**/*.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.d.ts",
+        "!src/packages/kestrel/src/testing/postgres.ts",
+        "!src/packages/kestrel/src/testing/redis.ts",
+        "!src/packages/kestrel/src/workers/testing/**"
+      ],
+      "archivedAt": "2026-11-11T17:13:48.904412+00:00",
+      "counts": {
+        "Timeout": 4,
+        "Killed": 134,
+        "Survived": 1
+      },
+      "mutants": 139,
+      "static": 0,
+      "vitestDeadlineKills": [],
+      "timeouts": [
+        {
+          "id": "1",
+          "reason": "Hit limit reached (2901/2900)"
+        },
+        {
+          "id": "0",
+          "reason": "Hit limit reached (2901/2900)"
+        },
+        {
+          "id": "3",
+          "reason": null
+        },
+        {
+          "id": "86",
+          "reason": "Hit limit reached (2201/2200)"
+        }
+      ],
+      "executedWithoutCompletedTests": [],
+      "sourceHashes": {
+        "src/packages/kestrel/src/scheduling/abortable_delay.ts": "7e6950847cd02f4b434001417112339a664cf192c59b3f572cbbd0446ecba885",
+        "src/packages/kestrel/src/scheduling/lease_heartbeat.ts": "a94f33f2921ade7e7123c2938a51f1980cce52ac762147f3a91e8814f75b616e",
+        "src/packages/kestrel/src/scheduling/polling.ts": "05da341a8e3c27eb0cc47a19adcd26dfbc6744c7d5635780c36527d83d22a44b"
+      },
+      "testSetSha256": "c1d4ec9e1663a2c1646cb33425a7d5b2d5628095c5b1aa365dfba1d5a1595bf5",
+      "schedulingTestHashes": {
+        "src/packages/kestrel/src/scheduling/polling.test.ts": "31048ead3858d6d50501bbb7d7e6e49e4c997021f406b896d056d8061b968804",
+        "src/packages/kestrel/src/scheduling/lease_heartbeat.test.ts": "7574d203a5984c3c4f862e9dfe0c83ea7579426f0a022d101e05da16267f8dd2",
+        "src/packages/kestrel/src/scheduling/abortable_delay.test.ts": "6b296c053f0ef8226ef5322bfac291eaae2632990cbb8448f740558a7d446ad3"
+      }
+    },
+    "after-3": {
+      "report": "artifacts/mutation/nov11-complete-review/component-scheduling-after-3/mutation.json",
+      "sha256": "ebd8c6b10fe128f0c124dac2cc22856698169238bf94ac81ad22d46e7e628fdd",
+      "seconds": 54,
+      "baselineTestsFromRunnerLog": 830,
+      "exitCode": 0,
+      "mutate": [
+        "src/packages/kestrel/src/scheduling/**/*.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+        "!src/packages/kestrel/src/**/*.d.ts",
+        "!src/packages/kestrel/src/testing/postgres.ts",
+        "!src/packages/kestrel/src/testing/redis.ts",
+        "!src/packages/kestrel/src/workers/testing/**"
+      ],
+      "archivedAt": "2026-11-11T17:39:00.870410+00:00",
+      "counts": {
+        "Killed": 139,
+        "Timeout": 3,
+        "Survived": 1
+      },
+      "mutants": 143,
+      "static": 0,
+      "vitestDeadlineKills": [],
+      "timeouts": [
+        {
+          "id": "2",
+          "reason": "Hit limit reached (3402/3400)"
+        },
+        {
+          "id": "4",
+          "reason": null
+        },
+        {
+          "id": "90",
+          "reason": "Hit limit reached (2401/2400)"
+        }
+      ],
+      "executedWithoutCompletedTests": [],
+      "sourceHashes": {
+        "src/packages/kestrel/src/scheduling/abortable_delay.ts": "806f754449a2ab97bf09d1c2087406574630e0b8c3c90c369a6e4fb8e5d4f767",
+        "src/packages/kestrel/src/scheduling/lease_heartbeat.ts": "a94f33f2921ade7e7123c2938a51f1980cce52ac762147f3a91e8814f75b616e",
+        "src/packages/kestrel/src/scheduling/polling.ts": "05da341a8e3c27eb0cc47a19adcd26dfbc6744c7d5635780c36527d83d22a44b"
+      },
+      "testSetSha256": "7553c8c4517675a330c0b35b6416b8891df0999b1e0b7ef25e9a0df3d0a50628",
+      "schedulingTestHashes": {
+        "src/packages/kestrel/src/scheduling/polling.test.ts": "31048ead3858d6d50501bbb7d7e6e49e4c997021f406b896d056d8061b968804",
+        "src/packages/kestrel/src/scheduling/abortable_delay.test.ts": "3473818465765c1b0759b3ef13176fe446c28b98866993240be1a944189e3cc5",
+        "src/packages/kestrel/src/scheduling/lease_heartbeat.test.ts": "7574d203a5984c3c4f862e9dfe0c83ea7579426f0a022d101e05da16267f8dd2"
+      }
+    }
+  },
+  "comparison": {
+    "policy": "File and unchanged contiguous source lines, location columns, mutator and replacement. Matches do not establish semantic equivalence across changed surrounding code.",
+    "matched": 104,
+    "unmatchedBefore": 32,
+    "unmatchedAfter": 39,
+    "transitions": [
+      {
+        "before": "Killed",
+        "after": "Killed",
+        "count": 64
+      },
+      {
+        "before": "NoCoverage",
+        "after": "Killed",
+        "count": 1
+      },
+      {
+        "before": "Survived",
+        "after": "Killed",
+        "count": 34
+      },
+      {
+        "before": "Survived",
+        "after": "Survived",
+        "count": 1
+      },
+      {
+        "before": "Timeout",
+        "after": "Killed",
+        "count": 2
+      },
+      {
+        "before": "Timeout",
+        "after": "Timeout",
+        "count": 2
+      }
+    ],
+    "previousKillsWithDifferentStatus": [],
+    "previousVitestDeadlineKills": [
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "89",
+        "afterId": "94",
+        "afterStatus": "Killed",
+        "afterReason": "expected { status: 'running', \u2026(3) } to match object { status: 'backoff', \u2026(3) }\n(2 matching properties omitted from actual)",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "97",
+        "afterId": "102",
+        "afterStatus": "Killed",
+        "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ Error: offline ]\n\nNumber of calls: 0\n",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "100",
+        "afterId": "105",
+        "afterStatus": "Killed",
+        "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ Error: outage ]\n\nNumber of calls: 0\n",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "101",
+        "afterId": "106",
+        "afterStatus": "Killed",
+        "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ Error: outage ]\n\nNumber of calls: 0\n",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "105",
+        "afterId": "110",
+        "afterStatus": "Killed",
+        "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ Error: invalid invariant ]\n\nNumber of calls: 0\n",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "109",
+        "afterId": "114",
+        "afterStatus": "Killed",
+        "afterReason": "expected { status: 'backoff', \u2026(4) } to match object { status: 'backoff', \u2026(3) }\n(1 matching property omitted from actual)",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "111",
+        "afterId": "116",
+        "afterStatus": "Killed",
+        "afterReason": "expected { status: 'backoff', \u2026(4) } to match object { status: 'backoff', \u2026(3) }\n(1 matching property omitted from actual)",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "112",
+        "afterId": "117",
+        "afterStatus": "Killed",
+        "afterReason": "expected { status: 'backoff', \u2026(4) } to match object { status: 'backoff', \u2026(3) }\n(1 matching property omitted from actual)",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "113",
+        "afterId": "118",
+        "afterStatus": "Killed",
+        "afterReason": "expected { status: 'backoff', \u2026(4) } to match object { status: 'backoff', \u2026(3) }\n(1 matching property omitted from actual)",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/polling.ts",
+        "beforeId": "116",
+        "afterId": "121",
+        "afterStatus": "Killed",
+        "afterReason": "expected { status: 'backoff', \u2026(4) } to match object { status: 'backoff', \u2026(3) }\n(1 matching property omitted from actual)",
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/abortable_delay.ts",
+        "beforeId": "3",
+        "afterId": null,
+        "afterStatus": null,
+        "afterReason": null,
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/abortable_delay.ts",
+        "beforeId": "4",
+        "afterId": null,
+        "afterStatus": null,
+        "afterReason": null,
+        "afterVitestDeadline": false
+      },
+      {
+        "file": "src/packages/kestrel/src/scheduling/abortable_delay.ts",
+        "beforeId": "8",
+        "afterId": "8",
+        "afterStatus": "Killed",
+        "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+        "afterVitestDeadline": false
+      }
+    ]
+  },
+  "residuals": [
+    {
+      "id": "2",
+      "status": "Timeout",
+      "location": {
+        "end": {
+          "column": 21,
+          "line": 11
+        },
+        "start": {
+          "column": 7,
+          "line": 11
+        }
+      },
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "file": "src/packages/kestrel/src/scheduling/abortable_delay.ts",
+      "class": "execution-limit-or-unsettled-promise",
+      "statusReason": "Hit limit reached (3402/3400)",
+      "reason": "Unconditional early resolution turns a waiting poll loop into repeated immediate cycles. Controlled tests verify the pending delay."
+    },
+    {
+      "id": "4",
+      "status": "Timeout",
+      "location": {
+        "end": {
+          "column": 4,
+          "line": 36
+        },
+        "start": {
+          "column": 35,
+          "line": 13
+        }
+      },
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "file": "src/packages/kestrel/src/scheduling/abortable_delay.ts",
+      "class": "execution-limit-or-unsettled-promise",
+      "statusReason": null,
+      "reason": "Removing the delay body makes polling spin. Controlled tests verify an active delay remains pending until elapsed or aborted."
+    },
+    {
+      "id": "38",
+      "status": "Survived",
+      "location": {
+        "end": {
+          "column": 35,
+          "line": 33
+        },
+        "start": {
+          "column": 9,
+          "line": 33
+        }
+      },
+      "mutatorName": "OptionalChaining",
+      "replacement": "options.onFailure(error)",
+      "file": "src/packages/kestrel/src/scheduling/lease_heartbeat.ts",
+      "class": "behavior-equivalent-optional-callback",
+      "statusReason": null,
+      "reason": "Missing failure callback throws inside the existing catch; close still propagates the original extension failure and releases the interval and listener."
+    },
+    {
+      "id": "90",
+      "status": "Timeout",
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 71
+        },
+        "start": {
+          "column": 31,
+          "line": 45
+        }
+      },
+      "mutatorName": "BlockStatement",
+      "replacement": "{}",
+      "file": "src/packages/kestrel/src/scheduling/polling.ts",
+      "class": "execution-limit-or-unsettled-promise",
+      "statusReason": "Hit limit reached (2401/2400)",
+      "reason": "Deleting the body of the while loop spins until Stryker interrupts it. Controlled tests verify the first cycle and subsequent progress."
+    }
+  ]
+}

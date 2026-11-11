@@ -57,7 +57,7 @@ export class WorkflowProvider<Config> implements Provider<Config> {
   public register(app: ProviderCompositionApp<Config>): void {
     const workerBacked = this.options.activityTransport === "worker";
     const activityWorker: AnyWorker | undefined = workerBacked
-      ? createWorkflowActivityWorker(app.runtime)
+      ? createWorkflowActivityWorker(app.runtime, this.options.payloadCodec)
       : undefined;
     const instrumentation = this.createInstrumentation(app);
     const activityDispatchMode = workerBacked ? "outbox" : "embedded";

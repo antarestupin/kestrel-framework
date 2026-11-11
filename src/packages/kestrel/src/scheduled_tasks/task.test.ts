@@ -9,7 +9,7 @@ const schedule = every({ seconds: 1 });
 describe("scheduled task definitions", () => {
   it("supplies defaults while retaining the public handler and schedule", () => {
     const handler = vi.fn();
-    expect(defineScheduledTask({ id: "billing.invoice-run_2", schedule, handler })).toEqual({ id: "billing.invoice-run_2", schedule, handler, dependencies: {}, groups: [], runtime: {}, overlap: "skip", executionLog: true, observe: true });
+    expect(defineScheduledTask({ id: "billing.invoice-run_2", schedule, handler })).toStrictEqual({ id: "billing.invoice-run_2", schedule, handler, dependencies: {}, groups: [], runtime: {}, overlap: "skip", executionLog: true, observe: true });
   });
 
   it("retains explicit options and copies mutable group and runtime inputs", () => {
@@ -25,11 +25,15 @@ describe("scheduled task definitions", () => {
   });
 
   it.each(["", "UPPER", ".leading", "trailing.", "a..b", "a b", "!prefix", "suffix!"])("rejects an invalid id %j during composition", (id) => {
-    expect(() => defineScheduledTask({ id, schedule, handler: () => undefined })).toThrow(TypeError);
+    expect(() => defineScheduledTask({ id, schedule, handler: () => undefined })).toThrow(expect.objectContaining({
+      name: "TypeError", message: expect.stringMatching(/\bids\b/u),
+    }));
   });
 
   it("rejects empty groups without rejecting ordinary group labels", () => {
-    expect(() => defineScheduledTask({ id: "task", schedule, groups: ["valid", ""], handler: () => undefined })).toThrow(TypeError);
+    expect(() => defineScheduledTask({ id: "task", schedule, groups: ["valid", ""], handler: () => undefined })).toThrow(expect.objectContaining({
+      name: "TypeError", message: expect.stringMatching(/\bgroups\b/u),
+    }));
     expect(defineScheduledTask({ id: "task", schedule, groups: ["valid group"], handler: () => undefined }).groups).toEqual(["valid group"]);
   });
 });

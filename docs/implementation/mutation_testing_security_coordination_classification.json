@@ -263,11 +263,11 @@
       "allPriorKillsPreserved": true,
       "allExecutedMutantsCompletedTests": true,
       "vitestTimeoutKills": 0,
-      "report": "artifacts/mutation/postgres-ownership/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/postgres-ownership-before/mutation.json",
       "beforeReport": "artifacts/mutation/postgres-ownership-before-tests/mutation.json",
       "reportHashes": {
         "artifacts/mutation/postgres-ownership-before-tests/mutation.json": "3b44e41d36409b5a648d7a9b3b26e1fe6bab4e9227c5b57a42569b0973d365a3",
-        "artifacts/mutation/postgres-ownership/mutation.json": "4c9302cc7b4203eb585d1f6d8917400d540f9da9fc21359eda1f38abed466231"
+        "artifacts/mutation/nov11-complete-review/postgres-ownership-before/mutation.json": "4c9302cc7b4203eb585d1f6d8917400d540f9da9fc21359eda1f38abed466231"
       },
       "sourceHashes": {
         "src/packages/kestrel/src/scheduled_tasks/adapters/postgres/adapter.ts": "7ff8ce2405375284a62b46ee13668f579246b2c2f39ee72a6e0f48454b407a84",

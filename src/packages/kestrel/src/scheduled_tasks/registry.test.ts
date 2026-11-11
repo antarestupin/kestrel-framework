@@ -76,7 +76,11 @@ describe("scheduled task catalog ownership", () => {
     [["branch", "leaf"], ["branch"]],
   ])("rejects equal and leaf-to-branch declaration paths: %j vs %j", (first, second) => {
     const registry = new ScheduledTaskRegistry().register(task, { kind: "application" }, first);
-    expect(() => registry.register(other, { kind: "application" }, second)).toThrow(TypeError);
+    // The conflicting qualified paths must remain actionable in startup diagnostics.
+    expect(() => registry.register(other, { kind: "application" }, second)).toThrow(expect.objectContaining({
+      name: "TypeError",
+      message: expect.stringContaining(first.length > second.length ? first.join(".") : second.join(".")),
+    }));
     expect(registry.tasks).toEqual([task]);
   });
 

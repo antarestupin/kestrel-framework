@@ -53,26 +53,24 @@ export function resolveWorkflowConcurrency<Input>(
   input: Input,
 ): ResolvedWorkflowConcurrency | undefined {
   if (concurrency === undefined) return undefined;
-  const key = concurrency.keyed?.key(input);
+  const { executions, keyed } = concurrency;
+  const resolved = executions === undefined ? {} : { definitionLimit: executions.limit };
+  if (keyed === undefined) return resolved;
 
-  if (key !== undefined && (typeof key !== "string" || key.length === 0)) {
+  // A configured key function must produce a key for every accepted input.
+  const key = keyed.key(input);
+  if (typeof key !== "string" || key.length === 0) {
     throw new TypeError("Workflow concurrency keys must be non-empty strings.");
   }
 
   return {
-    ...(concurrency.executions === undefined
-      ? {}
-      : { definitionLimit: concurrency.executions.limit }),
-    ...(concurrency.keyed === undefined || key === undefined
-      ? {}
-      : {
-          keyed: {
-            key,
-            limit: concurrency.keyed.limit ?? 1,
-            conflict: concurrency.keyed.conflict ?? "enqueue",
-            scope: concurrency.keyed.scope ?? "execution",
-          },
-        }),
+    ...resolved,
+    keyed: {
+      key,
+      limit: keyed.limit ?? 1,
+      conflict: keyed.conflict ?? "enqueue",
+      scope: keyed.scope ?? "execution",
+    },
   };
 }
 

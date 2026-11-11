@@ -6,7 +6,7 @@ import { WorkflowClient } from "./client.js";
 import { WorkflowScheduler } from "./scheduler.js";
 import { defineWorkflow } from "./workflow.js";
 
-it("redelivers an abandoned activity, fences its late completion and preserves a target-side idempotent effect", async () => {
+it.each(["resolution", "rejection"] as const)("fences an abandoned activity's late %s during redelivery", async (outcome) => {
   let now = new Date("2026-10-16T00:00:00Z");
   const adapter = new MemoryWorkflowAdapter({ now: () => now });
   const action = defineAction({ name: "shutdown.effect", handler: () => null });
@@ -20,8 +20,12 @@ it("redelivers an abandoned activity, fences its late completion and preserves a
   const transport = new EmbeddedWorkflowActivityTransport(() => async (_payload, activity) => {
     attempts++;
     // A target-owned key spans reservation generations and protects business effects.
-    effects.add(`${activity.executionId}:${activity.sequence}`);
-    if (attempts === 1) { started(); await blocked; }
+    effects.add(activity.idempotencyKey);
+    if (attempts === 1) {
+      started();
+      await blocked;
+      if (outcome === "rejection") throw new Error("old transport closed");
+    }
     return null;
   });
   const cancellation = new AbortController();

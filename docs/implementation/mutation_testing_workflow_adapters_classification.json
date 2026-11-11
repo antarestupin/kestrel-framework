@@ -1,0 +1,2130 @@
+{
+  "schemaVersion": 1,
+  "readme": "Residual entries give the Stryker mutant ID and embedded source line as id@line. Interpret the groups with mutation_testing_workflow_adapters.md.",
+  "staticMutantsIncluded": true,
+  "perRunBudgetMs": 600000,
+  "profiles": [
+    {
+      "profile": "workflow-activation-memory",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-activation-memory-before/mutation.json",
+      "beforeSha256": "418814f68e8a1a8121c4aeb7557afd8f49b4f0dd37a9b75fca81f361b6951d5f",
+      "before": {
+        "NoCoverage": 4,
+        "Killed": 99,
+        "Survived": 23
+      },
+      "beforeSeconds": 99,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-activation-memory-after-2/mutation.json",
+      "sha256": "f4d2806634e2aa0d1c53f6ee44cf560cc8d7bc155db771f5f0783b725c6e921b",
+      "after": {
+        "Killed": 107
+      },
+      "afterSeconds": 47,
+      "baselineTests": 336,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 97,
+        "unmatchedBefore": 29,
+        "unmatchedAfter": 10,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 82
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 2
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 13
+          }
+        ]
+      },
+      "residuals": []
+    },
+    {
+      "profile": "workflow-activation-postgres",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-activation-postgres-before/mutation.json",
+      "beforeSha256": "c5c56d0d57dad2089714e6659afa4020a7f67333e4de6b314d2d2fe7ff4a78de",
+      "before": {
+        "NoCoverage": 56,
+        "Killed": 265,
+        "Survived": 151
+      },
+      "beforeSeconds": 120,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-activation-postgres-after-2/mutation.json",
+      "sha256": "8a9035b51156922ed715156eaa67ed6c9aca70a8c69da354809822dce32105b2",
+      "after": {
+        "NoCoverage": 6,
+        "Killed": 385,
+        "Survived": 80
+      },
+      "afterSeconds": 219,
+      "baselineTests": 199,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 455,
+        "unmatchedBefore": 17,
+        "unmatchedAfter": 16,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 258
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 24
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 6
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 18
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 87
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 62
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "commitActivation",
+          "Survived": [
+            "12@888",
+            "93@989",
+            "122@1025",
+            "136@1046",
+            "137@1048",
+            "141@1054",
+            "145@1054",
+            "146@1054",
+            "147@1054",
+            "148@1054",
+            "149@1054",
+            "150@1054",
+            "151@1054",
+            "152@1054",
+            "153@1054",
+            "154@1055",
+            "155@1055",
+            "156@1056",
+            "157@1056",
+            "159@1057",
+            "160@1057",
+            "167@1068",
+            "174@1075",
+            "184@1087",
+            "186@1087",
+            "187@1087",
+            "188@1087",
+            "189@1087",
+            "190@1087",
+            "191@1087",
+            "194@1088",
+            "197@1089",
+            "201@1101",
+            "206@1106",
+            "207@1106",
+            "208@1106",
+            "209@1106",
+            "210@1106",
+            "211@1106",
+            "212@1106",
+            "215@1107",
+            "218@1108",
+            "220@1109",
+            "242@1142",
+            "265@1151",
+            "267@1151",
+            "281@1160",
+            "285@1162",
+            "306@1191",
+            "308@1191",
+            "317@1198",
+            "319@1199",
+            "330@1207",
+            "331@1207",
+            "332@1211",
+            "342@1221",
+            "353@1228",
+            "356@1236",
+            "366@1250"
+          ],
+          "NoCoverage": [
+            "161@1058",
+            "162@1058",
+            "163@1059",
+            "164@1061"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "tryCommitActivationFastPath",
+          "Survived": [
+            "380@1269",
+            "383@1270",
+            "385@1271",
+            "390@1271",
+            "391@1271",
+            "392@1271",
+            "399@1279"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "tryCommitStandardCommand",
+          "Survived": [
+            "416@1295",
+            "421@1295",
+            "422@1295",
+            "423@1295",
+            "441@1439"
+          ],
+          "NoCoverage": [
+            "424@1295"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "tryCommitSimpleTerminal",
+          "Survived": [
+            "445@1447",
+            "446@1447",
+            "447@1447",
+            "449@1447",
+            "450@1447",
+            "452@1447",
+            "454@1448",
+            "463@1453",
+            "471@1511"
+          ],
+          "NoCoverage": [
+            "453@1447"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-memory-admission",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-memory-admission-before/mutation.json",
+      "beforeSha256": "5ac39ab38d5be78316ee07878929090029761bdd98fc18333fb17d615dc7a14d",
+      "before": {
+        "NoCoverage": 21,
+        "Killed": 309,
+        "Survived": 83
+      },
+      "beforeSeconds": 184,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-memory-admission-after/mutation.json",
+      "sha256": "ac9f8f7ed7e1ae436a8ca0bd8f6f70c3d70a763ce796367b0ed9848aeddabac3",
+      "after": {
+        "NoCoverage": 2,
+        "Killed": 372,
+        "Survived": 57
+      },
+      "afterSeconds": 205,
+      "baselineTests": 328,
+      "vitestDeadlineKills": [
+        "287",
+        "288"
+      ],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 406,
+        "unmatchedBefore": 7,
+        "unmatchedAfter": 25,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 301
+          },
+          {
+            "before": "Killed",
+            "after": "Survived",
+            "count": 1
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 17
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 2
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 2
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 30
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 53
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "startMany",
+          "Survived": [
+            "13@167",
+            "16@168",
+            "27@183",
+            "55@210",
+            "64@212",
+            "68@213",
+            "84@218",
+            "93@225",
+            "96@226",
+            "97@226",
+            "111@233",
+            "123@248",
+            "126@251",
+            "127@251",
+            "128@251",
+            "129@253"
+          ],
+          "NoCoverage": [
+            "15@167"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "listExecutions",
+          "Survived": [
+            "153@298",
+            "195@310",
+            "212@317",
+            "220@318",
+            "221@319",
+            "225@320",
+            "226@320",
+            "244@325",
+            "254@329",
+            "255@329",
+            "256@329",
+            "257@329",
+            "258@330",
+            "259@330",
+            "278@338",
+            "279@338"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "sendSignal",
+          "Survived": [
+            "301@373",
+            "305@376",
+            "312@380",
+            "318@382",
+            "330@403",
+            "331@403",
+            "332@403",
+            "333@405",
+            "335@411",
+            "344@428"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "reserveTasks",
+          "Survived": [
+            "351@438",
+            "381@460",
+            "389@471",
+            "390@471",
+            "392@471",
+            "394@476",
+            "398@476",
+            "400@478",
+            "408@494",
+            "409@494",
+            "411@494",
+            "412@494",
+            "413@495",
+            "417@507"
+          ],
+          "NoCoverage": [
+            "401@481"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "loadActivations",
+          "Survived": [
+            "430@521"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-memory-operations",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-memory-operations-before/mutation.json",
+      "beforeSha256": "d798d6043ee37c0bf8c0e71c97f31705b74a022b2fcafdd190fc3880ac5c8a1f",
+      "before": {
+        "NoCoverage": 37,
+        "Killed": 199,
+        "Survived": 97
+      },
+      "beforeSeconds": 100,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-memory-operations-after-2/mutation.json",
+      "sha256": "4414d40a4c85bf53dfed041268c8b2d6e26fa6c598f7f24ae74bba251355d74b",
+      "after": {
+        "NoCoverage": 5,
+        "Killed": 326,
+        "Survived": 55
+      },
+      "afterSeconds": 137,
+      "baselineTests": 334,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 304,
+        "unmatchedBefore": 29,
+        "unmatchedAfter": 82,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 184
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 29
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 5
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 1
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 41
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 44
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "completeActivity",
+          "Survived": [
+            "18@646",
+            "34@656",
+            "36@656",
+            "37@656",
+            "40@657",
+            "44@659",
+            "61@675"
+          ],
+          "NoCoverage": [
+            "45@659",
+            "47@661"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "reserveActivityDispatches",
+          "Survived": [
+            "73@694",
+            "75@695",
+            "76@697",
+            "77@697",
+            "101@706",
+            "103@706",
+            "108@707",
+            "117@708",
+            "123@709",
+            "125@711"
+          ],
+          "NoCoverage": [
+            "126@712"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "completeExternalActivity",
+          "Survived": [
+            "145@753",
+            "149@754",
+            "150@754",
+            "169@762",
+            "174@766",
+            "176@767",
+            "178@767",
+            "179@767",
+            "180@767",
+            "181@767",
+            "184@768",
+            "187@769",
+            "190@770",
+            "194@771",
+            "196@774",
+            "197@775",
+            "198@775",
+            "199@775",
+            "200@775",
+            "201@775",
+            "210@784"
+          ],
+          "NoCoverage": [
+            "191@770",
+            "195@771"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "getHistory",
+          "Survived": [
+            "231@1007"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "summarizeExecutionVersions",
+          "Survived": [
+            "235@1021",
+            "240@1032"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "recoverVersionBlockedExecution",
+          "Survived": [
+            "258@1043",
+            "263@1044"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "continueAsNew",
+          "Survived": [
+            "278@1063",
+            "298@1092"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "getHistoryArchives",
+          "Survived": [
+            "329@1125"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "completeExecution",
+          "Survived": [
+            "336@1136"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "inspectTasks",
+          "Survived": [
+            "358@1163",
+            "359@1163",
+            "360@1163",
+            "361@1165",
+            "362@1168",
+            "365@1170"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "settleExecution",
+          "Survived": [
+            "380@1202"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "resolveTerminalWaiters",
+          "Survived": [
+            "388@1215"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-memory-internals",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-memory-internals-before/mutation.json",
+      "beforeSha256": "4c5bf01630fcccd506156c25dacb6a00f1ac06fe3e0d630e6714edfced290c1d",
+      "before": {
+        "NoCoverage": 87,
+        "Killed": 422,
+        "Survived": 250
+      },
+      "beforeSeconds": 295,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-memory-internals-after/mutation.json",
+      "sha256": "c6fa4e278523d03984d08388528e434cb9aa03da17b451b89444e1efed878d85",
+      "after": {
+        "NoCoverage": 20,
+        "Killed": 570,
+        "Survived": 187
+      },
+      "afterSeconds": 365,
+      "baselineTests": 316,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 712,
+        "unmatchedBefore": 47,
+        "unmatchedAfter": 65,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 381
+          },
+          {
+            "before": "Killed",
+            "after": "Survived",
+            "count": 2
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 45
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 20
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 21
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 86
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 157
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "incrementConcurrencyUsage",
+          "Survived": [
+            "25@1290",
+            "28@1290",
+            "29@1290",
+            "31@1292",
+            "32@1292"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "releaseConcurrency",
+          "Survived": [
+            "50@1303",
+            "51@1303",
+            "53@1304",
+            "55@1304",
+            "56@1304",
+            "58@1307",
+            "65@1309",
+            "66@1309",
+            "67@1309",
+            "69@1310",
+            "71@1310",
+            "72@1310",
+            "76@1312",
+            "77@1313"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "prepareCommand",
+          "Survived": [
+            "135@1432",
+            "144@1443",
+            "146@1443",
+            "151@1455",
+            "165@1468",
+            "174@1476"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "consumeBufferedSignals",
+          "Survived": [
+            "188@1490",
+            "189@1490",
+            "190@1490",
+            "193@1491",
+            "201@1497",
+            "202@1497",
+            "203@1497",
+            "205@1498",
+            "216@1511"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "appendCompletion",
+          "Survived": [
+            "228@1536",
+            "236@1542"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "prepareChild",
+          "Survived": [
+            "252@1567",
+            "254@1567",
+            "255@1567",
+            "256@1567",
+            "281@1579",
+            "282@1579",
+            "284@1580",
+            "286@1580",
+            "287@1580",
+            "300@1606",
+            "302@1607",
+            "303@1608"
+          ],
+          "NoCoverage": [
+            "257@1568",
+            "258@1568"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "completeParentCommand",
+          "Survived": [
+            "309@1614",
+            "310@1614",
+            "311@1614",
+            "313@1615",
+            "315@1616",
+            "322@1627",
+            "323@1628",
+            "325@1628",
+            "329@1628",
+            "333@1632",
+            "341@1638",
+            "347@1641",
+            "353@1644",
+            "354@1645"
+          ],
+          "NoCoverage": [
+            "334@1632",
+            "352@1643"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "deleteCommandTasks",
+          "Survived": [
+            "364@1686",
+            "366@1686",
+            "367@1686",
+            "369@1687"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "hasLiveWorkflowReservation",
+          "Survived": [
+            "373@1698",
+            "374@1699",
+            "375@1699",
+            "376@1699",
+            "378@1700",
+            "386@1700",
+            "387@1700",
+            "392@1702"
+          ],
+          "NoCoverage": [
+            "393@1703",
+            "394@1703",
+            "395@1704",
+            "396@1704",
+            "397@1704"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "getRequiredHistory",
+          "Survived": [
+            "400@1742"
+          ],
+          "NoCoverage": [
+            "402@1742",
+            "403@1743"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "compareVersionSummaries",
+          "Survived": [
+            "410@1763",
+            "411@1764",
+            "412@1764",
+            "413@1764",
+            "414@1764",
+            "415@1764"
+          ],
+          "NoCoverage": [
+            "416@1765"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "validateExecutionQuery",
+          "Survived": [
+            "422@1777",
+            "424@1778",
+            "425@1778",
+            "426@1778",
+            "427@1778",
+            "429@1778",
+            "432@1778"
+          ],
+          "NoCoverage": [
+            "435@1778",
+            "437@1779"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "assertCommandsSettledBeforeContinuation",
+          "Survived": [
+            "450@1791",
+            "459@1792"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "validateExecutionId",
+          "Survived": [
+            "467@1810",
+            "469@1811",
+            "471@1811",
+            "473@1812"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "cloneExecution",
+          "Survived": [
+            "476@1820",
+            "479@1822",
+            "480@1825",
+            "483@1827",
+            "484@1828",
+            "487@1830",
+            "488@1831",
+            "491@1833",
+            "492@1834",
+            "495@1836"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "cloneConcurrency",
+          "Survived": [
+            "498@1845",
+            "499@1845",
+            "500@1845",
+            "501@1847"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "toReservedTask",
+          "Survived": [
+            "506@1864",
+            "510@1868",
+            "514@1871",
+            "518@1872"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "cloneHistory",
+          "Survived": [
+            "524@1889",
+            "525@1889",
+            "526@1889",
+            "527@1889",
+            "528@1890",
+            "529@1891",
+            "530@1891",
+            "531@1891",
+            "532@1891",
+            "533@1892",
+            "534@1893",
+            "535@1893",
+            "536@1893",
+            "537@1893",
+            "538@1893",
+            "539@1893",
+            "540@1893",
+            "541@1893",
+            "542@1895",
+            "544@1896",
+            "546@1896",
+            "547@1896",
+            "548@1896",
+            "551@1897"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "readRecord",
+          "Survived": [
+            "561@1914",
+            "562@1914",
+            "563@1914",
+            "564@1914",
+            "565@1914",
+            "567@1914",
+            "570@1914",
+            "572@1915"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "readNumber",
+          "Survived": [
+            "579@1924"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "readOptionalString",
+          "Survived": [
+            "608@1951"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "readPayload",
+          "Survived": [
+            "615@1961"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "readOptionalConcurrency",
+          "Survived": [
+            "625@1973",
+            "627@1973",
+            "632@1974",
+            "634@1980",
+            "645@1985",
+            "650@1987",
+            "654@1988",
+            "657@1992",
+            "661@1993"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "readResolvedKeyedConcurrency",
+          "Survived": [
+            "666@2000",
+            "667@2000",
+            "668@2000",
+            "669@2000",
+            "670@2000",
+            "672@2000",
+            "675@2000",
+            "677@2001",
+            "696@2008",
+            "721@2011",
+            "723@2011",
+            "726@2012"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "hasConcurrencyCapacity",
+          "Survived": [
+            "734@2027",
+            "743@2033",
+            "749@2033",
+            "751@2034"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "concurrencyMapKey",
+          "Survived": [
+            "754@2038",
+            "755@2039"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "validateReservationRequest",
+          "Survived": [
+            "756@2044",
+            "758@2045",
+            "759@2045",
+            "761@2045",
+            "768@2049",
+            "769@2049",
+            "771@2049",
+            "772@2049"
+          ],
+          "NoCoverage": [
+            "764@2045",
+            "766@2046",
+            "774@2049",
+            "776@2050"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "validatePositiveInteger",
+          "Survived": [
+            "777@2054",
+            "779@2055",
+            "780@2055",
+            "782@2055"
+          ],
+          "NoCoverage": [
+            "785@2055",
+            "787@2056"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "isRunnableExecutionStatus",
+          "Survived": [
+            "791@2084"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-postgres-start",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-postgres-start-before/mutation.json",
+      "beforeSha256": "57b3364b77b5403adf99eacf33cdd01008d8d0812e6cc930f9d60688d092e2f9",
+      "before": {
+        "NoCoverage": 8,
+        "Killed": 40,
+        "Survived": 10
+      },
+      "beforeSeconds": 30,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-start-after-2/mutation.json",
+      "sha256": "3bfe21c0e5c0d680f457b9cf325472e91c7387de42d80a2b0678f83467482fac",
+      "after": {
+        "NoCoverage": 4,
+        "Killed": 51,
+        "Survived": 3
+      },
+      "afterSeconds": 30,
+      "baselineTests": 207,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 55,
+        "unmatchedBefore": 3,
+        "unmatchedAfter": 3,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 37
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 4
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 4
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 7
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 3
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "constructor",
+          "Survived": [
+            "4@208"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "startMany",
+          "Survived": [
+            "40@457",
+            "47@462"
+          ],
+          "NoCoverage": [
+            "42@457",
+            "44@458",
+            "49@462",
+            "51@463"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-postgres-reservation",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-postgres-reservation-before/mutation.json",
+      "beforeSha256": "4ce20621c5d6806647bfb71bcd9d00348380e39a0f4cec6e5d7cf88969554e3d",
+      "before": {
+        "NoCoverage": 39,
+        "Killed": 104,
+        "Survived": 37
+      },
+      "beforeSeconds": 50,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-reservation-after/mutation.json",
+      "sha256": "b8fc721cc4e633418c9106d7581e6a4dd074a901ac03905dd16581710ad297f4",
+      "after": {
+        "NoCoverage": 13,
+        "Killed": 149,
+        "Survived": 19,
+        "Timeout": 1
+      },
+      "afterSeconds": 67,
+      "baselineTests": 206,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 177,
+        "unmatchedBefore": 3,
+        "unmatchedAfter": 5,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 102
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 25
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 13
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Timeout",
+            "count": 1
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 17
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 19
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "listExecutions",
+          "Survived": [
+            "55@535",
+            "69@560",
+            "81@570",
+            "82@570",
+            "86@572"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "waitForTerminal",
+          "Timeout": [
+            "90@580"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "sendSignal",
+          "Survived": [
+            "104@605",
+            "109@609",
+            "113@613",
+            "122@623",
+            "123@623",
+            "124@623",
+            "133@636",
+            "138@644",
+            "142@649",
+            "149@659",
+            "150@660"
+          ],
+          "NoCoverage": [
+            "106@605",
+            "107@606",
+            "111@609",
+            "112@610",
+            "128@625",
+            "129@626",
+            "134@636",
+            "135@637",
+            "144@649",
+            "146@650"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "reserveTasks",
+          "Survived": [
+            "161@681"
+          ],
+          "NoCoverage": [
+            "163@681",
+            "164@682"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "loadActivations",
+          "Survived": [
+            "171@804",
+            "182@839"
+          ],
+          "NoCoverage": [
+            "173@804"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-postgres-activities",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-postgres-activities-before/mutation.json",
+      "beforeSha256": "7a26b96183c8ee3358db0d55074fb3ce9a32c0659665847ae1dced9302051003",
+      "before": {
+        "NoCoverage": 18,
+        "Killed": 38,
+        "Survived": 17
+      },
+      "beforeSeconds": 19,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-activities-after-2/mutation.json",
+      "sha256": "b41cd43b70214426911a5d26d2cdff23cc3cd74ede759dd3686833e14f8f5b87",
+      "after": {
+        "Killed": 90,
+        "Survived": 9
+      },
+      "afterSeconds": 31,
+      "baselineTests": 206,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 69,
+        "unmatchedBefore": 4,
+        "unmatchedAfter": 30,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 34
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 16
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 2
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 13
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 4
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "reserveActivityDispatches",
+          "Survived": [
+            "8@1659",
+            "10@1660"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "retryActivityDispatches",
+          "Survived": [
+            "25@1749"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "completeExternalActivity",
+          "Survived": [
+            "44@1782",
+            "49@1783",
+            "55@1787",
+            "60@1796",
+            "69@1806",
+            "88@1832"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-postgres-history",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-postgres-history-before/mutation.json",
+      "beforeSha256": "86e8038504562708529e86569337caaf151586b76732abe61510f4fbf77451de",
+      "before": {
+        "NoCoverage": 81,
+        "Killed": 317,
+        "Survived": 269
+      },
+      "beforeSeconds": 233,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-history-after/mutation.json",
+      "sha256": "16fd18d37f596154a0af90d45df94d2a92b700b7622aa78c88e3914c955e961d",
+      "after": {
+        "NoCoverage": 25,
+        "Killed": 456,
+        "Survived": 186
+      },
+      "afterSeconds": 432,
+      "baselineTests": 202,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 663,
+        "unmatchedBefore": 4,
+        "unmatchedAfter": 4,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 313
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 40
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 25
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 16
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 99
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 170
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "getHistory",
+          "Survived": [
+            "2@2036"
+          ],
+          "NoCoverage": [
+            "4@2036",
+            "5@2037"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "recoverVersionBlockedExecution",
+          "Survived": [
+            "27@2080",
+            "30@2081",
+            "32@2081"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "continueAsNew",
+          "Survived": [
+            "46@2111",
+            "47@2111",
+            "48@2111",
+            "49@2111",
+            "50@2111",
+            "52@2112",
+            "55@2113",
+            "61@2121",
+            "65@2122",
+            "77@2165"
+          ],
+          "NoCoverage": [
+            "57@2114",
+            "58@2115",
+            "63@2121",
+            "67@2122",
+            "68@2123"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "getHistoryArchives",
+          "Survived": [
+            "85@2183"
+          ],
+          "NoCoverage": [
+            "87@2183",
+            "88@2184"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "admitPendingKeyedExecutions",
+          "Survived": [
+            "96@2461",
+            "97@2461",
+            "98@2461",
+            "99@2461",
+            "100@2461",
+            "103@2462",
+            "105@2463",
+            "107@2466",
+            "108@2469",
+            "116@2484",
+            "120@2497",
+            "121@2497",
+            "128@2507"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "normalizeStartBatch",
+          "Survived": [
+            "133@2521",
+            "144@2536",
+            "145@2536",
+            "146@2536"
+          ],
+          "NoCoverage": [
+            "149@2538",
+            "150@2539"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "validateStartConcurrencyGroups",
+          "Survived": [
+            "155@2549",
+            "156@2554",
+            "158@2556",
+            "161@2557",
+            "163@2560",
+            "168@2561",
+            "169@2561",
+            "170@2561",
+            "171@2561",
+            "173@2562",
+            "175@2563",
+            "180@2569"
+          ],
+          "NoCoverage": [
+            "177@2564",
+            "179@2566"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "getStartLockKeys",
+          "Survived": [
+            "184@2579",
+            "192@2586"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "mapSerializedExecution",
+          "Survived": [
+            "219@2625",
+            "224@2629",
+            "225@2629",
+            "226@2629",
+            "227@2629",
+            "228@2629",
+            "229@2629",
+            "233@2633",
+            "237@2636",
+            "238@2636",
+            "239@2636",
+            "240@2636",
+            "241@2636",
+            "242@2636",
+            "243@2636",
+            "245@2637",
+            "247@2638",
+            "249@2639",
+            "254@2651",
+            "258@2654"
+          ],
+          "NoCoverage": [
+            "222@2627",
+            "261@2657",
+            "262@2657"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "mapExecution",
+          "Survived": [
+            "283@2685",
+            "285@2685",
+            "286@2685",
+            "292@2689",
+            "296@2692",
+            "297@2692",
+            "298@2692",
+            "299@2692",
+            "300@2692",
+            "301@2692",
+            "302@2692",
+            "304@2693",
+            "306@2694",
+            "308@2695",
+            "313@2707",
+            "317@2710"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "validateExecutionQuery",
+          "Survived": [
+            "330@2722",
+            "332@2723",
+            "333@2723",
+            "334@2723",
+            "335@2723",
+            "337@2723",
+            "340@2723",
+            "341@2723"
+          ],
+          "NoCoverage": [
+            "343@2723",
+            "345@2724"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "assertCommandsSettledBeforeContinuation",
+          "Survived": [
+            "358@2736",
+            "367@2737"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "mapReservedTask",
+          "Survived": [
+            "376@2752",
+            "380@2756",
+            "384@2759",
+            "387@2760",
+            "388@2760",
+            "389@2760",
+            "390@2760",
+            "391@2760",
+            "392@2760",
+            "393@2760",
+            "394@2760",
+            "395@2760",
+            "396@2761",
+            "397@2761"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "mapReservedDispatch",
+          "Survived": [
+            "400@2781"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "dispatchReservationValues",
+          "Survived": [
+            "404@2796"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "completionRequestValues",
+          "Survived": [
+            "410@2815",
+            "414@2816",
+            "416@2816",
+            "417@2816",
+            "420@2818",
+            "422@2818"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "mapHistoryEvent",
+          "Survived": [
+            "431@2849",
+            "432@2849",
+            "433@2849",
+            "434@2849",
+            "435@2849",
+            "436@2849",
+            "439@2850",
+            "441@2851",
+            "443@2852",
+            "447@2860",
+            "450@2866",
+            "451@2866",
+            "452@2866",
+            "453@2866",
+            "456@2867",
+            "458@2868",
+            "469@2877",
+            "472@2883",
+            "474@2883",
+            "475@2883",
+            "476@2883",
+            "477@2883",
+            "480@2884",
+            "482@2885",
+            "486@2892",
+            "487@2897"
+          ],
+          "NoCoverage": [
+            "494@2906"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "validateExecutionId",
+          "Survived": [
+            "503@2932"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "validateReservationRequest",
+          "Survived": [
+            "504@2936",
+            "506@2937",
+            "507@2937",
+            "509@2937",
+            "516@2941",
+            "517@2941",
+            "519@2941",
+            "520@2941"
+          ],
+          "NoCoverage": [
+            "512@2937",
+            "514@2938",
+            "522@2941",
+            "524@2942"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "validatePositiveInteger",
+          "Survived": [
+            "525@2946",
+            "527@2947",
+            "528@2947",
+            "530@2947"
+          ],
+          "NoCoverage": [
+            "533@2947",
+            "535@2948"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "readRecord",
+          "Survived": [
+            "538@2953",
+            "539@2953",
+            "540@2953",
+            "541@2953",
+            "542@2953",
+            "544@2953",
+            "547@2953",
+            "549@2954"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "readNumber",
+          "Survived": [
+            "556@2963",
+            "565@2964"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "readOptionalString",
+          "Survived": [
+            "584@2987"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "readPayload",
+          "Survived": [
+            "591@2996"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "readOptionalConcurrency",
+          "Survived": [
+            "601@3007",
+            "603@3007",
+            "608@3008",
+            "618@3016",
+            "623@3018",
+            "627@3019",
+            "630@3023",
+            "634@3024"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "readResolvedKeyedConcurrency",
+          "Survived": [
+            "639@3033",
+            "640@3033",
+            "641@3033",
+            "642@3033",
+            "643@3033",
+            "645@3033",
+            "648@3033",
+            "650@3034",
+            "667@3041",
+            "679@3042",
+            "681@3042",
+            "684@3043",
+            "686@3046"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-adapter-contracts",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-adapter-contracts-before/mutation.json",
+      "beforeSha256": "778810299cd5d12fd36378f1cc0528a6c4e43a0930b0129a8efddd23c886a6fd",
+      "before": {
+        "NoCoverage": 8,
+        "Survived": 197,
+        "Killed": 30,
+        "Timeout": 1,
+        "RuntimeError": 101
+      },
+      "beforeSeconds": 300,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-adapter-contracts-after/mutation.json",
+      "sha256": "948d9faa332be8bfb4e305fdfbea5affe34149ed62347ca9f962a485cd4c0939",
+      "after": {
+        "Killed": 195,
+        "Timeout": 1,
+        "RuntimeError": 101,
+        "Survived": 43
+      },
+      "afterSeconds": 386,
+      "baselineTests": 365,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 292,
+        "unmatchedBefore": 45,
+        "unmatchedAfter": 48,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 1
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 8
+          },
+          {
+            "before": "RuntimeError",
+            "after": "RuntimeError",
+            "count": 101
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 139
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 43
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/polling_error.ts",
+          "scope": "isRecoverablePostgresPollingError",
+          "Timeout": [
+            "29@6"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/schema.ts",
+          "scope": "module initialization",
+          "RuntimeError": [
+            "65@25",
+            "67@31",
+            "109@92",
+            "118@106",
+            "119@107",
+            "121@109",
+            "122@110",
+            "123@111",
+            "124@112",
+            "125@113",
+            "126@114",
+            "127@115",
+            "128@116",
+            "129@117",
+            "130@118",
+            "131@119",
+            "132@120",
+            "133@121",
+            "134@122",
+            "135@123",
+            "136@124",
+            "137@125",
+            "138@126",
+            "139@127",
+            "140@128",
+            "141@129",
+            "142@130",
+            "143@131",
+            "144@132",
+            "145@133",
+            "146@134",
+            "148@141",
+            "158@152",
+            "164@158",
+            "165@159",
+            "167@161",
+            "168@162",
+            "169@163",
+            "170@164",
+            "171@165",
+            "172@166",
+            "174@173",
+            "193@197",
+            "203@209",
+            "204@210",
+            "206@212",
+            "207@213",
+            "208@214",
+            "209@215",
+            "210@216",
+            "211@217",
+            "212@218",
+            "213@219",
+            "214@220",
+            "215@221",
+            "216@222",
+            "217@223",
+            "218@224",
+            "219@225",
+            "221@232",
+            "243@254",
+            "251@264",
+            "252@265",
+            "254@267",
+            "255@268",
+            "256@269",
+            "257@270",
+            "258@271",
+            "259@272",
+            "260@273",
+            "261@274",
+            "262@275",
+            "263@276",
+            "264@277",
+            "266@284",
+            "281@300",
+            "288@313",
+            "289@314",
+            "291@316",
+            "292@317",
+            "293@318",
+            "294@319",
+            "295@320",
+            "296@321",
+            "297@322",
+            "299@329",
+            "325@355",
+            "331@369",
+            "332@370",
+            "334@372",
+            "335@373",
+            "336@374",
+            "337@375",
+            "338@376",
+            "339@377",
+            "340@378",
+            "341@379",
+            "342@380",
+            "343@381",
+            "344@382",
+            "345@383"
+          ],
+          "Survived": [
+            "68@32",
+            "72@37",
+            "74@42",
+            "75@54",
+            "78@56",
+            "83@60",
+            "96@78",
+            "99@80",
+            "103@84",
+            "107@88",
+            "152@145",
+            "153@146",
+            "156@148",
+            "177@176",
+            "181@185",
+            "184@188",
+            "187@190",
+            "191@193",
+            "222@233",
+            "223@233",
+            "225@235",
+            "227@237",
+            "228@238",
+            "229@239",
+            "232@241",
+            "236@245",
+            "241@250",
+            "267@285",
+            "268@285",
+            "270@287",
+            "271@289",
+            "275@292",
+            "279@296",
+            "300@330",
+            "301@330",
+            "304@333",
+            "305@334",
+            "306@335",
+            "309@337",
+            "313@341",
+            "317@345",
+            "320@349",
+            "323@351"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-terminal-control",
+      "beforeReport": "artifacts/mutation/nov11-complete-review/workflow-terminal-control-before/mutation.json",
+      "beforeSha256": "e4127cc56e4b9caea81161d028b92d5ac062b23977973a86f4d627b4586a38d1",
+      "before": {
+        "NoCoverage": 1,
+        "Killed": 282,
+        "Survived": 31,
+        "Timeout": 6
+      },
+      "beforeSeconds": 75,
+      "report": "artifacts/mutation/nov11-complete-review/workflow-terminal-control-after/mutation.json",
+      "sha256": "67e61ae16aa15fd9bd667fd21f310338c39db768ec9d4b69521a535863515dfa",
+      "after": {
+        "Killed": 283,
+        "Survived": 22,
+        "Timeout": 6
+      },
+      "afterSeconds": 110,
+      "baselineTests": 440,
+      "vitestDeadlineKills": [],
+      "executedWithoutCompletedTests": [],
+      "comparison": {
+        "matched": 274,
+        "unmatchedBefore": 46,
+        "unmatchedAfter": 37,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 245
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 5
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 20
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 4
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "requestCancellation",
+          "Survived": [
+            "18@833"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "forceTerminate",
+          "Survived": [
+            "63@879"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+          "scope": "terminateOpenChildren",
+          "Timeout": [
+            "96@1670",
+            "98@1670"
+          ],
+          "Survived": [
+            "100@1672",
+            "101@1673",
+            "107@1677"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "forceTerminate",
+          "Survived": [
+            "141@1887"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "terminateExecutionTree",
+          "Timeout": [
+            "147@2256",
+            "149@2256"
+          ],
+          "Survived": [
+            "158@2266",
+            "185@2295",
+            "208@2322"
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+          "scope": "cancelExecutionTree",
+          "Survived": [
+            "221@2343",
+            "230@2352",
+            "231@2353",
+            "237@2361",
+            "239@2361",
+            "240@2361",
+            "273@2410",
+            "275@2410",
+            "276@2410",
+            "278@2410",
+            "285@2415",
+            "299@2434",
+            "309@2449"
+          ],
+          "Timeout": [
+            "226@2349",
+            "228@2349"
+          ]
+        }
+      ]
+    }
+  ]
+}

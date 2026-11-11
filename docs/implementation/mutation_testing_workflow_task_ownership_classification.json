@@ -4,7 +4,7 @@
   "scope": "Memory and PostgreSQL releaseTasks/extendTaskLeases plus generation-owned mutation helpers; retryExecution changes elsewhere in those files are outside this scope.",
   "command": "npm run test:mutation:workflow-task-ownership",
   "budgetMs": 600000,
-  "report": "artifacts/mutation/workflow-task-ownership/mutation.json",
+  "report": "artifacts/mutation/nov11-complete-review/workflow-task-ownership-before/mutation.json",
   "beforeReport": "artifacts/mutation/workflow-task-ownership-before-two-hour-tests/mutation.json",
   "scopeMutants": 75,
   "beforeCounts": {
@@ -146,7 +146,7 @@
   ],
   "reportHashes": {
     "artifacts/mutation/workflow-task-ownership-before-two-hour-tests/mutation.json": "8b3e68262b1f2edc043bd5bff0710e265ce5aecca6440dce77c572a9831ba403",
-    "artifacts/mutation/workflow-task-ownership/mutation.json": "788dce2b9bc3be21ed4b50359b657825cdfac33edb7e0d35041771a3ddfbaf37"
+    "artifacts/mutation/nov11-complete-review/workflow-task-ownership-before/mutation.json": "788dce2b9bc3be21ed4b50359b657825cdfac33edb7e0d35041771a3ddfbaf37"
   },
   "sourceHashesAtReview": {
     "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "33f944e9a2722257c3a14d7f7d2bdc6009b36e82633a774f94e18874316802d6",

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "reviewedAt": "2026-11-10",
   "budgetMs": 600000,
-  "report": "artifacts/mutation/scheduled-contracts/mutation.json",
+  "report": "artifacts/mutation/nov11-complete-review/scheduled-contracts-before/mutation.json",
   "beforeReport": "artifacts/mutation/scheduled-contracts-before-two-hour-tests/mutation.json",
   "reportSha256": "e4253d5b3cfeb4ff7b66dfc1b3f3ee0fa9dc9e9c65731bfd29d4ddd8cad68bd4",
   "beforeReportSha256": "d4bc031dc73f3979afc89101b44bab3bd8f64f16dd1ae0866914337df361c896",

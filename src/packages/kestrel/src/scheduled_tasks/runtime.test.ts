@@ -103,17 +103,27 @@ describe("ScheduledTaskRuntime", () => {
 
   it("drains pending initialization before runtime stop resolves", async () => {
     const { runtime, adapter } = await setup();
+    const build = vi.spyOn(runtime, "buildScheduler");
     const gate = Promise.withResolvers<void>();
     vi.spyOn(adapter, "reconcile").mockReturnValue(gate.promise);
     const started = runtime.start();
     const stopping = runtime.stop();
     let stopped = false;
-    void stopping.then(() => { stopped = true; });
+    void stopping.then(() => { stopped = true; }, () => undefined);
     try {
       await setImmediate();
       expect(stopped).toBe(false);
-    } finally { gate.resolve(); await started; await stopping; }
-    expect(runtime.completion).toBeUndefined();
+      gate.resolve();
+      await started;
+      await setImmediate();
+      expect(stopped).toBe(true);
+      expect(runtime.completion).toBeUndefined();
+    } finally {
+      gate.resolve();
+      await Promise.allSettled([started]);
+      // Independently stop a polling loop a startup mutation may have created late.
+      await Promise.allSettled([build.mock.results[0]?.value.stop(), stopping]);
+    }
   });
 
   it("rejects an invalid selection without initializing adapter state", async () => {
@@ -162,6 +172,34 @@ describe("scheduled task runtime supervision", () => {
     await app.stop();
     expect(stop).toHaveBeenCalledOnce();
     await runtime.completion;
+  });
+
+  it("waits for an active task drain before supervised run settles", async () => {
+    const finish = Promise.withResolvers<void>();
+    const handler = vi.fn(() => finish.promise);
+    const definition = defineScheduledTask({ id: "supervised.drain", schedule: every({ seconds: 1, start: "immediate" }), handler });
+    const { runtime } = await setup([definition]);
+    const signals = vi.spyOn(process, "once");
+    const running = runtime.run();
+    let settled = false;
+    void running.then(() => { settled = true; }, () => { settled = true; });
+    const requestStop = () => signals.mock.calls.find(([event]) => event === "SIGTERM")?.[1]();
+    try {
+      await setImmediate();
+      expect(handler).toHaveBeenCalledOnce();
+      requestStop();
+      await setImmediate();
+      // App.stop requests registered drains. The supervisor also awaits their result.
+      expect(handler.mock.calls).toHaveLength(1);
+      expect(settled).toBe(false);
+      finish.resolve();
+      await expect(running).resolves.toBeUndefined();
+    } finally {
+      finish.resolve();
+      requestStop();
+      await Promise.allSettled([running, runtime.stop()]);
+      signals.mockRestore();
+    }
   });
 
   it("forwards task execution failure to its injected logger", async () => {

@@ -250,23 +250,28 @@
       "id": "scheduled_tasks",
       "scope": "scheduled_tasks/**/*",
       "sourceFiles": 19,
-      "state": "assessment-complete-review-pending",
-      "focus": "All 19 candidate files assessed. Runtime deadline detections converted to direct test failures. Remaining lifecycle and adapter gaps in review.",
+      "state": "reviewed",
+      "focus": "All 19 candidate files assessed; scheduler ownership and shutdown, adapter parity and operator contracts reviewed",
       "evidence": [
         "scheduled-runtime-timeout-followup",
         "postgres-ownership",
         "scheduled-runtime",
         "scheduled-adapters",
-        "scheduled-contracts"
+        "scheduled-contracts",
+        "scheduled-runtime-review",
+        "scheduled-adapters-review",
+        "scheduled-contracts-review"
       ]
     },
     {
       "id": "scheduling",
       "scope": "scheduling/**/*",
       "sourceFiles": 4,
-      "state": "not-assessed",
-      "focus": "Clock, scheduling and cancellation primitives",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "All four scheduling candidates assessed; bounded timers, abort listener ownership, lease failure and polling budget reviewed",
+      "evidence": [
+        "component-scheduling-review"
+      ]
     },
     {
       "id": "studio",
@@ -326,29 +331,34 @@
       "id": "workers",
       "scope": "workers/**/*",
       "sourceFiles": 23,
-      "state": "assessment-complete-review-pending",
-      "focus": "Scheduler admission, ownership and delivery assessed alongside publication, adapters and contracts. Remaining saturation, batching and failure paths in review.",
+      "state": "reviewed",
+      "focus": "All 23 candidates assessed; scheduler admission and ownership, delivery, publication, adapters and contracts reviewed",
       "evidence": [
         "workers-scheduler",
         "workers-delivery-ownership-refresh",
         "workers-publication",
         "workers-delivery",
         "workers-adapters",
-        "workers-contracts"
+        "workers-contracts",
+        "workers-scheduler-review",
+        "workers-delivery-review",
+        "workers-adapters-review",
+        "workers-contracts-review"
       ]
     },
     {
       "id": "workflows",
       "scope": "workflows/**/*",
       "sourceFiles": 38,
-      "state": "partial",
-      "focus": "Retry identity and key contention tested with separate PostgreSQL sessions. Other concurrency cases, runtime, scheduler and adapter operations pending.",
+      "state": "reviewed",
+      "focus": "All 38 candidates assessed in 20 disjoint profiles; runtime, replay, operation and storage residuals classified",
       "evidence": [
         "workflow-postgres-retry-races",
         "postgres-ownership",
         "workflow-task-ownership",
         "workflow-execution-retry",
-        "workflow-terminal-control"
+        "workflow-terminal-control",
+        "workflows-component-review"
       ]
     }
   ],
@@ -504,7 +514,7 @@
         "Killed": 14
       },
       "seconds": 7,
-      "report": "artifacts/mutation/postgres-ownership/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/postgres-ownership-before/mutation.json",
       "analysis": "mutation_testing_framework.md#security-and-coordination-follow-up",
       "classification": "mutation_testing_security_coordination_classification.json",
       "limits": "SQL/Lua semantic mutation is not systematic; direct ownership predicate tests accompany all 14 kills. Other adapter operations and parent components remain outside scope."
@@ -701,7 +711,7 @@
         "RuntimeError": 25
       },
       "seconds": 180,
-      "report": "artifacts/mutation/scheduled-adapters/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/scheduled-adapters-before/mutation.json",
       "beforeReport": "artifacts/mutation/scheduled-adapters-before-two-hour-tests/mutation.json",
       "analysis": "mutation_testing_scheduled_tasks.md",
       "classification": "mutation_testing_scheduled_adapters_classification.json",
@@ -723,7 +733,7 @@
         "Timeout": 1
       },
       "seconds": 87,
-      "report": "artifacts/mutation/scheduled-contracts/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/scheduled-contracts-before/mutation.json",
       "beforeReport": "artifacts/mutation/scheduled-contracts-before-two-hour-tests/mutation.json",
       "analysis": "mutation_testing_scheduled_tasks.md",
       "classification": "mutation_testing_scheduled_contracts_classification.json",
@@ -738,16 +748,16 @@
       ],
       "extent": "Entire client/publication/serialization/acknowledgement/deferral files",
       "assessment": "complete",
-      "review": "classified with documented limits; material follow-up remains where listed",
+      "review": "complete",
       "counts": {
         "Killed": 159,
         "Survived": 20
       },
       "seconds": 56,
-      "report": "artifacts/mutation/workers-publication/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/workers-publication-before/mutation.json",
       "beforeReport": "artifacts/mutation/workers-publication-before-two-hour-tests/mutation.json",
-      "analysis": "mutation_testing_workers_followup.md",
-      "classification": "mutation_testing_workers_publication_classification.json",
+      "analysis": "mutation_testing_workers_complete_review.md",
+      "classification": "mutation_testing_workers_complete_review.json",
       "session": "mutation_testing_async_runtime_session.json",
       "limits": "Synthetic-cause and optional-property differences retained separately from invariants/diagnostics."
     },
@@ -789,7 +799,7 @@
         "RuntimeError": 41
       },
       "seconds": 170,
-      "report": "artifacts/mutation/workers-adapters/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/workers-adapters-before/mutation.json",
       "beforeReport": "artifacts/mutation/workers-adapters-before-two-hour-tests/mutation.json",
       "analysis": "mutation_testing_workers_followup.md",
       "classification": "mutation_testing_workers_adapters_classification.json",
@@ -810,7 +820,7 @@
         "Survived": 27
       },
       "seconds": 97,
-      "report": "artifacts/mutation/workers-contracts/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/workers-contracts-before/mutation.json",
       "beforeReport": "artifacts/mutation/workers-contracts-before-two-hour-tests/mutation.json",
       "analysis": "mutation_testing_workers_followup.md",
       "classification": "mutation_testing_workers_contracts_classification.json",
@@ -831,7 +841,7 @@
         "Survived": 4
       },
       "seconds": 19,
-      "report": "artifacts/mutation/workflow-task-ownership/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/workflow-task-ownership-before/mutation.json",
       "beforeReport": "artifacts/mutation/workflow-task-ownership-before-two-hour-tests/mutation.json",
       "analysis": "mutation_testing_async_runtime.md",
       "classification": "mutation_testing_workflow_task_ownership_classification.json",
@@ -876,7 +886,7 @@
         "Timeout": 6
       },
       "seconds": 75,
-      "report": "artifacts/mutation/workflow-terminal-control/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/workflow-terminal-control-before/mutation.json",
       "beforeReport": "artifacts/mutation/workflow-terminal-control-before-two-hour-tests/mutation.json",
       "analysis": "mutation_testing_async_runtime.md",
       "classification": "mutation_testing_workflow_terminal_classification.json",
@@ -1016,6 +1026,185 @@
       "analysis": "mutation_testing_scheduler_followup.md",
       "session": "mutation_testing_scheduler_followup.json",
       "limits": "The reference is the November 10 final report. Correlated handoff and batch residuals remain in review."
+    },
+    {
+      "id": "component-scheduling-review",
+      "date": "2026-11-11",
+      "components": [
+        "scheduling"
+      ],
+      "extent": "All four candidate files in scheduling/**/*, including the export-only index",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 139,
+        "Timeout": 3,
+        "Survived": 1
+      },
+      "seconds": 54,
+      "report": "artifacts/mutation/nov11-complete-review/component-scheduling-after-3/mutation.json",
+      "analysis": "mutation_testing_scheduling_review.md",
+      "classification": "mutation_testing_scheduling_review.json",
+      "limits": "One equivalent optional failure callback and three execution timeouts classified; zero uncovered mutants or Vitest deadline kills."
+    },
+    {
+      "id": "scheduled-runtime-review",
+      "date": "2026-11-11",
+      "components": [
+        "scheduled_tasks"
+      ],
+      "extent": "scheduled-runtime",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 3,
+        "Killed": 465,
+        "Survived": 25,
+        "Timeout": 5
+      },
+      "seconds": 173,
+      "report": "artifacts/mutation/nov11-complete-review/scheduled-runtime-after-2/mutation.json",
+      "analysis": "mutation_testing_scheduled_tasks.md#november-11-review",
+      "limits": "Residual groups recorded by mutant ID, including static schema runtime errors and execution limits. No Vitest deadline kills."
+    },
+    {
+      "id": "scheduled-adapters-review",
+      "date": "2026-11-11",
+      "components": [
+        "scheduled_tasks"
+      ],
+      "extent": "scheduled-adapters",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 6,
+        "Killed": 619,
+        "Survived": 29,
+        "RuntimeError": 25
+      },
+      "seconds": 224,
+      "report": "artifacts/mutation/nov11-complete-review/scheduled-adapters-after-2/mutation.json",
+      "analysis": "mutation_testing_scheduled_tasks.md#november-11-review",
+      "limits": "Residual groups recorded by mutant ID, including static schema runtime errors and execution limits. No Vitest deadline kills."
+    },
+    {
+      "id": "scheduled-contracts-review",
+      "date": "2026-11-11",
+      "components": [
+        "scheduled_tasks"
+      ],
+      "extent": "scheduled-contracts",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 288,
+        "Timeout": 1,
+        "Survived": 3
+      },
+      "seconds": 109,
+      "report": "artifacts/mutation/nov11-complete-review/scheduled-contracts-after/mutation.json",
+      "analysis": "mutation_testing_scheduled_tasks.md#november-11-review",
+      "limits": "Residual groups recorded by mutant ID, including static schema runtime errors and execution limits. No Vitest deadline kills."
+    },
+    {
+      "id": "workers-scheduler-review",
+      "date": "2026-11-11",
+      "components": [
+        "workers"
+      ],
+      "extent": "workers-scheduler",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 14,
+        "Survived": 108,
+        "Killed": 565
+      },
+      "seconds": 278,
+      "report": "artifacts/mutation/nov11-complete-review/workers-scheduler-after-3/mutation.json",
+      "analysis": "mutation_testing_workers_complete_review.md",
+      "classification": "mutation_testing_workers_complete_review.json",
+      "limits": "Remaining mutants classified individually; schema runtime errors and the delivery execution timeout remain separate from assertion kills."
+    },
+    {
+      "id": "workers-delivery-review",
+      "date": "2026-11-11",
+      "components": [
+        "workers"
+      ],
+      "extent": "workers-delivery",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 2,
+        "Killed": 331,
+        "Survived": 22,
+        "Timeout": 1
+      },
+      "seconds": 98,
+      "report": "artifacts/mutation/nov11-complete-review/workers-delivery-after-2/mutation.json",
+      "analysis": "mutation_testing_workers_complete_review.md",
+      "classification": "mutation_testing_workers_complete_review.json",
+      "limits": "Remaining mutants classified individually; schema runtime errors and the delivery execution timeout remain separate from assertion kills."
+    },
+    {
+      "id": "workers-adapters-review",
+      "date": "2026-11-11",
+      "components": [
+        "workers"
+      ],
+      "extent": "workers-adapters",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 503,
+        "Survived": 50,
+        "RuntimeError": 41
+      },
+      "seconds": 217,
+      "report": "artifacts/mutation/nov11-complete-review/workers-adapters-after/mutation.json",
+      "analysis": "mutation_testing_workers_complete_review.md",
+      "classification": "mutation_testing_workers_complete_review.json",
+      "limits": "Remaining mutants classified individually; schema runtime errors and the delivery execution timeout remain separate from assertion kills."
+    },
+    {
+      "id": "workers-contracts-review",
+      "date": "2026-11-11",
+      "components": [
+        "workers"
+      ],
+      "extent": "workers-contracts",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 317,
+        "Survived": 27
+      },
+      "seconds": 113,
+      "report": "artifacts/mutation/nov11-complete-review/workers-contracts-after/mutation.json",
+      "analysis": "mutation_testing_workers_complete_review.md",
+      "classification": "mutation_testing_workers_complete_review.json",
+      "limits": "Remaining mutants classified individually; schema runtime errors and the delivery execution timeout remain separate from assertion kills."
+    },
+    {
+      "id": "workflows-component-review",
+      "date": "2026-11-11",
+      "components": [
+        "workflows"
+      ],
+      "extent": "All 38 candidate files in workflows/**/*, including export-only and type-only candidates",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 105,
+        "Killed": 5760,
+        "Survived": 1029,
+        "Timeout": 30,
+        "RuntimeError": 106
+      },
+      "analysis": "mutation_testing_workflows_complete_review.md",
+      "session": "mutation_testing_workflow_review_session.json",
+      "limits": "Twenty disjoint static-inclusive profiles; the three unchanged ownership and retry references were retained. TypeScript mutation and live SQL contracts provide distinct evidence. The session identifies test-deadline detections separately."
     }
   ]
 }

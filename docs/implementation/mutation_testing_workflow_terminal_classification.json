@@ -5,7 +5,7 @@
   "command": "npm run test:mutation:workflow-terminal-control",
   "budgetMs": 600000,
   "ignoreStatic": false,
-  "report": "artifacts/mutation/workflow-terminal-control/mutation.json",
+  "report": "artifacts/mutation/nov11-complete-review/workflow-terminal-control-before/mutation.json",
   "beforeReport": "artifacts/mutation/workflow-terminal-control-before-two-hour-tests/mutation.json",
   "beforeCounts": {
     "NoCoverage": 81,
@@ -3321,7 +3321,7 @@
   ],
   "reportHashes": {
     "artifacts/mutation/workflow-terminal-control-before-two-hour-tests/mutation.json": "fa5ee9d2d401fd467494dadbbd0f188d5b083b868e4a0e5067bf27b994fdd849",
-    "artifacts/mutation/workflow-terminal-control/mutation.json": "e4127cc56e4b9caea81161d028b92d5ac062b23977973a86f4d627b4586a38d1"
+    "artifacts/mutation/nov11-complete-review/workflow-terminal-control-before/mutation.json": "e4127cc56e4b9caea81161d028b92d5ac062b23977973a86f4d627b4586a38d1"
   },
   "embeddedProductionSourceHashes": {
     "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "743a52cbd4e326406d6b1ebf615d3617c49239be34187aec109ad0ea7e25e5f4",

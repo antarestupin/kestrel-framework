@@ -8,13 +8,14 @@ import {
 import { z } from "zod";
 
 import { dep } from "../di/index.js";
-import { App } from "../app/index.js";
+import { App, executionCompletedEvent } from "../app/index.js";
 import {
   AsyncLocalObserverContext,
   type ObservationEvent,
   type ObservationRecorder,
   ScopedObserver,
 } from "../observability/index.js";
+import { abortableDelay } from "../scheduling/index.js";
 import {
   circuitBreaker,
   defineAdmissionPolicy,
@@ -35,6 +36,7 @@ import {
   defineWorker,
   jobFail,
   jobSuccess,
+  type WorkerExecutionContext,
 } from "./worker.js";
 
 function createAdapter(): MemoryWorkerAdapter {
@@ -126,6 +128,39 @@ function trackExecutionCleanup<Config>(app: App<Config>): () => Promise<void> {
 }
 
 describe("WorkerScheduler", () => {
+  it.each(["resolve", "execution.started", "execution.completed"] as const)(
+    "disposes the owned execution when observation fails at %s",
+    async (phase) => {
+      const failure = new Error("worker observation failed");
+      const app = new App<Record<string, never>>({});
+      const cleanup = trackExecutionCleanup(app);
+      const completed = vi.fn();
+      const handler = vi.fn();
+      const adapter = createAdapter();
+      const worker = defineWorker({ name: "observed", queue: "observed", input: z.null(), handler });
+      app.container.registerFactory("observer", () => {
+        if (phase === "resolve") throw failure;
+        return {
+          record: ({ name }: { name: string }) => {
+            if (name === phase) throw failure;
+          },
+        };
+      }, { lifetime: "scoped" });
+      app.eventBus.listen(executionCompletedEvent, (event) => completed(event.outcome), { scope: "descendants" });
+
+      try {
+        await app.start();
+        await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+        const scheduler = new WorkerScheduler(app, adapter, [worker], { slots: 1, leaseMs: 1_000 });
+        await expect(settleMemoryCycle(scheduler)).rejects.toBe(failure);
+        expect(handler).toHaveBeenCalledTimes(phase === "execution.completed" ? 1 : 0);
+        expect(completed).toHaveBeenCalledExactlyOnceWith(phase === "execution.completed" ? "success" : "failure");
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+
   it.each([false, true])("awaits and disposes async dependencies for batch=%s", async (batch) => {
     const app = new App({});
     const cleanup = trackExecutionCleanup(app);
@@ -151,6 +186,30 @@ describe("WorkerScheduler", () => {
       expect(handler).toHaveBeenCalledOnce();
       expect(create).toHaveBeenCalledOnce();
       expect(dispose).toHaveBeenCalledExactlyOnceWith(resource);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it.each([false, true])("records a batch failure as the invocation outcome and preserves its cause (throws=%s)", async (throws) => {
+    const { app, events } = await createObservedApp();
+    const cleanup = trackExecutionCleanup(app);
+    const adapter = createAdapter();
+    const cause = new RangeError("batch input failed");
+    const worker = defineWorker({ name: "failed-batch", queue: "failed-batch", input: z.null(), maxAttempts: 1, batch: { size: 1 },
+      handler: function* ([job]) {
+        if (throws) throw cause;
+        yield jobFail(job!.id, { cause });
+      },
+    });
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      const scheduler = new WorkerScheduler(app, adapter, [worker], { slots: 1, leaseMs: 1_000 });
+      expect(await settleMemoryCycle(scheduler)).toBe(1);
+      expect(events.find(({ name }) => name === "execution.completed")).toMatchObject({
+        outcome: "failure",
+        data: { operation: worker.name, transport: "worker", error: { name: cause.name, message: cause.message } },
+      });
     } finally {
       await cleanup();
     }
@@ -367,8 +426,10 @@ describe("WorkerScheduler", () => {
   it("validates payloads and acknowledges successful individual jobs", async () => {
     const adapter = createAdapter();
     const { app, events, observerContext } = await createObservedApp();
-    const handler = vi.fn(async () => {
+    const logContext = vi.fn();
+    const handler = vi.fn(async (_job: unknown, _dependencies: unknown, context: WorkerExecutionContext) => {
       expect(observerContext.get()).toBeDefined();
+      logContext(context.execution.context.toRecord("log"));
     });
     const worker = defineWorker({
       name: "email.send",
@@ -398,6 +459,9 @@ describe("WorkerScheduler", () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(adapter.inspectJobs()).toHaveLength(0);
+    expect(logContext).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      operation: "email.send", transport: "worker", workload: "workers",
+    }));
     expect(events.map((event) => event.name)).toEqual([
       "execution.started",
       "execution.completed",
@@ -838,6 +902,8 @@ describe("WorkerScheduler", () => {
     const rateAdapter = new MemoryRateLimitAdapter();
     const throttling = new ThrottlingManager(rateAdapter, {
       namespace: "workers",
+      // Use the fixture clock for the manager's wait as well as scheduler timers.
+      sleep: abortableDelay,
     });
     const limit = defineRateLimit({
       id: "slow-api",
@@ -878,8 +944,10 @@ describe("WorkerScheduler", () => {
       { queue: blocked.queue, payload: "blocked-2" },
       { queue: free.queue, payload: "free" },
     ]);
+    const app = await createStartedApp();
+    const cleanup = trackExecutionCleanup(app);
     const scheduler = new WorkerScheduler(
-      await createStartedApp(),
+      app,
       adapter,
       [blocked, free],
       {
@@ -891,20 +959,34 @@ describe("WorkerScheduler", () => {
       },
     );
 
-    await scheduler.runOnce();
-
-    expect(order).toContain("held");
-    expect(order).not.toContain("blocked-handler");
-    expect(order.indexOf("free-handler")).toBeLessThan(
-      order.lastIndexOf("deferred"),
+    vi.useFakeTimers();
+    const outcomes: PromiseSettledResult<number>[] = [];
+    void scheduler.runOnce().then(
+      (value) => outcomes.push({ status: "fulfilled", value }),
+      (reason: unknown) => outcomes.push({ status: "rejected", reason }),
     );
-    expect(order.filter((item) => item === "held")).toHaveLength(1);
-    expect(order.filter((item) => item === "deferred")).toHaveLength(2);
-    expect(adapter.inspectJobs()).toMatchObject([
-      { attempt: 0 },
-      { attempt: 0 },
-    ]);
-    await throttling.close();
+    try {
+      // The free worker gets the slot even before the held admission deadline.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(order).toContain("free-handler");
+      expect(outcomes).toEqual([]);
+      await vi.advanceTimersByTimeAsync(30);
+      expect(outcomes).toEqual([{ status: "fulfilled", value: 3 }]);
+      expect(order).not.toContain("blocked-handler");
+      expect(order.indexOf("free-handler")).toBeLessThan(order.lastIndexOf("deferred"));
+      expect(order.filter((item) => item === "held")).toHaveLength(1);
+      expect(order.filter((item) => item === "deferred")).toHaveLength(2);
+      expect(adapter.inspectJobs()).toMatchObject([{ attempt: 0 }, { attempt: 0 }]);
+    } finally {
+      try {
+        await scheduler.stop("expire");
+        await throttling.close();
+        await vi.advanceTimersByTimeAsync(0);
+        await cleanup();
+      } finally {
+        vi.useRealTimers();
+      }
+    }
   });
 
   it.each(["defer", "release"] as const)("batches rejected individual jobs using %s without counting attempts", async (strategy) => {

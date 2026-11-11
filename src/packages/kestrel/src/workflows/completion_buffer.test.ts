@@ -40,6 +40,44 @@ describe("WorkflowCompletionBuffer", () => {
     ])).resolves.toEqual([true, false]);
   });
 
+  it("matches both opaque reservation coordinates without delimiter collisions", async () => {
+    // External adapters may choose any string identifiers and tokens.
+    const first = { ...completion("part:one"), taskId: "part:one", reservationToken: "part-two" };
+    const second = { ...completion("part"), taskId: "part", reservationToken: "one:part-two" };
+    const completeActivities = vi.fn(async () => [toReservation(first)]);
+    const buffer = new WorkflowCompletionBuffer({ completeActivities } as unknown as WorkflowAdapter, {
+      maxSize: 2, flushIntervalMs: 100,
+    });
+
+    await expect(Promise.all([buffer.enqueue(first), buffer.enqueue(second)])).resolves.toEqual([true, false]);
+  });
+
+  it("preserves the failures of all queued completion batches", async () => {
+    const first = new Error("first batch rejected");
+    const second = new Error("second batch rejected");
+    const completeActivities = vi.fn().mockRejectedValueOnce(first).mockRejectedValueOnce(second);
+    const buffer = new WorkflowCompletionBuffer({ completeActivities } as unknown as WorkflowAdapter, {
+      maxSize: 1, flushIntervalMs: 100,
+    });
+    const individual = Promise.allSettled([buffer.enqueue(completion("first")), buffer.enqueue(completion("second"))]);
+    await expect(buffer.flush()).rejects.toMatchObject({ name: "AggregateError", errors: [first, second] });
+    await expect(individual).resolves.toEqual([
+      { status: "rejected", reason: first }, { status: "rejected", reason: second },
+    ]);
+    await expect(buffer.flush()).resolves.toBeUndefined();
+  });
+
+  it("propagates a single failed batch without wrapping its cause", async () => {
+    const failure = new Error("completion storage rejected the batch");
+    const completeActivities = vi.fn().mockRejectedValue(failure);
+    const buffer = new WorkflowCompletionBuffer({ completeActivities } as unknown as WorkflowAdapter, {
+      maxSize: 1, flushIntervalMs: 100,
+    });
+    const pending = buffer.enqueue(completion("first")).catch((error: unknown) => error);
+    await expect(buffer.flush()).rejects.toBe(failure);
+    await expect(pending).resolves.toBe(failure);
+  });
+
   it("flushes a partial batch explicitly", async () => {
     const completeActivities = vi.fn(async (
       requests: readonly CompleteWorkflowActivityRequest[],

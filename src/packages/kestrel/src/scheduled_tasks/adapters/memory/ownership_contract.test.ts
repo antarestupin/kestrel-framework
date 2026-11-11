@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MemoryScheduledTaskAdapter } from "./adapter.js";
 import type { ReserveScheduledTaskRequest, ScheduledTaskReservation } from "../../types.js";
@@ -40,6 +40,47 @@ describe("memory scheduled-task ownership and recovery", () => {
     const [snapshot] = await adapter.listStates(["first"]);
     snapshot!.nextScheduledAt!.setTime(0);
     expect((await adapter.listStates(["first"]))[0]!.nextScheduledAt).toEqual(epoch);
+  });
+
+  it("uses the current time for reservations and manual requests without an injected clock", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(epoch);
+      const adapter = new MemoryScheduledTaskAdapter();
+      const { request } = setup();
+      await adapter.reconcile([{ taskId: "first", nextScheduledAt: epoch }]);
+      const reservation = await reserve(adapter, request());
+      expect(reservation.reservedAt).toEqual(epoch);
+      const requestedAt = new Date(epoch.getTime() + 50);
+      vi.setSystemTime(requestedAt);
+      await adapter.requestRun("first");
+      expect((await adapter.listStates(["first"]))[0]).toMatchObject({ lastStartedAt: epoch, manualRunRequestedAt: requestedAt });
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("keeps persisted run diagnostics independent of mutable clocks, reservations and errors", async () => {
+    const clock = new Date(epoch);
+    const adapter = new MemoryScheduledTaskAdapter({ now: () => clock });
+    const { request } = setup();
+    await adapter.reconcile([{ taskId: "first", nextScheduledAt: epoch }]);
+    await adapter.requestRun("first");
+    const manual = await reserve(adapter, request());
+    // Mutable Date and error objects can be retained by adapter callers.
+    manual.reservedAt.setTime(0);
+    clock.setTime(epoch.getTime() + 1);
+    expect((await adapter.listStates(["first"]))[0]!.lastStartedAt).toEqual(epoch);
+
+    const error = { name: "TestFailure", message: "original failure" };
+    expect(await adapter.complete({ ...manual, completedAt: epoch, outcome: "failure", error })).toBe(true);
+    error.message = "changed by caller";
+    const [snapshot] = await adapter.listStates(["first"]);
+    expect(snapshot!.lastError!.message).toBe("original failure");
+    snapshot!.lastError!.message = "changed through snapshot";
+    expect((await adapter.listStates(["first"]))[0]!.lastError!.message).toBe("original failure");
+
+    await adapter.requestRun("first");
+    clock.setTime(epoch.getTime() + 2);
+    expect((await adapter.listStates(["first"]))[0]!.manualRunRequestedAt).toEqual(new Date(epoch.getTime() + 1));
   });
 
   it("refuses unknown, stale and paused scheduled occurrences without adding a run", async () => {
@@ -107,6 +148,21 @@ describe("memory scheduled-task ownership and recovery", () => {
     expect((await adapter.listStates(["first"]))[0]!.nextScheduledAt).toEqual(postponed);
   });
 
+  it("retains absent cadence on completion and rejects earlier updates to existing cadence", async () => {
+    const { adapter, request } = setup();
+    await adapter.reconcile([{ taskId: "first", nextScheduledAt: epoch }, { taskId: "second", nextScheduledAt: epoch }]);
+    const { nextScheduledAt: _nextScheduledAt, ...loopRequest } = request();
+    const loopRun = await reserve(adapter, loopRequest);
+    expect(await adapter.complete({ ...loopRun, completedAt: epoch, outcome: "success" })).toBe(true);
+    expect((await adapter.listStates(["first"]))[0]!.nextScheduledAt).toBeUndefined();
+
+    const regular = request("second");
+    const regularRun = await reserve(adapter, regular);
+    const earlier = new Date(epoch.getTime() + 10_000);
+    expect(await adapter.complete({ ...regularRun, completedAt: epoch, outcome: "success", nextScheduledAt: earlier, postponeUntil: earlier })).toBe(true);
+    expect((await adapter.listStates(["second"]))[0]!.nextScheduledAt).toEqual(regular.nextScheduledAt);
+  });
+
   it("does not replace regular cadence with the completion of a manual run", async () => {
     const { adapter, request } = setup();
     const next = new Date(epoch.getTime() + 60_000);
@@ -131,6 +187,41 @@ describe("memory scheduled-task ownership and recovery", () => {
     expect((await adapter.listStates(["first"]))[0]!.nextScheduledAt).toEqual(new Date(epoch.getTime() + 120_000));
   });
 
+  it("does not use a different task's live reservation to discard an occurrence", async () => {
+    const { adapter, request } = setup();
+    await adapter.reconcile([{ taskId: "first", nextScheduledAt: epoch }, { taskId: "second", nextScheduledAt: epoch }]);
+    await reserve(adapter, request("second"));
+    expect(await adapter.skip(request("first", { overlap: "skip" }))).toBe(false);
+    expect((await adapter.listStates(["first"]))[0]).toMatchObject({ activeRuns: 0, nextScheduledAt: epoch });
+  });
+
+  it("skips a matching manual occurrence while paused without changing regular cadence", async () => {
+    const { adapter, request, advance } = setup();
+    const first = request();
+    await adapter.reconcile([{ taskId: "first", nextScheduledAt: epoch }]);
+    await reserve(adapter, first);
+    advance(10);
+    await adapter.requestRun("first");
+    await adapter.setPaused("first", true);
+    expect(await adapter.skip(request("first", { expectedScheduledAt: new Date(epoch.getTime() + 10), overlap: "skip" }))).toBe(true);
+    expect(await adapter.listStates(["first"])).toEqual([{ taskId: "first", paused: true, activeRuns: 1, nextScheduledAt: first.nextScheduledAt, lastStartedAt: epoch }]);
+  });
+
+  it("does not discard a manual occurrence when the last overlapping lease expires", async () => {
+    const { adapter, request, advance } = setup();
+    await adapter.reconcile([{ taskId: "first", nextScheduledAt: epoch }]);
+    const previous = await reserve(adapter, request());
+    advance(900);
+    await adapter.requestRun("first");
+    const manual = new Date(epoch.getTime() + 900);
+    // Expiry can occur between admission's state read and the adapter's skip call.
+    expect((await adapter.listStates(["first"]))[0]!.activeRuns).toBe(1);
+    advance(1_000);
+    expect(await adapter.skip(request("first", { expectedScheduledAt: manual, overlap: "skip" }))).toBe(false);
+    expect((await adapter.listStates(["first"]))[0]).toMatchObject({ nextScheduledAt: epoch, manualRunRequestedAt: manual, activeRuns: 0 });
+    expect(await adapter.release(previous)).toBe(false);
+  });
+
   it.each(["release", "expiry"] as const)("restores the earliest unhandled manual occurrence after %s", async (reason) => {
     const { adapter, request, advance } = setup();
     await adapter.reconcile([{ taskId: "first", nextScheduledAt: new Date(epoch.getTime() + 60_000) }]);
@@ -142,6 +233,21 @@ describe("memory scheduled-task ownership and recovery", () => {
     await adapter.requestRun("first");
     if (reason === "release") expect(await adapter.release(manual)).toBe(true);
     else { advance(1_000); expect(await adapter.pruneExpiredRuns({ limit: 1 })).toBe(1); }
+    expect((await adapter.listStates(["first"]))[0]!.manualRunRequestedAt).toEqual(epoch);
+  });
+
+  it("restores a manual occurrence without a pending request and retains it when a newer run is released", async () => {
+    const { adapter, request, advance } = setup();
+    await adapter.reconcile([{ taskId: "first", nextScheduledAt: new Date(epoch.getTime() + 60_000) }]);
+    await adapter.requestRun("first");
+    const older = await reserve(adapter, request());
+    advance(100);
+    await adapter.requestRun("first");
+    const newer = await reserve(adapter, request("first", { expectedScheduledAt: new Date(epoch.getTime() + 100) }));
+    expect((await adapter.listStates(["first"]))[0]!.manualRunRequestedAt).toBeUndefined();
+    expect(await adapter.release(older)).toBe(true);
+    expect((await adapter.listStates(["first"]))[0]!.manualRunRequestedAt).toEqual(epoch);
+    expect(await adapter.release(newer)).toBe(true);
     expect((await adapter.listStates(["first"]))[0]!.manualRunRequestedAt).toEqual(epoch);
   });
 
@@ -189,8 +295,8 @@ describe("memory scheduled-task ownership and recovery", () => {
 
   it("rejects controls for unregistered task ids", async () => {
     const { adapter } = setup();
-    await expect(adapter.requestRun("missing")).rejects.toThrow(Error);
-    await expect(adapter.setPaused("missing", true)).rejects.toThrow(Error);
+    await expect(adapter.requestRun("missing")).rejects.toThrow(/"missing"/u);
+    await expect(adapter.setPaused("missing", true)).rejects.toThrow(/"missing"/u);
     expect(await adapter.skip({ taskId: "missing", expectedScheduledAt: epoch, overlap: "wait", leaseMs: 1 })).toBe(false);
   });
 

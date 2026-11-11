@@ -170,6 +170,10 @@ export class WorkflowOperations {
         `Signal "${request.signalName}" is not declared by workflow "${definition.name}".`,
       );
     }
+    // Operator signals follow the same deduplication-key contract as typed handles.
+    if (request.idempotencyKey !== undefined && request.idempotencyKey.length === 0) {
+      throw new TypeError("Workflow signal idempotency keys cannot be empty.");
+    }
     const parsed = await parseSchema(
       signal.payloadSchema,
       request.payload,

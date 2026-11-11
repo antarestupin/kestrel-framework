@@ -33,6 +33,40 @@ async function setup(workers: readonly AnyWorker[], options: Partial<Constructor
 }
 
 describe("worker delivery contracts", () => {
+  it("does not acknowledge an old lease when a correlated write finishes after reclamation", async () => {
+    vi.useFakeTimers();
+    const finish = Promise.withResolvers<void>();
+    const complete = vi.fn(() => finish.promise);
+    const worker = defineWorker({
+      name: "reclaimed-handoff", queue: "reclaimed-handoff", input: z.null(),
+      handler: (_job, _dependencies, context) => context.setResult("completed"),
+    });
+    const { adapter, scheduler, advance } = await setup([worker], { completeCorrelatedJob: complete });
+    await adapter.enqueue([{ queue: worker.queue, payload: null, correlation: { namespace: "test", id: "reclaimed" } }]);
+    const ack = vi.spyOn(adapter, "ack");
+    const renew = vi.spyOn(adapter, "extendLease");
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(complete).toHaveBeenCalledOnce();
+      // The sink already owns its write, while a competing scheduler can own the queue job.
+      advance(new Date(epoch.getTime() + 1_000));
+      const [replacement] = await adapter.reserve({
+        queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 1_000,
+      });
+      expect(replacement).toMatchObject({ id: "job-1", attempt: 2, reservationToken: "token-2" });
+      await vi.advanceTimersByTimeAsync(500);
+      expect(renew).toHaveBeenCalledExactlyOnceWith([{ jobId: "job-1", reservationToken: "token-1", leaseMs: 1_000 }]);
+      finish.resolve();
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 1 }]);
+      expect(ack).not.toHaveBeenCalled();
+      expect(adapter.inspectJobs()).toMatchObject([{ id: "job-1", attempt: 2, reservationToken: "token-2" }]);
+    } finally {
+      finish.resolve();
+      await cycle;
+    }
+  });
+
   it.each(["sync", "async"] as const)("keeps sibling result handoffs and their leases alive after another handoff fails (%s)", async (mode) => {
     vi.useFakeTimers();
     const first = new Error("first completion failed");
@@ -142,6 +176,57 @@ describe("worker delivery contracts", () => {
     expect(await scheduler.runOnce()).toBe(0);
   });
 
+  it("skips the reservation operation when all configured queues are idle", async () => {
+    const worker = defineWorker({ name: "idle-queue", queue: "idle-queue", input: z.null(), handler: vi.fn() });
+    const { adapter, scheduler } = await setup([worker]);
+    const listReady = vi.spyOn(adapter, "listReadyQueues");
+    const reserve = vi.spyOn(adapter, "reserve");
+    expect(await scheduler.runOnce()).toBe(0);
+    expect(listReady).toHaveBeenCalledExactlyOnceWith([worker.queue]);
+    expect(reserve).not.toHaveBeenCalled();
+  });
+
+  it("continues polling after a handled job and waits only after a reservation is empty", async () => {
+    const handler = vi.fn();
+    const worker = defineWorker({ name: "busy-poll", queue: "busy-poll", input: z.null(), handler });
+    const emptyPoll = Promise.withResolvers<void>();
+    const sleep = vi.fn(async () => { await emptyPoll.promise; });
+    const { adapter, scheduler } = await setup([worker], { sleep, pollIntervalMs: 47 });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const reserve = adapter.reserve.bind(adapter);
+    const reservations: number[] = [];
+    vi.spyOn(adapter, "reserve").mockImplementation(async (request) => {
+      const jobs = await reserve(request);
+      reservations.push(jobs.length);
+      // Give polling variants that never wait a fixture-owned escape route.
+      if (reservations.length > 2) void scheduler.stop("expire");
+      return jobs;
+    });
+    scheduler.start();
+    try {
+      await setImmediate();
+      expect(handler).toHaveBeenCalledOnce();
+      expect(reservations).toEqual([1, 0]);
+      expect(sleep).toHaveBeenCalledExactlyOnceWith(47, expect.any(AbortSignal));
+    } finally {
+      const stopping = scheduler.stop();
+      emptyPoll.resolve();
+      await stopping;
+    }
+  });
+
+  it("acknowledges an uncorrelated individual job without calling the result sink", async () => {
+    const complete = vi.fn(async () => undefined);
+    const worker = defineWorker({ name: "uncorrelated", queue: "uncorrelated", input: z.null(),
+      handler: (_job, _dependencies, context) => context.setResult("internal result"),
+    });
+    const { adapter, scheduler } = await setup([worker], { completeCorrelatedJob: complete });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    expect(await scheduler.runOnce()).toBe(1);
+    expect(complete).not.toHaveBeenCalled();
+    expect(adapter.inspectJobs()).toEqual([]);
+  });
+
   it("backs off exponentially and respects the retry cap across real reservation attempts", async () => {
     const worker = defineWorker({ name: "backoff", queue: "backoff", input: z.null(), retryDelayMs: 100, maxRetryDelayMs: 250, maxAttempts: 5,
       handler: () => { throw new Error("retryable"); },
@@ -229,6 +314,66 @@ describe("worker delivery contracts", () => {
     expect(adapter.inspectDeadLetters()).toEqual([]);
   });
 
+  it("keeps the first correlated result when a batch yields a duplicate job ID", async () => {
+    const complete = vi.fn(async () => undefined);
+    const worker = defineWorker({
+      name: "duplicate-batch-result", queue: "duplicate-batch-result", input: z.null(), maxAttempts: 1, batch: { size: 2 },
+      handler: function* ([first]) {
+        yield jobSuccess(first!.id, "first result");
+        yield jobSuccess(first!.id, "duplicate result");
+      },
+    });
+    const { adapter, scheduler } = await setup([worker], { completeCorrelatedJob: complete });
+    await adapter.enqueue([
+      { queue: worker.queue, payload: null, correlation: { namespace: "test", id: "first" } },
+      { queue: worker.queue, payload: null },
+    ]);
+    expect(await scheduler.runOnce()).toBe(2);
+    expect(complete).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ jobId: "job-1", status: "completed", result: "first result" }));
+    expect(adapter.inspectDeadLetters()).toMatchObject([{ originalJobId: "job-2", error: { name: "WorkerBatchResultError" } }]);
+    expect(adapter.inspectJobs()).toEqual([]);
+  });
+
+  it("keeps the failure metadata that was yielded before a batch handler changes its object", async () => {
+    const complete = vi.fn(async () => undefined);
+    const cause = new Error("first failure");
+    const worker = defineWorker({
+      name: "yielded-failure", queue: "yielded-failure", input: z.null(), batch: { size: 2 },
+      handler: function* ([failed, completed]) {
+        const failure = { cause, retryDelayMs: 0, maxAttempts: 1 };
+        yield jobFail(failed!.id, failure);
+        failure.cause = new Error("later failure");
+        failure.maxAttempts = 0;
+        yield jobSuccess(completed!.id, "completed peer");
+      },
+    });
+    const { adapter, scheduler } = await setup([worker], { completeCorrelatedJob: complete });
+    await adapter.enqueue([
+      { queue: worker.queue, payload: null },
+      { queue: worker.queue, payload: null, correlation: { namespace: "test", id: "peer" } },
+    ]);
+    expect(await scheduler.runOnce()).toBe(2);
+    expect(adapter.inspectDeadLetters()).toMatchObject([{ originalJobId: "job-1", error: { message: cause.message } }]);
+    expect(complete).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ jobId: "job-2", result: "completed peer" }));
+    expect(adapter.inspectJobs()).toEqual([]);
+  });
+
+  it.each([{ retryDelayMs: -1 }, { retryDelayMs: NaN }, { maxAttempts: 0 }, { maxAttempts: 1.5 }])(
+    "treats invalid hand-written failure metadata as a batch result error (%j)",
+    async (invalid) => {
+      const worker = defineWorker({
+        name: "invalid-batch-metadata", queue: "invalid-batch-metadata", input: z.null(), maxAttempts: 1, batch: { size: 2 },
+        handler: function* ([job]) {
+          yield { status: "error", key: job!.id, error: { cause: new Error("reported failure"), ...invalid } };
+        },
+      });
+      const { adapter, scheduler } = await setup([worker]);
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      expect(await scheduler.runOnce()).toBe(1);
+      expect(adapter.inspectDeadLetters()).toMatchObject([{ originalJobId: "job-1", error: { name: "WorkerBatchResultError" } }]);
+    },
+  );
+
   it("preserves an explicit batch failure when a later generator operation throws", async () => {
     const explicit = new Error("explicit terminal failure");
     const interrupted = new Error("later generator failure");
@@ -276,6 +421,35 @@ describe("worker delivery contracts", () => {
     expect(vi.getTimerCount()).toBe(0);
     await scheduler.stop("release");
     expect(release.mock.calls.flatMap(([jobs]) => jobs)).toEqual([]);
+  });
+
+  it("lets a failed handoff's lease expire after its cycle has stopped tracking it", async () => {
+    const failure = new Error("handoff failed");
+    const complete = vi.fn(async () => { throw failure; });
+    const worker = defineWorker({ name: "failed-handoff", queue: "failed-handoff", input: z.null(), handler: vi.fn() });
+    const { adapter, scheduler } = await setup([worker], { completeCorrelatedJob: complete });
+    const release = vi.spyOn(adapter, "release");
+    await adapter.enqueue([{ queue: worker.queue, payload: null, correlation: { namespace: "test", id: "failed" } }]);
+    await expect(scheduler.runOnce()).rejects.toBe(failure);
+    await scheduler.stop("release");
+    expect(release.mock.calls.flatMap(([jobs]) => jobs)).toEqual([]);
+    expect(adapter.inspectJobs()).toMatchObject([{ id: "job-1", attempt: 1, reservationToken: "token-1" }]);
+  });
+
+  it.each([false, true])("flushes a progressively buffered acknowledgement exactly once (batch throws=%s)", async (throws) => {
+    const worker = defineWorker({ name: "progressive-ack", queue: "progressive-ack", input: z.null(), batch: { size: 2 },
+      handler: function* ([job]) {
+        yield jobSuccess(job!.id);
+        if (throws) throw new Error("generator failed after the successful yield");
+      },
+    });
+    // Keep the first result in the buffer until the whole invocation has settled.
+    const { adapter, scheduler } = await setup([worker], { ackBufferSize: 100, ackFlushIntervalMs: 1_000 });
+    const ack = vi.spyOn(adapter, "ack");
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    expect(await scheduler.runOnce()).toBe(1);
+    expect(ack).toHaveBeenCalledExactlyOnceWith([{ jobId: "job-1", reservationToken: "token-1" }]);
+    expect(adapter.inspectJobs()).toEqual([]);
   });
 
   for (const invalid of ["unknown", "duplicate"] as const) {

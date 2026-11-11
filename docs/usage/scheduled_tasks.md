@@ -62,7 +62,7 @@ const immediatelyThenHourly = every({ hours: 1, start: "immediate" });
 const weekdayMorning = cron("0 9 * * 1-5", { timeZone: "Europe/Paris" });
 ```
 
-Use one of these values as `schedule`. `every` keeps a cadence and coalesces missed occurrences. `cron` defaults to UTC. Manual runs do not shift regular cadence. The handler receives a cooperative abort signal, trigger and claimed occurrence time. Check that signal during long work: shutdown and lost reservation ownership request cooperative cancellation. A renewal failure marks the invocation failed even if its handler returns normally after cancellation.
+Use one of these values as `schedule`. `every` keeps a cadence and coalesces missed occurrences. `cron` defaults to UTC. Manual runs do not shift regular cadence. The handler receives a cooperative abort signal, trigger and claimed occurrence time. Check that signal during long work: shutdown and lost reservation ownership request cooperative cancellation. If cancellation happens while the execution scope or dependencies are still being prepared, the handler is skipped. A renewal failure marks the invocation failed even if its handler returns normally after cancellation.
 
 ## Select tasks and control execution
 
@@ -76,7 +76,7 @@ Select tasks when a process should run only part of the registered schedule. Use
 
 Repeated task/group filters form a union; unknown selections fail before polling. Studio exposes Run now, Pause and Resume. Pause prevents new regular admissions but does not abort an active handler, and explicit manual requests remain allowed.
 
-Use `overlap: "skip"` to skip overlapping work, `"wait"` to coalesce until the active run completes, or `"parallel"` where concurrent runs are safe. Leases and occurrence records coordinate processes but do not make external effects exactly once; handlers should tolerate recovery after process loss. See [overlap and recovery](../implementation/scheduled_tasks.md#overlap-policy) for the detailed guarantees. `executionLog: false` and `observe: false` independently suppress automatic logs and observations for noisy maintenance.
+Use `overlap: "skip"` to skip occurrences that overlap a run with a live reservation, `"wait"` to coalesce until the active run completes, or `"parallel"` where concurrent runs are safe. Leases and occurrence records coordinate processes but do not make external effects exactly once; handlers should tolerate recovery after process loss. See [overlap and recovery](../implementation/scheduled_tasks.md#overlap-policy) for the detailed guarantees. `executionLog: false` and `observe: false` independently suppress automatic logs and observations for noisy maintenance.
 
 ## Use cases still to document
 

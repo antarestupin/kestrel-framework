@@ -2,7 +2,8 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { getFrameworkDatabaseTableKeys } from "../../../db/framework_table.js";
-import { scheduledTaskRuns, scheduledTaskStates } from "./schema.js";
+import { getDatabaseSchemaContributions } from "../../../db/schema_contributions/definition.js";
+import { scheduledTaskRuns, scheduledTaskStates, scheduledTasksSchema } from "./schema.js";
 
 /** These migration-facing contracts use the actual exported schema, not the temporary adapter fixture. */
 describe("scheduled-task PostgreSQL schema contracts", () => {
@@ -54,5 +55,22 @@ describe("scheduled-task PostgreSQL schema contracts", () => {
     const columns = (table: typeof scheduledTaskStates | typeof scheduledTaskRuns) => getTableConfig(table).indexes.map((index) => index.config.columns.map((column) => "name" in column ? column.name : undefined));
     expect(columns(scheduledTaskStates)).toContainEqual(["paused", "next_scheduled_at"]);
     expect(columns(scheduledTaskRuns)).toContainEqual(["task_id", "expires_at"]);
+  });
+
+  it("contributes migration comments for the schema, tables and every operator-visible column", () => {
+    const contributions = getDatabaseSchemaContributions({ scheduledTasksSchema, scheduledTaskStates, scheduledTaskRuns });
+    const schema = contributions.find(({ id }) => id === "postgres.schema:scheduled_tasks:description");
+    expect(schema?.installSql).toContain('COMMENT ON SCHEMA "scheduled_tasks" IS ');
+
+    // Check targets instead of freezing the human-readable comment text.
+    for (const table of [scheduledTaskStates, scheduledTaskRuns]) {
+      const { name, columns } = getTableConfig(table);
+      const contribution = contributions.find(({ id }) => id === `postgres.table:scheduled_tasks.${name}:descriptions`);
+      const qualifiedTable = `"scheduled_tasks"."${name}"`;
+      expect(contribution?.installSql).toContain(`COMMENT ON TABLE ${qualifiedTable} IS `);
+      for (const { name: column } of columns) {
+        expect(contribution?.installSql).toContain(`COMMENT ON COLUMN ${qualifiedTable}."${column}" IS `);
+      }
+    }
   });
 });

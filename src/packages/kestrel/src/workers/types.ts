@@ -61,6 +61,7 @@ export interface QueueReservationPreference {
 }
 
 export interface ReserveJobsRequest {
+  /** Ordered allocations. Repeated queue entries still reserve distinct jobs. */
   queues: readonly QueueReservationPreference[];
   totalLimit: number;
   leaseMs: number;

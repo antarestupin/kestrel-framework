@@ -289,4 +289,25 @@ describe("MemoryWorkflowAdapter terminal controls", () => {
     expect(await adapter.get("open-child")).toMatchObject({ status: "terminated", error: { name: "WorkflowExecutionTerminatedError", message: "operator escalation" } });
     expect(adapter.inspectTasks().filter(({ executionId }) => executionId === "open-child")).toEqual([]);
   });
+
+  it("terminates an orphan with a complete but missing parent link", async () => {
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch });
+    await adapter.start({ ...start("orphan"), parentExecutionId: "missing", parentCommandSequence: 0 });
+    await expect(adapter.forceTerminate("orphan", "cleanup")).resolves.toBe(true);
+    await expect(adapter.get("orphan")).resolves.toMatchObject({ status: "terminated", concurrencyAdmitted: false });
+    expect(adapter.inspectTasks()).toEqual([]);
+  });
+
+  it("keeps a terminal parent unchanged when directly terminating an open child", async () => {
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch });
+    await adapter.start(start("closed-parent"));
+    adapter.failExecution("closed-parent", { name: "ParentFailure", message: "Closed." });
+    await adapter.start({ ...start("open-child"), parentExecutionId: "closed-parent", parentCommandSequence: 0 });
+    const parent = await adapter.get("closed-parent");
+
+    await expect(adapter.forceTerminate("open-child", "cleanup")).resolves.toBe(true);
+    await expect(adapter.get("open-child")).resolves.toMatchObject({ status: "terminated" });
+    await expect(adapter.get("closed-parent")).resolves.toEqual(parent);
+    await expect(adapter.getHistory("closed-parent")).resolves.toEqual([]);
+  });
 });

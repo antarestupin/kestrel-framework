@@ -41,7 +41,6 @@ export class PollingSupervisor {
     report: (error: unknown) => void = () => undefined,
   ): Promise<void> {
     let firstFailureAt: number | undefined;
-    this.current = { ...this.current, status: "running" };
     try {
       while (!signal.aborted) {
         this.current = { ...this.current, status: "running", nextRetryAt: undefined };

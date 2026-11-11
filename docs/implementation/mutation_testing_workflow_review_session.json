@@ -1,0 +1,1649 @@
+{
+  "date": "2026-11-11",
+  "baseRevision": "2e8beb8",
+  "candidateFiles": 38,
+  "runBudgetMs": 600000,
+  "profiles": [
+    {
+      "profile": "workflow-runtime",
+      "scope": "Provider, runtime, dependencies and completion buffer",
+      "analysis": "mutation_testing_workflow_runtime_review.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-runtime-after-4/mutation.json",
+        "sha256": "34a481e06a2a635762a2a87e02ec5758676e6f80a309575e0761b2fc490046e1",
+        "seconds": 87,
+        "baselineTestsFromRunnerLog": 268,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/runtime.ts",
+          "src/packages/kestrel/src/workflows/provider.ts",
+          "src/packages/kestrel/src/workflows/dependencies.ts",
+          "src/packages/kestrel/src/workflows/completion_buffer.ts"
+        ],
+        "counts": {
+          "NoCoverage": 2,
+          "Killed": 290,
+          "Survived": 12,
+          "Timeout": 1
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "b88a98241ee0ea04ba90759148845d64d52a381f17d3b4904728f608b0ce36ae"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-runtime-before/mutation.json",
+        "sha256": "1da2260bc9a2e2ff5e1ef2dbbc4c6f26191aea218159c384462e6473cbd1a2a7",
+        "seconds": 89,
+        "baselineTestsFromRunnerLog": 128,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/runtime.ts",
+          "src/packages/kestrel/src/workflows/provider.ts",
+          "src/packages/kestrel/src/workflows/dependencies.ts",
+          "src/packages/kestrel/src/workflows/completion_buffer.ts"
+        ],
+        "counts": {
+          "NoCoverage": 86,
+          "Killed": 110,
+          "Survived": 98
+        },
+        "vitestDeadlineKills": [
+          "220",
+          "225",
+          "289",
+          "296"
+        ],
+        "testSetSha256": "a7492dccd8fe3fd397776f245b47bbd87003e76ccc227220c55d64071fc4e760"
+      },
+      "comparison": {
+        "matched": 249,
+        "unmatchedBefore": 45,
+        "unmatchedAfter": 56,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 87
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 66
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 2
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 5
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Timeout",
+            "count": 1
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 82
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 6
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-scheduler",
+      "scope": "Scheduler reservation, replay admission, activities and timers",
+      "analysis": "mutation_testing_workflow_runtime_review.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-scheduler-after-2/mutation.json",
+        "sha256": "b76ecb35b26b5d8e352595ba4fd3004e9226bd4d692893f06061bdd4b41c8790",
+        "seconds": 189,
+        "baselineTestsFromRunnerLog": 227,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/scheduler.ts"
+        ],
+        "counts": {
+          "NoCoverage": 7,
+          "Killed": 363,
+          "Survived": 104,
+          "Timeout": 2
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "7c4bb4994250ab153b742d7cc68d328586c26dabfbab9c541f671ac9bec70341"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-scheduler-before/mutation.json",
+        "sha256": "f92139126c220599d9fc8dcbe8172d3095b8114892a298488bc07b4cc05973d0",
+        "seconds": 144,
+        "baselineTestsFromRunnerLog": 104,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/scheduler.ts"
+        ],
+        "counts": {
+          "NoCoverage": 43,
+          "Killed": 272,
+          "Survived": 122,
+          "Timeout": 2
+        },
+        "vitestDeadlineKills": [
+          "7",
+          "176",
+          "428",
+          "430",
+          "437",
+          "442",
+          "443"
+        ],
+        "testSetSha256": "b5cfb17c8a985fe2b48689075b12d8ecb689e8e01f1f5563842929b5ec941b90"
+      },
+      "comparison": {
+        "matched": 391,
+        "unmatchedBefore": 48,
+        "unmatchedAfter": 85,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 242
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 29
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 6
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 4
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 25
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 83
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 2
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-transports",
+      "scope": "Embedded and Worker-backed activity transports",
+      "analysis": "mutation_testing_workflow_runtime_review.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-transports-after-3/mutation.json",
+        "sha256": "6ba8f9ffa65efc8aaa695c80ef248dfe97a605272906076e65f619103f276b2a",
+        "seconds": 172,
+        "baselineTestsFromRunnerLog": 247,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/activity_transport.ts",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.ts"
+        ],
+        "counts": {
+          "Killed": 371,
+          "Survived": 83
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "b830e4bd6db722fa06a86fe12daaa5a4cc22f60ce38f69bd34c111f9937271a1"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-transports-before/mutation.json",
+        "sha256": "e6d0647e52622a538a43dcb44bb5fbe4400f625b1791c524190311c96d68c7e5",
+        "seconds": 128,
+        "baselineTestsFromRunnerLog": 105,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/activity_transport.ts",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.ts"
+        ],
+        "counts": {
+          "NoCoverage": 88,
+          "Killed": 149,
+          "Survived": 118
+        },
+        "vitestDeadlineKills": [
+          "67",
+          "69",
+          "70",
+          "117",
+          "118",
+          "119",
+          "120"
+        ],
+        "testSetSha256": "2e64deb4e65d1157967c11d18ea27f1951688f736f0b2128a36d57690223910d"
+      },
+      "comparison": {
+        "matched": 278,
+        "unmatchedBefore": 77,
+        "unmatchedAfter": 176,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 110
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 52
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 14
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 63
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 39
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-operations",
+      "scope": "Client, operator commands, version operations and pagination cursor",
+      "analysis": "mutation_testing_workflow_operations_replay_review.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-operations-after-2/mutation.json",
+        "sha256": "955c39d7d5194fe8ab4162acd0b6674fe9280608cf1a50a2e1f98a441fc6f56d",
+        "seconds": 169,
+        "baselineTestsFromRunnerLog": 442,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/client.ts",
+          "src/packages/kestrel/src/workflows/operations.ts",
+          "src/packages/kestrel/src/workflows/version_operations.ts",
+          "src/packages/kestrel/src/workflows/execution_cursor.ts"
+        ],
+        "counts": {
+          "NoCoverage": 1,
+          "Killed": 450,
+          "Survived": 51
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "5be33924a04aa29e407c7ecdad1cecff0b5f766729c688b91dfa5e5821a19df2"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-operations-before/mutation.json",
+        "sha256": "b84829f362bd9bfa3d5ec6909034a7fab4420b21233cd4eced3e7ef1a203b152",
+        "seconds": 112,
+        "baselineTestsFromRunnerLog": 241,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/client.ts",
+          "src/packages/kestrel/src/workflows/operations.ts",
+          "src/packages/kestrel/src/workflows/version_operations.ts",
+          "src/packages/kestrel/src/workflows/execution_cursor.ts"
+        ],
+        "counts": {
+          "NoCoverage": 89,
+          "Killed": 279,
+          "Survived": 125
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "ed427547d8bceea928f7e6dd97da6e380bd79fed398a041f281f619d3c820c27"
+      },
+      "comparison": {
+        "matched": 491,
+        "unmatchedBefore": 2,
+        "unmatchedAfter": 11,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 278
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 69
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 1
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 18
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 94
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 31
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-replay",
+      "scope": "Replay context, runner, journal and replay types",
+      "analysis": "mutation_testing_workflow_operations_replay_review.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-replay-after-3/mutation.json",
+        "sha256": "e056aef8a9b813afd991c69b4ad4e4c74bcb95a2371621e46d49eb2edc0fb07a",
+        "seconds": 198,
+        "baselineTestsFromRunnerLog": 273,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/replay/**/*.ts",
+          "src/packages/kestrel/src/workflows/replayer.ts",
+          "src/packages/kestrel/src/workflows/context.ts"
+        ],
+        "counts": {
+          "NoCoverage": 16,
+          "Survived": 99,
+          "Killed": 613,
+          "Timeout": 18
+        },
+        "vitestDeadlineKills": [
+          "543"
+        ],
+        "testSetSha256": "f259e37d4071e66d367e3405758a821e77f22adaa6d1f8060d752c24ee84d5b0"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-replay-before/mutation.json",
+        "sha256": "0338972fa5373182b37eefd6de425fe983fd0b47caadb2b16f6e352579269e73",
+        "seconds": 140,
+        "baselineTestsFromRunnerLog": 123,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/replay/**/*.ts",
+          "src/packages/kestrel/src/workflows/replayer.ts",
+          "src/packages/kestrel/src/workflows/context.ts"
+        ],
+        "counts": {
+          "NoCoverage": 67,
+          "Survived": 151,
+          "Killed": 501,
+          "Timeout": 14
+        },
+        "vitestDeadlineKills": [
+          "144",
+          "147",
+          "414",
+          "747"
+        ],
+        "testSetSha256": "d3138602c515492c0cf1f54b3ad99a79bd5132360cd63e1d445bdc0e3a297d58"
+      },
+      "comparison": {
+        "matched": 682,
+        "unmatchedBefore": 51,
+        "unmatchedAfter": 64,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 455
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 38
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 16
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 13
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 66
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 81
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 13
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-contracts",
+      "scope": "Definitions, signals, history, errors, diagnostics, concurrency, serialization and fixtures",
+      "analysis": "mutation_testing_workflow_contracts.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-contracts-after-2/mutation.json",
+        "sha256": "a1da3d3a5744c6be5322d8c8049c12c4d6c298ed0797e9f80f3e2d9a8398524b",
+        "seconds": 228,
+        "baselineTestsFromRunnerLog": 428,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapter.ts",
+          "src/packages/kestrel/src/workflows/adapter_definition.ts",
+          "src/packages/kestrel/src/workflows/errors.ts",
+          "src/packages/kestrel/src/workflows/history.ts",
+          "src/packages/kestrel/src/workflows/index.ts",
+          "src/packages/kestrel/src/workflows/observations.ts",
+          "src/packages/kestrel/src/workflows/concurrency.ts",
+          "src/packages/kestrel/src/workflows/serialization.ts",
+          "src/packages/kestrel/src/workflows/signal.ts",
+          "src/packages/kestrel/src/workflows/testing.ts",
+          "src/packages/kestrel/src/workflows/workflow.ts"
+        ],
+        "counts": {
+          "Killed": 482,
+          "Survived": 5,
+          "Timeout": 1,
+          "RuntimeError": 5
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "a7fc4a8f273861e523f9d59fa0a7f1ad2c5ec9637d5f5595d0092411efa28299"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-contracts-before/mutation.json",
+        "sha256": "e382326dcf9f2fc91c5f026e9e7c9d792cc39620ca4449c348fc2afb865732ce",
+        "seconds": 139,
+        "baselineTestsFromRunnerLog": 344,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapter.ts",
+          "src/packages/kestrel/src/workflows/adapter_definition.ts",
+          "src/packages/kestrel/src/workflows/errors.ts",
+          "src/packages/kestrel/src/workflows/history.ts",
+          "src/packages/kestrel/src/workflows/index.ts",
+          "src/packages/kestrel/src/workflows/observations.ts",
+          "src/packages/kestrel/src/workflows/concurrency.ts",
+          "src/packages/kestrel/src/workflows/serialization.ts",
+          "src/packages/kestrel/src/workflows/signal.ts",
+          "src/packages/kestrel/src/workflows/testing.ts",
+          "src/packages/kestrel/src/workflows/workflow.ts"
+        ],
+        "counts": {
+          "NoCoverage": 63,
+          "Killed": 276,
+          "Survived": 120,
+          "RuntimeError": 5,
+          "Timeout": 1
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "9fad77b3f3e65973d2c1dc8b2223aa39c283cdf00c62016f204dd2e422512c5e"
+      },
+      "comparison": {
+        "matched": 410,
+        "unmatchedBefore": 55,
+        "unmatchedAfter": 83,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 235
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 60
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 1
+          },
+          {
+            "before": "RuntimeError",
+            "after": "RuntimeError",
+            "count": 5
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 104
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 4
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 1
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-activation-memory",
+      "scope": "Memory activation and terminal outcome application",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-activation-memory-after-2/mutation.json",
+        "sha256": "f4d2806634e2aa0d1c53f6ee44cf560cc8d7bc155db771f5f0783b725c6e921b",
+        "seconds": 47,
+        "baselineTestsFromRunnerLog": 336,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:540-620",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1222-1259"
+        ],
+        "counts": {
+          "Killed": 107
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "62f83bc4afcd18b1da7af276833bb1c824c6c55d91220c8b94455920777d6bee"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-activation-memory-before/mutation.json",
+        "sha256": "418814f68e8a1a8121c4aeb7557afd8f49b4f0dd37a9b75fca81f361b6951d5f",
+        "seconds": 99,
+        "baselineTestsFromRunnerLog": 150,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:521-610",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1195-1232"
+        ],
+        "counts": {
+          "NoCoverage": 4,
+          "Killed": 99,
+          "Survived": 23
+        },
+        "vitestDeadlineKills": [
+          "1",
+          "9",
+          "10",
+          "12",
+          "27",
+          "39",
+          "40",
+          "41",
+          "43",
+          "44",
+          "67",
+          "68",
+          "69",
+          "70",
+          "71",
+          "72",
+          "74",
+          "76",
+          "78",
+          "79",
+          "80",
+          "93"
+        ],
+        "testSetSha256": "970d532b77f0d2874a16e8f204dfc751899bd4ff2ce6969180b3931968ce197c"
+      },
+      "comparison": {
+        "matched": 97,
+        "unmatchedBefore": 29,
+        "unmatchedAfter": 10,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 82
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 2
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 13
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-activation-postgres",
+      "scope": "PostgreSQL activation transactions and fast path",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-activation-postgres-after-2/mutation.json",
+        "sha256": "8a9035b51156922ed715156eaa67ed6c9aca70a8c69da354809822dce32105b2",
+        "seconds": 219,
+        "baselineTestsFromRunnerLog": 199,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:847-1513"
+        ],
+        "counts": {
+          "NoCoverage": 6,
+          "Killed": 385,
+          "Survived": 80
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "1da56b4e24b810ae25105a521486fe819623b06ff5d0c08e8eb88f1e2e4f4069"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-activation-postgres-before/mutation.json",
+        "sha256": "c5c56d0d57dad2089714e6659afa4020a7f67333e4de6b314d2d2fe7ff4a78de",
+        "seconds": 120,
+        "baselineTestsFromRunnerLog": 118,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:848-1513"
+        ],
+        "counts": {
+          "NoCoverage": 56,
+          "Killed": 265,
+          "Survived": 151
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "6e0c3feda88f611fb2f17e85db716094a5e78878f03e1e52ebcda40c31580e64"
+      },
+      "comparison": {
+        "matched": 455,
+        "unmatchedBefore": 17,
+        "unmatchedAfter": 16,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 258
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 24
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 6
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 18
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 87
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 62
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-memory-admission",
+      "scope": "Memory startup, listing and reservation",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-memory-admission-after/mutation.json",
+        "sha256": "ac9f8f7ed7e1ae436a8ca0bd8f6f70c3d70a763ce796367b0ed9848aeddabac3",
+        "seconds": 205,
+        "baselineTestsFromRunnerLog": 328,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1-539"
+        ],
+        "counts": {
+          "NoCoverage": 2,
+          "Killed": 372,
+          "Survived": 57
+        },
+        "vitestDeadlineKills": [
+          "287",
+          "288"
+        ],
+        "testSetSha256": "1ca0a405508cafec9d55308f34d8cafe979d2934459d038f5e91aa6e10532fd1"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-memory-admission-before/mutation.json",
+        "sha256": "5ac39ab38d5be78316ee07878929090029761bdd98fc18333fb17d615dc7a14d",
+        "seconds": 184,
+        "baselineTestsFromRunnerLog": 171,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1-520"
+        ],
+        "counts": {
+          "NoCoverage": 21,
+          "Killed": 309,
+          "Survived": 83
+        },
+        "vitestDeadlineKills": [
+          "268",
+          "269",
+          "270",
+          "274"
+        ],
+        "testSetSha256": "aca941bde4c7ae661761e423697308cad9a885df0bef5e9c6d25e326c3f2c615"
+      },
+      "comparison": {
+        "matched": 406,
+        "unmatchedBefore": 7,
+        "unmatchedAfter": 25,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 301
+          },
+          {
+            "before": "Killed",
+            "after": "Survived",
+            "count": 1
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 17
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 2
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 2
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 30
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 53
+          }
+        ],
+        "previousKillsWithDifferentStatus": [
+          {
+            "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+            "beforeId": "389",
+            "afterId": "408",
+            "afterStatus": "Survived",
+            "afterReason": null
+          }
+        ]
+      }
+    },
+    {
+      "profile": "workflow-memory-operations",
+      "scope": "Memory activity completion, dispatch, history and history rotation",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-memory-operations-after-2/mutation.json",
+        "sha256": "4414d40a4c85bf53dfed041268c8b2d6e26fa6c598f7f24ae74bba251355d74b",
+        "seconds": 137,
+        "baselineTestsFromRunnerLog": 334,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:621-809",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1004-1221"
+        ],
+        "counts": {
+          "NoCoverage": 5,
+          "Killed": 326,
+          "Survived": 55
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "fc4ab9cc284bae94c395460693bbaa3a29697f712ca7269a99d64185a8a67a1e"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-memory-operations-before/mutation.json",
+        "sha256": "d798d6043ee37c0bf8c0e71c97f31705b74a022b2fcafdd190fc3880ac5c8a1f",
+        "seconds": 100,
+        "baselineTestsFromRunnerLog": 157,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:616-787",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:982-1199"
+        ],
+        "counts": {
+          "NoCoverage": 37,
+          "Killed": 199,
+          "Survived": 97
+        },
+        "vitestDeadlineKills": [
+          "243",
+          "273",
+          "332",
+          "334",
+          "339"
+        ],
+        "testSetSha256": "c8f376eb8738c9a802ead606b11a5ff6a0af1d1a9f0a67009da7fbab683973cb"
+      },
+      "comparison": {
+        "matched": 304,
+        "unmatchedBefore": 29,
+        "unmatchedAfter": 82,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 184
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 29
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 5
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 1
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 41
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 44
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-memory-internals",
+      "scope": "Memory journal, task identity, lineage and admission helpers",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-memory-internals-after/mutation.json",
+        "sha256": "c6fa4e278523d03984d08388528e434cb9aa03da17b451b89444e1efed878d85",
+        "seconds": 365,
+        "baselineTestsFromRunnerLog": 316,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1260-1654",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1683-1706",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1739-2086"
+        ],
+        "counts": {
+          "NoCoverage": 20,
+          "Killed": 570,
+          "Survived": 187
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "824d30a24cebb8c8948bf20f24c5c98d2c4f46c9e59be037eb658a35be2287c8"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-memory-internals-before/mutation.json",
+        "sha256": "4c5bf01630fcccd506156c25dacb6a00f1ac06fe3e0d630e6714edfced290c1d",
+        "seconds": 295,
+        "baselineTestsFromRunnerLog": 150,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1233-1604",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1633-1656",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1689-2034"
+        ],
+        "counts": {
+          "NoCoverage": 87,
+          "Killed": 422,
+          "Survived": 250
+        },
+        "vitestDeadlineKills": [
+          "1",
+          "8",
+          "101",
+          "117",
+          "123",
+          "134",
+          "139",
+          "141",
+          "142",
+          "143",
+          "154",
+          "164",
+          "165",
+          "166",
+          "167",
+          "168",
+          "169",
+          "170",
+          "171",
+          "173",
+          "174",
+          "175",
+          "176",
+          "180",
+          "181",
+          "183",
+          "184",
+          "186",
+          "185",
+          "188",
+          "193",
+          "195",
+          "197",
+          "198",
+          "200",
+          "206",
+          "207",
+          "208",
+          "209",
+          "297",
+          "342",
+          "343",
+          "359",
+          "555",
+          "572",
+          "571",
+          "778"
+        ],
+        "testSetSha256": "970d532b77f0d2874a16e8f204dfc751899bd4ff2ce6969180b3931968ce197c"
+      },
+      "comparison": {
+        "matched": 712,
+        "unmatchedBefore": 47,
+        "unmatchedAfter": 65,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 381
+          },
+          {
+            "before": "Killed",
+            "after": "Survived",
+            "count": 2
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 45
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 20
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 21
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 86
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 157
+          }
+        ],
+        "previousKillsWithDifferentStatus": [
+          {
+            "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+            "beforeId": "294",
+            "afterId": "309",
+            "afterStatus": "Survived",
+            "afterReason": null
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+            "beforeId": "300",
+            "afterId": "315",
+            "afterStatus": "Survived",
+            "afterReason": null
+          }
+        ]
+      }
+    },
+    {
+      "profile": "workflow-postgres-start",
+      "scope": "PostgreSQL startup and batch admission",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-start-after-2/mutation.json",
+        "sha256": "3bfe21c0e5c0d680f457b9cf325472e91c7387de42d80a2b0678f83467482fac",
+        "seconds": 30,
+        "baselineTestsFromRunnerLog": 207,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1-479"
+        ],
+        "counts": {
+          "NoCoverage": 4,
+          "Killed": 51,
+          "Survived": 3
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "15e476a0b4fa327b8f257297084869dc22627a615152227ddfa9686495df8abf"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-start-before/mutation.json",
+        "sha256": "57b3364b77b5403adf99eacf33cdd01008d8d0812e6cc930f9d60688d092e2f9",
+        "seconds": 30,
+        "baselineTestsFromRunnerLog": 143,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1-482"
+        ],
+        "counts": {
+          "NoCoverage": 8,
+          "Killed": 40,
+          "Survived": 10
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "90d64fd4b023b8f8ec8d27f4b077f6cb9b54ef1b843aa23cab647e225c46e71b"
+      },
+      "comparison": {
+        "matched": 55,
+        "unmatchedBefore": 3,
+        "unmatchedAfter": 3,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 37
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 4
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 4
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 7
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 3
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-postgres-reservation",
+      "scope": "PostgreSQL listing, wait, summaries, reservations and activation loads",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-reservation-after/mutation.json",
+        "sha256": "b8fc721cc4e633418c9106d7581e6a4dd074a901ac03905dd16581710ad297f4",
+        "seconds": 67,
+        "baselineTestsFromRunnerLog": 206,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:480-846"
+        ],
+        "counts": {
+          "NoCoverage": 13,
+          "Killed": 149,
+          "Survived": 19,
+          "Timeout": 1
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "1fb715c071393241e59d138dcebea632173d4f659a3ab05ee430aaf2574a43e5"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-reservation-before/mutation.json",
+        "sha256": "4ce20621c5d6806647bfb71bcd9d00348380e39a0f4cec6e5d7cf88969554e3d",
+        "seconds": 50,
+        "baselineTestsFromRunnerLog": 134,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:483-848"
+        ],
+        "counts": {
+          "NoCoverage": 39,
+          "Killed": 104,
+          "Survived": 37
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "3d9e3ddd0466d27dc82b4d685546ea491d16694f3558b51497ca25f93c6fe1dc"
+      },
+      "comparison": {
+        "matched": 177,
+        "unmatchedBefore": 3,
+        "unmatchedAfter": 5,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 102
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 25
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 13
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Timeout",
+            "count": 1
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 17
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 19
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-postgres-activities",
+      "scope": "PostgreSQL activity completions, outbox reservations and handoff",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-activities-after-2/mutation.json",
+        "sha256": "b41cd43b70214426911a5d26d2cdff23cc3cd74ede759dd3686833e14f8f5b87",
+        "seconds": 31,
+        "baselineTestsFromRunnerLog": 206,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1514-1642",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1656-1848"
+        ],
+        "counts": {
+          "Killed": 90,
+          "Survived": 9
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "4f8e8ddef65ca845ee223e6e29beaced406f8b806beeb525076305b4512a1f47"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-activities-before/mutation.json",
+        "sha256": "7a26b96183c8ee3358db0d55074fb3ce9a32c0659665847ae1dced9302051003",
+        "seconds": 19,
+        "baselineTestsFromRunnerLog": 130,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1510-1638",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1652-1812"
+        ],
+        "counts": {
+          "NoCoverage": 18,
+          "Killed": 38,
+          "Survived": 17
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "e127f63206c61b4aceaf957f37add579a8ba36adf8da2e269ef815bf2f67ea55"
+      },
+      "comparison": {
+        "matched": 69,
+        "unmatchedBefore": 4,
+        "unmatchedAfter": 30,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 34
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 16
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 2
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 13
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 4
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-postgres-history",
+      "scope": "PostgreSQL history, signals, rotation and journal helpers",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-history-after/mutation.json",
+        "sha256": "16fd18d37f596154a0af90d45df94d2a92b700b7622aa78c88e3914c955e961d",
+        "seconds": 432,
+        "baselineTestsFromRunnerLog": 202,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:2031-2200",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:2456-3048"
+        ],
+        "counts": {
+          "NoCoverage": 25,
+          "Killed": 456,
+          "Survived": 186
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "1f091034f26ddda12de2f05af5ea488326ceeecac0504d50a56a512007807e51"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-postgres-history-before/mutation.json",
+        "sha256": "86e8038504562708529e86569337caaf151586b76732abe61510f4fbf77451de",
+        "seconds": 233,
+        "baselineTestsFromRunnerLog": 130,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1996-2165",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:2426-3016"
+        ],
+        "counts": {
+          "NoCoverage": 81,
+          "Killed": 317,
+          "Survived": 269
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "e127f63206c61b4aceaf957f37add579a8ba36adf8da2e269ef815bf2f67ea55"
+      },
+      "comparison": {
+        "matched": 663,
+        "unmatchedBefore": 4,
+        "unmatchedAfter": 4,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 313
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 40
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 25
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 16
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 99
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 170
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-adapter-contracts",
+      "scope": "Built-in adapter definitions, PostgreSQL configuration, schema and polling classifier",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-adapter-contracts-after/mutation.json",
+        "sha256": "948d9faa332be8bfb4e305fdfbea5affe34149ed62347ca9f962a485cd4c0939",
+        "seconds": 386,
+        "baselineTestsFromRunnerLog": 365,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/index.ts",
+          "src/packages/kestrel/src/workflows/adapters/memory/definition.ts",
+          "src/packages/kestrel/src/workflows/adapters/memory/index.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/configuration.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/definition.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/index.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/polling_error.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/schema.ts"
+        ],
+        "counts": {
+          "Killed": 195,
+          "Timeout": 1,
+          "RuntimeError": 101,
+          "Survived": 43
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "f86f188a1bd4753635715ec8d3b26d8805343a71444d1d96fd1250ca6f376640"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-adapter-contracts-before/mutation.json",
+        "sha256": "778810299cd5d12fd36378f1cc0528a6c4e43a0930b0129a8efddd23c886a6fd",
+        "seconds": 300,
+        "baselineTestsFromRunnerLog": 244,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/index.ts",
+          "src/packages/kestrel/src/workflows/adapters/memory/definition.ts",
+          "src/packages/kestrel/src/workflows/adapters/memory/index.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/configuration.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/definition.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/index.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/polling_error.ts",
+          "src/packages/kestrel/src/workflows/adapters/postgres/schema.ts"
+        ],
+        "counts": {
+          "NoCoverage": 8,
+          "Survived": 197,
+          "Killed": 30,
+          "Timeout": 1,
+          "RuntimeError": 101
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "bd0fedf3f3b5b3ca07fc4869c9b91e21e82fb3c82816b12ef20a133803290a3c"
+      },
+      "comparison": {
+        "matched": 292,
+        "unmatchedBefore": 45,
+        "unmatchedAfter": 48,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 1
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 8
+          },
+          {
+            "before": "RuntimeError",
+            "after": "RuntimeError",
+            "count": 101
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 139
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 43
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-terminal-control",
+      "scope": "Adapter cancellation, pause, termination and lineage cleanup",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-terminal-control-after/mutation.json",
+        "sha256": "67e61ae16aa15fd9bd667fd21f310338c39db768ec9d4b69521a535863515dfa",
+        "seconds": 110,
+        "baselineTestsFromRunnerLog": 440,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:810-905",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1655-1682",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1849-1898",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:2247-2455"
+        ],
+        "counts": {
+          "Killed": 283,
+          "Survived": 22,
+          "Timeout": 6
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "7d3dacfa8f7fba9647c2e93c289bf3f0c3487c5eec5285a4366cbed9508dc7a7"
+      },
+      "reference": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-terminal-control-before/mutation.json",
+        "sha256": "e4127cc56e4b9caea81161d028b92d5ac062b23977973a86f4d627b4586a38d1",
+        "seconds": null,
+        "baselineTestsFromRunnerLog": null,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:783-878",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1605-1632",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1817-1867",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:2209-2422"
+        ],
+        "counts": {
+          "NoCoverage": 1,
+          "Killed": 282,
+          "Survived": 31,
+          "Timeout": 6
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "6d34da3f33fbe28e7441bed124fd45c4259e4998b134cacfc0ae555c09bc6b84"
+      },
+      "comparison": {
+        "matched": 274,
+        "unmatchedBefore": 46,
+        "unmatchedAfter": 37,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 245
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 5
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 20
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 4
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "workflow-task-ownership",
+      "scope": "Adapter lease release, extension and token ownership",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-task-ownership-before/mutation.json",
+        "sha256": "788dce2b9bc3be21ed4b50359b657825cdfac33edb7e0d35041771a3ddfbaf37",
+        "seconds": null,
+        "baselineTestsFromRunnerLog": null,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:944-971",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:1646-1677",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1957-1992",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:2163-2208"
+        ],
+        "counts": {
+          "Killed": 71,
+          "Survived": 4
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "2a042307e983e4e2cd45a4675099672b3da5b40a5785e64ec6b52a537755eb68"
+      }
+    },
+    {
+      "profile": "workflow-execution-retry",
+      "scope": "Adapter operator retry identity and keyed contention",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/workflow-execution-retry-after/mutation.json",
+        "sha256": "228f4c12a84fb68cc448f175bff19c526a1c3f14220f1601ad2cc8fbc3e552de",
+        "seconds": 38,
+        "baselineTestsFromRunnerLog": 218,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:879-948",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1868-1963"
+        ],
+        "counts": {
+          "NoCoverage": 4,
+          "Killed": 129,
+          "Survived": 10
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "8fc13605e1649b33e49d35bbc0d18ca3d2e02a628863ff0362701a72b63d9d5b"
+      },
+      "comparison": {
+        "matched": 127,
+        "unmatchedBefore": 9,
+        "unmatchedAfter": 16,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 113
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 1
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 5
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 8
+          }
+        ],
+        "previousKillsWithDifferentStatus": []
+      }
+    },
+    {
+      "profile": "postgres-ownership",
+      "scope": "PostgreSQL workflow retryTask only",
+      "analysis": "mutation_testing_workflow_adapters.md",
+      "final": {
+        "report": "artifacts/mutation/nov11-complete-review/postgres-ownership-before/mutation.json",
+        "sha256": "4c9302cc7b4203eb585d1f6d8917400d540f9da9fc21359eda1f38abed466231",
+        "seconds": null,
+        "baselineTestsFromRunnerLog": null,
+        "staticInclusive": true,
+        "incremental": false,
+        "selected": [
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1643-1655"
+        ],
+        "counts": {
+          "Killed": 7
+        },
+        "vitestDeadlineKills": [],
+        "testSetSha256": "31843760f88cc2417ebcee2413b839aef7d70109d30a2c78f6586438bd9f1544"
+      }
+    }
+  ]
+}

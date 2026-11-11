@@ -2,16 +2,18 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { z } from "zod";
 
 import { defineAction } from "../actions/index.js";
+import { isTerminalWorkflowStatus } from "./adapter.js";
 import { MemoryWorkflowAdapter } from "./adapters/memory/index.js";
 import {
   EmbeddedWorkflowActivityTransport,
   type WorkflowActivityHandler,
 } from "./activity_transport.js";
-import { WorkflowClient } from "./client.js";
+import { WorkflowClient, type WorkflowHandle } from "./client.js";
 import {
   WorkflowActivityInfrastructureError,
   WorkflowActivityTimeoutError,
@@ -19,7 +21,7 @@ import {
 } from "./errors.js";
 import { WorkflowScheduler } from "./scheduler.js";
 import { defineWorkflowSignal } from "./signal.js";
-import { defineWorkflow } from "./workflow.js";
+import { defineWorkflow, type AnyWorkflow } from "./workflow.js";
 
 describe("durable workflow primitives", () => {
   it.each(["sync", "async"] as const)("runs typed Actions with retries and one stable idempotency key (%s)", async (mode) => {
@@ -56,7 +58,7 @@ describe("durable workflow primitives", () => {
 
     await runCycles(runtime.scheduler, 4);
 
-    await expect(handle.result()).resolves.toEqual({ value: "done" });
+    await expect(completedResult(handle)).resolves.toEqual({ value: "done" });
     expect(keys).toHaveLength(2);
     expect(new Set(keys).size).toBe(1);
   });
@@ -83,13 +85,29 @@ describe("durable workflow primitives", () => {
         }
       },
     });
-    const runtime = createRuntime([workflow], () =>
-      () => new Promise(() => undefined));
+    const activity = Promise.withResolvers<null>();
+    const runtime = createRuntime([workflow], () => () => activity.promise);
     const handle = await runtime.client.start(workflow, null);
+    await runtime.scheduler.runOnce();
 
-    await runCycles(runtime.scheduler, 3);
-
-    await expect(handle.result()).resolves.toBe("WorkflowActivityTimeoutError");
+    // Check the activity deadline before releasing the handler. This also
+    // cleans up deterministically if a mutant removes the deadline.
+    vi.useFakeTimers({ toFake: ["performance", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const finished = vi.fn();
+    const failed = vi.fn();
+    const cycle = runtime.scheduler.runOnce().then(finished, failed);
+    try {
+      await vi.advanceTimersByTimeAsync(150);
+      expect(finished).toHaveBeenCalledExactlyOnceWith({ reserved: 1, stale: 0, completed: 1 });
+      expect(failed).not.toHaveBeenCalled();
+    } finally {
+      activity.resolve(null);
+      await vi.advanceTimersByTimeAsync(150);
+      vi.useRealTimers();
+      await cycle;
+    }
+    await runtime.scheduler.runOnce();
+    await expect(completedResult(handle)).resolves.toBe("WorkflowActivityTimeoutError");
   });
 
   it("uses durable timers with virtual time", async () => {
@@ -113,7 +131,7 @@ describe("durable workflow primitives", () => {
     now = new Date(now.getTime() + 5 * 3_600_000);
     await runCycles(runtime.scheduler, 2);
 
-    await expect(handle.result()).resolves.toBe("awake");
+    await expect(completedResult(handle)).resolves.toBe("awake");
   });
 
   it.each(["sync", "async"] as const)("consumes buffered signals once in durable arrival order (%s)", async (mode) => {
@@ -139,7 +157,7 @@ describe("durable workflow primitives", () => {
 
     await runCycles(runtime.scheduler, 3);
 
-    await expect(handle.result()).resolves.toEqual([true, false]);
+    await expect(completedResult(handle)).resolves.toEqual([true, false]);
     expect(runtime.adapter.inspectSignals().map((signal) =>
       signal.consumedBySequence)).toEqual([0, 1]);
   });
@@ -175,7 +193,7 @@ describe("durable workflow primitives", () => {
 
     await runCycles(runtime.scheduler, 2);
 
-    await expect(handle.result()).resolves.toBe("WorkflowSignalTimeoutError");
+    await expect(completedResult(handle)).resolves.toBe("WorkflowSignalTimeoutError");
   });
 
   it.each(["sync", "async"] as const)("starts child workflows and propagates their typed result (%s)", async (mode) => {
@@ -197,7 +215,7 @@ describe("durable workflow primitives", () => {
 
     await runCycles(runtime.scheduler, 3);
 
-    await expect(handle.result()).resolves.toBe("CHILD");
+    await expect(completedResult(handle)).resolves.toBe("CHILD");
     const childExecution = await runtime.adapter.get(`${handle.executionId}:0`);
     expect(childExecution).toMatchObject({
       parentExecutionId: handle.executionId,
@@ -301,7 +319,7 @@ describe("durable workflow primitives", () => {
 
     await runCycles(runtime.scheduler, 2);
 
-    await expect(handle.result()).resolves.toBe(1);
+    await expect(completedResult(handle)).resolves.toBe(1);
     expect(captures).toBe(1);
   });
 
@@ -347,7 +365,7 @@ describe("durable workflow primitives", () => {
 
     await runCycles(runtime.scheduler, 3);
 
-    await expect(handle.result()).resolves.toEqual(["first", "second"]);
+    await expect(completedResult(handle)).resolves.toEqual(["first", "second"]);
   });
 
   it("replays Promise.race from the persisted activity completion order", async () => {
@@ -380,7 +398,7 @@ describe("durable workflow primitives", () => {
       event.type === "command-completed");
     const winner = firstCompletion?.type === "command-completed"
       && firstCompletion.sequence === 0 ? "first" : "second";
-    await expect(handle.result()).resolves.toBe(winner);
+    await expect(completedResult(handle)).resolves.toBe(winner);
   });
 });
 
@@ -407,4 +425,12 @@ async function runCycles(scheduler: WorkflowScheduler, count: number) {
   for (let index = 0; index < count; index += 1) {
     await scheduler.runOnce();
   }
+}
+
+async function completedResult<Definition extends AnyWorkflow>(handle: WorkflowHandle<Definition>) {
+  // Each caller drove a finite set of cycles and expects a terminal execution now.
+  const { status } = await handle.status();
+  expect(status).toBe("completed");
+  expect(isTerminalWorkflowStatus(status)).toBe(true);
+  return handle.result();
 }

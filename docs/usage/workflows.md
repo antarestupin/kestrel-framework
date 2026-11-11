@@ -111,11 +111,13 @@ Only classified activity infrastructure failures/timeouts follow this retry poli
 
 Apply these rules when a workflow uses generated values, grows a long history or changes across deployments. Persisted executions must replay the same durable decisions after resuming.
 
-Use `workflow.now()`, `workflow.uuid()` or `workflow.sideEffect()` for captured nondeterminism; do not call external services or native timers directly inside the handler. Use `runChild` for another workflow and `continueAsNew` to rotate long histories. Durable values must round-trip through the configured payload codec, JSON by default.
+Use `workflow.now()`, `workflow.uuid()` or `workflow.sideEffect()` for captured nondeterminism. Call external services from Actions and wait using durable workflow timers. If a capture callback throws, replay delivers the recorded error to the handler, where ordinary `try`/`catch` can run a durable fallback. Use `runChild` for another workflow and `continueAsNew` to rotate long histories. Durable values must round-trip through the configured payload codec, JSON by default.
 
-Effects are at least once. Actions can read `getWorkflowActivityExecutionContext` from their execution context to obtain a stable activity idempotency key. Use it when the external destination supports deduplication.
+Give each array index a value because the default codec rejects missing entries.
 
-When changing command order, preserve branches for pinned `workflow.version` values and validate replay fixtures before deployment. `concurrency.keyed` can serialize executions by business key with enqueue/reject/return-existing policies. The [version and replay guide](../implementation/workflows.md#version-operations-and-replay-fixtures) covers compatibility checks.
+Effects are at least once. Actions can read `getWorkflowActivityExecutionContext` from their execution context to obtain a stable activity idempotency key. Retries keep the same key. After `continueAsNew()`, activities in the new history generation receive distinct keys, even when their command sequence repeats. Use the key when the external destination supports deduplication.
+
+When changing command order, preserve branches for pinned `workflow.version` values and validate replay fixtures before deployment. Retry a fixture export if the execution's journal advances during the read. `concurrency.keyed` can serialize executions by business key with enqueue/reject/return-existing policies. Its key callback must return a non-empty string for every accepted input. The [version and replay guide](../implementation/workflows.md#version-operations-and-replay-fixtures) covers compatibility checks.
 
 Operational endpoints use `workflowOperationsDependency` behind application authorization. Pause stops new reservations; cancel requests cooperative compensation; terminate stops orchestration without compensation. Studio exposes these controls and execution history. See the [operations reference](../implementation/workflows.md#operational-api) before choosing a destructive control.
 

@@ -33,6 +33,7 @@ import { WorkflowReplayer } from "./replayer.js";
 import { DurableWorkflowExecutionContext } from "./context.js";
 import { WorkflowCompletionBuffer } from "./completion_buffer.js";
 import {
+  executeWorkflowActivityWithTimeout,
   toWorkflowActivityExecution,
   type WorkflowActivityTransport,
 } from "./activity_transport.js";
@@ -150,14 +151,22 @@ export class WorkflowScheduler {
 
   /** Processes one bounded reservation batch for tests and composed runtimes. */
   public async runOnce(): Promise<WorkflowSchedulerCycleResult> {
+    const signal = this.options.executionSignal;
+    if (signal?.aborted) return { reserved: 0, completed: 0, stale: 0 };
     const tasks = await this.adapter.reserveTasks({
       kinds: this.taskKinds,
       limit: this.batchSize,
       leaseMs: this.leaseMs,
     });
+    if (signal?.aborted && tasks.length > 0) {
+      await this.adapter.releaseTasks(tasks.map(toReservation));
+      return { reserved: tasks.length, completed: 0, stale: tasks.length };
+    }
     // Start one shared load immediately. Workflow task heartbeats remain active
     // while awaiting it, and activities or timers do not wait for histories.
     const activations = this.loadActivationBatch(tasks);
+    // If shutdown wins before task admission, no activation may consume the load.
+    void activations.catch(() => undefined);
     let completed = 0;
     let stale = 0;
 
@@ -183,27 +192,28 @@ export class WorkflowScheduler {
   ): Promise<boolean> {
     const startedAt = performance.now();
     try {
-      const committed = await this.keepLeaseAlive(task, async () => {
+      const committed = await this.keepLeaseAlive(task, async (signal) => {
         if (task.kind === "workflow") {
           const snapshot = (await activations).get(task.id);
 
           // A missing row means ownership changed before the batch load.
-          if (snapshot === undefined) return false;
+          if (snapshot === undefined || signal.aborted) return false;
 
           return this.runInExecutionScope(
             task.executionId,
             "workflow.activate",
-            () => this.activateWorkflow(task, snapshot),
+            async () => !signal.aborted && this.activateWorkflow(task, snapshot),
             task,
           );
         }
 
+        if (signal.aborted) return false;
         return this.runInExecutionScope(
           task.executionId,
           task.kind === "activity" ? "workflow.activity" : "workflow.timer",
-          () => task.kind === "activity"
-            ? this.executeActivity(task)
-            : this.completeTimer(task),
+          async () => !signal.aborted && (task.kind === "activity"
+            ? this.executeActivity(task, signal)
+            : this.completeTimer(task)),
           task,
         );
       });
@@ -459,7 +469,7 @@ export class WorkflowScheduler {
     });
   }
 
-  private async executeActivity(task: ReservedWorkflowTask): Promise<boolean> {
+  private async executeActivity(task: ReservedWorkflowTask, signal: AbortSignal): Promise<boolean> {
     const activity = toWorkflowActivityExecution(task);
 
     try {
@@ -475,12 +485,13 @@ export class WorkflowScheduler {
         );
       }
 
-      const result = await executeWithTimeout(
+      const result = await executeWorkflowActivityWithTimeout(
         this.activityTransport,
         activity,
-        activity.startToCloseTimeoutMs,
-        this.options.executionSignal,
+        signal,
+        true,
       );
+      if (signal.aborted) return false;
       return this.completions.enqueue({
         ...toReservation(task),
         executionId: activity.executionId,
@@ -489,6 +500,7 @@ export class WorkflowScheduler {
         ...(result === undefined ? {} : { result }),
       });
     } catch (error) {
+      if (signal.aborted) return false;
       if (
         error instanceof WorkflowActivityInfrastructureError
         && activity.attempt < activity.retry.maxAttempts
@@ -611,20 +623,30 @@ export class WorkflowScheduler {
 
   private async keepLeaseAlive(
     task: ReservedWorkflowTask,
-    run: () => Promise<boolean>,
+    run: (signal: AbortSignal) => Promise<boolean>,
   ): Promise<boolean> {
     const reservation = toReservation(task);
+    const ownership = new AbortController();
+    const shutdown = this.options.executionSignal;
+    const signal = shutdown === undefined ? ownership.signal : AbortSignal.any([ownership.signal, shutdown]);
     const heartbeat = startLeaseHeartbeat({
       intervalMs: Math.max(1, Math.floor(this.leaseMs / 2)),
-      signal: this.options.executionSignal,
-      extend: () => this.adapter.extendTaskLeases([{
-        ...reservation,
-        leaseMs: this.leaseMs,
-      }]),
+      signal,
+      extend: async () => {
+        const extended = await this.adapter.extendTaskLeases([{ ...reservation, leaseMs: this.leaseMs }]);
+        if (!extended.some((result) => result.taskId === reservation.taskId && result.reservationToken === reservation.reservationToken)) {
+          ownership.abort();
+        }
+      },
+      onFailure: (error) => ownership.abort(error),
     });
 
     try {
-      return await run();
+      const committed = !signal.aborted && await run(signal);
+      // A process cancellation must leave the task available for redelivery.
+      // The token fence keeps the release harmless if a new owner exists.
+      if (!committed && signal.aborted) await this.adapter.releaseTasks([reservation]);
+      return committed;
     } finally {
       await heartbeat.close();
     }
@@ -654,38 +676,5 @@ function toReservation(task: ReservedWorkflowTask): WorkflowTaskReservationRef {
 function validatePositiveInteger(name: string, value: number): void {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new TypeError(`Workflow scheduler ${name} must be a positive integer.`);
-  }
-}
-
-async function executeWithTimeout(
-  transport: WorkflowActivityTransport,
-  activity: ReturnType<typeof toWorkflowActivityExecution>,
-  timeoutMs: number | undefined,
-  signal?: AbortSignal,
-): Promise<WorkflowPayload | undefined> {
-  const controller = new AbortController();
-
-  if (timeoutMs === undefined) {
-    return transport.execute(activity, signal === undefined ? controller.signal : AbortSignal.any([controller.signal, signal]));
-  }
-
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-
-  try {
-    return await Promise.race([
-      transport.execute(activity, signal === undefined ? controller.signal : AbortSignal.any([controller.signal, signal])),
-      new Promise<never>((_resolve, reject) => {
-        timeout = setTimeout(() => {
-          controller.abort();
-          reject(new WorkflowActivityTimeoutError(
-            activity.executionId,
-            activity.sequence,
-            "start-to-close",
-          ));
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timeout !== undefined) clearTimeout(timeout);
   }
 }

@@ -2,23 +2,41 @@ import { setImmediate } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { App, type ShutdownOptions } from "../app/index.js";
+import { App, type ExecutionScope, type ShutdownOptions } from "../app/index.js";
+import { dep } from "../di/index.js";
 import {
   defineAdmissionPolicy,
+  defineRateLimit,
   localResourcePressure,
+  rateLimit,
+  seconds,
   ThrottlingAcquisitionAbortedError,
+  ThrottlingAcquisitionTimeoutError,
+  ThrottlingBackendUnavailableError,
+  ThrottlingClosedError,
+  ThrottlingQueueFullError,
   ThrottlingRejectedError,
   type AdmissionAvailability,
   type Throttling,
 } from "../throttling/index.js";
 import { MemoryWorkerAdapter } from "./adapters/memory/index.js";
+import { WorkerRetryError } from "./errors.js";
 import { WorkerScheduler, type WorkerSchedulerOptions } from "./scheduler.js";
 import type { ReservedJob } from "./types.js";
-import { defineWorker, jobFail, jobSuccess, type AnyWorker } from "./worker.js";
+import { defineWorker, jobFail, jobSuccess, type AnyWorker, type WorkerThrottlingRequirement } from "./worker.js";
 
 const pressure = defineAdmissionPolicy({
   id: "scheduler-pressure",
   limits: [localResourcePressure({ id: "cpu-pressure", signals: { cpu: { degradedAt: 0.8, limitedAt: 0.9 } } })],
+});
+const rate = defineRateLimit({ id: "worker-rate", requests: 1, per: seconds(1) });
+const advancedRate = defineAdmissionPolicy({
+  id: "worker-advanced-rate",
+  limits: [rateLimit({ id: "worker-rate-constraint", unit: "requests", limit: 1, per: seconds(1) })],
+});
+const mixedAdmission = defineAdmissionPolicy({
+  id: "worker-mixed-admission",
+  limits: [...pressure.limits, ...advancedRate.limits],
 });
 
 /** Supply only the throttling operations selected by each scheduler contract. */
@@ -54,7 +72,292 @@ async function fixture(
   return { app, adapter, scheduler, advanceStorage: (ms: number) => { now = new Date(now.getTime() + ms); } };
 }
 
+/** Assert progress after a controlled turn even if a mutation strands a waiter. */
+async function expectCycle<Config>(scheduler: WorkerScheduler<Config>, expected: number, turn: () => Promise<void> = setImmediate): Promise<void> {
+  const outcomes: PromiseSettledResult<number>[] = [];
+  void scheduler.runOnce().then(
+    (value) => outcomes.push({ status: "fulfilled", value }),
+    (reason: unknown) => outcomes.push({ status: "rejected", reason }),
+  );
+  await turn();
+  expect(outcomes).toEqual([{ status: "fulfilled", value: expected }]);
+}
+
+/** A fixture can still close execution scopes after a disposal mutation. */
+function trackScopes<Config>(app: App<Config>): () => Promise<void> {
+  const opened: ExecutionScope<Config>[] = [];
+  const create = app.createExecutionScope.bind(app);
+  vi.spyOn(app, "createExecutionScope").mockImplementation(async (id) => {
+    const scope = await create(id);
+    opened.push(scope);
+    return scope;
+  });
+  return async () => { await Promise.allSettled(opened.map((scope) => scope.dispose("cancelled"))); };
+}
+
 describe("worker scheduler ownership", () => {
+  it.each([
+    "slots", "leaseMs", "reservationLimit", "pollIntervalMs", "readyQueueRefreshMs",
+    "ackBufferSize", "ackFlushIntervalMs", "deferBufferSize", "deferFlushIntervalMs",
+  ] as const)("rejects invalid %s on direct scheduler construction", async (name) => {
+    const { app, adapter } = await fixture([]);
+    try {
+      for (const value of [0, -1, 1.5, NaN, Infinity]) {
+        expect(() => new WorkerScheduler(app, adapter, [], { slots: 1, leaseMs: 100, [name]: value })).toThrow(TypeError);
+      }
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it("validates reservation pressure and worker identities before polling", async () => {
+    const { app, adapter } = await fixture([]);
+    const worker = defineWorker({ name: "unique", queue: "unique", input: z.null(), handler: vi.fn() });
+    const options = { slots: 1, leaseMs: 100 };
+    try {
+      expect(() => new WorkerScheduler(app, adapter, [], { ...options, reservationPressure: pressure })).toThrow(TypeError);
+      expect(() => new WorkerScheduler(app, adapter, [], { ...options, reservationPressure: advancedRate, throttling: throttlingFacade({}) })).toThrow(TypeError);
+      expect(() => new WorkerScheduler(app, adapter, [], { ...options, reservationPressure: mixedAdmission, throttling: throttlingFacade({}) })).toThrow(TypeError);
+      expect(() => new WorkerScheduler(app, adapter, [worker, { ...worker, queue: "distinct" }], options)).toThrow(TypeError);
+      expect(() => new WorkerScheduler(app, adapter, [worker, { ...worker, name: "distinct" }], options)).toThrow(TypeError);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it.each([
+    new ThrottlingRejectedError(pressure.id),
+    new ThrottlingAcquisitionTimeoutError(pressure.id),
+    new ThrottlingQueueFullError(pressure.id),
+    new ThrottlingBackendUnavailableError({ cause: new Error("storage unavailable") }),
+    new ThrottlingClosedError(),
+  ])("returns work after %s without spending a handler attempt", async (unavailable) => {
+    const handler = vi.fn();
+    const worker = defineWorker({
+      name: "unavailable-admission", queue: "unavailable-admission", input: z.null(), maxAttempts: 1, handler,
+      throttling: { requirements: () => ({ admission: pressure }), buffering: { fallbackDelayMs: 25 } },
+    });
+    const acquire = vi.fn<Throttling["acquire"]>().mockRejectedValueOnce(unavailable);
+    const complete = vi.fn(async () => undefined);
+    acquire.mockResolvedValue({ definitionId: pressure.id, complete });
+    const recordThrottlingDecision = vi.fn(() => { throw new Error("diagnostic sink unavailable"); });
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker], {
+      throttling: throttlingFacade({ acquire }), recordThrottlingDecision,
+    });
+    const disposeScopes = trackScopes(app);
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const retryAt = new Date("2026-01-01T00:00:00.025Z");
+    try {
+      await expectCycle(scheduler, 1);
+      expect(handler).not.toHaveBeenCalled();
+      expect(adapter.inspectJobs()).toMatchObject([{ id: "job-1", attempt: 0, availableAt: retryAt }]);
+      expect(adapter.inspectJobs()[0]?.reservationToken).toBeUndefined();
+      expect(recordThrottlingDecision).toHaveBeenCalledExactlyOnceWith({ worker: worker.name, jobIds: ["job-1"], result: "deferred", retryAt });
+
+      advanceStorage(25);
+      await expectCycle(scheduler, 1);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ attempt: 1 }), expect.anything(), expect.anything());
+      expect(complete).toHaveBeenCalledExactlyOnceWith({ outcome: "success" });
+      expect(recordThrottlingDecision).toHaveBeenLastCalledWith({ worker: worker.name, jobIds: ["job-1"], result: "admitted" });
+      expect(adapter.inspectJobs()).toEqual([]);
+      expect(adapter.inspectDeadLetters()).toEqual([]);
+    } finally {
+      await Promise.allSettled([scheduler.stop("expire"), disposeScopes()]);
+      await app.dispose();
+    }
+  });
+
+  it.each([
+    { initial: 55, held: 90, expected: 90 },
+    { initial: 55, held: undefined, expected: 55 },
+    { initial: undefined, held: undefined, expected: 25 },
+  ])("uses the final admission deadline, initial deadline or fallback in that order ($expected ms)", async ({ initial, held, expected }) => {
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    const retryAt = new Date(now.getTime() + expected);
+    const initialRetryAt = initial === undefined ? undefined : new Date(now.getTime() + initial);
+    const heldError = held === undefined
+      ? new ThrottlingAcquisitionTimeoutError(pressure.id)
+      : new ThrottlingRejectedError(pressure.id, new Date(now.getTime() + held));
+    const acquire = vi.fn<Throttling["acquire"]>()
+      .mockRejectedValueOnce(new ThrottlingRejectedError(pressure.id, initialRetryAt))
+      .mockRejectedValueOnce(heldError);
+    const handler = vi.fn();
+    const worker = defineWorker({
+      name: "held-admission", queue: "held-admission", input: z.null(), handler,
+      throttling: {
+        requirements: () => ({ admission: pressure }),
+        buffering: { strategy: "hold", maxHoldMs: 12, fallbackDelayMs: 25 },
+      },
+    });
+    const recordThrottlingDecision = vi.fn();
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }), recordThrottlingDecision });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    try {
+      expect(await scheduler.runOnce()).toBe(1);
+      expect(acquire).toHaveBeenCalledTimes(2);
+      expect(acquire).toHaveBeenLastCalledWith(pressure, expect.objectContaining({ estimatedCost: {}, maxWaitMs: 12 }));
+      expect(handler).not.toHaveBeenCalled();
+      expect(adapter.inspectJobs()).toMatchObject([{ attempt: 0, availableAt: retryAt }]);
+      expect(recordThrottlingDecision).toHaveBeenNthCalledWith(1, {
+        worker: worker.name, jobIds: ["job-1"], result: "held", ...(initialRetryAt === undefined ? {} : { retryAt: initialRetryAt }),
+      });
+      expect(recordThrottlingDecision).toHaveBeenNthCalledWith(2, { worker: worker.name, jobIds: ["job-1"], result: "deferred", retryAt });
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it.each([false, true])("records unexpected admission failures as job failures (after hold=%s)", async (held) => {
+    const unexpected = new ThrottlingAcquisitionAbortedError(pressure.id);
+    const acquire = vi.fn<Throttling["acquire"]>().mockRejectedValue(unexpected);
+    if (held) acquire.mockRejectedValueOnce(new ThrottlingRejectedError(pressure.id));
+    const handler = vi.fn();
+    const worker = defineWorker({
+      name: "unexpected-admission", queue: "unexpected-admission", input: z.null(), maxAttempts: 1, handler,
+      throttling: { requirements: () => ({ admission: pressure }), buffering: { strategy: "hold", maxHoldMs: 12 } },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    try {
+      expect(await scheduler.runOnce()).toBe(1);
+      expect(acquire).toHaveBeenCalledTimes(held ? 2 : 1);
+      expect(handler).not.toHaveBeenCalled();
+      expect(adapter.inspectJobs()).toEqual([]);
+      expect(adapter.inspectDeadLetters()).toMatchObject([{ error: { name: unexpected.name, message: unexpected.message } }]);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it.each([
+    { name: "null requirement", requirements: [null, { admission: rate }] },
+    { name: "missing policy kind", requirements: [{ admission: {} }, { admission: rate }] },
+    { name: "invalid second requirement", requirements: [{ admission: rate }, { admission: null }] },
+    { name: "missing advanced cost", requirements: [{ admission: advancedRate }, { admission: advancedRate }] },
+    { name: "missing mixed policy cost", requirements: [{ admission: mixedAdmission }, { admission: mixedAdmission }] },
+    { name: "different cost widths", requirements: [{ admission: rate, estimatedCost: {} }, { admission: rate }] },
+    { name: "different cost dimensions", requirements: [{ admission: rate, estimatedCost: { requests: 1 } }, { admission: rate, estimatedCost: { bytes: 1 } }] },
+    { name: "negative cost", requirements: [{ admission: rate }, { admission: rate, estimatedCost: { requests: -1 } }] },
+    { name: "nonfinite cost", requirements: [{ admission: rate }, { admission: rate, estimatedCost: { requests: Infinity } }] },
+  ])("rejects $name before spending admission or running the batch", async ({ requirements }) => {
+    const acquire = vi.fn<Throttling["acquire"]>();
+    const handler = vi.fn();
+    const worker = defineWorker({
+      name: "invalid-requirements", queue: "invalid-requirements", input: z.number(), maxAttempts: 1, batch: { size: 2 }, handler,
+      // User callbacks can return malformed input from JavaScript or runtime data.
+      throttling: { requirements: ({ payload }) => requirements[payload] as WorkerThrottlingRequirement },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    await adapter.enqueue([0, 1].map((payload) => ({ queue: worker.queue, payload })));
+    try {
+      expect(await scheduler.runOnce()).toBe(2);
+      expect(acquire).not.toHaveBeenCalled();
+      expect(handler).not.toHaveBeenCalled();
+      expect(adapter.inspectDeadLetters()).toMatchObject([
+        { originalJobId: "job-1", error: { name: "TypeError" } },
+        { originalJobId: "job-2", error: { name: "TypeError" } },
+      ]);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it.each(["cost", "feedback"] as const)("rejects an unconfigured %s report as a job failure", async (report) => {
+    const worker = defineWorker({ name: "unconfigured-reporter", queue: "unconfigured-reporter", input: z.null(), maxAttempts: 1,
+      handler: (_job, _dependencies, context) => {
+        if (report === "cost") context.reportActualCost({ requests: 1 });
+        else context.reportFeedback({ kind: "timeout" });
+      },
+    });
+    const { app, adapter, scheduler } = await fixture([worker]);
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      await expectCycle(scheduler, 1);
+      expect(adapter.inspectDeadLetters()).toMatchObject([{ error: { name: "TypeError" } }]);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it.each(["cost", "feedback"] as const)("rejects duplicate %s reports and reconciles the first report", async (duplicate) => {
+    const complete = vi.fn(async () => undefined);
+    const acquire = vi.fn<Throttling["acquire"]>().mockResolvedValue({ definitionId: rate.id, complete });
+    const worker = defineWorker({ name: "duplicate-reporter", queue: "duplicate-reporter", input: z.null(), maxAttempts: 1,
+      throttling: { requirements: () => ({ admission: rate }) },
+      handler: (_job, _dependencies, context) => {
+        context.reportActualCost({ requests: 2 });
+        context.reportFeedback({ kind: "timeout" });
+        if (duplicate === "cost") context.reportActualCost({ requests: 10 });
+        else context.reportFeedback({ kind: "timeout" });
+      },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      await expectCycle(scheduler, 1);
+      expect(acquire).toHaveBeenCalledExactlyOnceWith(rate, expect.objectContaining({ estimatedCost: { requests: 1 } }));
+      expect(complete).toHaveBeenCalledExactlyOnceWith({ outcome: "failure", actualCost: { requests: 2 }, feedback: { kind: "timeout" } });
+      expect(adapter.inspectDeadLetters()).toMatchObject([{ error: { name: "TypeError" } }]);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it("closes a permit when opening the admitted job's execution scope fails", async () => {
+    const complete = vi.fn(async () => undefined);
+    const acquire = vi.fn<Throttling["acquire"]>().mockResolvedValue({ definitionId: rate.id, complete });
+    const handler = vi.fn();
+    const worker = defineWorker({ name: "unopened-scope", queue: "unopened-scope", input: z.null(), handler,
+      throttling: { requirements: () => ({ admission: rate }) },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    const failure = new Error("execution scope unavailable");
+    vi.spyOn(app, "createExecutionScope").mockRejectedValueOnce(failure);
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      await expect(scheduler.runOnce()).rejects.toBe(failure);
+      expect(handler).not.toHaveBeenCalled();
+      expect(complete).toHaveBeenCalledExactlyOnceWith({ outcome: "failure" });
+      expect(adapter.inspectJobs()).toMatchObject([{ attempt: 1, reservationToken: "token-1" }]);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it("fails a job whose definition declares admission without a configured facade", async () => {
+    const handler = vi.fn();
+    const worker = defineWorker({ name: "unconfigured-admission", queue: "unconfigured-admission", input: z.null(), maxAttempts: 1, handler,
+      throttling: { requirements: () => ({ admission: rate }) },
+    });
+    const { app, adapter, scheduler } = await fixture([worker]);
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      await expectCycle(scheduler, 1);
+      expect(handler).not.toHaveBeenCalled();
+      expect(adapter.inspectDeadLetters()).toMatchObject([{ error: { name: "Error", message: expect.stringContaining("throttling facade") } }]);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it("records invalid stored input as a failure without attempting admission", async () => {
+    const handler = vi.fn();
+    const acquire = vi.fn<Throttling["acquire"]>();
+    const worker = defineWorker({ name: "invalid-stored-input", queue: "invalid-stored-input", input: z.string(), maxAttempts: 1, handler,
+      throttling: { requirements: () => ({ admission: rate }) },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: 42 }]);
+      await expectCycle(scheduler, 1);
+      expect(acquire).not.toHaveBeenCalled();
+      expect(handler).not.toHaveBeenCalled();
+      expect(adapter.inspectDeadLetters()).toMatchObject([{ originalJobId: "job-1", attempt: 1, error: { name: "ZodError" } }]);
+    } finally {
+      await app.dispose();
+    }
+  });
+
   it.each(["available", "degraded", "limited", "unknown"] as const)("applies the %s process pressure state before touching queue storage", async (state) => {
     const inspect = vi.fn(async (): Promise<AdmissionAvailability> => ({ state, reasons: [] }));
     const worker = defineWorker({ name: "pressure", queue: "pressure", input: z.null(), handler: vi.fn() });
@@ -140,6 +443,24 @@ describe("worker scheduler ownership", () => {
     } finally { await app.dispose(); }
   });
 
+  it("splits an overflow reservation into full batches and one final partial batch", async () => {
+    const received: number[][] = [];
+    const worker = defineWorker({ name: "overflow-partition", queue: "overflow-partition", input: z.number(),
+      batch: { size: 2, allowOverflow: true },
+      handler: (jobs) => { received.push(jobs.map(({ payload }) => payload)); },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { reservationLimit: 5 });
+    try {
+      await adapter.enqueue([0, 1, 2, 3, 4].map((payload) => ({ queue: worker.queue, payload })));
+      await expectCycle(scheduler, 5);
+      expect(received).toEqual([[0, 1], [2, 3], [4]]);
+      expect(adapter.inspectJobs()).toEqual([]);
+    } finally {
+      await scheduler.stop("expire");
+      await app.dispose();
+    }
+  });
+
   it("hands a freed handler slot to a waiting job while another handler remains active", async () => {
     vi.useFakeTimers();
     const gates = Array.from({ length: 3 }, () => Promise.withResolvers<void>());
@@ -175,6 +496,60 @@ describe("worker scheduler ownership", () => {
     }
   });
 
+  it.each(["handoff", "stopped propagation"] as const)("cancels a waiting job during handler-slot %s", async (timing) => {
+    vi.useFakeTimers();
+    const finish = Promise.withResolvers<void>();
+    const complete = vi.fn(async () => undefined);
+    const acquire = vi.fn<Throttling["acquire"]>().mockImplementation(async (_definition, options) => {
+      if (timing === "stopped propagation") {
+        options?.signal?.addEventListener("abort", (event) => event.stopImmediatePropagation(), { once: true });
+      }
+      return { definitionId: pressure.id, complete };
+    });
+    const first = defineWorker({
+      name: "releasing-slot", queue: "releasing-slot", input: z.null(), handler: vi.fn(() => finish.promise),
+    });
+    const second = defineWorker({
+      name: "handoff-slot", queue: "handoff-slot", input: z.null(), handler: vi.fn(),
+      throttling: { requirements: () => ({ admission: pressure }) },
+    });
+    const { app, adapter, scheduler } = await fixture([first, second], { reservationLimit: 2, throttling: throttlingFacade({ acquire }) });
+    const createScope = vi.spyOn(app, "createExecutionScope");
+    await adapter.enqueue([first, second].map(({ queue }) => ({ queue, payload: null })));
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    let outcomes: Awaited<typeof cycle> | undefined;
+    void cycle.then((result) => { outcomes = result; });
+    let stop: Promise<void> | undefined;
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(first.handler).toHaveBeenCalledOnce();
+      expect(second.handler).not.toHaveBeenCalled();
+      const signal = acquire.mock.calls[0]![1]!.signal!;
+      if (timing === "handoff") {
+        const remove = signal.removeEventListener.bind(signal);
+        vi.spyOn(signal, "removeEventListener").mockImplementation((...args) => {
+          remove(...args);
+          // The waiter is dequeued here, and its continuation has not run yet.
+          stop = scheduler.stop("expire");
+        });
+      } else {
+        await scheduler.stop("expire");
+      }
+      finish.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(signal.aborted).toBe(true);
+      expect(outcomes).toEqual([{ status: "fulfilled", value: 2 }]);
+      expect(createScope).toHaveBeenCalledOnce();
+      expect(second.handler).not.toHaveBeenCalled();
+      expect(complete).toHaveBeenCalledExactlyOnceWith({ outcome: "failure" });
+    } finally {
+      finish.resolve();
+      await Promise.allSettled([stop, scheduler.stop("expire")]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
   it("defers jobs beyond the hold budget and restores that budget after admission settles", async () => {
     vi.useFakeTimers();
     const firstHold = Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>();
@@ -192,6 +567,7 @@ describe("worker scheduler ownership", () => {
       handler: ({ payload }) => { handled.push(payload); },
     });
     const { app, adapter, scheduler, advanceStorage } = await fixture([worker], { slots: 2, deferBufferSize: 1, throttling: throttlingFacade({ acquire }) });
+    const disposeScopes = trackScopes(app);
     await adapter.enqueue(["held", "deferred"].map((payload) => ({ queue: worker.queue, payload })));
     const cycle = scheduler.runOnce();
     void cycle.catch(() => undefined);
@@ -206,13 +582,62 @@ describe("worker scheduler ownership", () => {
       await expect(cycle).resolves.toBe(2);
       expect(handled).toEqual(["held"]);
       advanceStorage(250);
-      await expect(scheduler.runOnce()).resolves.toBe(1);
+      await expectCycle(scheduler, 1, () => vi.advanceTimersByTimeAsync(0).then(() => undefined));
       expect(held).toEqual([17, 17]);
       expect(handled).toEqual(["held", "deferred"]);
       expect(permit.complete).toHaveBeenCalledTimes(2);
     } finally {
       firstHold.resolve(permit);
-      await Promise.allSettled([cycle]);
+      await Promise.allSettled([scheduler.stop("expire"), cycle, disposeScopes()]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("retains a held peer in the default budget when another held job settles", async () => {
+    vi.useFakeTimers();
+    const opened = [Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>(), Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>()];
+    const inspectLater = Promise.withResolvers<void>();
+    const permit = { definitionId: rate.id, complete: vi.fn(async () => undefined) };
+    const held: number[] = [];
+    const admitted: number[] = [];
+    const acquire: Throttling["acquire"] = async (_policy, options) => {
+      const job = options?.estimatedCost?.requests ?? 0;
+      if (options?.maxWaitMs === undefined) {
+        if (job > 2) await inspectLater.promise;
+        throw new ThrottlingRejectedError(rate.id);
+      }
+      held.push(job);
+      return opened[job - 1]?.promise ?? permit;
+    };
+    const worker = defineWorker({ name: "partially-drained-hold", queue: "partially-drained-hold", input: z.number(),
+      throttling: { requirements: ({ payload }) => ({ admission: rate, estimatedCost: { requests: payload } }), buffering: { strategy: "hold", maxHoldMs: 12 } },
+      handler: ({ payload }) => { admitted.push(payload); },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { slots: 2, reservationLimit: 4, deferBufferSize: 1, throttling: throttlingFacade({ acquire }) });
+    const disposeScopes = trackScopes(app);
+    await adapter.enqueue([1, 2, 3, 4].map((payload) => ({ queue: worker.queue, payload })));
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(held).toEqual([1, 2]);
+      opened[0]!.resolve(permit);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(admitted).toEqual([1]);
+      // Two more admissions fail while one earlier hold still owns the budget.
+      inspectLater.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(held).toEqual([1, 2, 3]);
+      expect(admitted).toEqual([1, 3]);
+      expect(adapter.inspectJobs().find(({ payload }) => payload === 2)).toMatchObject({ attempt: 1, reservationToken: "token-2" });
+      expect(adapter.inspectJobs().find(({ payload }) => payload === 4)).toMatchObject({ attempt: 0 });
+      opened[1]!.resolve(permit);
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 4 }]);
+      expect(adapter.inspectJobs()).toMatchObject([{ payload: 4, attempt: 0 }]);
+    } finally {
+      inspectLater.resolve();
+      for (const gate of opened) gate.resolve(permit);
+      await Promise.allSettled([scheduler.stop("expire"), disposeScopes()]);
       await app.dispose();
       vi.useRealTimers();
     }
@@ -482,7 +907,7 @@ describe("worker scheduler ownership", () => {
     }
   });
 
-  it("cancels only the reclaimed invocation and never publishes its stale correlated result", async () => {
+  it.each([false, true])("cancels only the reclaimed invocation and never persists its stale outcome (failure=%s)", async (failure) => {
     vi.useFakeTimers();
     const finish = Promise.withResolvers<void>();
     const signals = new Map<string, AbortSignal>();
@@ -494,12 +919,14 @@ describe("worker scheduler ownership", () => {
       handler: async (_job, _dependencies, context) => {
         signals.set(queue, context.signal);
         await finish.promise;
+        if (queue === "reclaimed" && failure) throw new WorkerRetryError("stale retry", 15);
         context.setResult(queue);
       },
     }));
     const { app, adapter, scheduler, advanceStorage } = await fixture(workers, { slots: 2, completeCorrelatedJob: complete });
     await adapter.enqueue(workers.map(({ queue }) => ({ queue, payload: null, correlation: { namespace: "test", id: queue } })));
     const extend = vi.spyOn(adapter, "extendLease");
+    const retry = vi.spyOn(adapter, "retry");
     const cycle = scheduler.runOnce();
     try {
       await vi.advanceTimersByTimeAsync(0);
@@ -517,10 +944,51 @@ describe("worker scheduler ownership", () => {
       finish.resolve();
       await expect(cycle).resolves.toBe(2);
       expect(complete).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ jobId: "job-2", result: "owned" }));
+      expect(retry).not.toHaveBeenCalled();
       expect(adapter.inspectJobs()).toMatchObject([{ id: "job-1", reservationToken: newLease!.reservationToken }]);
     } finally {
       finish.resolve();
       await Promise.allSettled([cycle]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores a yielded stale batch job and still delivers its owned peer's next result", async () => {
+    vi.useFakeTimers();
+    const finish = Promise.withResolvers<void>();
+    const complete = vi.fn(async () => undefined);
+    let signal: AbortSignal | undefined;
+    const worker = defineWorker({ name: "late-batch-result", queue: "late-batch-result", input: z.null(), batch: { size: 2 },
+      handler: async function* ([stale, owned], _dependencies, context) {
+        signal = context.signal;
+        await finish.promise;
+        yield jobSuccess(stale!.id, "stale");
+        yield jobSuccess(owned!.id, "owned");
+      },
+    });
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker], { completeCorrelatedJob: complete });
+    const ack = vi.spyOn(adapter, "ack");
+    await adapter.enqueue([
+      { queue: worker.queue, payload: null },
+      { queue: worker.queue, payload: null, correlation: { namespace: "test", id: "owned" } },
+    ]);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(signal?.aborted).toBe(false);
+      advanceStorage(100);
+      const [replacement] = await adapter.reserve({ queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
+      await vi.advanceTimersByTimeAsync(50);
+      expect(signal?.aborted).toBe(true);
+      finish.resolve();
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 2 }]);
+      expect(complete).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ jobId: "job-2", result: "owned" }));
+      expect(ack).toHaveBeenCalledExactlyOnceWith([{ jobId: "job-2", reservationToken: "token-2" }]);
+      expect(adapter.inspectJobs()).toMatchObject([{ id: "job-1", reservationToken: replacement!.reservationToken }]);
+    } finally {
+      finish.resolve();
+      await cycle;
       await app.dispose();
       vi.useRealTimers();
     }
@@ -561,6 +1029,107 @@ describe("worker scheduler ownership", () => {
     } finally {
       admission.resolve({ definitionId: pressure.id, complete: completePermit });
       await Promise.allSettled([cycle]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([false, true])("returns a permit granted after lease loss (held=%s)", async (held) => {
+    vi.useFakeTimers();
+    const admission = Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>();
+    const complete = vi.fn(async () => undefined);
+    const permit = { definitionId: pressure.id, complete };
+    const acquire = vi.fn<Throttling["acquire"]>().mockReturnValue(admission.promise);
+    if (held) acquire.mockRejectedValueOnce(new ThrottlingRejectedError(pressure.id));
+    const handler = vi.fn();
+    const worker = defineWorker({
+      name: "late-permit", queue: "late-permit", input: z.null(), handler,
+      throttling: { requirements: () => ({ admission: pressure }), buffering: { strategy: "hold", maxHoldMs: 20 } },
+    });
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(acquire).toHaveBeenCalledTimes(held ? 2 : 1);
+      const signal = acquire.mock.lastCall?.[1]?.signal;
+      expect(signal?.aborted).toBe(false);
+      advanceStorage(100);
+      const [replacement] = await adapter.reserve({ queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
+      await vi.advanceTimersByTimeAsync(50);
+      expect(signal?.aborted).toBe(true);
+      admission.resolve(permit);
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 1 }]);
+      expect(complete).toHaveBeenCalledExactlyOnceWith({ outcome: "failure" });
+      expect(handler).not.toHaveBeenCalled();
+      expect(adapter.inspectJobs()).toMatchObject([{ attempt: 2, reservationToken: replacement!.reservationToken }]);
+    } finally {
+      admission.resolve(permit);
+      await cycle;
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([false, true])("skips a reclaimed handler after its scoped dependency resolves (batch=%s)", async (batch) => {
+    vi.useFakeTimers();
+    const dependency = Promise.withResolvers<object>();
+    const create = vi.fn(() => dependency.promise);
+    const dispose = vi.fn();
+    const handler = vi.fn();
+    const definition = { name: "slow-dependency", queue: "slow-dependency", input: z.null(), dependencies: { resource: dep<object>("resource") }, handler };
+    const worker = batch ? defineWorker({ ...definition, batch: { size: 2 } }) : defineWorker(definition);
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker]);
+    app.container.registerAsyncFactory("resource", {}, create, { lifetime: "scoped", dispose });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(create).toHaveBeenCalledOnce();
+      advanceStorage(100);
+      const [replacement] = await adapter.reserve({ queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
+      await vi.advanceTimersByTimeAsync(50);
+      const resource = {};
+      dependency.resolve(resource);
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 1 }]);
+      expect(handler).not.toHaveBeenCalled();
+      expect(dispose).toHaveBeenCalledExactlyOnceWith(resource);
+      expect(adapter.inspectJobs()).toMatchObject([{ attempt: 2, reservationToken: replacement!.reservationToken }]);
+    } finally {
+      dependency.resolve({});
+      await cycle;
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("skips dependency admission after the lease is lost during async input validation", async () => {
+    vi.useFakeTimers();
+    const validation = Promise.withResolvers<boolean>();
+    const refine = vi.fn(() => validation.promise);
+    const handler = vi.fn();
+    const acquire = vi.fn<Throttling["acquire"]>();
+    const worker = defineWorker({ name: "reclaimed-validation", queue: "reclaimed-validation",
+      input: z.string().refine(refine), validation: { input: "async" }, handler,
+      throttling: { requirements: () => ({ admission: rate }) },
+    });
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    await adapter.enqueue([{ queue: worker.queue, payload: "valid" }]);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(refine).toHaveBeenCalledOnce();
+      advanceStorage(100);
+      const [replacement] = await adapter.reserve({ queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
+      await vi.advanceTimersByTimeAsync(50);
+      validation.resolve(true);
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 1 }]);
+      expect(acquire).not.toHaveBeenCalled();
+      expect(handler).not.toHaveBeenCalled();
+      expect(adapter.inspectJobs()).toMatchObject([{ attempt: 2, reservationToken: replacement!.reservationToken }]);
+    } finally {
+      validation.resolve(true);
+      await cycle;
       await app.dispose();
       vi.useRealTimers();
     }

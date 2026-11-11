@@ -40,7 +40,7 @@ Queue state is adapter-owned; application catalogs remain the source of handler 
 
 `listReadyQueues()` is a scheduling hint and may return a subset only when queues have no currently eligible work. `listQueueStatistics()` returns coherent operational counts for requested queues. `setQueueEnabled()` changes future reservation without deleting or aborting active jobs. `acknowledgementGrouping` declares whether acknowledgements from different queues may share one call, allowing the scheduler to batch safely without assuming a backend transaction layout.
 
-Adapter operations must reject infrastructure failures, use storage time consistently for availability and leases, bound returned work by the reservation request and never keep a transaction open during handler execution. Expired leases may be reclaimed, so payload and retry transitions must preserve at-least-once delivery. The detailed reservation and result sequences below define the scheduler-visible semantics.
+Adapter operations must reject infrastructure failures, use storage time consistently for availability and leases, bound returned work by the reservation request and never keep a transaction open during handler execution. A request can repeat a queue in its ordered allocations. Each allocation selects distinct jobs, and overflow considers each queue at its first overflow-enabled position. Expired leases may be reclaimed, so payload and retry transitions must preserve at-least-once delivery. The detailed reservation and result sequences below define the scheduler-visible semantics.
 
 ## Conceptual model
 

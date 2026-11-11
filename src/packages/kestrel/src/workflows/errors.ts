@@ -15,18 +15,22 @@ export function serializeWorkflowError(
   error: unknown,
   maxStackLength = 8_000,
 ): WorkflowExecutionError {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      ...serializeKnownWorkflowErrorDetails(error),
-      ...(error.stack === undefined
-        ? {}
-        : { stack: error.stack.slice(0, maxStackLength) }),
-    };
-  }
+  try {
+    if (error instanceof Error) {
+      const stack = error.stack;
+      return {
+        name: error.name,
+        message: error.message,
+        ...serializeKnownWorkflowErrorDetails(error),
+        ...(typeof stack === "string" ? { stack: stack.slice(0, maxStackLength) } : {}),
+      };
+    }
 
-  return { name: "Error", message: String(error) };
+    return { name: "Error", message: String(error) };
+  } catch {
+    // Durable failure handling must still finish when a thrown value cannot be inspected.
+    return { name: "Error", message: "Unable to describe the thrown workflow error." };
+  }
 }
 
 function serializeKnownWorkflowErrorDetails(

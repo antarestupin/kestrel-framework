@@ -215,6 +215,8 @@ export interface ReservedWorkflowActivityDispatch {
   id: string;
   executionId: string;
   sequence: number;
+  /** Replay generation of the command. Omitted by generation-one messages. */
+  historyGeneration?: number;
   target: string;
   payload: WorkflowPayload;
   attempt: number;
@@ -243,6 +245,10 @@ export interface RetryWorkflowActivityDispatchRequest
 export type CompleteExternalWorkflowActivityRequest = {
   executionId: string;
   sequence: number;
+  /** The original command generation; unversioned Worker results may supply a dispatch id. */
+  historyGeneration?: number;
+  /** Original outbox id carried by an unversioned Worker job during an upgrade. */
+  dispatchId?: string;
   sourceId: string;
 } & (
   | { status: "completed"; result?: WorkflowPayload }

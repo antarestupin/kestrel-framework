@@ -1,0 +1,1446 @@
+{
+  "date": "2026-11-11",
+  "profiles": [
+    {
+      "profile": "workflow-scheduler",
+      "before": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-scheduler-before/mutation.json",
+        "sha256": "f92139126c220599d9fc8dcbe8172d3095b8114892a298488bc07b4cc05973d0",
+        "seconds": 144,
+        "baselineTestsFromRunnerLog": 104,
+        "counts": {
+          "NoCoverage": 43,
+          "Killed": 272,
+          "Survived": 122,
+          "Timeout": 2
+        },
+        "vitestDeadlineKills": [
+          "7",
+          "176",
+          "428",
+          "430",
+          "437",
+          "442",
+          "443"
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/scheduler.ts": "57c30758a7b2af5d41f8167a8ab912d7794738d79f21b0134cdbc6d14513fb53"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-scheduler-after-2/mutation.json",
+        "sha256": "b76ecb35b26b5d8e352595ba4fd3004e9226bd4d692893f06061bdd4b41c8790",
+        "seconds": 189,
+        "baselineTestsFromRunnerLog": 227,
+        "counts": {
+          "NoCoverage": 7,
+          "Killed": 363,
+          "Survived": 104,
+          "Timeout": 2
+        },
+        "vitestDeadlineKills": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/scheduler.ts": "da5a4ca260d76b6b513d338fa210862e60ebf30f3bd74416989a08b1bde120d7"
+        }
+      },
+      "comparison": {
+        "policy": "File and unchanged contiguous source lines, location columns, mutator and replacement. Matches do not establish semantic equivalence across changed surrounding code.",
+        "matched": 391,
+        "unmatchedBefore": 48,
+        "unmatchedAfter": 85,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 242
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 29
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 6
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 4
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 25
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 83
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 2
+          }
+        ],
+        "previousKillsWithDifferentStatus": [],
+        "previousVitestDeadlineKills": [
+          {
+            "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+            "beforeId": "7",
+            "afterId": "7",
+            "afterStatus": "Killed",
+            "afterReason": "expected 'backoff' to be 'failed' // Object.is equality",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+            "beforeId": "176",
+            "afterId": "202",
+            "afterStatus": "Killed",
+            "afterReason": "expected { \u2026(12) } to match object { status: 'failed', \u2026(1) }\n(11 matching properties omitted from actual)",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+            "beforeId": "428",
+            "afterId": null,
+            "afterStatus": null,
+            "afterReason": null,
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+            "beforeId": "430",
+            "afterId": null,
+            "afterStatus": null,
+            "afterReason": null,
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+            "beforeId": "437",
+            "afterId": null,
+            "afterStatus": null,
+            "afterReason": null,
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+            "beforeId": "442",
+            "afterId": null,
+            "afterStatus": null,
+            "afterReason": null,
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+            "beforeId": "443",
+            "afterId": null,
+            "afterStatus": null,
+            "afterReason": null,
+            "afterVitestDeadline": false
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "reservation-and-shutdown",
+          "status": "NoCoverage",
+          "rationale": "Late batch release, batch error preservation and omitted activation snapshots are directly asserted. Remaining variants concern empty or already guarded paths and result/observation details.",
+          "mutants": [
+            {
+              "id": "103",
+              "line": 210,
+              "operator": "BooleanLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "diagnostics",
+          "status": "NoCoverage",
+          "rationale": "Task/lifecycle outcome names, optional metadata, elapsed time and retry metrics are diagnostic projections outside durable task transitions.",
+          "mutants": [
+            {
+              "id": "322",
+              "line": 546,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "343",
+              "line": 564,
+              "operator": "ObjectLiteral"
+            },
+            {
+              "id": "371",
+              "line": 577,
+              "operator": "StringLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "timer-contract",
+          "status": "NoCoverage",
+          "rationale": "Valid timers and signal deadlines are exercised. Missing task metadata denotes a malformed adapter task; the defensive exception remains.",
+          "mutants": [
+            {
+              "id": "404",
+              "line": 604,
+              "operator": "BlockStatement"
+            },
+            {
+              "id": "406",
+              "line": 605,
+              "operator": "StringLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "timer-diagnostics",
+          "status": "NoCoverage",
+          "rationale": "Timer lag is a diagnostic projection. Its zero default covers an absent or malformed internal metadata value.",
+          "mutants": [
+            {
+              "id": "465",
+              "line": 662,
+              "operator": "OptionalChaining"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "configuration",
+          "status": "Survived",
+          "rationale": "Option validation, default fallback and adapter recoverability selection. Tests exercise invalid timing/batch options, configured recovery and normal reservation.",
+          "mutants": [
+            {
+              "id": "5",
+              "line": 116,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "6",
+              "line": 116,
+              "operator": "OptionalChaining"
+            },
+            {
+              "id": "4",
+              "line": 116,
+              "operator": "ArrowFunction"
+            },
+            {
+              "id": "15",
+              "line": 127,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "29",
+              "line": 138,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "31",
+              "line": 139,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "33",
+              "line": 140,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "35",
+              "line": 141,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "37",
+              "line": 143,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "40",
+              "line": 147,
+              "operator": "StringLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "reservation-and-shutdown",
+          "status": "Survived",
+          "rationale": "Late batch release, batch error preservation and omitted activation snapshots are directly asserted. Remaining variants concern empty or already guarded paths and result/observation details.",
+          "mutants": [
+            {
+              "id": "49",
+              "line": 161,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "52",
+              "line": 161,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "54",
+              "line": 161,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "53",
+              "line": 161,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "55",
+              "line": 161,
+              "operator": "BlockStatement"
+            },
+            {
+              "id": "79",
+              "line": 185,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "76",
+              "line": 185,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "102",
+              "line": 210,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "104",
+              "line": 213,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "105",
+              "line": 213,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "106",
+              "line": 213,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "107",
+              "line": 213,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "108",
+              "line": 213,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "109",
+              "line": 213,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "120",
+              "line": 222,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "121",
+              "line": 223,
+              "operator": "ArithmeticOperator"
+            },
+            {
+              "id": "123",
+              "line": 229,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "124",
+              "line": 229,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "125",
+              "line": 230,
+              "operator": "ArithmeticOperator"
+            },
+            {
+              "id": "132",
+              "line": 246,
+              "operator": "MethodExpression"
+            },
+            {
+              "id": "134",
+              "line": 247,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "139",
+              "line": 249,
+              "operator": "ConditionalExpression"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "poll-loop",
+          "status": "Timeout",
+          "rationale": "The idle poll and useful cycle handoff are exercised through the runtime. The two empty-cycle mutations can spin until the execution guard.",
+          "mutants": [
+            {
+              "id": "145",
+              "line": 260,
+              "operator": "ConditionalExpression",
+              "statusReason": "Hit limit reached (501/500)"
+            },
+            {
+              "id": "147",
+              "line": 260,
+              "operator": "EqualityOperator",
+              "statusReason": "Hit limit reached (501/500)"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "replay-admission-and-journal",
+          "status": "Survived",
+          "rationale": "Missing or incompatible definitions, input/output/rotation validation failures, oversized history, cancellation and terminal outcomes have behavior coverage. The remaining optional outcome shapes and defensive replay states are separated from direct kills.",
+          "mutants": [
+            {
+              "id": "152",
+              "line": 272,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "193",
+              "line": 363,
+              "operator": "OptionalChaining"
+            },
+            {
+              "id": "215",
+              "line": 406,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "219",
+              "line": 408,
+              "operator": "OptionalChaining"
+            },
+            {
+              "id": "228",
+              "line": 419,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "230",
+              "line": 419,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "238",
+              "line": 420,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "260",
+              "line": 467,
+              "operator": "ConditionalExpression"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "activity-execution",
+          "status": "Survived",
+          "rationale": "Schedule and execution deadlines, retry cap, late resolution/rejection and durable results are asserted. A reference option affects process liveness only and is covered directly in scheduling.",
+          "mutants": [
+            {
+              "id": "267",
+              "line": 477,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "268",
+              "line": 477,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "270",
+              "line": 478,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "273",
+              "line": 478,
+              "operator": "ArithmeticOperator"
+            },
+            {
+              "id": "277",
+              "line": 492,
+              "operator": "BooleanLiteral"
+            },
+            {
+              "id": "279",
+              "line": 494,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "284",
+              "line": 500,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "289",
+              "line": 503,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "305",
+              "line": 515,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "309",
+              "line": 530,
+              "operator": "StringLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "diagnostics",
+          "status": "Survived",
+          "rationale": "Task/lifecycle outcome names, optional metadata, elapsed time and retry metrics are diagnostic projections outside durable task transitions.",
+          "mutants": [
+            {
+              "id": "312",
+              "line": 542,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "318",
+              "line": 546,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "319",
+              "line": 546,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "320",
+              "line": 546,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "321",
+              "line": 546,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "323",
+              "line": 546,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "327",
+              "line": 557,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "332",
+              "line": 560,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "333",
+              "line": 560,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "335",
+              "line": 562,
+              "operator": "ObjectLiteral"
+            },
+            {
+              "id": "334",
+              "line": 560,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "336",
+              "line": 563,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "337",
+              "line": 563,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "339",
+              "line": 563,
+              "operator": "ObjectLiteral"
+            },
+            {
+              "id": "338",
+              "line": 563,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "340",
+              "line": 564,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "341",
+              "line": 564,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "342",
+              "line": 564,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "350",
+              "line": 567,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "355",
+              "line": 571,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "368",
+              "line": 576,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "370",
+              "line": 576,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "372",
+              "line": 578,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "377",
+              "line": 581,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "384",
+              "line": 584,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "387",
+              "line": 584,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "388",
+              "line": 584,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "389",
+              "line": 584,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "394",
+              "line": 586,
+              "operator": "StringLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "timer-contract",
+          "status": "Survived",
+          "rationale": "Valid timers and signal deadlines are exercised. Missing task metadata denotes a malformed adapter task; the defensive exception remains.",
+          "mutants": [
+            {
+              "id": "398",
+              "line": 604,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "399",
+              "line": 604,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "400",
+              "line": 604,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "402",
+              "line": 604,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "411",
+              "line": 617,
+              "operator": "MethodExpression"
+            },
+            {
+              "id": "412",
+              "line": 617,
+              "operator": "StringLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "lease-fence",
+          "status": "Survived",
+          "rationale": "The scope handoff asserts missing, wrong-task, wrong-token and still-owned renewal results. Release uses the original token and missing or late owners are fenced at commit.",
+          "mutants": [
+            {
+              "id": "415",
+              "line": 631,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "418",
+              "line": 631,
+              "operator": "ArrayDeclaration"
+            },
+            {
+              "id": "439",
+              "line": 641,
+              "operator": "ArrowFunction"
+            },
+            {
+              "id": "445",
+              "line": 648,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "446",
+              "line": 648,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "447",
+              "line": 648,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "449",
+              "line": 648,
+              "operator": "ArrayDeclaration"
+            },
+            {
+              "id": "448",
+              "line": 648,
+              "operator": "BooleanLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "timer-diagnostics",
+          "status": "Survived",
+          "rationale": "Timer lag is a diagnostic projection. Its zero default covers an absent or malformed internal metadata value.",
+          "mutants": [
+            {
+              "id": "452",
+              "line": 658,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "454",
+              "line": 658,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "455",
+              "line": 658,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "456",
+              "line": 658,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "457",
+              "line": 658,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "460",
+              "line": 659,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "464",
+              "line": 662,
+              "operator": "OptionalChaining"
+            },
+            {
+              "id": "466",
+              "line": 663,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "468",
+              "line": 663,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "469",
+              "line": 663,
+              "operator": "ConditionalExpression"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/scheduler.ts",
+          "section": "reservation-shape",
+          "status": "Survived",
+          "rationale": "Task/token pairing is directly asserted by reservation, renewal and release checks. Validation text is diagnostic.",
+          "mutants": [
+            {
+              "id": "487",
+              "line": 678,
+              "operator": "StringLiteral"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "workflow-transports",
+      "before": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-transports-before/mutation.json",
+        "sha256": "e6d0647e52622a538a43dcb44bb5fbe4400f625b1791c524190311c96d68c7e5",
+        "seconds": 128,
+        "baselineTestsFromRunnerLog": 105,
+        "counts": {
+          "NoCoverage": 88,
+          "Killed": 149,
+          "Survived": 118
+        },
+        "vitestDeadlineKills": [
+          "67",
+          "69",
+          "70",
+          "117",
+          "118",
+          "119",
+          "120"
+        ],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/activity_transport.ts": "a4b7d6b364276438d3087134437b56507ec501a69bceac609b033dd9d0f6564e",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.ts": "3d92f919234792f04af3a9efebcb3c35a3592adecd66b8d80efd841c7a29a03f"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/nov11-complete-review/workflow-transports-after-3/mutation.json",
+        "sha256": "6ba8f9ffa65efc8aaa695c80ef248dfe97a605272906076e65f619103f276b2a",
+        "seconds": 172,
+        "baselineTestsFromRunnerLog": 247,
+        "counts": {
+          "Killed": 371,
+          "Survived": 83
+        },
+        "vitestDeadlineKills": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/activity_transport.ts": "6117a76b76615ef9ad575f76c01afeb1d2a81140e33c689c2d1153981e22774c",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.ts": "e7fe5de580e144612f4340cd57fa5a62bbf194ff7a3cce27a880bac6c7d93d17"
+        }
+      },
+      "comparison": {
+        "policy": "File and unchanged contiguous source lines, location columns, mutator and replacement. Matches do not establish semantic equivalence across changed surrounding code.",
+        "matched": 278,
+        "unmatchedBefore": 77,
+        "unmatchedAfter": 176,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 110
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 52
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 14
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 63
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 39
+          }
+        ],
+        "previousKillsWithDifferentStatus": [],
+        "previousVitestDeadlineKills": [
+          {
+            "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+            "beforeId": "67",
+            "afterId": "76",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ { reserved: 1, stale: +0, \u2026(1) } ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+            "beforeId": "69",
+            "afterId": "78",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ { reserved: 1, stale: +0, \u2026(1) } ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+            "beforeId": "70",
+            "afterId": "79",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ { reserved: 1, stale: +0, \u2026(1) } ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+            "beforeId": "117",
+            "afterId": "141",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ { reserved: 1, stale: +0, \u2026(1) } ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+            "beforeId": "118",
+            "afterId": "142",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ { reserved: 1, stale: +0, \u2026(1) } ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+            "beforeId": "119",
+            "afterId": "143",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ { reserved: 1, stale: +0, \u2026(1) } ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+            "beforeId": "120",
+            "afterId": "144",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ { reserved: 1, stale: +0, \u2026(1) } ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          }
+        ]
+      },
+      "residuals": [
+        {
+          "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+          "section": "activity-context-and-validation",
+          "status": "Survived",
+          "rationale": "Real Action execution asserts scopes, identity, input/output validation, abort during preparation, configured codec and forwarded metadata. Remaining variants concern optional projection or alternate absent context/validation values.",
+          "mutants": [
+            {
+              "id": "9",
+              "line": 46,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "26",
+              "line": 100,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "30",
+              "line": 105,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "34",
+              "line": 108,
+              "operator": "ConditionalExpression"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+          "section": "reserved-task-envelope",
+          "status": "Survived",
+          "rationale": "Generation identity, missing metadata and retry/deadline parsing are exercised. Built-in schedulers provide validated envelopes and the transport retains defaults for legacy or external values.",
+          "mutants": [
+            {
+              "id": "60",
+              "line": 192,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "62",
+              "line": 193,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "68",
+              "line": 196,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "73",
+              "line": 213,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "77",
+              "line": 216,
+              "operator": "ConditionalExpression"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+          "section": "start-to-close-deadline",
+          "status": "Survived",
+          "rationale": "Controlled tests assert timeout, cancellation signal, timer cleanup, ordinary completion and large delays. The ref flag changes process liveness and is asserted at the shared timer boundary.",
+          "mutants": [
+            {
+              "id": "82",
+              "line": 229,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "85",
+              "line": 234,
+              "operator": "ObjectLiteral"
+            },
+            {
+              "id": "88",
+              "line": 235,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "93",
+              "line": 243,
+              "operator": "BlockStatement"
+            },
+            {
+              "id": "94",
+              "line": 244,
+              "operator": "CallExpression"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/activity_transport.ts",
+          "section": "legacy-and-retry-normalization",
+          "status": "Survived",
+          "rationale": "Raw legacy inputs remain intact and malformed retry metadata uses defaults. Built-in writers serialize validated numeric values. Remaining variants concern malformed envelope combinations and omitted optional numeric metadata.",
+          "mutants": [
+            {
+              "id": "97",
+              "line": 254,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "98",
+              "line": 254,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "99",
+              "line": 254,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "100",
+              "line": 254,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "101",
+              "line": 254,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "103",
+              "line": 254,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "106",
+              "line": 254,
+              "operator": "BlockStatement"
+            },
+            {
+              "id": "107",
+              "line": 255,
+              "operator": "ObjectLiteral"
+            },
+            {
+              "id": "111",
+              "line": 265,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "112",
+              "line": 265,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "113",
+              "line": 265,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "114",
+              "line": 265,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "115",
+              "line": 265,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "117",
+              "line": 265,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "127",
+              "line": 277,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "129",
+              "line": 277,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "130",
+              "line": 280,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "135",
+              "line": 284,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "140",
+              "line": 287,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "149",
+              "line": 300,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "150",
+              "line": 300,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "151",
+              "line": 300,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "161",
+              "line": 309,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "162",
+              "line": 309,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "163",
+              "line": 309,
+              "operator": "ConditionalExpression"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/worker_activity_transport.ts",
+          "section": "worker-action-execution",
+          "status": "Survived",
+          "rationale": "Worker publication and delivery tests cover schedule-to-close, capped infrastructure retry, terminal failure, codec, generation and legacy dispatch provenance. Remaining variants concern optional result representation and diagnostic details.",
+          "mutants": [
+            {
+              "id": "177",
+              "line": 73,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "184",
+              "line": 90,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "192",
+              "line": 94,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "193",
+              "line": 94,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "195",
+              "line": 95,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "198",
+              "line": 95,
+              "operator": "ArithmeticOperator"
+            },
+            {
+              "id": "201",
+              "line": 100,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "202",
+              "line": 103,
+              "operator": "BooleanLiteral"
+            },
+            {
+              "id": "208",
+              "line": 108,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "223",
+              "line": 116,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "226",
+              "line": 121,
+              "operator": "ObjectLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/worker_activity_transport.ts",
+          "section": "publication-and-lease-handoff",
+          "status": "Survived",
+          "rationale": "Tests exercise duplicate-safe generation identities, stale marks, exactly addressed retries and sibling publication drain. Remaining variants concern diagnostics, default values or equivalent optional correlation fields.",
+          "mutants": [
+            {
+              "id": "250",
+              "line": 171,
+              "operator": "EqualityOperator"
+            },
+            {
+              "id": "253",
+              "line": 171,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "260",
+              "line": 190,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "275",
+              "line": 206,
+              "operator": "StringLiteral"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/worker_activity_transport.ts",
+          "section": "correlated-result-handoff",
+          "status": "Survived",
+          "rationale": "Validated Worker envelopes and original correlation metadata drive journal writes. Tests distinguish unknown routes, invalid results, legacy dispatch IDs, rejected completions and Worker terminal failures. Remaining optional projections and extra malformed inputs are classified at the boundary.",
+          "mutants": [
+            {
+              "id": "291",
+              "line": 234,
+              "operator": "ConditionalExpression"
+            }
+          ]
+        },
+        {
+          "file": "src/packages/kestrel/src/workflows/worker_activity_transport.ts",
+          "section": "payload-correlation-validation",
+          "status": "Survived",
+          "rationale": "Enqueue and delivery validate task coordinates, generation and payload. Legacy generation-one serialized identity is retained. Remaining variants concern optional metadata and malformed external payload permutations.",
+          "mutants": [
+            {
+              "id": "305",
+              "line": 258,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "318",
+              "line": 276,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "358",
+              "line": 288,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "366",
+              "line": 294,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "367",
+              "line": 294,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "368",
+              "line": 294,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "370",
+              "line": 294,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "373",
+              "line": 294,
+              "operator": "BlockStatement"
+            },
+            {
+              "id": "375",
+              "line": 295,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "379",
+              "line": 298,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "380",
+              "line": 298,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "381",
+              "line": 298,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "388",
+              "line": 299,
+              "operator": "StringLiteral"
+            },
+            {
+              "id": "391",
+              "line": 304,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "403",
+              "line": 326,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "405",
+              "line": 326,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "406",
+              "line": 326,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "408",
+              "line": 326,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "419",
+              "line": 336,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "435",
+              "line": 343,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "451",
+              "line": 345,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "453",
+              "line": 345,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "452",
+              "line": 345,
+              "operator": "LogicalOperator"
+            },
+            {
+              "id": "456",
+              "line": 346,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "464",
+              "line": 348,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "467",
+              "line": 349,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "469",
+              "line": 349,
+              "operator": "ConditionalExpression"
+            },
+            {
+              "id": "470",
+              "line": 349,
+              "operator": "EqualityOperator"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

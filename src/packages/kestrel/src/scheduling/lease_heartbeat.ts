@@ -1,3 +1,5 @@
+import { addAbortListener } from "node:events";
+
 export interface LeaseHeartbeatOptions {
   intervalMs: number;
   /** Stop renewing ownership when application work is cancelled. */
@@ -18,11 +20,11 @@ export function startLeaseHeartbeat(
   let active: Promise<unknown> | undefined;
   let failure: unknown;
   let failed = false;
-  const stop = () => clearInterval(interval);
   const interval = setInterval(() => {
-    if (options.signal?.aborted) { stop(); return; }
     if (active !== undefined) return;
-    active = options.extend().catch((error: unknown) => {
+    // Own the extension before invoking it so synchronous adapter failures and
+    // rejected promises follow the same failure and cleanup path.
+    active = Promise.resolve().then(() => options.extend()).catch((error: unknown) => {
       failed = true;
       failure = error;
       clearInterval(interval);
@@ -37,13 +39,15 @@ export function startLeaseHeartbeat(
     });
   }, options.intervalMs);
   interval.unref();
-  options.signal?.addEventListener("abort", stop, { once: true });
-  if (options.signal?.aborted) stop();
+  const signal = options.signal;
+  // Stop immediately even when another shutdown listener stops propagation.
+  const subscription = signal === undefined ? undefined : addAbortListener(signal, () => clearInterval(interval));
+  if (signal?.aborted) clearInterval(interval);
 
   return {
     close: async () => {
       clearInterval(interval);
-      options.signal?.removeEventListener("abort", stop);
+      subscription?.[Symbol.dispose]();
       await active;
       if (failed) throw failure;
     },

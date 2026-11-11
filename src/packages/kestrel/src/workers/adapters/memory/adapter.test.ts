@@ -7,6 +7,7 @@ import {
 import { MemoryWorkerAdapter } from "./adapter.js";
 import { WorkerJobIdentityConflictError } from "../../errors.js";
 import { workerPayloadConformance } from "../../testing/payload_conformance.js";
+import { workerReservationConformance } from "../../testing/reservation_conformance.js";
 
 function createSequence(prefix: string): () => string {
   let value = 0;
@@ -16,6 +17,7 @@ function createSequence(prefix: string): () => string {
 
 describe("MemoryWorkerAdapter", () => {
   workerPayloadConformance((budgets) => new MemoryWorkerAdapter(budgets));
+  workerReservationConformance(() => new MemoryWorkerAdapter());
 
   it("isolates publication, reservation, inspection and dead-letter payloads", async () => {
     const adapter = new MemoryWorkerAdapter();

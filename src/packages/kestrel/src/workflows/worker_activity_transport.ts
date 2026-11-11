@@ -16,6 +16,7 @@ import type {
 } from "./adapter.js";
 import {
   ActionWorkflowActivityTransport,
+  executeWorkflowActivityWithTimeout,
   setWorkflowActivityExecutionContext,
   toWorkflowActivityExecution,
 } from "./activity_transport.js";
@@ -25,7 +26,8 @@ import {
   WorkflowActivityTimeoutError,
   type WorkflowExecutionError,
 } from "./errors.js";
-import type { WorkflowPayload } from "./serialization.js";
+import { workflowCommandIdentity } from "./history.js";
+import type { WorkflowPayload, WorkflowPayloadCodec } from "./serialization.js";
 
 export const workflowActivityWorkerQueue = "kestrel.workflow.activities";
 export const workflowActivityCorrelationNamespace = "workflow.activity";
@@ -34,12 +36,14 @@ interface WorkflowActivityWorkerPayload {
   taskId: string;
   executionId: string;
   sequence: number;
+  historyGeneration?: number;
   target: string;
   payload: WorkflowPayload;
   scheduledAtMs: number;
 }
 
 type WorkflowActivityWorkerResult =
+  { dispatchId?: string } & (
   | {
       type: "workflow.activity.result";
       status: "completed";
@@ -49,11 +53,13 @@ type WorkflowActivityWorkerResult =
       type: "workflow.activity.result";
       status: "failed";
       error: WorkflowExecutionError;
-    };
+    }
+  );
 
 /** Creates the generic Worker that executes dynamically addressed Actions. */
 export function createWorkflowActivityWorker<Config>(
   app: RuntimeApp<Config>,
+  codec?: WorkflowPayloadCodec,
 ): AnyWorker {
   return defineWorker({
     name: "kestrel.workflow.activity",
@@ -64,6 +70,7 @@ export function createWorkflowActivityWorker<Config>(
       const transport = new ActionWorkflowActivityTransport(
         app.catalog.actions.definitions,
         {
+          ...(codec === undefined ? {} : { codec }),
           execute: (action, input) =>
             context.execution.get(action).run(input as never),
         },
@@ -73,10 +80,14 @@ export function createWorkflowActivityWorker<Config>(
         executionId: job.payload.executionId,
         kind: "activity",
         commandSequence: job.payload.sequence,
+        historyGeneration: job.payload.historyGeneration ?? 1,
         target: job.payload.target,
         payload: job.payload.payload,
         attempt: job.attempt,
       });
+      // Jobs queued before generation-aware correlation still carry the
+      // original dispatch id in their payload, which can prove ownership.
+      const legacyDispatch = job.payload.historyGeneration === undefined ? { dispatchId: job.payload.taskId } : {};
 
       try {
         setWorkflowActivityExecutionContext(context.execution.context, activity);
@@ -89,13 +100,11 @@ export function createWorkflowActivityWorker<Config>(
             "schedule-to-close",
           );
         }
-        const result = await executeWithActivityTimeout(
-          transport.execute(activity, context.signal),
-          activity,
-        );
+        const result = await executeWorkflowActivityWithTimeout(transport, activity, context.signal, false);
         context.setResult({
           type: "workflow.activity.result",
           status: "completed",
+          ...legacyDispatch,
           ...(result === undefined ? {} : { result }),
         } satisfies WorkflowActivityWorkerResult);
       } catch (error) {
@@ -117,6 +126,7 @@ export function createWorkflowActivityWorker<Config>(
         context.setResult({
           type: "workflow.activity.result",
           status: "failed",
+          ...legacyDispatch,
           error: serializeWorkflowError(error),
         } satisfies WorkflowActivityWorkerResult);
       }
@@ -154,7 +164,11 @@ export class WorkflowActivityOutboxDispatcher {
       limit: this.batchSize,
       leaseMs: this.leaseMs,
     });
-    await Promise.all(dispatches.map((dispatch) => this.publish(dispatch)));
+    // A failed sibling must not leave a publication running outside this cycle.
+    const outcomes = await Promise.allSettled(dispatches.map((dispatch) => this.publish(dispatch)));
+    const failures = outcomes.flatMap((outcome) => outcome.status === "rejected" ? [outcome.reason] : []);
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, "Workflow activity publication batch failed.");
     return dispatches.length;
   }
 
@@ -162,16 +176,18 @@ export class WorkflowActivityOutboxDispatcher {
     dispatch: ReservedWorkflowActivityDispatch,
   ): Promise<void> {
     const reservation = toDispatchReservation(dispatch);
-
     try {
-      await this.workerClient.enqueue(this.worker, toWorkerPayload(dispatch), {
-        identity: `${dispatch.executionId}:${dispatch.sequence}`,
+      const payload = toWorkerPayload(dispatch);
+      const identity = workflowCommandIdentity(payload);
+      await this.workerClient.enqueue(this.worker, payload, {
+        identity,
         correlation: {
           namespace: workflowActivityCorrelationNamespace,
-          id: `${dispatch.executionId}:${dispatch.sequence}`,
+          id: identity,
           data: {
             executionId: dispatch.executionId,
             sequence: dispatch.sequence,
+            ...(payload.historyGeneration === undefined ? {} : { historyGeneration: payload.historyGeneration }),
           },
         },
       });
@@ -209,8 +225,7 @@ implements WorkerCorrelatedCompletionSink {
     const correlation = readCorrelationData(completion.correlation.data);
     const request = completion.status === "failed"
       ? {
-          executionId: correlation.executionId,
-          sequence: correlation.sequence,
+          ...correlation,
           sourceId: completion.jobId,
           status: "failed" as const,
           error: {
@@ -239,6 +254,9 @@ function toWorkerPayload(
     taskId: dispatch.id,
     executionId: dispatch.executionId,
     sequence: dispatch.sequence,
+    // Preserve the serialized payload of already queued generation-one jobs.
+    ...(dispatch.historyGeneration === undefined || dispatch.historyGeneration === 1
+      ? {} : { historyGeneration: dispatch.historyGeneration }),
     target: dispatch.target,
     payload: dispatch.payload,
     scheduledAtMs: dispatch.createdAt.getTime(),
@@ -260,51 +278,36 @@ function isWorkerPayload(value: unknown): value is WorkflowActivityWorkerPayload
   return typeof payload.taskId === "string"
     && typeof payload.executionId === "string"
     && Number.isSafeInteger(payload.sequence)
+    && isOptionalGeneration(payload.historyGeneration)
     && typeof payload.target === "string"
     && typeof payload.scheduledAtMs === "number"
     && Object.hasOwn(payload, "payload");
 }
 
-async function executeWithActivityTimeout(
-  execution: Promise<WorkflowPayload | undefined>,
-  activity: ReturnType<typeof toWorkflowActivityExecution>,
-): Promise<WorkflowPayload | undefined> {
-  if (activity.startToCloseTimeoutMs === undefined) return execution;
-
-  let timeout: NodeJS.Timeout | undefined;
-  const expired = new Promise<never>((_resolve, reject) => {
-    timeout = setTimeout(() => reject(new WorkflowActivityTimeoutError(
-      activity.executionId,
-      activity.sequence,
-      "start-to-close",
-    )), activity.startToCloseTimeoutMs);
-    timeout.unref();
-  });
-
-  try {
-    return await Promise.race([execution, expired]);
-  } finally {
-    clearTimeout(timeout);
-  }
+function isOptionalGeneration(value: unknown): value is number | undefined {
+  return value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value > 0);
 }
 
-function readCorrelationData(value: unknown): {
-  executionId: string;
-  sequence: number;
-} {
+type WorkflowActivityCorrelation = Pick<WorkflowActivityWorkerPayload, "executionId" | "sequence" | "historyGeneration">;
+
+function readCorrelationData(value: unknown): WorkflowActivityCorrelation {
   if (value === null || typeof value !== "object") {
     throw new TypeError("Workflow activity correlation data is missing.");
   }
-  const data = value as { executionId?: unknown; sequence?: unknown };
-  if (typeof data.executionId !== "string" || !Number.isSafeInteger(data.sequence)) {
+  const data = value as { executionId?: unknown; sequence?: unknown; historyGeneration?: unknown };
+  if (typeof data.executionId !== "string" || !Number.isSafeInteger(data.sequence) || !isOptionalGeneration(data.historyGeneration)) {
     throw new TypeError("Workflow activity correlation data is invalid.");
   }
-  return { executionId: data.executionId, sequence: data.sequence as number };
+  return {
+    executionId: data.executionId,
+    sequence: data.sequence as number,
+    ...(data.historyGeneration === undefined ? {} : { historyGeneration: data.historyGeneration }),
+  };
 }
 
 function toExternalCompletion(
   completion: Extract<WorkerCorrelatedCompletion, { status: "completed" }>,
-  correlation: { executionId: string; sequence: number },
+  correlation: WorkflowActivityCorrelation,
 ) {
   const result = completion.result;
 
@@ -320,10 +323,14 @@ function toExternalCompletion(
     };
   }
 
+  const reservation = correlation.historyGeneration === undefined && typeof result.dispatchId === "string"
+    ? { ...correlation, dispatchId: result.dispatchId }
+    : correlation;
+
   return result.status === "failed"
-    ? { ...correlation, sourceId: completion.jobId, ...result }
+    ? { ...reservation, sourceId: completion.jobId, status: "failed" as const, error: result.error }
     : {
-        ...correlation,
+        ...reservation,
         sourceId: completion.jobId,
         status: "completed" as const,
         ...(result.result === undefined ? {} : { result: result.result }),
@@ -336,6 +343,8 @@ function isWorkerResult(value: unknown): value is WorkflowActivityWorkerResult {
   return result.type === "workflow.activity.result"
     && (result.status === "completed"
       || (result.status === "failed"
-        && result.error !== undefined
-        && typeof result.error.message === "string"));
+        && typeof result.error === "object" && result.error !== null
+        && typeof result.error.name === "string"
+        && typeof result.error.message === "string"
+        && (result.error.stack === undefined || typeof result.error.stack === "string")));
 }

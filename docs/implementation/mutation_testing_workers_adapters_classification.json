@@ -6,7 +6,7 @@
   "budgetMs": 600000,
   "modeNote": "Bounded focused component profile; ignoreStatic=False. Static mutants remain enabled in these focused profiles. SQL text is not comprehensively mutated by Stryker; exported schema contracts do not substitute for a production migration/application test.",
   "beforeReport": "artifacts/mutation/workers-adapters-before-two-hour-tests/mutation.json",
-  "report": "artifacts/mutation/workers-adapters/mutation.json",
+  "report": "artifacts/mutation/nov11-complete-review/workers-adapters-before/mutation.json",
   "beforeCounts": {
     "Killed": 313,
     "Survived": 189,
@@ -2385,7 +2385,7 @@
   },
   "reportHashes": {
     "artifacts/mutation/workers-adapters-before-two-hour-tests/mutation.json": "f5cece7daee9e111d6c3506f3c1fdc0f7a576f6cf2c14d406b457e927ce3584b",
-    "artifacts/mutation/workers-adapters/mutation.json": "92d88c687fa18d5007e8b40825fc34fc751c55e2b0036a642d7896abf57eb16f"
+    "artifacts/mutation/nov11-complete-review/workers-adapters-before/mutation.json": "92d88c687fa18d5007e8b40825fc34fc751c55e2b0036a642d7896abf57eb16f"
   },
   "backendImplementationReferences": {
     "node_modules/drizzle-orm/pg-core/columns/timestamp.js": "d903316b96274428378ee2d475171f9df2f6011cb28d8bb82c6d0a18a89ed602",

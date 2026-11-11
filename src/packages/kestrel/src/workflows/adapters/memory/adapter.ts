@@ -54,6 +54,7 @@ import type {
   WorkflowSignalReceivedEvent,
   WorkflowCancellationRequestedEvent,
 } from "../../history.js";
+import { workflowCommandIdentity } from "../../history.js";
 import type { ResolvedWorkflowConcurrency } from "../../concurrency.js";
 
 export interface MemoryWorkflowAdapterOptions {
@@ -171,9 +172,22 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     const stagedInitialInputs = new Map(this.initialInputs);
     const createdExecutions: WorkflowExecution[] = [];
     const results: StartWorkflowExecutionResult[] = [];
+    const firstIndexByExecutionId = new Map<string, number>();
     const now = this.now();
 
-    for (const request of requests) {
+    for (const [index, request] of requests.entries()) {
+      // An earlier request may have attached to another execution without storing this ID.
+      const firstIndex = firstIndexByExecutionId.get(request.executionId);
+      if (firstIndex !== undefined) {
+        const first = requests[firstIndex]!;
+        if (first.workflowName !== request.workflowName || !isDeepStrictEqual(first.input, request.input)) {
+          throw new WorkflowExecutionConflictError(request.executionId);
+        }
+        results.push({ execution: cloneExecution(results[firstIndex]!.execution), created: false });
+        continue;
+      }
+      firstIndexByExecutionId.set(request.executionId, index);
+
       const existing = stagedExecutions.get(request.executionId);
 
       if (existing !== undefined) {
@@ -251,15 +265,20 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       results.push({ execution: cloneExecution(execution), created: true });
     }
 
-    for (const execution of createdExecutions) {
+    // Allocate every task ID before publishing the executions and their history.
+    const stagedStarts = createdExecutions.map((execution) => ({
+      execution,
+      taskId: execution.concurrencyAdmitted ? this.createTaskId() : undefined,
+    }));
+    for (const { execution, taskId } of stagedStarts) {
       this.executions.set(execution.executionId, execution);
       this.initialInputs.set(
         execution.executionId,
         stagedInitialInputs.get(execution.executionId)!,
       );
       this.histories.set(execution.executionId, []);
-      if (execution.concurrencyAdmitted) {
-        this.enqueueWorkflowTask(execution.executionId, now);
+      if (taskId !== undefined) {
+        this.enqueueWorkflowTask(execution.executionId, now, taskId);
       }
     }
 
@@ -547,9 +566,9 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     ).length;
     const now = this.now();
 
-    let completedSynchronously = false;
-
-    for (const [offset, command] of request.commands.entries()) {
+    // Validate and prepare the whole batch before publishing any journal or task state.
+    const stagedChildren = new Map<string, WorkflowExecution>();
+    const preparedCommands = request.commands.map((command, offset) => {
       const expectedSequence = scheduledCount + offset;
 
       if (command.sequence !== expectedSequence) {
@@ -558,40 +577,31 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
         );
       }
 
+      const prepared = { ...command, payload: cloneWorkflowPayload(command.payload) };
+      return {
+        command: prepared,
+        apply: this.prepareCommand(execution, prepared, now, stagedChildren),
+      };
+    });
+
+    let completedSynchronously = false;
+    for (const { command, apply } of preparedCommands) {
       const event: WorkflowCommandScheduledEvent = {
         type: "command-scheduled",
         eventIndex: execution.revision,
         sequence: command.sequence,
         kind: command.kind,
         target: command.target,
-        payload: cloneWorkflowPayload(command.payload),
+        payload: command.payload,
         occurredAt: now,
       };
       history.push(event);
       execution.revision += 1;
-      completedSynchronously = this.scheduleCommand(
-        execution,
-        command,
-        now,
-      ) || completedSynchronously;
+      completedSynchronously = apply() || completedSynchronously;
     }
 
     completedSynchronously = this.consumeBufferedSignals(execution, now)
       || completedSynchronously;
-
-    if (execution.cancellationRequested && request.commands.length > 0) {
-      const firstNewSequence = request.commands[0]!.sequence;
-
-      for (const [taskId, pending] of this.tasks) {
-        if (
-          pending.executionId === execution.executionId
-          && pending.commandSequence !== undefined
-          && pending.commandSequence < firstNewSequence
-        ) {
-          this.tasks.delete(taskId);
-        }
-      }
-    }
 
     this.tasks.delete(task.id);
     execution.updatedAt = now;
@@ -665,7 +675,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
         ? request.result === undefined
           ? {}
           : { result: cloneWorkflowPayload(request.result) }
-        : { error: { ...request.error } }),
+        : { error: cloneWorkflowError(request.error) }),
       occurredAt: now,
     };
 
@@ -685,13 +695,19 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     validatePositiveInteger("leaseMs", request.leaseMs);
     const now = this.now();
     const selected = [...this.dispatches.values()]
-      .filter((dispatch) =>
-        dispatch.publishedAt === undefined
-        && dispatch.availableAt <= now
-        && !isTerminalWorkflowStatus(
-          this.getRequiredExecution(dispatch.executionId).status,
-        )
-        && this.getRequiredExecution(dispatch.executionId).pausedAt === undefined)
+      .filter((dispatch) => {
+        if (dispatch.publishedAt !== undefined || dispatch.availableAt > now) return false;
+        const execution = this.getRequiredExecution(dispatch.executionId);
+        if (isTerminalWorkflowStatus(execution.status) || execution.pausedAt !== undefined) return false;
+        if (!execution.cancellationRequested) return true;
+
+        // Only compensation commands recorded after cancellation are still runnable.
+        const history = this.getRequiredHistory(dispatch.executionId);
+        const cancellation = history.find((event) => event.type === "cancellation-requested");
+        return cancellation !== undefined && history.some((event) =>
+          event.type === "command-scheduled" && event.sequence === dispatch.sequence
+          && event.eventIndex > cancellation.eventIndex);
+      })
       .sort((left, right) =>
         left.availableAt.getTime() - right.availableAt.getTime())
       .slice(0, request.limit);
@@ -702,7 +718,8 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       dispatch.reservedAt = now;
       dispatch.reservationToken = reservationToken;
       dispatch.availableAt = new Date(now.getTime() + request.leaseMs);
-      return cloneDispatch(dispatch, reservationToken, now);
+      const { historyGeneration } = this.getRequiredExecution(dispatch.executionId);
+      return cloneDispatch(dispatch, historyGeneration, reservationToken, now);
     });
   }
 
@@ -730,6 +747,16 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     request: CompleteExternalWorkflowActivityRequest,
   ): Promise<boolean> {
     const execution = this.getRequiredExecution(request.executionId);
+    // Results written by an older generation may be retried until the Worker acknowledges them.
+    const historyGeneration = request.historyGeneration ?? 1;
+    if (historyGeneration !== execution.historyGeneration) {
+      if (request.historyGeneration !== undefined || request.dispatchId === undefined) {
+        return historyGeneration < execution.historyGeneration;
+      }
+      // An unversioned job from before an upgrade must prove it belongs to the current outbox.
+      const dispatch = this.dispatches.get(request.dispatchId);
+      if (dispatch?.executionId !== request.executionId || dispatch.sequence !== request.sequence) return true;
+    }
     const history = this.getRequiredHistory(request.executionId);
     const existing = history.some((event) =>
       event.type === "command-completed" && event.sequence === request.sequence);
@@ -757,7 +784,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
         ? request.result === undefined
           ? {}
           : { result: cloneWorkflowPayload(request.result) }
-        : { error: { ...request.error } }),
+        : { error: cloneWorkflowError(request.error) }),
       occurredAt: now,
     });
     execution.revision += 1;
@@ -1230,7 +1257,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     }
   }
 
-  private enqueueWorkflowTask(executionId: string, now: Date): void {
+  private enqueueWorkflowTask(executionId: string, now: Date, taskId?: string): void {
     const alreadyQueued = [...this.tasks.values()].some((task) =>
       task.executionId === executionId && task.kind === "workflow");
 
@@ -1238,7 +1265,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       return;
     }
 
-    const id = this.createTaskId();
+    const id = taskId ?? this.createTaskId();
     this.tasks.set(id, {
       id,
       executionId,
@@ -1302,12 +1329,11 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
   }
 
   private enqueueActivityTask(
+    id: string,
     executionId: string,
     command: CommitWorkflowActivationRequest["commands"][number],
     now: Date,
   ): void {
-    const id = this.createTaskId();
-
     if (this.activityDispatchMode === "outbox") {
       this.dispatches.set(id, {
         id,
@@ -1360,6 +1386,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
   }
 
   private enqueueTimerTask(
+    id: string,
     executionId: string,
     sequence: number,
     target: string,
@@ -1367,7 +1394,6 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     delayMs: number,
     now: Date,
   ): void {
-    const id = this.createTaskId();
     this.tasks.set(id, {
       id,
       executionId,
@@ -1381,34 +1407,44 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     });
   }
 
-  private scheduleCommand(
+  private prepareCommand(
     execution: WorkflowExecution,
     command: CommitWorkflowActivationRequest["commands"][number],
     now: Date,
-  ): boolean {
+    stagedChildren: Map<string, WorkflowExecution>,
+  ): () => boolean {
     if (command.kind === "activity") {
-      this.enqueueActivityTask(execution.executionId, command, now);
-      return false;
+      const taskId = this.createTaskId();
+      return () => {
+        this.enqueueActivityTask(taskId, execution.executionId, command, now);
+        return false;
+      };
     }
 
     if (command.kind === "timer") {
       const durationMs = readNumber(command.payload, "durationMs");
-      this.enqueueTimerTask(
-        execution.executionId,
-        command.sequence,
-        "sleep",
-        command.payload,
-        durationMs,
-        now,
-      );
-      return false;
+      const taskId = this.createTaskId();
+      return () => {
+        this.enqueueTimerTask(
+          taskId,
+          execution.executionId,
+          command.sequence,
+          "sleep",
+          command.payload,
+          durationMs,
+          now,
+        );
+        return false;
+      };
     }
 
     if (command.kind === "signal") {
       const timeoutMs = readOptionalNumber(command.payload, "timeoutMs");
-
-      if (timeoutMs !== undefined) {
+      if (timeoutMs === undefined) return () => false;
+      const taskId = this.createTaskId();
+      return () => {
         this.enqueueTimerTask(
+          taskId,
           execution.executionId,
           command.sequence,
           `signal:${command.target}`,
@@ -1416,21 +1452,25 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
           timeoutMs,
           now,
         );
-      }
-
-      return false;
+        return false;
+      };
     }
 
     if (command.kind === "capture") {
-      this.appendCompletion(execution, command.sequence, now, {
-        result: command.payload,
-      });
-      return true;
+      return () => {
+        this.appendCompletion(execution, command.sequence, now, command.captureError === undefined
+          ? { result: command.payload }
+          : { error: command.captureError });
+        return true;
+      };
     }
 
     if (command.kind === "child") {
-      this.startChild(execution, command, now);
-      return false;
+      const startChild = this.prepareChild(execution, command, now, stagedChildren);
+      return () => {
+        startChild();
+        return false;
+      };
     }
 
     throw new TypeError(`Unsupported workflow command kind "${command.kind}".`);
@@ -1506,16 +1546,21 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     execution.revision += 1;
   }
 
-  private startChild(
+  private prepareChild(
     parent: WorkflowExecution,
     command: CommitWorkflowActivationRequest["commands"][number],
     now: Date,
-  ): void {
+    stagedChildren: Map<string, WorkflowExecution>,
+  ): () => void {
     const childInput = readPayload(command.payload, "input");
     const version = readNumber(command.payload, "version");
     const requestedId = readOptionalString(command.payload, "executionId");
-    const childId = requestedId ?? `${parent.executionId}:${command.sequence}`;
-    const existing = this.executions.get(childId);
+    const childId = requestedId ?? workflowCommandIdentity({
+      executionId: parent.executionId,
+      sequence: command.sequence,
+      historyGeneration: parent.historyGeneration,
+    });
+    const existing = this.executions.get(childId) ?? stagedChildren.get(childId);
 
     if (existing !== undefined) {
       if (
@@ -1524,13 +1569,13 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       ) {
         throw new WorkflowExecutionConflictError(childId);
       }
-      return;
+      return () => {};
     }
 
     const concurrency = readOptionalConcurrency(command.payload);
     const keyed = concurrency?.keyed;
     const concurrencyAdmitted = keyed?.scope !== "execution"
-      || [...this.executions.values()].filter((candidate) =>
+      || [...this.executions.values(), ...stagedChildren.values()].filter((candidate) =>
         candidate.workflowName === command.target
         && candidate.concurrency?.keyed?.key === keyed.key
         && candidate.concurrencyAdmitted
@@ -1554,10 +1599,14 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       createdAt: now,
       updatedAt: now,
     };
-    this.executions.set(childId, child);
-    this.initialInputs.set(childId, cloneWorkflowPayload(childInput));
-    this.histories.set(childId, []);
-    if (concurrencyAdmitted) this.enqueueWorkflowTask(childId, now);
+    const taskId = concurrencyAdmitted ? this.createTaskId() : undefined;
+    stagedChildren.set(childId, child);
+    return () => {
+      this.executions.set(childId, child);
+      this.initialInputs.set(childId, cloneWorkflowPayload(childInput));
+      this.histories.set(childId, []);
+      if (taskId !== undefined) this.enqueueWorkflowTask(childId, now, taskId);
+    };
   }
 
   private completeParentCommand(child: WorkflowExecution, now: Date): void {
@@ -1568,9 +1617,10 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       return;
     }
 
-    const parent = this.getRequiredExecution(child.parentExecutionId);
+    const parent = this.executions.get(child.parentExecutionId);
 
-    if (isTerminalWorkflowStatus(parent.status)) {
+    // Low-level starts can retain a parent link after the parent has been removed.
+    if (parent === undefined || isTerminalWorkflowStatus(parent.status)) {
       return;
     }
 
@@ -2009,12 +2059,14 @@ function validatePositiveInteger(name: string, value: number): void {
 
 function cloneDispatch(
   dispatch: StoredWorkflowActivityDispatch,
+  historyGeneration: number,
   reservationToken: string,
   reservedAt: Date,
 ): ReservedWorkflowActivityDispatch {
   return {
     id: dispatch.id,
     executionId: dispatch.executionId,
+    historyGeneration,
     sequence: dispatch.sequence,
     target: dispatch.target,
     payload: cloneWorkflowPayload(dispatch.payload),

@@ -99,7 +99,9 @@ describe("scheduled task calendar boundaries", () => {
   it("rejects each invalid component even when the total would otherwise remain positive", () => {
     for (const unit of ["milliseconds", "seconds", "minutes", "hours", "days", "weeks"]) {
       for (const value of [-1, NaN, Infinity, -Infinity]) {
-        expect(() => durationToMs({ weeks: 2, [unit]: value })).toThrow(TypeError);
+        expect(() => durationToMs({ weeks: 2, [unit]: value })).toThrow(expect.objectContaining({
+          name: "TypeError", message: expect.stringContaining(unit),
+        }));
       }
     }
     expect(() => durationToMs({})).toThrow(TypeError);

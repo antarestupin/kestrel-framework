@@ -175,11 +175,13 @@ The PostgreSQL adapter uses four driver round trips for any non-empty batch with
 | `workflow.sleep(duration)` | Creates a persisted timer and releases the activation and compute slot until its deadline. |
 | `workflow.waitForSignal(signal, options)` | Consumes one matching buffered signal in arrival order. An optional timeout is a persisted competing timer. |
 | `workflow.runChild(definition, input, options)` | Starts a version-pinned child, records parent and root relationships, and propagates its result or failure to the parent command. |
-| `workflow.sideEffect(capture, options)` | Evaluates nondeterministic code once, serializes its value, and restores that value on every later replay. |
+| `workflow.sideEffect(capture, options)` | Evaluates nondeterministic code once and records its serialized value or error. Replay resolves or throws from the recorded completion without calling the capture again. |
 | `workflow.now()` and `workflow.uuid()` | Convenience captures for replay-safe time and UUID generation. |
 | `workflow.continueAsNew(input)` | Atomically archives the completed history generation and starts a fresh generation under the same execution identity with validated input and the definition's current version. |
 
-Only JSON-compatible payloads cross the durable boundary by default. The payload codec is injectable, but input, output, signal, activity, child, and captured values must all be accepted by the selected codec.
+Only JSON-compatible payloads cross the durable boundary by default. The payload codec is injectable, but input, output, signal, activity, child, and captured values must all be accepted by the selected codec. Replay waits for framework-owned asynchronous schema validation and codec work before deciding whether the handler has suspended. Parallel preparation retains its existing completion order when preparing commands for both old and new histories.
+
+The default codec rejects missing array entries at their payload path and normalizes negative zero to zero so in-memory and persisted payloads agree. A thrown value that cannot be converted to a diagnostic still produces durable failure metadata with a generic message.
 
 ## Parallelism and races
 
@@ -217,11 +219,15 @@ const fulfillOrderWorkflow = defineWorkflow({
 
 `executions.limit` bounds active work for the complete definition. Keyed concurrency applies a separate limit per resolved business key, so order `A` can be serialized without blocking orders `B` and `C`. `enqueue` creates a pending execution, `reject` fails the competing start, and `return-existing` returns the oldest compatible active handle. `scope: "execution"` retains the keyed permit while the workflow waits for timers, signals, children, or activities; `active-work` releases compute admission during those waits.
 
+The key callback must produce a non-empty string for every accepted input. An invalid key rejects the start before storage.
+
 ## Activities, retries, and exactly-once limits
 
-Every activity receives a stable idempotency key derived from the execution ID and command sequence. Retries preserve this key and increment the attempt number. The runtime retries only `WorkflowActivityInfrastructureError` and its timeout subtype; an ordinary Action or domain error is recorded immediately and thrown back into workflow code.
+Every activity receives a stable idempotency key derived from the execution ID, history generation and command sequence. Retries preserve this key and increment the attempt number. Generation one keeps the existing `executionId:sequence` form so previously queued Worker jobs continue to deduplicate. The runtime retries only `WorkflowActivityInfrastructureError` and its timeout subtype. An ordinary Action or domain error is recorded immediately and thrown back into workflow code.
 
-An Action that needs transport metadata can declare `executionContextDependency` and call `getWorkflowActivityExecutionContext(executionContext)`. The returned activity contains its `idempotencyKey`, attempt, retry policy, execution ID, command sequence, and timeouts. The helper returns `undefined` when the same Action runs through another transport.
+An Action that needs transport metadata can declare `executionContextDependency` and call `getWorkflowActivityExecutionContext(executionContext)`. The returned activity contains its `idempotencyKey`, attempt, retry policy, execution ID, history generation, command sequence, and timeouts. The helper returns `undefined` when the same Action runs through another transport.
+
+A workflow provider's payload codec applies to both embedded and Worker-backed Action activity inputs and results. A deployment that changes the codec must still decode payloads already stored in the workflow journal or queued for a Worker.
 
 The runtime guarantees one logical command and one accepted terminal completion in workflow history. It cannot guarantee that an external side effect happens exactly once. A process can perform the effect and fail before recording its result, and a start-to-close timeout can expire while a remote operation continues. Actions that modify external state must use the supplied idempotency key or an equivalent business key.
 
@@ -283,7 +289,7 @@ await assertWorkflowReplayCompatible(
 );
 ```
 
-`parseWorkflowReplayFixture()` validates imported JSON before replay. Export omits error stacks by default and accepts an application-owned payload sanitization hook; fixtures must not be committed before sensitive fields have been redacted. Compatibility tests should retain at least one fixture for each supported execution version and both sides of every temporary handler branch. The helper fails with `WorkflowReplayCompatibilityError`, whose cause contains the first nondeterministic command position and its expected and emitted identities.
+`parseWorkflowReplayFixture()` validates imported JSON before replay. Export omits error stacks by default and accepts an application-owned payload sanitization hook. Redact sensitive fields before committing fixtures. If the journal revision or history generation changes during export, the export rejects and can be retried against the new snapshot. Compatibility tests should retain at least one fixture for each supported execution version and both sides of every temporary handler branch. The helper fails with `WorkflowReplayCompatibilityError`, whose cause contains the first nondeterministic command position and its expected and emitted identities.
 
 ## Continue as new
 
@@ -514,7 +520,7 @@ The operator commands have deliberately different semantics:
 
 | Command | Semantics |
 | --- | --- |
-| `signal()` | Validates a declared signal payload with its schema, serializes it with the configured payload codec, and stores it durably. An optional idempotency key deduplicates delivery attempts. |
+| `signal()` | Validates a declared signal payload with its schema, serializes it with the configured payload codec, and stores it durably. An optional nonempty idempotency key deduplicates delivery attempts. |
 | `pause()` | Sets an orthogonal durable hold. New workflow, timer, activity, and outbox reservations stop, while already reserved work may finish and record its result. |
 | `resume()` | Clears the hold and writes a deduplicated workflow wake-up. |
 | `cancel()` | Requests cooperative cancellation, clears a pause, propagates to open children, and lets handler `try`/`catch` compensation run at the next durable boundary. |
@@ -571,7 +577,7 @@ Studio routes use the Studio access boundary and the optional extension callback
 
 Workflow execution scopes separate orchestration identity from process work. `workflowExecutionId` is the stable durable workflow identity exposed by handles and stored as `workflows.task.execution_id`; each task already has its own durable `workflows.task.id`. Every reservation attempt receives a distinct generic application execution ID in the form `<taskId>:<attempt>`. Logs and observations attach `workflow.executionId`, `workflow.taskId`, `workflow.taskAttempt`, definition, pinned version, history generation, parent/root identities, task kind, command sequence, and replay state as structured context. Studio follows `workflow.executionId` to aggregate those distinct task-attempt timelines without merging their `execution.started` and `execution.completed` pairs. Correlation pages place observations and logs together under each application execution by default, label workflow tasks, Activities, timers, commands, and attempts from generic diagnostics, provide per-group and page-wide expansion controls for both artifact types, and retain a chronological view for inspecting interleaved parallel work.
 
-This distinction also preserves retry semantics: the durable task ID identifies the logical activation, activity, or timer while the attempt suffix identifies one lease owner and process execution. Worker-backed activities retain the Worker execution identity chosen by the Worker transport and carry the workflow execution ID plus command sequence as their correlation. Workflow instrumentation remains storage-neutral and can feed the built-in observation bridge, a metrics backend, or both.
+This distinction also preserves retry semantics: the durable task ID identifies the logical activation, activity, or timer while the attempt suffix identifies one lease owner and process execution. Worker-backed activities retain the Worker execution identity chosen by the Worker transport. Their correlation carries the workflow execution ID, command sequence and, after continue-as-new, history generation. A delayed completion from an earlier generation is acknowledged without changing the current journal. Workflow instrumentation remains storage-neutral and can feed the built-in observation bridge, a metrics backend, or both.
 
 Two stable observations are emitted without workflow payloads:
 

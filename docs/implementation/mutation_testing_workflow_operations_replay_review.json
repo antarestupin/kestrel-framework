@@ -1,0 +1,4177 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-11",
+  "policy": "Keep raw statuses, isolate Vitest deadline detections, and qualify any behavioral equivalence by the stated input and ownership contract.",
+  "profiles": {
+    "workflow-operations": {
+      "command": "npm run test:mutation:workflow-operations",
+      "budgetMs": 600000,
+      "baselineReport": "artifacts/mutation/nov11-complete-review/workflow-operations-before/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/workflow-operations-after-2/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/nov11-complete-review/workflow-operations-before/mutation.json": "b84829f362bd9bfa3d5ec6909034a7fab4420b21233cd4eced3e7ef1a203b152",
+        "artifacts/mutation/nov11-complete-review/workflow-operations-after-2/mutation.json": "955c39d7d5194fe8ab4162acd0b6674fe9280608cf1a50a2e1f98a441fc6f56d"
+      },
+      "baselineCounts": {
+        "Killed": 279,
+        "NoCoverage": 89,
+        "Survived": 125
+      },
+      "counts": {
+        "Killed": 450,
+        "NoCoverage": 1,
+        "Survived": 51
+      },
+      "seconds": 169,
+      "sameSiteTransitions": [
+        {
+          "before": "Killed",
+          "after": "Killed",
+          "count": 278
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Killed",
+          "count": 69
+        },
+        {
+          "before": "NoCoverage",
+          "after": "NoCoverage",
+          "count": 1
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Survived",
+          "count": 18
+        },
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 94
+        },
+        {
+          "before": "Survived",
+          "after": "Survived",
+          "count": 31
+        }
+      ],
+      "previousKillsWithDifferentStatus": [],
+      "sourceHashes": {
+        "src/packages/kestrel/src/workflows/operations.ts": "e19464c1f52d6385533199c017ee611f1ffd1164ea7f33e953136f2074a136ed",
+        "src/packages/kestrel/src/workflows/client.ts": "c2537b1063c3fd55995e29e4516862f6bac82626eba4968b64674db4cdc8e995",
+        "src/packages/kestrel/src/workflows/execution_cursor.ts": "6c655e99d555d2fa9b7a4d5edac8f946d7f7eff422ec76289ada33f7e7191cfe",
+        "src/packages/kestrel/src/workflows/version_operations.ts": "9202fbfbdd695aa4adc6aaa2874f1042d11cb718dfd4e0c2d253ff3e5943b41d"
+      },
+      "testSourceHashes": {
+        "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "4acba5a20ba08e9576687639cc71126eb67ab1a4f16d4e1c6051cd2b038665f8",
+        "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+        "src/packages/kestrel/src/workflows/adapters/memory/retry_execution.test.ts": "4ff4a5a303fb7e8402397b31d11fd398440adbd4628ead6ecd96b03f94a39176",
+        "src/packages/kestrel/src/workflows/operations.test.ts": "1f85022ce176ad55d55d5ae052a9f81c9adf30432a274458d03a8f98d58ecbca",
+        "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "692f966a9403523c7881f72f899e5fcc2d55c1dac4f393447463263e3a84e3b1",
+        "src/packages/kestrel/src/workflows/workflow.test.ts": "5933d054a6c1ce58231376f9e8eebee530ec0497733b06f7c933c568cd129dbd",
+        "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+        "src/packages/kestrel/src/workflows/serialization.test.ts": "dcc10f5e51ad95fe6db39da7473f8d5efd5f67d18ee6a7b86347ca44a3c15b90",
+        "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+        "src/packages/kestrel/src/workflows/client.test.ts": "d0fc57a2421ab7a31f70c8fb624c6fa7d70b9393ef45ea7158b1735e717a7d5c",
+        "src/packages/kestrel/src/workflows/concurrency.test.ts": "f52b7b0eacc6b9541ae8ee7b1e20ff6d7996854c10a4dab9375b1823e7682d11",
+        "src/packages/kestrel/src/workflows/observations.test.ts": "6f3dad6ea06bfe5e89e62a8a13ee314a2e67cfb9794e3e60cbb4ecb0bff24af3",
+        "src/packages/kestrel/src/workflows/primitives.test.ts": "3dc3eeb752104bc2ff635f8fbed23b4b5a71d891a7e0ed228ecb7f91dc9702e6",
+        "src/packages/kestrel/src/workflows/provider.test.ts": "fdbdf1b2f19ae3b5744e5d42e546ee8e8c0b46b3a58360a428849292701e0700",
+        "src/packages/kestrel/src/workflows/replayer.test.ts": "50ca17b37d521cafed5e1132e220956e32d90716e3eef432026f7f968c252b02",
+        "src/packages/kestrel/src/workflows/runtime.test.ts": "f3465b3e79bc5cba13bb83b7ccc8a17e0156211efaee306c101cb6123d9a86a1",
+        "src/packages/kestrel/src/workflows/scheduler.test.ts": "635400234125833dbda9af6c09a92ab4b312939bda35e58063c66a0b57b8c7ef",
+        "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "f955f609c5633e162ae3897dea76edecbe264e42b99cc1d4d3dc7a405bc71294",
+        "src/packages/kestrel/src/workflows/testing.test.ts": "e9cbb6010063c4babc842fe9b62b0ab8cc907e85aed350e6448c0183b31b3b60",
+        "src/packages/kestrel/src/workflows/version_operations.test.ts": "e73ac2628efc18628759652c1bd168e3123a1eed675358849b5bb5affa141c3d",
+        "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "6d60e5b6f20b99084e5f541f2a6911b287a9537faac44f56503fb84d9f046231",
+        "src/packages/kestrel/src/workflows/adapters/definition.test.ts": "46dadcff7b2af9d25a7a637c84403b48c962ffbef27a89e1e279f41c82e8d57a",
+        "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+        "src/packages/kestrel/src/workflows/adapters/memory/terminal_control.test.ts": "97478298a47949f1330718cc32db96f67af0fc70ad2871e013b4aaf50a5aeca7",
+        "src/packages/kestrel/src/workflows/execution_cursor.test.ts": "e73d09bc7133cea7efab0184aee006572ace103023c41038b44e9856272a9459"
+      },
+      "vitestDeadlineKills": [],
+      "classificationCounts": {
+        "definition inventory projection": 1,
+        "operator signal validation": 4,
+        "diagnostic text": 6,
+        "operator retry instrumentation": 2,
+        "operator existence boundary": 2,
+        "durable wait projection": 9,
+        "durable graph projection": 13,
+        "atomic start and client observations": 3,
+        "terminal status and codec contract": 5,
+        "typed signal metadata": 2,
+        "version and definition attachment": 1,
+        "cursor format": 2,
+        "guarded version recovery": 2
+      },
+      "classifications": {
+        "definition inventory projection": "Definitions are sorted and version summaries scoped to their owner. Descriptions and static labels are optional operator presentation fields.",
+        "operator signal validation": "Unknown execution/definition/signal, validation policy, empty idempotency keys and repeated delivery are exercised through the storage boundary. Optional undefined metadata and diagnostic wording remain raw.",
+        "diagnostic text": "Tests assert the durable effect, error class and structured error fields where contractual. Exact human-readable wording remains flexible.",
+        "operator retry instrumentation": "A durable retry is idempotent and remains successful if instrumentation throws. Optional observability shape and raw messages can differ.",
+        "operator existence boundary": "Missing deployed definitions and undeclared signals reject before writes. Exact diagnostics may differ.",
+        "durable wait projection": "JSON objects, primitive or malformed historical options, and missing/zero timeout values have distinct direct tests. JSON cannot durably encode NaN or Infinity with the default codec. Custom adapters still need to preserve the payload contract.",
+        "durable graph projection": "Execution, signal and command nodes and their links are asserted with typed durable history. Parent command-less fallbacks and optional graph timestamps are separate presentation fields.",
+        "atomic start and client observations": "An invalid request prevents the entire write, incomplete adapter results reject, heterogeneous order and idempotent reuse are covered. Concurrency return-existing can legally return another execution ID. Residual optional metadata or observation shape does not change that contract.",
+        "terminal status and codec contract": "Completed outputs, failed and cancelled errors and malformed/nonterminal replies are distinguished. Metadata fallback is synthesized for malformed adapter records and does not change the terminal state. Typed result validation remains separate from durable storage.",
+        "typed signal metadata": "Declared signal identity, validation, empty key rejection and deduplication are exercised. Optional undefined metadata can differ in property shape.",
+        "version and definition attachment": "Both versions are boundary-checked, and compatible older executions attach. Diagnostic formatting has no effect on which durable execution can be attached.",
+        "cursor format": "Native Date milliseconds are padded and database microseconds round-trip exactly. The Date ISO output is always UTC; alternative end anchors can agree within that domain.",
+        "guarded version recovery": "Missing and incompatible executions fail before storage. Compatible recovery commits only a matching version-blocked execution. Diagnostic bounds and optional representation may differ for an absent definition."
+      },
+      "remaining": [
+        {
+          "id": "171",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "listDefinitions",
+          "location": {
+            "end": {
+              "column": 49,
+              "line": 123
+            },
+            "start": {
+              "column": 13,
+              "line": 123
+            }
+          },
+          "original": "definition.description === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "definition inventory projection"
+        },
+        {
+          "id": "193",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "signal",
+          "location": {
+            "end": {
+              "column": 29,
+              "line": 168
+            },
+            "start": {
+              "column": 9,
+              "line": 168
+            }
+          },
+          "original": "signal === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "operator signal validation"
+        },
+        {
+          "id": "195",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "signal",
+          "location": {
+            "end": {
+              "column": 6,
+              "line": 172
+            },
+            "start": {
+              "column": 31,
+              "line": 168
+            }
+          },
+          "original": "{\n      throw new TypeError(\n        `Signal \"${request.signalName}\" is not declared by workflow \"${definition.name}\".`,\n      );\n    }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "operator signal validation"
+        },
+        {
+          "id": "197",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "signal",
+          "location": {
+            "end": {
+              "column": 91,
+              "line": 170
+            },
+            "start": {
+              "column": 9,
+              "line": 170
+            }
+          },
+          "original": "`Signal \"${request.signalName}\" is not declared by workflow \"${definition.name}\".`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "207",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "signal",
+          "location": {
+            "end": {
+              "column": 78,
+              "line": 175
+            },
+            "start": {
+              "column": 27,
+              "line": 175
+            }
+          },
+          "original": "\"Workflow signal idempotency keys cannot be empty.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "operator signal validation"
+        },
+        {
+          "id": "210",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "signal",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 188
+            },
+            "start": {
+              "column": 11,
+              "line": 188
+            }
+          },
+          "original": "request.idempotencyKey === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "operator signal validation"
+        },
+        {
+          "id": "225",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "retry",
+          "location": {
+            "end": {
+              "column": 55,
+              "line": 226
+            },
+            "start": {
+              "column": 27,
+              "line": 226
+            }
+          },
+          "original": "this.instrumentation?.record",
+          "mutatorName": "OptionalChaining",
+          "replacement": "this.instrumentation.record",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "operator retry instrumentation"
+        },
+        {
+          "id": "228",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "retry",
+          "location": {
+            "end": {
+              "column": 27,
+              "line": 228
+            },
+            "start": {
+              "column": 18,
+              "line": 228
+            }
+          },
+          "original": "\"success\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "operator retry instrumentation"
+        },
+        {
+          "id": "238",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "requireDefinition",
+          "location": {
+            "end": {
+              "column": 33,
+              "line": 253
+            },
+            "start": {
+              "column": 9,
+              "line": 253
+            }
+          },
+          "original": "definition === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 5,
+          "classification": "operator existence boundary"
+        },
+        {
+          "id": "240",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "requireDefinition",
+          "location": {
+            "end": {
+              "column": 6,
+              "line": 255
+            },
+            "start": {
+              "column": 35,
+              "line": 253
+            }
+          },
+          "original": "{\n      throw new TypeError(`Workflow definition \"${workflowName}\" is not deployed.`);\n    }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "operator existence boundary"
+        },
+        {
+          "id": "242",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "requireDefinition",
+          "location": {
+            "end": {
+              "column": 83,
+              "line": 254
+            },
+            "start": {
+              "column": 27,
+              "line": 254
+            }
+          },
+          "original": "`Workflow definition \"${workflowName}\" is not deployed.`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "247",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "getWorkflowExecutionWaits",
+          "location": {
+            "end": {
+              "column": 36,
+              "line": 266
+            },
+            "start": {
+              "column": 7,
+              "line": 266
+            }
+          },
+          "original": "executionStatus !== undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 20,
+          "classification": "durable wait projection"
+        },
+        {
+          "id": "265",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "getWorkflowExecutionWaits",
+          "location": {
+            "end": {
+              "column": 41,
+              "line": 275
+            },
+            "start": {
+              "column": 7,
+              "line": 275
+            }
+          },
+          "original": "event.type === \"command-scheduled\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 17,
+          "classification": "durable wait projection"
+        },
+        {
+          "id": "274",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "getWorkflowExecutionWaits",
+          "location": {
+            "end": {
+              "column": 53,
+              "line": 279
+            },
+            "start": {
+              "column": 12,
+              "line": 279
+            }
+          },
+          "original": "event.eventIndex > cancellationEventIndex",
+          "mutatorName": "EqualityOperator",
+          "replacement": "event.eventIndex >= cancellationEventIndex",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "durable wait projection"
+        },
+        {
+          "id": "291",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "readWaitDelay",
+          "location": {
+            "end": {
+              "column": 41,
+              "line": 297
+            },
+            "start": {
+              "column": 8,
+              "line": 297
+            }
+          },
+          "original": "typeof event.payload !== \"object\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 13,
+          "classification": "durable wait projection"
+        },
+        {
+          "id": "304",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "readWaitDelay",
+          "location": {
+            "end": {
+              "column": 60,
+              "line": 304
+            },
+            "start": {
+              "column": 7,
+              "line": 304
+            }
+          },
+          "original": "typeof direct === \"number\" && Number.isFinite(direct)",
+          "mutatorName": "LogicalOperator",
+          "replacement": "typeof direct === \"number\" || Number.isFinite(direct)",
+          "status": "Survived",
+          "testsCompleted": 12,
+          "classification": "durable wait projection"
+        },
+        {
+          "id": "305",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "readWaitDelay",
+          "location": {
+            "end": {
+              "column": 33,
+              "line": 304
+            },
+            "start": {
+              "column": 7,
+              "line": 304
+            }
+          },
+          "original": "typeof direct === \"number\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 12,
+          "classification": "durable wait projection"
+        },
+        {
+          "id": "320",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "readWaitDelay",
+          "location": {
+            "end": {
+              "column": 77,
+              "line": 306
+            },
+            "start": {
+              "column": 42,
+              "line": 306
+            }
+          },
+          "original": "typeof payload.options !== \"object\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "durable wait projection"
+        },
+        {
+          "id": "326",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "readWaitDelay",
+          "location": {
+            "end": {
+              "column": 65,
+              "line": 311
+            },
+            "start": {
+              "column": 10,
+              "line": 311
+            }
+          },
+          "original": "typeof timeout === \"number\" && Number.isFinite(timeout)",
+          "mutatorName": "LogicalOperator",
+          "replacement": "typeof timeout === \"number\" || Number.isFinite(timeout)",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "durable wait projection"
+        },
+        {
+          "id": "327",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "readWaitDelay",
+          "location": {
+            "end": {
+              "column": 37,
+              "line": 311
+            },
+            "start": {
+              "column": 10,
+              "line": 311
+            }
+          },
+          "original": "typeof timeout === \"number\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "durable wait projection"
+        },
+        {
+          "id": "337",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 44,
+              "line": 328
+            },
+            "start": {
+              "column": 9,
+              "line": 328
+            }
+          },
+          "original": "execution.completedAt === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 7,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "338",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 44,
+              "line": 328
+            },
+            "start": {
+              "column": 9,
+              "line": 328
+            }
+          },
+          "original": "execution.completedAt === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 7,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "339",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 44,
+              "line": 328
+            },
+            "start": {
+              "column": 9,
+              "line": 328
+            }
+          },
+          "original": "execution.completedAt === undefined",
+          "mutatorName": "EqualityOperator",
+          "replacement": "execution.completedAt !== undefined",
+          "status": "Survived",
+          "testsCompleted": 7,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "340",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 330
+            },
+            "start": {
+              "column": 9,
+              "line": 330
+            }
+          },
+          "original": "{ completedAt: execution.completedAt }",
+          "mutatorName": "ObjectLiteral",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "359",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 55,
+              "line": 349
+            },
+            "start": {
+              "column": 9,
+              "line": 348
+            }
+          },
+          "original": "cancellationEventIndex !== undefined\n          && event.eventIndex < cancellationEventIndex",
+          "mutatorName": "LogicalOperator",
+          "replacement": "cancellationEventIndex !== undefined || event.eventIndex < cancellationEventIndex",
+          "status": "Survived",
+          "testsCompleted": 5,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "360",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 45,
+              "line": 348
+            },
+            "start": {
+              "column": 9,
+              "line": 348
+            }
+          },
+          "original": "cancellationEventIndex !== undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 5,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "362",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 55,
+              "line": 349
+            },
+            "start": {
+              "column": 14,
+              "line": 349
+            }
+          },
+          "original": "event.eventIndex < cancellationEventIndex",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "363",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 55,
+              "line": 349
+            },
+            "start": {
+              "column": 14,
+              "line": 349
+            }
+          },
+          "original": "event.eventIndex < cancellationEventIndex",
+          "mutatorName": "EqualityOperator",
+          "replacement": "event.eventIndex <= cancellationEventIndex",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "390",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 42,
+              "line": 376
+            },
+            "start": {
+              "column": 11,
+              "line": 376
+            }
+          },
+          "original": "child.completedAt === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "391",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 42,
+              "line": 376
+            },
+            "start": {
+              "column": 11,
+              "line": 376
+            }
+          },
+          "original": "child.completedAt === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "392",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 42,
+              "line": 376
+            },
+            "start": {
+              "column": 11,
+              "line": 376
+            }
+          },
+          "original": "child.completedAt === undefined",
+          "mutatorName": "EqualityOperator",
+          "replacement": "child.completedAt !== undefined",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "393",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 84,
+              "line": 376
+            },
+            "start": {
+              "column": 50,
+              "line": 376
+            }
+          },
+          "original": "{ completedAt: child.completedAt }",
+          "mutatorName": "ObjectLiteral",
+          "replacement": "{}",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "397",
+          "file": "src/packages/kestrel/src/workflows/operations.ts",
+          "method": "buildWorkflowExecutionGraph",
+          "location": {
+            "end": {
+              "column": 54,
+              "line": 380
+            },
+            "start": {
+              "column": 13,
+              "line": 380
+            }
+          },
+          "original": "child.parentCommandSequence === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "durable graph projection"
+        },
+        {
+          "id": "17",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 82,
+              "line": 130
+            },
+            "start": {
+              "column": 27,
+              "line": 130
+            }
+          },
+          "original": "\"Workflow start batch size must be a positive integer.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 5,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "35",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "startMany",
+          "location": {
+            "end": {
+              "column": 40,
+              "line": 183
+            },
+            "start": {
+              "column": 15,
+              "line": 183
+            }
+          },
+          "original": "concurrency === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 88,
+          "classification": "atomic start and client observations"
+        },
+        {
+          "id": "44",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "startMany",
+          "location": {
+            "end": {
+              "column": 77,
+              "line": 192
+            },
+            "start": {
+              "column": 23,
+              "line": 192
+            }
+          },
+          "original": "\"Workflow adapter returned an incomplete start batch.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "49",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "startMany",
+          "location": {
+            "end": {
+              "column": 50,
+              "line": 199
+            },
+            "start": {
+              "column": 22,
+              "line": 199
+            }
+          },
+          "original": "this.instrumentation?.record",
+          "mutatorName": "OptionalChaining",
+          "replacement": "this.instrumentation.record",
+          "status": "Survived",
+          "testsCompleted": 86,
+          "classification": "atomic start and client observations"
+        },
+        {
+          "id": "55",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "startMany",
+          "location": {
+            "end": {
+              "column": 51,
+              "line": 215
+            },
+            "start": {
+              "column": 7,
+              "line": 215
+            }
+          },
+          "original": "assertExecutionMatches(workflow, execution);",
+          "mutatorName": "CallExpression",
+          "replacement": ";",
+          "status": "Survived",
+          "testsCompleted": 86,
+          "classification": "atomic start and client observations"
+        },
+        {
+          "id": "65",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "getResult",
+          "location": {
+            "end": {
+              "column": 49,
+              "line": 251
+            },
+            "start": {
+              "column": 5,
+              "line": 251
+            }
+          },
+          "original": "assertExecutionMatches(workflow, execution);",
+          "mutatorName": "CallExpression",
+          "replacement": ";",
+          "status": "Survived",
+          "testsCompleted": 27,
+          "classification": "terminal status and codec contract"
+        },
+        {
+          "id": "75",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "getResult",
+          "location": {
+            "end": {
+              "column": 69,
+              "line": 258
+            },
+            "start": {
+              "column": 20,
+              "line": 258
+            }
+          },
+          "original": "\"Workflow failed without durable error metadata.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "90",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "getResult",
+          "location": {
+            "end": {
+              "column": 65,
+              "line": 270
+            },
+            "start": {
+              "column": 37,
+              "line": 270
+            }
+          },
+          "original": "\"Terminated by an operator.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "terminal status and codec contract"
+        },
+        {
+          "id": "92",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "getResult",
+          "location": {
+            "end": {
+              "column": 41,
+              "line": 274
+            },
+            "start": {
+              "column": 9,
+              "line": 274
+            }
+          },
+          "original": "execution.status !== \"completed\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 24,
+          "classification": "terminal status and codec contract"
+        },
+        {
+          "id": "95",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "getResult",
+          "location": {
+            "end": {
+              "column": 6,
+              "line": 278
+            },
+            "start": {
+              "column": 43,
+              "line": 274
+            }
+          },
+          "original": "{\n      throw new Error(\n        `Workflow adapter returned non-terminal status \"${execution.status}\" while waiting for \"${executionId}\".`,\n      );\n    }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "terminal status and codec contract"
+        },
+        {
+          "id": "97",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "getResult",
+          "location": {
+            "end": {
+              "column": 114,
+              "line": 276
+            },
+            "start": {
+              "column": 9,
+              "line": 276
+            }
+          },
+          "original": "`Workflow adapter returned non-terminal status \"${execution.status}\" while waiting for \"${executionId}\".`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "103",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "getResult",
+          "location": {
+            "end": {
+              "column": 57,
+              "line": 284
+            },
+            "start": {
+              "column": 27,
+              "line": 284
+            }
+          },
+          "original": "execution.output === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 22,
+          "classification": "terminal status and codec contract"
+        },
+        {
+          "id": "121",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "signal",
+          "location": {
+            "end": {
+              "column": 78,
+              "line": 313
+            },
+            "start": {
+              "column": 27,
+              "line": 313
+            }
+          },
+          "original": "\"Workflow signal idempotency keys cannot be empty.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "typed signal metadata"
+        },
+        {
+          "id": "124",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "signal",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 329
+            },
+            "start": {
+              "column": 11,
+              "line": 329
+            }
+          },
+          "original": "options.idempotencyKey === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "typed signal metadata"
+        },
+        {
+          "id": "134",
+          "file": "src/packages/kestrel/src/workflows/client.ts",
+          "method": "assertExecutionMatches",
+          "location": {
+            "end": {
+              "column": 118,
+              "line": 351
+            },
+            "start": {
+              "column": 7,
+              "line": 351
+            }
+          },
+          "original": "`Workflow execution \"${execution.executionId}\" belongs to \"${execution.workflowName}\", not \"${workflow.name}\".`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "version and definition attachment"
+        },
+        {
+          "id": "155",
+          "file": "src/packages/kestrel/src/workflows/execution_cursor.ts",
+          "method": "decodeWorkflowExecutionCursor",
+          "location": {
+            "end": {
+              "column": 64,
+              "line": 15
+            },
+            "start": {
+              "column": 25,
+              "line": 15
+            }
+          },
+          "original": "\"Workflow execution cursor is invalid.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cursor format"
+        },
+        {
+          "id": "157",
+          "file": "src/packages/kestrel/src/workflows/execution_cursor.ts",
+          "method": "formatWorkflowCursorDate",
+          "location": {
+            "end": {
+              "column": 42,
+              "line": 22
+            },
+            "start": {
+              "column": 37,
+              "line": 22
+            }
+          },
+          "original": "/Z$/u",
+          "mutatorName": "Regex",
+          "replacement": "/Z/u",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cursor format"
+        },
+        {
+          "id": "499",
+          "file": "src/packages/kestrel/src/workflows/version_operations.ts",
+          "method": "recover",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 106
+            },
+            "start": {
+              "column": 9,
+              "line": 106
+            }
+          },
+          "original": "definition?.version.supportedFrom ?? 0",
+          "mutatorName": "LogicalOperator",
+          "replacement": "definition?.version.supportedFrom && 0",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "guarded version recovery"
+        },
+        {
+          "id": "501",
+          "file": "src/packages/kestrel/src/workflows/version_operations.ts",
+          "method": "recover",
+          "location": {
+            "end": {
+              "column": 41,
+              "line": 107
+            },
+            "start": {
+              "column": 9,
+              "line": 107
+            }
+          },
+          "original": "definition?.version.current ?? 0",
+          "mutatorName": "LogicalOperator",
+          "replacement": "definition?.version.current && 0",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "guarded version recovery"
+        }
+      ]
+    },
+    "workflow-replay": {
+      "command": "npm run test:mutation:workflow-replay",
+      "budgetMs": 600000,
+      "baselineReport": "artifacts/mutation/nov11-complete-review/workflow-replay-before/mutation.json",
+      "report": "artifacts/mutation/nov11-complete-review/workflow-replay-after-3/mutation.json",
+      "reportHashes": {
+        "artifacts/mutation/nov11-complete-review/workflow-replay-before/mutation.json": "0338972fa5373182b37eefd6de425fe983fd0b47caadb2b16f6e352579269e73",
+        "artifacts/mutation/nov11-complete-review/workflow-replay-after-3/mutation.json": "e056aef8a9b813afd991c69b4ad4e4c74bcb95a2371621e46d49eb2edc0fb07a"
+      },
+      "baselineCounts": {
+        "Killed": 501,
+        "NoCoverage": 67,
+        "Survived": 151,
+        "Timeout": 14
+      },
+      "counts": {
+        "Killed": 613,
+        "NoCoverage": 16,
+        "Survived": 99,
+        "Timeout": 18
+      },
+      "seconds": 198,
+      "sameSiteTransitions": [
+        {
+          "before": "Killed",
+          "after": "Killed",
+          "count": 455
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Killed",
+          "count": 38
+        },
+        {
+          "before": "NoCoverage",
+          "after": "NoCoverage",
+          "count": 16
+        },
+        {
+          "before": "NoCoverage",
+          "after": "Survived",
+          "count": 13
+        },
+        {
+          "before": "Survived",
+          "after": "Killed",
+          "count": 66
+        },
+        {
+          "before": "Survived",
+          "after": "Survived",
+          "count": 81
+        },
+        {
+          "before": "Timeout",
+          "after": "Timeout",
+          "count": 13
+        }
+      ],
+      "previousKillsWithDifferentStatus": [],
+      "sourceHashes": {
+        "src/packages/kestrel/src/workflows/context.ts": "d7af603a97382ce9e91b8b5ef3e24e43930591bfc2d391248ea6de94e46f75c5",
+        "src/packages/kestrel/src/workflows/replay/runner.ts": "b5f3d4332c4f7604a21619fc8177ddcd76c719cb6f4251cc41ec1d018936aa8d",
+        "src/packages/kestrel/src/workflows/replayer.ts": "27df714135c82388d479aed583064d933b3dc753a2a35f6a8558e67a56f6fd70",
+        "src/packages/kestrel/src/workflows/replay/memory_journal.ts": "0054c645478454d29b7825c71dd0ddde02ed75ddf308b944bb30d93352bd28b7",
+        "src/packages/kestrel/src/workflows/replay/types.ts": "fd5ea6531b5923b0348ceb02a9785e0ff979c1096912fd447b285444b0b67c90"
+      },
+      "testSourceHashes": {
+        "src/packages/kestrel/src/workflows/runtime.test.ts": "f3465b3e79bc5cba13bb83b7ccc8a17e0156211efaee306c101cb6123d9a86a1",
+        "src/packages/kestrel/src/workflows/replayer.test.ts": "50ca17b37d521cafed5e1132e220956e32d90716e3eef432026f7f968c252b02",
+        "src/packages/kestrel/src/workflows/primitives.test.ts": "3dc3eeb752104bc2ff635f8fbed23b4b5a71d891a7e0ed228ecb7f91dc9702e6",
+        "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "8f32bed76afade7b884953e44c5073b16bd7f9a6bb5f942091de57e30fe76646",
+        "src/packages/kestrel/src/workflows/client.test.ts": "d0fc57a2421ab7a31f70c8fb624c6fa7d70b9393ef45ea7158b1735e717a7d5c",
+        "src/packages/kestrel/src/workflows/replay/runner.test.ts": "e2d715d217f902cfaed2f06b46a1198dee500dd195d4547680b7d941e58b9168",
+        "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+        "src/packages/kestrel/src/workflows/workflow.test.ts": "5933d054a6c1ce58231376f9e8eebee530ec0497733b06f7c933c568cd129dbd",
+        "src/packages/kestrel/src/workflows/serialization.test.ts": "dcc10f5e51ad95fe6db39da7473f8d5efd5f67d18ee6a7b86347ca44a3c15b90",
+        "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+        "src/packages/kestrel/src/workflows/concurrency.test.ts": "f52b7b0eacc6b9541ae8ee7b1e20ff6d7996854c10a4dab9375b1823e7682d11",
+        "src/packages/kestrel/src/workflows/observations.test.ts": "6f3dad6ea06bfe5e89e62a8a13ee314a2e67cfb9794e3e60cbb4ecb0bff24af3",
+        "src/packages/kestrel/src/workflows/provider.test.ts": "47f105146c849677c01b63c089457342892a80fc13cf26c58ae1bbd43b0d7250",
+        "src/packages/kestrel/src/workflows/scheduler.test.ts": "635400234125833dbda9af6c09a92ab4b312939bda35e58063c66a0b57b8c7ef",
+        "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "f955f609c5633e162ae3897dea76edecbe264e42b99cc1d4d3dc7a405bc71294",
+        "src/packages/kestrel/src/workflows/testing.test.ts": "e9cbb6010063c4babc842fe9b62b0ab8cc907e85aed350e6448c0183b31b3b60",
+        "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "fe83937ffdcf5138e8d755f41b94461cb83efa7d8fce7cc830b27fd3fc3efd77",
+        "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7"
+      },
+      "vitestDeadlineKills": [
+        {
+          "id": "543",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "prepare",
+          "location": {
+            "end": {
+              "column": 67,
+              "line": 256
+            },
+            "start": {
+              "column": 20,
+              "line": 256
+            }
+          },
+          "original": "() => this.pendingPreparations.delete(prepared)",
+          "mutatorName": "ArrowFunction",
+          "replacement": "() => undefined",
+          "status": "Killed",
+          "testsCompleted": 1,
+          "killedBy": [
+            "21"
+          ],
+          "reason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+          "corroboratingInvariant": "Removing this deletion retains a settled preparation forever. Bounded tests independently require delayed validation and both parallel encoding orders to publish their commands and finish the activation."
+        }
+      ],
+      "classificationCounts": {
+        "scoped context and durable value projection": 5,
+        "diagnostic text": 11,
+        "signal replay and optional deadlines": 1,
+        "child command metadata and output": 2,
+        "continuation and cancellation fences": 5,
+        "runtime-owned asynchronous preparation": 1,
+        "replay context identity": 3,
+        "duration and retry tuning": 1,
+        "standalone replay runner outcome": 6,
+        "Stryker execution limit": 18,
+        "empty journal write avoidance": 2,
+        "standalone replay history": 4,
+        "replay progress": 4,
+        "activation settling and suspension": 3,
+        "durable command identity": 11,
+        "capture persistence boundary": 8,
+        "durable command completion": 1,
+        "durable ordering invariants": 3,
+        "cancellation replay order": 12,
+        "durable error restoration": 15,
+        "journal integrity": 10,
+        "standalone replay diagnostics": 7
+      },
+      "classifications": {
+        "scoped context and durable value projection": "The variant changes diagnostic metadata, optional field shape or a guard at an internal conversion boundary. Keep the raw evidence and its exact source site for future semantic changes.",
+        "diagnostic text": "Tests assert the durable effect, error class and structured error fields where contractual. Exact human-readable wording remains flexible.",
+        "signal replay and optional deadlines": "Declared signal and persisted-result parsing are exercised. Optional timeouts and malformed payload guards retain their raw statuses.",
+        "child command metadata and output": "Child concurrency and identity are optional durable fields, and output schemas are validated when present. Existing child-path suites exercise lifecycle; optional shape and direct context fallback remain separately visible.",
+        "continuation and cancellation fences": "Scheduler continuation and cancellation histories are exercised. The independent repeat-call guard depends on explicit handling of an already-requested continuation.",
+        "runtime-owned asynchronous preparation": "Built-in replay owns codec and validation promises. Fallback for custom replay contexts preserves the structural API and is outside the ordinary built-in path.",
+        "replay context identity": "Production binds identity, version and generation from the activation snapshot. Optional host-specific properties must match this contract.",
+        "duration and retry tuning": "Stored default/custom retry and timeout settings are checked; malformed tuning inputs and optional properties can remain visible.",
+        "standalone replay runner outcome": "The standalone runner records staged decisions, reports ordinary handler failure, rejects invalid suspension and detects nondeterminism. The production scheduler uses the durable replayer separately.",
+        "Stryker execution limit": "The instrumented operation did not settle under the run's external execution limit. Loop/promise behavior is directly exercised by bounded normal tests. This raw status remains distinct from a direct assertion kill.",
+        "empty journal write avoidance": "An empty staged batch avoids a journal operation. A different guard can add an empty local append and is not a guarantee about arbitrary custom journals.",
+        "standalone replay history": "The journal enforces contiguous command positions; unrelated or malformed history is outside that input contract.",
+        "replay progress": "Historical completions and active runtime preparation govern whether to replay more work or suspend. Protective limits and alternative control-flow ordering remain distinguishable.",
+        "activation settling and suspension": "Delayed capture encoding, async validation and foreign suspension now have explicit assertions. Runtime preparation can outlive a microtask turn; ordinary application promises still block. Defensive error propagation and protective loop bounds stay raw.",
+        "durable command identity": "Runtime-owned primitives generate stable nonempty names. Direct low-level replay can submit a malformed kind or target; any remaining uncovered validation branch stays explicit.",
+        "capture persistence boundary": "A delayed value cannot be committed as a placeholder and a completed capture never calls its producer again. Producer exceptions persist as failed capture completions. Codec validation errors retain the pre-commit failure contract. Cancellation and malformed hand-written history have distinct residual behavior.",
+        "durable command completion": "Recorded results and typed errors resume in historical order. Missing result and explicitly undefined result differ in internal shape but both resolve undefined.",
+        "durable ordering invariants": "History may contain both scheduled and completion events. Built-in adapters provide contiguous command sequences with ordered durable positions; malformed/out-of-order custom history is outside the ordinary adapter contract.",
+        "cancellation replay order": "Cancellation preserves already completed work and injects at the durable pending boundary. Pending versus completed peers and post-cancellation compensation are covered by broader primitive suites; index ties or malformed histories remain distinct.",
+        "durable error restoration": "Known timeout, cancellation and infrastructure classes retain stored metadata. Fallback sentinel fields for older or malformed history and exact message/stack representation remain visible.",
+        "journal integrity": "Unknown IDs reject at the boundary. Different diagnostic wording is not a different journal state.",
+        "standalone replay diagnostics": "Error classes, revisions and nondeterminism are tested through the journal runner. Exact English diagnostic formatting is retained as a raw residual."
+      },
+      "remaining": [
+        {
+          "id": "1",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "cancellationWasDelivered",
+          "location": {
+            "end": {
+              "column": 4,
+              "line": 112
+            },
+            "start": {
+              "column": 50,
+              "line": 110
+            }
+          },
+          "original": "{\n    return this.cancellationDelivered;\n  }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "scoped context and durable value projection"
+        },
+        {
+          "id": "10",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "run",
+          "location": {
+            "end": {
+              "column": 43,
+              "line": 150
+            },
+            "start": {
+              "column": 23,
+              "line": 150
+            }
+          },
+          "original": "result === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 14,
+          "classification": "scoped context and durable value projection"
+        },
+        {
+          "id": "22",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "waitForSignal",
+          "location": {
+            "end": {
+              "column": 95,
+              "line": 171
+            },
+            "start": {
+              "column": 9,
+              "line": 171
+            }
+          },
+          "original": "`Signal \"${signal.name}\" is not declared by workflow execution \"${this.executionId}\".`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "28",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "waitForSignal",
+          "location": {
+            "end": {
+              "column": 30,
+              "line": 181
+            },
+            "start": {
+              "column": 7,
+              "line": 181
+            }
+          },
+          "original": "timeoutMs === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 5,
+          "classification": "signal replay and optional deadlines"
+        },
+        {
+          "id": "35",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "runChild",
+          "location": {
+            "end": {
+              "column": 38,
+              "line": 201
+            },
+            "start": {
+              "column": 13,
+              "line": 201
+            }
+          },
+          "original": "concurrency === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "child command metadata and output"
+        },
+        {
+          "id": "39",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "runChild",
+          "location": {
+            "end": {
+              "column": 46,
+              "line": 204
+            },
+            "start": {
+              "column": 13,
+              "line": 204
+            }
+          },
+          "original": "options.executionId === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "child command metadata and output"
+        },
+        {
+          "id": "66",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "continueAsNew",
+          "location": {
+            "end": {
+              "column": 35,
+              "line": 261
+            },
+            "start": {
+              "column": 9,
+              "line": 261
+            }
+          },
+          "original": "cancellation !== undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "continuation and cancellation fences"
+        },
+        {
+          "id": "69",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "continueAsNew",
+          "location": {
+            "end": {
+              "column": 42,
+              "line": 262
+            },
+            "start": {
+              "column": 9,
+              "line": 262
+            }
+          },
+          "original": "this.continuedInput !== undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "continuation and cancellation fences"
+        },
+        {
+          "id": "71",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "continueAsNew",
+          "location": {
+            "end": {
+              "column": 6,
+              "line": 264
+            },
+            "start": {
+              "column": 44,
+              "line": 262
+            }
+          },
+          "original": "{\n      throw new TypeError(\"A workflow activation can continue as new only once.\");\n    }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "continuation and cancellation fences"
+        },
+        {
+          "id": "73",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "continueAsNew",
+          "location": {
+            "end": {
+              "column": 81,
+              "line": 263
+            },
+            "start": {
+              "column": 27,
+              "line": 263
+            }
+          },
+          "original": "\"A workflow activation can continue as new only once.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "continuation and cancellation fences"
+        },
+        {
+          "id": "75",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "continueAsNew",
+          "location": {
+            "end": {
+              "column": 48,
+              "line": 266
+            },
+            "start": {
+              "column": 5,
+              "line": 266
+            }
+          },
+          "original": "throw new WorkflowContinueAsNewInterrupt();",
+          "mutatorName": "CallExpression",
+          "replacement": ";",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "continuation and cancellation fences"
+        },
+        {
+          "id": "87",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "prepare",
+          "location": {
+            "end": {
+              "column": 44,
+              "line": 284
+            },
+            "start": {
+              "column": 12,
+              "line": 284
+            }
+          },
+          "original": "this.replay.prepare?.(operation)",
+          "mutatorName": "OptionalChaining",
+          "replacement": "this.replay.prepare(operation)",
+          "status": "Survived",
+          "testsCompleted": 40,
+          "classification": "runtime-owned asynchronous preparation"
+        },
+        {
+          "id": "88",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 4,
+              "line": 293
+            },
+            "start": {
+              "column": 24,
+              "line": 290
+            }
+          },
+          "original": "{\n    super(\"Workflow requested continue-as-new.\");\n    this.name = \"WorkflowContinueAsNewInterrupt\";\n  }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "replay context identity"
+        },
+        {
+          "id": "89",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 48,
+              "line": 291
+            },
+            "start": {
+              "column": 11,
+              "line": 291
+            }
+          },
+          "original": "\"Workflow requested continue-as-new.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "replay context identity"
+        },
+        {
+          "id": "90",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 49,
+              "line": 292
+            },
+            "start": {
+              "column": 17,
+              "line": 292
+            }
+          },
+          "original": "\"WorkflowContinueAsNewInterrupt\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "replay context identity"
+        },
+        {
+          "id": "114",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "workflowDurationToMilliseconds",
+          "location": {
+            "end": {
+              "column": 93,
+              "line": 306
+            },
+            "start": {
+              "column": 25,
+              "line": 306
+            }
+          },
+          "original": "\"Workflow durations must resolve to safe non-negative milliseconds.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "129",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "normalizeActivityOptions",
+          "location": {
+            "end": {
+              "column": 74,
+              "line": 317
+            },
+            "start": {
+              "column": 25,
+              "line": 317
+            }
+          },
+          "original": "\"Workflow activity maxAttempts must be positive.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "135",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "normalizeActivityOptions",
+          "location": {
+            "end": {
+              "column": 69,
+              "line": 320
+            },
+            "start": {
+              "column": 47,
+              "line": 320
+            }
+          },
+          "original": "backoffCoefficient < 1",
+          "mutatorName": "EqualityOperator",
+          "replacement": "backoffCoefficient <= 1",
+          "status": "Survived",
+          "testsCompleted": 28,
+          "classification": "duration and retry tuning"
+        },
+        {
+          "id": "139",
+          "file": "src/packages/kestrel/src/workflows/context.ts",
+          "method": "normalizeActivityOptions",
+          "location": {
+            "end": {
+              "column": 85,
+              "line": 321
+            },
+            "start": {
+              "column": 25,
+              "line": 321
+            }
+          },
+          "original": "\"Workflow activity backoffCoefficient must be at least one.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "261",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "activate",
+          "location": {
+            "end": {
+              "column": 42,
+              "line": 73
+            },
+            "start": {
+              "column": 31,
+              "line": 73
+            }
+          },
+          "original": "\"completed\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 6,
+          "classification": "standalone replay runner outcome"
+        },
+        {
+          "id": "262",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "activate",
+          "location": {
+            "end": {
+              "column": 10,
+              "line": 77
+            },
+            "start": {
+              "column": 29,
+              "line": 75
+            }
+          },
+          "original": "{\n          outcome = { status: \"failed\", error };\n        }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "standalone replay runner outcome"
+        },
+        {
+          "id": "263",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "activate",
+          "location": {
+            "end": {
+              "column": 48,
+              "line": 76
+            },
+            "start": {
+              "column": 21,
+              "line": 76
+            }
+          },
+          "original": "{ status: \"failed\", error }",
+          "mutatorName": "ObjectLiteral",
+          "replacement": "{}",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "standalone replay runner outcome"
+        },
+        {
+          "id": "264",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "activate",
+          "location": {
+            "end": {
+              "column": 39,
+              "line": 76
+            },
+            "start": {
+              "column": 31,
+              "line": 76
+            }
+          },
+          "original": "\"failed\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "standalone replay runner outcome"
+        },
+        {
+          "id": "271",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "activate",
+          "location": {
+            "end": {
+              "column": 6,
+              "line": 106
+            },
+            "start": {
+              "column": 42,
+              "line": 83
+            }
+          },
+          "original": "{\n      replay.flushRecordedCompletions();\n      await this.yieldExecution();\n\n      if (outcome.status !== \"running\") {\n        break;\n      }\n\n      if (replay.hasRecordedCompletions) {\n        continue;\n      }\n\n      replay.assertExistingHistoryConsumed();\n\n      if (!replay.hasPendingCommands) {\n        throw new WorkflowInvalidSuspensionError(executionId);\n      }\n\n      await this.commitStagedCommands(snapshot, replay.stagedCommands);\n      return {\n        status: \"waiting\",\n        pendingCommands: await this.listPendingCommands(executionId),\n      };\n    }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "272",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "activate",
+          "location": {
+            "end": {
+              "column": 41,
+              "line": 84
+            },
+            "start": {
+              "column": 7,
+              "line": 84
+            }
+          },
+          "original": "replay.flushRecordedCompletions();",
+          "mutatorName": "CallExpression",
+          "replacement": ";",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "278",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "activate",
+          "location": {
+            "end": {
+              "column": 40,
+              "line": 91
+            },
+            "start": {
+              "column": 11,
+              "line": 91
+            }
+          },
+          "original": "replay.hasRecordedCompletions",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "292",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "activate",
+          "location": {
+            "end": {
+              "column": 41,
+              "line": 112
+            },
+            "start": {
+              "column": 7,
+              "line": 112
+            }
+          },
+          "original": "settledOutcome.status === \"failed\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 10,
+          "classification": "standalone replay runner outcome"
+        },
+        {
+          "id": "296",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "activate",
+          "location": {
+            "end": {
+              "column": 44,
+              "line": 118
+            },
+            "start": {
+              "column": 5,
+              "line": 118
+            }
+          },
+          "original": "replay.assertExistingHistoryConsumed();",
+          "mutatorName": "CallExpression",
+          "replacement": ";",
+          "status": "Survived",
+          "testsCompleted": 9,
+          "classification": "standalone replay runner outcome"
+        },
+        {
+          "id": "308",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "commitStagedCommands",
+          "location": {
+            "end": {
+              "column": 30,
+              "line": 141
+            },
+            "start": {
+              "column": 9,
+              "line": 141
+            }
+          },
+          "original": "commands.length === 0",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 14,
+          "classification": "empty journal write avoidance"
+        },
+        {
+          "id": "310",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "commitStagedCommands",
+          "location": {
+            "end": {
+              "column": 6,
+              "line": 143
+            },
+            "start": {
+              "column": 32,
+              "line": 141
+            }
+          },
+          "original": "{\n      return;\n    }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 8,
+          "classification": "empty journal write avoidance"
+        },
+        {
+          "id": "324",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "listPendingCommands",
+          "location": {
+            "end": {
+              "column": 43,
+              "line": 164
+            },
+            "start": {
+              "column": 9,
+              "line": 164
+            }
+          },
+          "original": "event.type === \"command-scheduled\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 12,
+          "classification": "standalone replay history"
+        },
+        {
+          "id": "336",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "hasRecordedCompletions",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 200
+            },
+            "start": {
+              "column": 12,
+              "line": 200
+            }
+          },
+          "original": "this.recordedCompletions.length > 0",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "338",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "hasRecordedCompletions",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 200
+            },
+            "start": {
+              "column": 12,
+              "line": 200
+            }
+          },
+          "original": "this.recordedCompletions.length > 0",
+          "mutatorName": "EqualityOperator",
+          "replacement": "this.recordedCompletions.length >= 0",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "339",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "hasRecordedCompletions",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 200
+            },
+            "start": {
+              "column": 12,
+              "line": 200
+            }
+          },
+          "original": "this.recordedCompletions.length > 0",
+          "mutatorName": "EqualityOperator",
+          "replacement": "this.recordedCompletions.length <= 0",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "341",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "hasPendingCommands",
+          "location": {
+            "end": {
+              "column": 6,
+              "line": 207
+            },
+            "start": {
+              "column": 30,
+              "line": 204
+            }
+          },
+          "original": "this.existingCommands.slice(\n      0,\n      this.consumedCommandCount,\n    )",
+          "mutatorName": "MethodExpression",
+          "replacement": "this.existingCommands",
+          "status": "Survived",
+          "testsCompleted": 12,
+          "classification": "replay progress"
+        },
+        {
+          "id": "347",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "hasPendingCommands",
+          "location": {
+            "end": {
+              "column": 79,
+              "line": 209
+            },
+            "start": {
+              "column": 47,
+              "line": 209
+            }
+          },
+          "original": "command.completion === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "replay progress"
+        },
+        {
+          "id": "364",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "command",
+          "location": {
+            "end": {
+              "column": 33,
+              "line": 222
+            },
+            "start": {
+              "column": 11,
+              "line": 222
+            }
+          },
+          "original": "existing.kind !== kind",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 9,
+          "classification": "scoped context and durable value projection"
+        },
+        {
+          "id": "379",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "flushRecordedCompletions",
+          "location": {
+            "end": {
+              "column": 4,
+              "line": 257
+            },
+            "start": {
+              "column": 43,
+              "line": 250
+            }
+          },
+          "original": "{\n    const resolutions = this.recordedCompletions.splice(0)\n      .sort((left, right) => left.completionOrder - right.completionOrder);\n\n    for (const resolution of resolutions) {\n      resolution.resolve(resolution.result);\n    }\n  }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "399",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "materializeCommands",
+          "location": {
+            "end": {
+              "column": 59,
+              "line": 287
+            },
+            "start": {
+              "column": 10,
+              "line": 283
+            }
+          },
+          "original": "snapshot.history\n    .filter((event): event is WorkflowCommandScheduledEvent =>\n      event.type === \"command-scheduled\",\n    )\n    .sort((left, right) => left.sequence - right.sequence)",
+          "mutatorName": "MethodExpression",
+          "replacement": "snapshot.history.filter((event): event is WorkflowCommandScheduledEvent => event.type === \"command-scheduled\")",
+          "status": "Survived",
+          "testsCompleted": 15,
+          "classification": "standalone replay history"
+        },
+        {
+          "id": "406",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "materializeCommands",
+          "location": {
+            "end": {
+              "column": 58,
+              "line": 287
+            },
+            "start": {
+              "column": 11,
+              "line": 287
+            }
+          },
+          "original": "(left, right) => left.sequence - right.sequence",
+          "mutatorName": "ArrowFunction",
+          "replacement": "() => undefined",
+          "status": "Survived",
+          "testsCompleted": 15,
+          "classification": "standalone replay history"
+        },
+        {
+          "id": "407",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "materializeCommands",
+          "location": {
+            "end": {
+              "column": 58,
+              "line": 287
+            },
+            "start": {
+              "column": 28,
+              "line": 287
+            }
+          },
+          "original": "left.sequence - right.sequence",
+          "mutatorName": "ArithmeticOperator",
+          "replacement": "left.sequence + right.sequence",
+          "status": "Survived",
+          "testsCompleted": 5,
+          "classification": "standalone replay history"
+        },
+        {
+          "id": "421",
+          "file": "src/packages/kestrel/src/workflows/replay/runner.ts",
+          "method": "validateCommandIdentity",
+          "location": {
+            "end": {
+              "column": 78,
+              "line": 300
+            },
+            "start": {
+              "column": 25,
+              "line": 300
+            }
+          },
+          "original": "\"Workflow command kind and target must not be empty.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "433",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 46,
+              "line": 77
+            },
+            "start": {
+              "column": 11,
+              "line": 77
+            }
+          },
+          "original": "\"Workflow capture encoding failed.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "scoped context and durable value projection"
+        },
+        {
+          "id": "434",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 57,
+              "line": 77
+            },
+            "start": {
+              "column": 48,
+              "line": 77
+            }
+          },
+          "original": "{ cause }",
+          "mutatorName": "ObjectLiteral",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "scoped context and durable value projection"
+        },
+        {
+          "id": "456",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "replay",
+          "location": {
+            "end": {
+              "column": 8,
+              "line": 135
+            },
+            "start": {
+              "column": 77,
+              "line": 111
+            }
+          },
+          "original": "{\n        context.flushRecordedCompletions();\n        await this.yieldExecution();\n\n        if (context.hasPendingPreparation) {\n          if (!context.hasRecordedCompletions) await context.drainPreparation();\n          continue;\n        }\n\n        if (outcome.status !== \"running\") {\n          break;\n        }\n\n        if (context.hasRecordedCompletions) {\n          continue;\n        }\n\n        context.assertExistingCommandsConsumed();\n\n        if (!context.hasPendingCommands) {\n          throw new WorkflowInvalidSuspensionError(snapshot.executionId);\n        }\n\n        return { status: \"waiting\", commands: context.stagedCommands };\n      }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "457",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "replay",
+          "location": {
+            "end": {
+              "column": 44,
+              "line": 112
+            },
+            "start": {
+              "column": 9,
+              "line": 112
+            }
+          },
+          "original": "context.flushRecordedCompletions();",
+          "mutatorName": "CallExpression",
+          "replacement": ";",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "458",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "replay",
+          "location": {
+            "end": {
+              "column": 42,
+              "line": 115
+            },
+            "start": {
+              "column": 13,
+              "line": 115
+            }
+          },
+          "original": "context.hasPendingPreparation",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "462",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "replay",
+          "location": {
+            "end": {
+              "column": 46,
+              "line": 116
+            },
+            "start": {
+              "column": 15,
+              "line": 116
+            }
+          },
+          "original": "!context.hasRecordedCompletions",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 5,
+          "classification": "activation settling and suspension"
+        },
+        {
+          "id": "469",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "replay",
+          "location": {
+            "end": {
+              "column": 43,
+              "line": 124
+            },
+            "start": {
+              "column": 13,
+              "line": 124
+            }
+          },
+          "original": "context.hasRecordedCompletions",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "484",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "replay",
+          "location": {
+            "end": {
+              "column": 36,
+              "line": 141
+            },
+            "start": {
+              "column": 9,
+              "line": 141
+            }
+          },
+          "original": "settled.status === \"failed\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 61,
+          "classification": "activation settling and suspension"
+        },
+        {
+          "id": "502",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "replay",
+          "location": {
+            "end": {
+              "column": 56,
+              "line": 168
+            },
+            "start": {
+              "column": 9,
+              "line": 167
+            }
+          },
+          "original": "error instanceof WorkflowInvalidSuspensionError\n        || error instanceof WorkflowNondeterminismError",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "activation settling and suspension"
+        },
+        {
+          "id": "514",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "hasRecordedCompletions",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 234
+            },
+            "start": {
+              "column": 12,
+              "line": 234
+            }
+          },
+          "original": "this.recordedCompletions.length > 0",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "516",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "hasRecordedCompletions",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 234
+            },
+            "start": {
+              "column": 12,
+              "line": 234
+            }
+          },
+          "original": "this.recordedCompletions.length > 0",
+          "mutatorName": "EqualityOperator",
+          "replacement": "this.recordedCompletions.length >= 0",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "517",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "hasRecordedCompletions",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 234
+            },
+            "start": {
+              "column": 12,
+              "line": 234
+            }
+          },
+          "original": "this.recordedCompletions.length > 0",
+          "mutatorName": "EqualityOperator",
+          "replacement": "this.recordedCompletions.length <= 0",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "523",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "hasPendingCommands",
+          "location": {
+            "end": {
+              "column": 43,
+              "line": 239
+            },
+            "start": {
+              "column": 12,
+              "line": 238
+            }
+          },
+          "original": "this.existingCommands\n      .slice(0, this.consumedCommandCount)",
+          "mutatorName": "MethodExpression",
+          "replacement": "this.existingCommands",
+          "status": "Survived",
+          "testsCompleted": 46,
+          "classification": "replay progress"
+        },
+        {
+          "id": "525",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "hasPendingCommands",
+          "location": {
+            "end": {
+              "column": 58,
+              "line": 240
+            },
+            "start": {
+              "column": 26,
+              "line": 240
+            }
+          },
+          "original": "command.completion === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 8,
+          "classification": "replay progress"
+        },
+        {
+          "id": "537",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "hasPendingPreparation",
+          "location": {
+            "end": {
+              "column": 45,
+              "line": 249
+            },
+            "start": {
+              "column": 12,
+              "line": 249
+            }
+          },
+          "original": "this.pendingPreparations.size > 0",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "539",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "hasPendingPreparation",
+          "location": {
+            "end": {
+              "column": 45,
+              "line": 249
+            },
+            "start": {
+              "column": 12,
+              "line": 249
+            }
+          },
+          "original": "this.pendingPreparations.size > 0",
+          "mutatorName": "EqualityOperator",
+          "replacement": "this.pendingPreparations.size >= 0",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "540",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "hasPendingPreparation",
+          "location": {
+            "end": {
+              "column": 45,
+              "line": 249
+            },
+            "start": {
+              "column": 12,
+              "line": 249
+            }
+          },
+          "original": "this.pendingPreparations.size > 0",
+          "mutatorName": "EqualityOperator",
+          "replacement": "this.pendingPreparations.size <= 0",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "546",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "command",
+          "location": {
+            "end": {
+              "column": 43,
+              "line": 271
+            },
+            "start": {
+              "column": 5,
+              "line": 271
+            }
+          },
+          "original": "validateCommandIdentity(kind, target);",
+          "mutatorName": "CallExpression",
+          "replacement": ";",
+          "status": "Survived",
+          "testsCompleted": 51,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "554",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "command",
+          "location": {
+            "end": {
+              "column": 37,
+              "line": 278
+            },
+            "start": {
+              "column": 11,
+              "line": 278
+            }
+          },
+          "original": "cancellation !== undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 39,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "556",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "command",
+          "location": {
+            "end": {
+              "column": 8,
+              "line": 280
+            },
+            "start": {
+              "column": 39,
+              "line": 278
+            }
+          },
+          "original": "{\n        throw cancellation;\n      }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "569",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "command",
+          "location": {
+            "end": {
+              "column": 27,
+              "line": 289
+            },
+            "start": {
+              "column": 9,
+              "line": 289
+            }
+          },
+          "original": "kind !== \"capture\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 33,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "571",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "command",
+          "location": {
+            "end": {
+              "column": 27,
+              "line": 289
+            },
+            "start": {
+              "column": 18,
+              "line": 289
+            }
+          },
+          "original": "\"capture\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 33,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "588",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "capture",
+          "location": {
+            "end": {
+              "column": 68,
+              "line": 321
+            },
+            "start": {
+              "column": 11,
+              "line": 321
+            }
+          },
+          "original": "existing.kind !== \"capture\" || existing.target !== target",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "capture persistence boundary"
+        },
+        {
+          "id": "589",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "capture",
+          "location": {
+            "end": {
+              "column": 68,
+              "line": 321
+            },
+            "start": {
+              "column": 11,
+              "line": 321
+            }
+          },
+          "original": "existing.kind !== \"capture\" || existing.target !== target",
+          "mutatorName": "LogicalOperator",
+          "replacement": "existing.kind !== \"capture\" && existing.target !== target",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "capture persistence boundary"
+        },
+        {
+          "id": "590",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "capture",
+          "location": {
+            "end": {
+              "column": 38,
+              "line": 321
+            },
+            "start": {
+              "column": 11,
+              "line": 321
+            }
+          },
+          "original": "existing.kind !== \"capture\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "capture persistence boundary"
+        },
+        {
+          "id": "593",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "capture",
+          "location": {
+            "end": {
+              "column": 68,
+              "line": 321
+            },
+            "start": {
+              "column": 42,
+              "line": 321
+            }
+          },
+          "original": "existing.target !== target",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "capture persistence boundary"
+        },
+        {
+          "id": "595",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "capture",
+          "location": {
+            "end": {
+              "column": 8,
+              "line": 330
+            },
+            "start": {
+              "column": 70,
+              "line": 321
+            }
+          },
+          "original": "{\n        throw new WorkflowNondeterminismError(\n          this.executionId,\n          sequence,\n          existing.kind,\n          existing.target,\n          \"capture\",\n          target,\n        );\n      }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "capture persistence boundary"
+        },
+        {
+          "id": "597",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "capture",
+          "location": {
+            "end": {
+              "column": 20,
+              "line": 327
+            },
+            "start": {
+              "column": 11,
+              "line": 327
+            }
+          },
+          "original": "\"capture\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "capture persistence boundary"
+        },
+        {
+          "id": "599",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "capture",
+          "location": {
+            "end": {
+              "column": 37,
+              "line": 332
+            },
+            "start": {
+              "column": 11,
+              "line": 332
+            }
+          },
+          "original": "cancellation !== undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "capture persistence boundary"
+        },
+        {
+          "id": "602",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "capture",
+          "location": {
+            "end": {
+              "column": 35,
+              "line": 336
+            },
+            "start": {
+              "column": 9,
+              "line": 336
+            }
+          },
+          "original": "cancellation !== undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 8,
+          "classification": "capture persistence boundary"
+        },
+        {
+          "id": "626",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "promiseForExistingCompletion",
+          "location": {
+            "end": {
+              "column": 44,
+              "line": 370
+            },
+            "start": {
+              "column": 13,
+              "line": 370
+            }
+          },
+          "original": "completion.result === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 26,
+          "classification": "durable command completion"
+        },
+        {
+          "id": "631",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "flushRecordedCompletions",
+          "location": {
+            "end": {
+              "column": 4,
+              "line": 391
+            },
+            "start": {
+              "column": 43,
+              "line": 380
+            }
+          },
+          "original": "{\n    const completions = this.recordedCompletions.splice(0)\n      .sort((left, right) => left.completionOrder - right.completionOrder);\n\n    for (const completion of completions) {\n      if (completion.error === undefined) {\n        completion.resolve(completion.result);\n      } else {\n        completion.reject(completion.error);\n      }\n    }\n  }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Timeout",
+          "testsCompleted": null,
+          "classification": "Stryker execution limit"
+        },
+        {
+          "id": "657",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "materializeCommands",
+          "location": {
+            "end": {
+              "column": 59,
+              "line": 421
+            },
+            "start": {
+              "column": 10,
+              "line": 418
+            }
+          },
+          "original": "snapshot.history\n    .filter((event): event is WorkflowCommandScheduledEvent =>\n      event.type === \"command-scheduled\")\n    .sort((left, right) => left.sequence - right.sequence)",
+          "mutatorName": "MethodExpression",
+          "replacement": "snapshot.history.filter((event): event is WorkflowCommandScheduledEvent => event.type === \"command-scheduled\")",
+          "status": "Survived",
+          "testsCompleted": 84,
+          "classification": "durable ordering invariants"
+        },
+        {
+          "id": "664",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "materializeCommands",
+          "location": {
+            "end": {
+              "column": 58,
+              "line": 421
+            },
+            "start": {
+              "column": 11,
+              "line": 421
+            }
+          },
+          "original": "(left, right) => left.sequence - right.sequence",
+          "mutatorName": "ArrowFunction",
+          "replacement": "() => undefined",
+          "status": "Survived",
+          "testsCompleted": 84,
+          "classification": "durable ordering invariants"
+        },
+        {
+          "id": "665",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "materializeCommands",
+          "location": {
+            "end": {
+              "column": 58,
+              "line": 421
+            },
+            "start": {
+              "column": 28,
+              "line": 421
+            }
+          },
+          "original": "left.sequence - right.sequence",
+          "mutatorName": "ArithmeticOperator",
+          "replacement": "left.sequence + right.sequence",
+          "status": "Survived",
+          "testsCompleted": 13,
+          "classification": "durable ordering invariants"
+        },
+        {
+          "id": "679",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 11,
+              "line": 449
+            },
+            "start": {
+              "column": 63,
+              "line": 445
+            }
+          },
+          "original": "(event) =>\n    event.type === \"command-completed\"\n      && event.eventIndex < cancellation.eventIndex\n      ? [event.sequence]\n      : []",
+          "mutatorName": "ArrowFunction",
+          "replacement": "() => undefined",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "681",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 52,
+              "line": 447
+            },
+            "start": {
+              "column": 5,
+              "line": 446
+            }
+          },
+          "original": "event.type === \"command-completed\"\n      && event.eventIndex < cancellation.eventIndex",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "685",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 39,
+              "line": 446
+            },
+            "start": {
+              "column": 20,
+              "line": 446
+            }
+          },
+          "original": "\"command-completed\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "687",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 52,
+              "line": 447
+            },
+            "start": {
+              "column": 10,
+              "line": 447
+            }
+          },
+          "original": "event.eventIndex < cancellation.eventIndex",
+          "mutatorName": "EqualityOperator",
+          "replacement": "event.eventIndex <= cancellation.eventIndex",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "689",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 25,
+              "line": 448
+            },
+            "start": {
+              "column": 9,
+              "line": 448
+            }
+          },
+          "original": "[event.sequence]",
+          "mutatorName": "ArrayDeclaration",
+          "replacement": "[]",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "690",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 11,
+              "line": 449
+            },
+            "start": {
+              "column": 9,
+              "line": 449
+            }
+          },
+          "original": "[]",
+          "mutatorName": "ArrayDeclaration",
+          "replacement": "[\"Stryker was here\"]",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "691",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 59,
+              "line": 454
+            },
+            "start": {
+              "column": 38,
+              "line": 450
+            }
+          },
+          "original": "snapshot.history\n    .filter((event): event is WorkflowCommandScheduledEvent =>\n      event.type === \"command-scheduled\"\n      && event.eventIndex < cancellation.eventIndex)\n    .sort((left, right) => left.sequence - right.sequence)",
+          "mutatorName": "MethodExpression",
+          "replacement": "snapshot.history.filter((event): event is WorkflowCommandScheduledEvent => event.type === \"command-scheduled\" && event.eventIndex < cancellation.eventIndex)",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "697",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 41,
+              "line": 452
+            },
+            "start": {
+              "column": 7,
+              "line": 452
+            }
+          },
+          "original": "event.type === \"command-scheduled\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "701",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 52,
+              "line": 453
+            },
+            "start": {
+              "column": 10,
+              "line": 453
+            }
+          },
+          "original": "event.eventIndex < cancellation.eventIndex",
+          "mutatorName": "EqualityOperator",
+          "replacement": "event.eventIndex <= cancellation.eventIndex",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "703",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 58,
+              "line": 454
+            },
+            "start": {
+              "column": 11,
+              "line": 454
+            }
+          },
+          "original": "(left, right) => left.sequence - right.sequence",
+          "mutatorName": "ArrowFunction",
+          "replacement": "() => undefined",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "704",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 58,
+              "line": 454
+            },
+            "start": {
+              "column": 28,
+              "line": 454
+            }
+          },
+          "original": "left.sequence - right.sequence",
+          "mutatorName": "ArithmeticOperator",
+          "replacement": "left.sequence + right.sequence",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "705",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "findCancellationDeliverySequence",
+          "location": {
+            "end": {
+              "column": 4,
+              "line": 457
+            },
+            "start": {
+              "column": 33,
+              "line": 455
+            }
+          },
+          "original": "commandsBeforeCancellation.filter(\n    (command) => !completedSequences.has(command.sequence),\n  )",
+          "mutatorName": "MethodExpression",
+          "replacement": "commandsBeforeCancellation",
+          "status": "Survived",
+          "testsCompleted": 4,
+          "classification": "cancellation replay order"
+        },
+        {
+          "id": "717",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 29,
+              "line": 482
+            },
+            "start": {
+              "column": 9,
+              "line": 482
+            }
+          },
+          "original": "details?.executionId",
+          "mutatorName": "OptionalChaining",
+          "replacement": "details.executionId",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "718",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 42,
+              "line": 482
+            },
+            "start": {
+              "column": 33,
+              "line": 482
+            }
+          },
+          "original": "\"unknown\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "719",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 32,
+              "line": 483
+            },
+            "start": {
+              "column": 9,
+              "line": 483
+            }
+          },
+          "original": "details?.sequence ?? -1",
+          "mutatorName": "LogicalOperator",
+          "replacement": "details?.sequence && -1",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "720",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 26,
+              "line": 483
+            },
+            "start": {
+              "column": 9,
+              "line": 483
+            }
+          },
+          "original": "details?.sequence",
+          "mutatorName": "OptionalChaining",
+          "replacement": "details.sequence",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "721",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 32,
+              "line": 483
+            },
+            "start": {
+              "column": 30,
+              "line": 483
+            }
+          },
+          "original": "-1",
+          "mutatorName": "UnaryOperator",
+          "replacement": "+1",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "723",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 29,
+              "line": 484
+            },
+            "start": {
+              "column": 9,
+              "line": 484
+            }
+          },
+          "original": "details?.timeoutKind",
+          "mutatorName": "OptionalChaining",
+          "replacement": "details.timeoutKind",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "724",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 49,
+              "line": 484
+            },
+            "start": {
+              "column": 33,
+              "line": 484
+            }
+          },
+          "original": "\"start-to-close\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "734",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 61,
+              "line": 489
+            },
+            "start": {
+              "column": 41,
+              "line": 489
+            }
+          },
+          "original": "details?.executionId",
+          "mutatorName": "OptionalChaining",
+          "replacement": "details.executionId",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "735",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 74,
+              "line": 489
+            },
+            "start": {
+              "column": 65,
+              "line": 489
+            }
+          },
+          "original": "\"unknown\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "736",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 59,
+              "line": 490
+            },
+            "start": {
+              "column": 11,
+              "line": 490
+            }
+          },
+          "original": "serialized.name === \"WorkflowSignalTimeoutError\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 3,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "741",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 35,
+              "line": 492
+            },
+            "start": {
+              "column": 15,
+              "line": 492
+            }
+          },
+          "original": "details?.executionId",
+          "mutatorName": "OptionalChaining",
+          "replacement": "details.executionId",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "742",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 48,
+              "line": 492
+            },
+            "start": {
+              "column": 39,
+              "line": 492
+            }
+          },
+          "original": "\"unknown\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "744",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 34,
+              "line": 493
+            },
+            "start": {
+              "column": 15,
+              "line": 493
+            }
+          },
+          "original": "details?.signalName",
+          "mutatorName": "OptionalChaining",
+          "replacement": "details.signalName",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "745",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 493
+            },
+            "start": {
+              "column": 38,
+              "line": 493
+            }
+          },
+          "original": "\"unknown\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "746",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "restoreWorkflowError",
+          "location": {
+            "end": {
+              "column": 37,
+              "line": 500
+            },
+            "start": {
+              "column": 7,
+              "line": 500
+            }
+          },
+          "original": "serialized.stack !== undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 8,
+          "classification": "durable error restoration"
+        },
+        {
+          "id": "750",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "validateCommandIdentity",
+          "location": {
+            "end": {
+              "column": 2,
+              "line": 511
+            },
+            "start": {
+              "column": 70,
+              "line": 507
+            }
+          },
+          "original": "{\n  if (kind.length === 0 || target.length === 0) {\n    throw new TypeError(\"Workflow command kind and target must not be empty.\");\n  }\n}",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 59,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "752",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "validateCommandIdentity",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 508
+            },
+            "start": {
+              "column": 7,
+              "line": 508
+            }
+          },
+          "original": "kind.length === 0 || target.length === 0",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 59,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "753",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "validateCommandIdentity",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 508
+            },
+            "start": {
+              "column": 7,
+              "line": 508
+            }
+          },
+          "original": "kind.length === 0 || target.length === 0",
+          "mutatorName": "LogicalOperator",
+          "replacement": "kind.length === 0 && target.length === 0",
+          "status": "Survived",
+          "testsCompleted": 59,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "754",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "validateCommandIdentity",
+          "location": {
+            "end": {
+              "column": 24,
+              "line": 508
+            },
+            "start": {
+              "column": 7,
+              "line": 508
+            }
+          },
+          "original": "kind.length === 0",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 59,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "756",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "validateCommandIdentity",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 508
+            },
+            "start": {
+              "column": 28,
+              "line": 508
+            }
+          },
+          "original": "target.length === 0",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 59,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "758",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "validateCommandIdentity",
+          "location": {
+            "end": {
+              "column": 4,
+              "line": 510
+            },
+            "start": {
+              "column": 49,
+              "line": 508
+            }
+          },
+          "original": "{\n    throw new TypeError(\"Workflow command kind and target must not be empty.\");\n  }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "durable command identity"
+        },
+        {
+          "id": "760",
+          "file": "src/packages/kestrel/src/workflows/replayer.ts",
+          "method": "validateCommandIdentity",
+          "location": {
+            "end": {
+              "column": 78,
+              "line": 509
+            },
+            "start": {
+              "column": 25,
+              "line": 509
+            }
+          },
+          "original": "\"Workflow command kind and target must not be empty.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "NoCoverage",
+          "testsCompleted": null,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "166",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "createExecution",
+          "location": {
+            "end": {
+              "column": 75,
+              "line": 27
+            },
+            "start": {
+              "column": 23,
+              "line": 27
+            }
+          },
+          "original": "`Workflow execution \"${request.id}\" already exists.`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "176",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "createExecution",
+          "location": {
+            "end": {
+              "column": 83,
+              "line": 31
+            },
+            "start": {
+              "column": 27,
+              "line": 31
+            }
+          },
+          "original": "\"Workflow execution version must be a positive integer.\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "191",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "appendCommands",
+          "location": {
+            "end": {
+              "column": 52,
+              "line": 67
+            },
+            "start": {
+              "column": 18,
+              "line": 67
+            }
+          },
+          "original": "event.type === \"command-scheduled\"",
+          "mutatorName": "EqualityOperator",
+          "replacement": "event.type !== \"command-scheduled\"",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "200",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "appendCommands",
+          "location": {
+            "end": {
+              "column": 89,
+              "line": 75
+            },
+            "start": {
+              "column": 11,
+              "line": 75
+            }
+          },
+          "original": "`Expected command sequence ${expectedSequence}, received ${command.sequence}.`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "205",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "appendCommands",
+          "location": {
+            "end": {
+              "column": 40,
+              "line": 88
+            },
+            "start": {
+              "column": 5,
+              "line": 88
+            }
+          },
+          "original": "execution.revision += events.length",
+          "mutatorName": "AssignmentOperator",
+          "replacement": "execution.revision -= events.length",
+          "status": "Survived",
+          "testsCompleted": 12,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "208",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "completeCommand",
+          "location": {
+            "end": {
+              "column": 74,
+              "line": 107
+            },
+            "start": {
+              "column": 9,
+              "line": 107
+            }
+          },
+          "original": "event.type === \"command-scheduled\" && event.sequence === sequence",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 7,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "210",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "completeCommand",
+          "location": {
+            "end": {
+              "column": 74,
+              "line": 107
+            },
+            "start": {
+              "column": 9,
+              "line": 107
+            }
+          },
+          "original": "event.type === \"command-scheduled\" && event.sequence === sequence",
+          "mutatorName": "LogicalOperator",
+          "replacement": "event.type === \"command-scheduled\" || event.sequence === sequence",
+          "status": "Survived",
+          "testsCompleted": 7,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "211",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "completeCommand",
+          "location": {
+            "end": {
+              "column": 43,
+              "line": 107
+            },
+            "start": {
+              "column": 9,
+              "line": 107
+            }
+          },
+          "original": "event.type === \"command-scheduled\"",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 7,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "214",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "completeCommand",
+          "location": {
+            "end": {
+              "column": 74,
+              "line": 107
+            },
+            "start": {
+              "column": 47,
+              "line": 107
+            }
+          },
+          "original": "event.sequence === sequence",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 7,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "221",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "completeCommand",
+          "location": {
+            "end": {
+              "column": 74,
+              "line": 112
+            },
+            "start": {
+              "column": 9,
+              "line": 112
+            }
+          },
+          "original": "`Workflow \"${executionId}\" has no scheduled command ${sequence}.`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "240",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "completeCommand",
+          "location": {
+            "end": {
+              "column": 28,
+              "line": 134
+            },
+            "start": {
+              "column": 5,
+              "line": 134
+            }
+          },
+          "original": "execution.revision += 1",
+          "mutatorName": "AssignmentOperator",
+          "replacement": "execution.revision -= 1",
+          "status": "Survived",
+          "testsCompleted": 7,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "244",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "getStoredExecution",
+          "location": {
+            "end": {
+              "column": 32,
+              "line": 141
+            },
+            "start": {
+              "column": 9,
+              "line": 141
+            }
+          },
+          "original": "execution === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "false",
+          "status": "Survived",
+          "testsCompleted": 17,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "246",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "getStoredExecution",
+          "location": {
+            "end": {
+              "column": 6,
+              "line": 143
+            },
+            "start": {
+              "column": 34,
+              "line": 141
+            }
+          },
+          "original": "{\n      throw new Error(`Unknown workflow execution \"${executionId}\".`);\n    }",
+          "mutatorName": "BlockStatement",
+          "replacement": "{}",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "journal integrity"
+        },
+        {
+          "id": "248",
+          "file": "src/packages/kestrel/src/workflows/replay/memory_journal.ts",
+          "method": "getStoredExecution",
+          "location": {
+            "end": {
+              "column": 69,
+              "line": 142
+            },
+            "start": {
+              "column": 23,
+              "line": 142
+            }
+          },
+          "original": "`Unknown workflow execution \"${executionId}\".`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "422",
+          "file": "src/packages/kestrel/src/workflows/replay/types.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 51,
+              "line": 90
+            },
+            "start": {
+              "column": 31,
+              "line": 90
+            }
+          },
+          "original": "actual === undefined",
+          "mutatorName": "ConditionalExpression",
+          "replacement": "true",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "standalone replay diagnostics"
+        },
+        {
+          "id": "425",
+          "file": "src/packages/kestrel/src/workflows/replay/types.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 21,
+              "line": 91
+            },
+            "start": {
+              "column": 9,
+              "line": 91
+            }
+          },
+          "original": "\"no command\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "standalone replay diagnostics"
+        },
+        {
+          "id": "426",
+          "file": "src/packages/kestrel/src/workflows/replay/types.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 42,
+              "line": 92
+            },
+            "start": {
+              "column": 9,
+              "line": 92
+            }
+          },
+          "original": "`${actual.kind}:${actual.target}`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "standalone replay diagnostics"
+        },
+        {
+          "id": "427",
+          "file": "src/packages/kestrel/src/workflows/replay/types.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 156,
+              "line": 95
+            },
+            "start": {
+              "column": 7,
+              "line": 95
+            }
+          },
+          "original": "`Workflow \"${executionId}\" is non-deterministic at command ${sequence}: expected ${expected.kind}:${expected.target}, received ${actualDescription}.`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 2,
+          "classification": "standalone replay diagnostics"
+        },
+        {
+          "id": "429",
+          "file": "src/packages/kestrel/src/workflows/replay/types.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 83,
+              "line": 105
+            },
+            "start": {
+              "column": 7,
+              "line": 105
+            }
+          },
+          "original": "`Workflow \"${executionId}\" suspended without an unresolved durable command.`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "diagnostic text"
+        },
+        {
+          "id": "430",
+          "file": "src/packages/kestrel/src/workflows/replay/types.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 49,
+              "line": 107
+            },
+            "start": {
+              "column": 17,
+              "line": 107
+            }
+          },
+          "original": "\"WorkflowInvalidSuspensionError\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "standalone replay diagnostics"
+        },
+        {
+          "id": "431",
+          "file": "src/packages/kestrel/src/workflows/replay/types.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 106,
+              "line": 119
+            },
+            "start": {
+              "column": 7,
+              "line": 119
+            }
+          },
+          "original": "`Workflow \"${executionId}\" journal revision changed from ${expectedRevision} to ${actualRevision}.`",
+          "mutatorName": "StringLiteral",
+          "replacement": "``",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "standalone replay diagnostics"
+        },
+        {
+          "id": "432",
+          "file": "src/packages/kestrel/src/workflows/replay/types.ts",
+          "method": "constructor",
+          "location": {
+            "end": {
+              "column": 47,
+              "line": 121
+            },
+            "start": {
+              "column": 17,
+              "line": 121
+            }
+          },
+          "original": "\"WorkflowJournalConflictError\"",
+          "mutatorName": "StringLiteral",
+          "replacement": "\"\"",
+          "status": "Survived",
+          "testsCompleted": 1,
+          "classification": "standalone replay diagnostics"
+        }
+      ]
+    }
+  }
+}

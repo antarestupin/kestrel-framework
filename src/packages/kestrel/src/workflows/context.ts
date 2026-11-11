@@ -8,7 +8,7 @@ import { parseSchema } from "../definitions/index.js";
 import type { Action } from "../actions/index.js";
 import type { AnyWorkflowSignal, WorkflowSignalPayload } from "./signal.js";
 import type { WorkflowPayload, WorkflowPayloadCodec } from "./serialization.js";
-import type { WorkflowReplayContext } from "./replayer.js";
+import { WorkflowCaptureEncodingError, type WorkflowReplayContext } from "./replayer.js";
 import type { AnyWorkflow, WorkflowInput, WorkflowResult } from "./workflow.js";
 import { WorkflowCancellationError } from "./errors.js";
 import { resolveWorkflowConcurrency } from "./concurrency.js";
@@ -133,25 +133,23 @@ export class DurableWorkflowExecutionContext<
     rawInput: input<InputSchema>,
     options: WorkflowActivityOptions = {},
   ): Promise<output<OutputSchema>> {
-    const input = await parseSchema(
-      action.inputSchema,
-      rawInput,
-      action.validation.input,
-    );
-    const payload = {
-      input: await this.options.codec.encode(input),
-      options: normalizeActivityOptions(options),
-    } as const;
+    const payload = await this.prepare(async () => {
+      const input = await parseSchema(action.inputSchema, rawInput, action.validation.input);
+      return {
+        input: await this.options.codec.encode(input),
+        options: normalizeActivityOptions(options),
+      };
+    });
     const result = await this.replay.command(
       "activity",
       action.name,
       payload,
       this.takeCancellation(),
     );
-    const decoded = result === undefined
-      ? undefined
-      : await this.options.codec.decode(result);
-    return parseSchema(action.outputSchema, decoded, action.validation.output);
+    return this.prepare(async () => {
+      const decoded = result === undefined ? undefined : await this.options.codec.decode(result);
+      return parseSchema(action.outputSchema, decoded, action.validation.output);
+    });
   }
 
   public async sleep(duration: WorkflowDuration): Promise<void> {
@@ -183,14 +181,10 @@ export class DurableWorkflowExecutionContext<
       timeoutMs === undefined ? {} : { timeoutMs },
       this.takeCancellation(),
     );
-    const decoded = result === undefined
-      ? undefined
-      : await this.options.codec.decode(result);
-    return await parseSchema(
-      signal.payloadSchema,
-      decoded,
-      signal.validation.input,
-    ) as WorkflowSignalPayload<Signal>;
+    return await this.prepare(async () => {
+      const decoded = result === undefined ? undefined : await this.options.codec.decode(result);
+      return parseSchema(signal.payloadSchema, decoded, signal.validation.input);
+    }) as WorkflowSignalPayload<Signal>;
   }
 
   public async runChild<Definition extends AnyWorkflow>(
@@ -198,16 +192,10 @@ export class DurableWorkflowExecutionContext<
     rawInput: WorkflowInput<Definition>,
     options: WorkflowChildOptions = {},
   ): Promise<WorkflowResult<Definition>> {
-    const input = await parseSchema(
-      workflow.inputSchema,
-      rawInput,
-      workflow.validation.input,
-    );
-    const concurrency = resolveWorkflowConcurrency(workflow.concurrency, input);
-    const result = await this.replay.command(
-      "child",
-      workflow.name,
-      {
+    const payload = await this.prepare(async () => {
+      const input = await parseSchema(workflow.inputSchema, rawInput, workflow.validation.input);
+      const concurrency = resolveWorkflowConcurrency(workflow.concurrency, input);
+      return {
         input: await this.options.codec.encode(input),
         version: workflow.version.current,
         ...(concurrency === undefined
@@ -216,7 +204,12 @@ export class DurableWorkflowExecutionContext<
         ...(options.executionId === undefined
           ? {}
           : { executionId: options.executionId }),
-      },
+      };
+    });
+    const result = await this.replay.command(
+      "child",
+      workflow.name,
+      payload,
       this.takeCancellation(),
     );
 
@@ -224,26 +217,35 @@ export class DurableWorkflowExecutionContext<
       return undefined as WorkflowResult<Definition>;
     }
 
-    const decoded = result === undefined
-      ? undefined
-      : await this.options.codec.decode(result);
-    return await parseSchema(
-      workflow.outputSchema,
-      decoded,
-      workflow.validation.output,
-    ) as WorkflowResult<Definition>;
+    const outputSchema = workflow.outputSchema;
+    return await this.prepare(async () => {
+      const decoded = result === undefined ? undefined : await this.options.codec.decode(result);
+      return parseSchema(outputSchema, decoded, workflow.validation.output);
+    }) as WorkflowResult<Definition>;
   }
 
   public async sideEffect<Value>(
     capture: () => Value,
     options: WorkflowSideEffectOptions = {},
   ): Promise<Value> {
-    const result = await this.replay.capture(
-      options.label ?? "side-effect",
-      async () => this.options.codec.encode(capture()),
-      this.takeCancellation(),
-    );
-    return await this.options.codec.decode(result) as Value;
+    try {
+      const result = await this.replay.capture(
+        options.label ?? "side-effect",
+        async () => {
+          const captured = capture();
+          try {
+            return await this.options.codec.encode(captured);
+          } catch (error: unknown) {
+            throw new WorkflowCaptureEncodingError(error);
+          }
+        },
+        this.takeCancellation(),
+      );
+      return await this.prepare(() => this.options.codec.decode(result)) as Value;
+    } catch (error: unknown) {
+      if (error instanceof WorkflowCaptureEncodingError) throw error.cause;
+      throw error;
+    }
   }
 
   public now(): Promise<number> {
@@ -260,7 +262,7 @@ export class DurableWorkflowExecutionContext<
     if (this.continuedInput !== undefined) {
       throw new TypeError("A workflow activation can continue as new only once.");
     }
-    this.continuedInput = await this.options.codec.encode(input);
+    this.continuedInput = await this.prepare(() => this.options.codec.encode(input));
     throw new WorkflowContinueAsNewInterrupt();
   }
 
@@ -275,6 +277,11 @@ export class DurableWorkflowExecutionContext<
     }
 
     return undefined;
+  }
+
+  private prepare<Value>(operation: () => Value | Promise<Value>): Promise<Value> {
+    // Contexts supplied by custom replay implementations can use their own scheduling.
+    return this.replay.prepare?.(operation) ?? Promise.resolve().then(operation);
   }
 }
 

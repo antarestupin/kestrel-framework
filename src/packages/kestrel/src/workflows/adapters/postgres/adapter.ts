@@ -66,6 +66,7 @@ import type {
   WorkflowActivationSnapshot,
   WorkflowHistoryEvent,
 } from "../../history.js";
+import { workflowCommandIdentity } from "../../history.js";
 import type { WorkflowPayload } from "../../serialization.js";
 import type { ResolvedWorkflowConcurrency } from "../../concurrency.js";
 import {
@@ -100,23 +101,24 @@ interface ReservedTaskRow {
   target: string | null;
   payload: WorkflowPayload | null;
   attempt: number;
-  available_at: Date;
-  reserved_at: Date;
+  available_at: string;
+  reserved_at: string;
   reservation_token: string;
-  created_at: Date;
+  created_at: string;
 }
 
 interface ReservedDispatchRow {
   id: string;
   execution_id: string;
+  history_generation: number;
   command_sequence: number;
   target: string;
   payload: WorkflowPayload | null;
   attempt: number;
-  available_at: Date;
-  reserved_at: Date;
+  available_at: string;
+  reserved_at: string;
   reservation_token: string;
-  created_at: Date;
+  created_at: string;
 }
 
 interface SerializedHistoryRow {
@@ -296,12 +298,8 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
             COALESCE(sum(
               CASE WHEN inspected.existing_id IS NULL THEN 1 ELSE 0 END
             ) OVER (
-              PARTITION BY
-                inspected.workflow_name,
-                COALESCE(
-                  inspected.concurrency_key,
-                  inspected.execution_id
-                )
+              -- Unkeyed requests never use prior_new_count and must stay outside keyed groups.
+              PARTITION BY inspected.workflow_name, inspected.concurrency_key
               ORDER BY inspected.request_order
               ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
             ), 0)::integer AS prior_new_count
@@ -505,7 +503,8 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
       predicates.push(inArray(this.executionsTable.status, query.statuses));
     }
     if (query.search !== undefined) {
-      const pattern = `%${query.search}%`;
+      // Treat operator search as a literal substring, including SQL pattern characters.
+      const pattern = `%${query.search.replace(/[\\%_]/g, "\\$&")}%`;
       predicates.push(or(
         ilike(this.executionsTable.id, pattern),
         ilike(this.executionsTable.workflowName, pattern),
@@ -900,7 +899,9 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
       }
 
       const scheduledCount = state.scheduledCount;
-      const now = new Date();
+      // Read store time after acquiring ownership so contention does not shorten delays.
+      const { rows: [clock] } = await transaction.execute<{ now: string }>(sql`SELECT clock_timestamp() AS now`);
+      const now = new Date(clock!.now);
       let nextRevision = execution.revision;
       let completionOrder = state.completionCount;
       let completedSynchronously = false;
@@ -977,8 +978,9 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
             type: "command-completed",
             commandSequence: command.sequence,
             completionOrder,
-            payload: command.payload,
-            payloadPresent: true,
+            ...(command.captureError === undefined
+              ? { payload: command.payload, payloadPresent: true }
+              : { error: command.captureError, payloadPresent: false }),
             occurredAt: now,
           });
           nextRevision += 1;
@@ -986,7 +988,11 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
           completedSynchronously = true;
         } else if (command.kind === "child") {
           const childId = readOptionalString(command.payload, "executionId")
-            ?? `${request.executionId}:${command.sequence}`;
+            ?? workflowCommandIdentity({
+              executionId: request.executionId,
+              sequence: command.sequence,
+              historyGeneration: execution.historyGeneration,
+            });
           const concurrency = readOptionalConcurrency(command.payload);
           const keyed = concurrency?.keyed;
           let concurrencyAdmitted = true;
@@ -1159,12 +1165,6 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
             : {}),
       }).where(eq(this.executionsTable.id, request.executionId));
 
-      if (execution.cancellationRequested && request.commands.length > 0) {
-        await transaction.delete(this.tasksTable).where(and(
-          eq(this.tasksTable.executionId, request.executionId),
-          sql`${this.tasksTable.commandSequence} < ${request.commands[0]!.sequence}`,
-        ));
-      }
       await transaction.delete(this.tasksTable).where(and(
         eq(this.tasksTable.id, request.taskId),
         eq(this.tasksTable.reservationToken, request.reservationToken),
@@ -1658,16 +1658,30 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
   ): Promise<readonly ReservedWorkflowActivityDispatch[]> {
     validatePositiveInteger("activity dispatch limit", request.limit);
     validatePositiveInteger("activity dispatch leaseMs", request.leaseMs);
+    // Outbox rows created by compensation stay runnable after the cancellation event.
     const result = await this.database.execute(sql`
       WITH selected AS (
-        SELECT dispatch.id
+        SELECT dispatch.id, execution.history_generation
         FROM ${this.dispatchOutboxTable} dispatch
         INNER JOIN ${this.executionsTable} execution
           ON execution.id = dispatch.execution_id
         WHERE dispatch.published_at IS NULL
           AND dispatch.available_at <= statement_timestamp()
           AND execution.status NOT IN ('cancelled', 'completed', 'failed', 'terminated')
-          AND execution.cancellation_requested = false
+          AND (
+            execution.cancellation_requested = false
+            OR EXISTS (
+              SELECT 1
+              FROM ${this.historyTable} scheduled
+              INNER JOIN ${this.historyTable} cancellation
+                ON cancellation.execution_id = scheduled.execution_id
+                AND cancellation.type = 'cancellation-requested'
+              WHERE scheduled.execution_id = dispatch.execution_id
+                AND scheduled.type = 'command-scheduled'
+                AND scheduled.command_sequence = dispatch.command_sequence
+                AND scheduled.event_index > cancellation.event_index
+            )
+          )
           AND execution.paused_at IS NULL
         ORDER BY dispatch.available_at, dispatch.id
         FOR UPDATE OF dispatch SKIP LOCKED
@@ -1685,6 +1699,7 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
       RETURNING
         dispatch.id,
         dispatch.execution_id,
+        selected.history_generation,
         dispatch.command_sequence,
         dispatch.target,
         dispatch.payload,
@@ -1760,6 +1775,23 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         .where(eq(this.executionsTable.id, request.executionId))
         .for("update");
       if (execution === undefined) return false;
+
+      // Acknowledge a stale result without writing it into the successor's journal.
+      const historyGeneration = request.historyGeneration ?? 1;
+      if (historyGeneration !== execution.historyGeneration) {
+        if (request.historyGeneration !== undefined || request.dispatchId === undefined) {
+          return historyGeneration < execution.historyGeneration;
+        }
+        // A legacy unversioned job can still belong to this generation after an upgrade.
+        if (!z.uuid().safeParse(request.dispatchId).success) return true;
+        const [dispatch] = await transaction.select({ id: this.dispatchOutboxTable.id })
+          .from(this.dispatchOutboxTable).where(and(
+            eq(this.dispatchOutboxTable.id, request.dispatchId),
+            eq(this.dispatchOutboxTable.executionId, request.executionId),
+            eq(this.dispatchOutboxTable.commandSequence, request.sequence),
+          ));
+        if (dispatch === undefined) return true;
+      }
 
       const [existing] = await transaction.select({
         eventIndex: this.historyTable.eventIndex,
@@ -1859,7 +1891,6 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         transaction as PostgresWorkflowDatabase,
         executionId,
         reason,
-        true,
       );
       return changed;
     });
@@ -2217,12 +2248,10 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
     transaction: PostgresWorkflowDatabase,
     rootExecutionId: string,
     reason: string,
-    requireRoot = false,
   ): Promise<boolean> {
     const pending = [rootExecutionId];
     const visited = new Set<string>();
-    let root: typeof workflowExecutions.$inferSelect | undefined;
-    let rootChanged = false;
+    let terminatedRoot: typeof workflowExecutions.$inferSelect | undefined;
 
     while (pending.length > 0) {
       const currentId = pending.shift()!;
@@ -2234,12 +2263,11 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         .where(eq(this.executionsTable.id, currentId))
         .for("update");
       if (execution === undefined) {
-        if (requireRoot && currentId === rootExecutionId) {
+        if (currentId === rootExecutionId) {
           throw new WorkflowExecutionNotFoundError(rootExecutionId);
         }
         continue;
       }
-      if (currentId === rootExecutionId) root = execution;
       const children = await transaction.select({ id: this.executionsTable.id })
         .from(this.executionsTable)
         .where(eq(this.executionsTable.parentExecutionId, currentId));
@@ -2261,14 +2289,14 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         eq(this.dispatchOutboxTable.executionId, currentId),
       );
       await this.admitPendingKeyedExecutions(transaction, execution);
-      if (currentId === rootExecutionId) rootChanged = true;
+      if (currentId === rootExecutionId) terminatedRoot = execution;
     }
 
-    if (rootChanged && root !== undefined && root.parentExecutionId !== null
-      && root.parentCommandSequence !== null) {
+    if (terminatedRoot !== undefined && terminatedRoot.parentExecutionId !== null
+      && terminatedRoot.parentCommandSequence !== null) {
       const [parent] = await transaction.select()
         .from(this.executionsTable)
-        .where(eq(this.executionsTable.id, root.parentExecutionId))
+        .where(eq(this.executionsTable.id, terminatedRoot.parentExecutionId))
         .for("update");
       if (parent !== undefined && !isTerminalWorkflowStatus(parent.status)) {
         const [{ count = 0 } = {}] = await transaction.select({
@@ -2281,12 +2309,12 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
           executionId: parent.id,
           eventIndex: parent.revision,
           type: "command-completed",
-          commandSequence: root.parentCommandSequence,
+          commandSequence: terminatedRoot.parentCommandSequence,
           completionOrder: count,
           error: {
             name: "WorkflowExecutionTerminatedError",
-            message: `Child workflow "${root.id}" was terminated: ${reason}`,
-            details: { executionId: root.id },
+            message: `Child workflow "${terminatedRoot.id}" was terminated: ${reason}`,
+            details: { executionId: terminatedRoot.id },
           },
         }).onConflictDoNothing().returning({
           eventIndex: this.historyTable.eventIndex,
@@ -2305,7 +2333,7 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
       }
     }
 
-    return rootChanged;
+    return terminatedRoot !== undefined;
   }
 
   /** Marks one execution and all open descendants for cooperative cancellation. */
@@ -2336,15 +2364,13 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         continue;
       }
 
+      // A repeated request must preserve children created as compensation since the first request.
+      if (isTerminalWorkflowStatus(execution.status) || execution.cancellationRequested) continue;
+
       const children = await transaction.select({ id: this.executionsTable.id })
         .from(this.executionsTable)
         .where(eq(this.executionsTable.parentExecutionId, currentId));
       pending.push(...children.map((child) => child.id));
-
-      if (isTerminalWorkflowStatus(execution.status)
-        || execution.cancellationRequested) {
-        continue;
-      }
 
       await transaction.insert(this.historyTable).values({
         executionId: currentId,
@@ -2735,10 +2761,11 @@ function mapReservedTask(row: ReservedTaskRow): ReservedWorkflowTask {
       ? { payload: row.payload ?? null }
       : {}),
     attempt: row.attempt,
-    availableAt: row.available_at,
-    reservedAt: row.reserved_at,
+    // Raw query results carry timestamps as text, unlike Drizzle column projections.
+    availableAt: new Date(row.available_at),
+    reservedAt: new Date(row.reserved_at),
     reservationToken: row.reservation_token,
-    createdAt: row.created_at,
+    createdAt: new Date(row.created_at),
   };
 }
 
@@ -2748,14 +2775,15 @@ function mapReservedDispatch(
   return {
     id: row.id,
     executionId: row.execution_id,
+    historyGeneration: row.history_generation,
     sequence: row.command_sequence,
     target: row.target,
     payload: row.payload ?? null,
     attempt: row.attempt,
-    availableAt: row.available_at,
-    reservedAt: row.reserved_at,
+    availableAt: new Date(row.available_at),
+    reservedAt: new Date(row.reserved_at),
     reservationToken: row.reservation_token,
-    createdAt: row.created_at,
+    createdAt: new Date(row.created_at),
   };
 }
 

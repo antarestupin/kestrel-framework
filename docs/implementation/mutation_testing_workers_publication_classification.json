@@ -5,7 +5,7 @@
   "command": "npm run test:mutation:workers-publication",
   "budgetMs": 600000,
   "beforeReport": "artifacts/mutation/workers-publication-before-two-hour-tests/mutation.json",
-  "report": "artifacts/mutation/workers-publication/mutation.json",
+  "report": "artifacts/mutation/nov11-complete-review/workers-publication-before/mutation.json",
   "beforeCounts": {
     "Killed": 128,
     "NoCoverage": 12,
@@ -511,7 +511,7 @@
     "src/packages/kestrel/src/workers/publication_contract.test.ts": "d79132ce78f9570a736aa61d4a88f33ba4b05448e958ef79d9fc7413e08a7bba"
   },
   "reportHashes": {
-    "artifacts/mutation/workers-publication/mutation.json": "f90fa48976653a228e0d99c1d0262bbcd9841d893dbdfb186a029e15e8589222",
+    "artifacts/mutation/nov11-complete-review/workers-publication-before/mutation.json": "f90fa48976653a228e0d99c1d0262bbcd9841d893dbdfb186a029e15e8589222",
     "artifacts/mutation/workers-publication-before-two-hour-tests/mutation.json": "c9bd3824176e94fed95480bb22ccca831d248d954b7d91cfb43865b098596709"
   },
   "deferred": "Re-review if exact diagnostics, optional own-property presence, synthetic serialization cause types or Node encoding behavior become contractual. Queue-group callback errors and storage failures now drain every started peer operation."

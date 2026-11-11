@@ -76,7 +76,7 @@ export interface ScheduledTaskAdapter {
   reserve(
     request: ReserveScheduledTaskRequest,
   ): Promise<ReserveScheduledTaskResult>;
-  /** Consumes one exact occurrence when an external overlap guard is busy. */
+  /** Consumes one exact occurrence while the busy overlap guard is backed by a live reservation. */
   skip(request: ReserveScheduledTaskRequest): Promise<boolean>;
   complete(request: CompleteScheduledTaskRequest): Promise<boolean>;
   release(reservation: ScheduledTaskReservationRef): Promise<boolean>;

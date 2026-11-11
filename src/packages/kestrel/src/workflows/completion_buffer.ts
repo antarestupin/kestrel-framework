@@ -78,5 +78,6 @@ export class WorkflowCompletionBuffer {
 function toReservationKey(
   reservation: { taskId: string; reservationToken: string },
 ): string {
-  return `${reservation.taskId}:${reservation.reservationToken}`;
+  // Both coordinates are opaque strings supplied by the adapter.
+  return JSON.stringify([reservation.taskId, reservation.reservationToken]);
 }

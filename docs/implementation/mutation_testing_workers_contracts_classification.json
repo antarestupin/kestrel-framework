@@ -6,7 +6,7 @@
   "budgetMs": 600000,
   "modeNote": "Bounded focused component profile; ignoreStatic=False. Static mutants remain enabled in these focused profiles. SQL text is not comprehensively mutated by Stryker; exported schema contracts do not substitute for a production migration/application test.",
   "beforeReport": "artifacts/mutation/workers-contracts-before-two-hour-tests/mutation.json",
-  "report": "artifacts/mutation/workers-contracts/mutation.json",
+  "report": "artifacts/mutation/nov11-complete-review/workers-contracts-before/mutation.json",
   "beforeCounts": {
     "Killed": 186,
     "Survived": 103,
@@ -789,7 +789,7 @@
   },
   "reportHashes": {
     "artifacts/mutation/workers-contracts-before-two-hour-tests/mutation.json": "1ecb6decb2a5e4858223f4bd00c07830669133a59513228c8bd4a86c501f82aa",
-    "artifacts/mutation/workers-contracts/mutation.json": "0c3006f72d5dae470c0a720e5c8b1e00d2d27fd585ea112428eee450131cf6c7"
+    "artifacts/mutation/nov11-complete-review/workers-contracts-before/mutation.json": "0c3006f72d5dae470c0a720e5c8b1e00d2d27fd585ea112428eee450131cf6c7"
   },
   "closedFollowups": [
     "Configured WorkerProvider admission and completion-owner forwarding now execute through a real job.",

@@ -54,7 +54,8 @@ function encodeJsonValue(
       );
     }
 
-    return value;
+    // JSON persistence normalizes negative zero to zero.
+    return Object.is(value, -0) ? 0 : value;
   }
 
   if (typeof value !== "object") {
@@ -72,16 +73,24 @@ function encodeJsonValue(
 
   try {
     if (Array.isArray(value)) {
-      return value.map((item, index) =>
-        encodeJsonValue(item, `${path}[${index}]`, ancestors));
+      const encoded: WorkflowPayload[] = [];
+      // Array.map skips holes, while JSON would silently persist them as null.
+      for (let index = 0; index < value.length; index += 1) {
+        const item = Object.hasOwn(value, index) ? value[index] : undefined;
+        encoded.push(encodeJsonValue(item, `${path}[${index}]`, ancestors));
+      }
+      return encoded;
     }
 
     const prototype = Object.getPrototypeOf(value) as object | null;
 
     if (prototype !== Object.prototype && prototype !== null) {
+      // Avoid invoking an instance's overridden constructor property while reporting the error.
+      const constructor = Object.getOwnPropertyDescriptor(prototype, "constructor")?.value;
+      const typeName = typeof constructor === "function" ? constructor.name : "object";
       throw new WorkflowPayloadSerializationError(
         path,
-        `contains unsupported instance ${value.constructor.name}`,
+        `contains unsupported instance ${typeName}`,
       );
     }
 

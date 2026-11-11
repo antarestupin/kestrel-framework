@@ -13,10 +13,12 @@ export interface WorkflowCommand {
   kind: string;
   target: string;
   payload: WorkflowPayload;
+  /** Used by the adapter to complete a capture with its durable failure. */
+  captureError?: WorkflowExecutionError;
 }
 
 export interface WorkflowCommandScheduledEvent
-  extends WorkflowHistoryEventBase, WorkflowCommand {
+  extends WorkflowHistoryEventBase, Omit<WorkflowCommand, "captureError"> {
   type: "command-scheduled";
 }
 
@@ -58,4 +60,15 @@ export interface WorkflowActivationSnapshot {
   revision: number;
   history: readonly WorkflowHistoryEvent[];
   cancellationRequested: boolean;
+}
+
+/** Identifies one logical command across retries and history rotations. */
+export function workflowCommandIdentity({ executionId, sequence, historyGeneration = 1 }: {
+  executionId: string;
+  sequence: number;
+  historyGeneration?: number;
+}): string {
+  const key = `${executionId}:${sequence}`;
+  // The suffix cannot collide with a generation-one identity ending in a sequence number.
+  return historyGeneration === 1 ? key : `${key}:generation-${historyGeneration}`;
 }

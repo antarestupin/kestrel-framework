@@ -33,6 +33,24 @@ function createExecution(version = 1) {
 }
 
 describe("WorkflowReplayRunner", () => {
+  it("persists an ordinary handler failure with its already staged commands", async () => {
+    const { executionId, runner } = createExecution();
+    const failure = new Error("handler failed");
+    const result = await runner.activate(executionId, (_input, workflow) => {
+      void workflow.command("activity", "already-decided");
+      throw failure;
+    });
+    expect(result).toEqual({ status: "failed", error: failure, pendingCommands: [
+      { sequence: 0, kind: "activity", target: "already-decided", status: "pending" },
+    ] });
+  });
+
+  it.each([["", "valid"], ["activity", ""]])("rejects an empty command kind or target (%s/%s)", async (kind, target) => {
+    const { executionId, runner } = createExecution();
+    const result = await runner.activate(executionId, (_input, workflow) => workflow.command(kind!, target!));
+    expect(result).toEqual({ status: "failed", error: expect.any(TypeError), pendingCommands: [] });
+  });
+
   it("replays sequential command results and appends only the next decision", async () => {
     const { executionId, journal, runner } = createExecution();
     const handler = async (
@@ -317,5 +335,29 @@ describe("WorkflowReplayRunner", () => {
       status: "rejected",
       reason: expect.any(WorkflowJournalConflictError),
     });
+  });
+});
+
+describe("MemoryWorkflowReplayJournal", () => {
+  it("rejects duplicate or invalid executions and keeps the original snapshot", async () => {
+    const { executionId, journal } = createExecution(3);
+    expect(() => journal.createExecution({ id: executionId, version: 4, input: "replacement" })).toThrow();
+    for (const version of [0, -1, 1.5, Infinity]) {
+      expect(() => journal.createExecution({ id: "invalid", version, input: null })).toThrow(TypeError);
+    }
+    await expect(journal.getExecution("invalid")).rejects.toThrow();
+    await expect(journal.getExecution(executionId)).resolves.toEqual({
+      id: executionId, version: 3, input: { value: "input" }, revision: 0, history: [],
+    });
+  });
+
+  it("rejects a command sequence gap before appending any of the batch", async () => {
+    const { executionId, journal } = createExecution();
+    await expect(journal.appendCommands(executionId, 0, [
+      { sequence: 0, kind: "activity", target: "valid" },
+      { sequence: 2, kind: "activity", target: "sequence-gap" },
+    ])).rejects.toBeInstanceOf(TypeError);
+    await expect(journal.completeCommand(executionId, 0, "unscheduled")).rejects.toThrow();
+    await expect(journal.getExecution(executionId)).resolves.toMatchObject({ revision: 0, history: [] });
   });
 });

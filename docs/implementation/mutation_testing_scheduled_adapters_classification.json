@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "reviewedAt": "2026-11-10",
   "budgetMs": 600000,
-  "report": "artifacts/mutation/scheduled-adapters/mutation.json",
+  "report": "artifacts/mutation/nov11-complete-review/scheduled-adapters-before/mutation.json",
   "beforeReport": "artifacts/mutation/scheduled-adapters-before-two-hour-tests/mutation.json",
   "reportSha256": "09458f9f01ceba8032b45b4025fdf2d09eec3409f92409845acb019bea1ad942",
   "beforeReportSha256": "59ddaf30bbfc96e0d4abee3ff14ff8bbd82c96d3a4bd3deb3779f59b06f719b1",

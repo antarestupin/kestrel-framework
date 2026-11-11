@@ -3,6 +3,7 @@ import {
   expect,
   expectTypeOf,
   it,
+  vi,
 } from "vitest";
 import { z } from "zod";
 
@@ -12,9 +13,11 @@ import {
   defineWorkflowSignal,
   serializeWorkflowError,
   WorkflowClient,
+  WorkflowExecutionCancelledError,
   WorkflowExecutionConflictError,
   WorkflowExecutionFailedError,
   WorkflowExecutionNotFoundError,
+  WorkflowExecutionTerminatedError,
   WorkflowExecutionVersionUnsupportedError,
 } from "./index.js";
 
@@ -38,6 +41,43 @@ const orderWorkflow = defineWorkflow({
 });
 
 describe("WorkflowClient", () => {
+  it.each([0, -1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1])("rejects invalid atomic batch limit %s", (maxStartBatchSize) => {
+    expect(() => new WorkflowClient(new MemoryWorkflowAdapter(), { maxStartBatchSize })).toThrow(TypeError);
+  });
+
+  it("rejects incomplete adapter replies instead of producing a partial batch of handles", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    vi.spyOn(adapter, "startMany").mockResolvedValue([]);
+    await expect(new WorkflowClient(adapter).start(orderWorkflow, { count: 1 })).rejects.toThrow();
+  });
+
+  it("returns the created handle even when recording start fails, and observes only the creation", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const record = vi.fn(() => { throw new Error("observer failed"); });
+    const client = new WorkflowClient(adapter, { instrumentation: { record } });
+    const options = { executionId: "observed-order" };
+    await expect(client.start(orderWorkflow, { count: 1 }, options)).resolves.toMatchObject(options);
+    await expect(client.start(orderWorkflow, { count: 1 }, options)).resolves.toMatchObject(options);
+    expect(record).toHaveBeenCalledExactlyOnceWith({
+      type: "lifecycle", outcome: "success", data: {
+        executionId: options.executionId, workflowName: orderWorkflow.name, workflowVersion: 2,
+        historyGeneration: 1, operation: "start", status: "queued",
+      },
+    });
+  });
+
+  it("reports a cancelled execution and rejects nonterminal wait replies", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const handle = await new WorkflowClient(adapter).start(orderWorkflow, { count: 1 });
+    await expect(handle.cancel()).resolves.toBe(true);
+    const active = await handle.status();
+    expect(active.cancellationRequested).toBe(true);
+    const wait = vi.spyOn(adapter, "waitForTerminal").mockResolvedValueOnce(active);
+    await expect(handle.result()).rejects.toThrow();
+    wait.mockResolvedValueOnce({ ...active, status: "cancelled" });
+    await expect(handle.result()).rejects.toBeInstanceOf(WorkflowExecutionCancelledError);
+  });
+
   it("starts a typed heterogeneous batch in request order", async () => {
     const adapter = new MemoryWorkflowAdapter();
     const executionIds = ["batch-order", "batch-notification"];
@@ -93,6 +133,19 @@ describe("WorkflowClient", () => {
     ] as const)).rejects.toThrow(
       "the configured maximum is 1",
     );
+    await expect(client.startMany([{ workflow: orderWorkflow, input: { count: 1 } }] as const)).resolves.toHaveLength(1);
+  });
+
+  it("reports fallback failure metadata for legacy terminal adapter replies", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const handle = await new WorkflowClient(adapter).start(orderWorkflow, { count: 1 });
+    const active = await handle.status();
+    const wait = vi.spyOn(adapter, "waitForTerminal").mockResolvedValueOnce({ ...active, status: "failed" });
+    await expect(handle.result()).rejects.toMatchObject({
+      name: "WorkflowExecutionFailedError", executionError: { name: "Error", message: expect.any(String) },
+    });
+    wait.mockResolvedValueOnce({ ...active, status: "terminated" });
+    await expect(handle.result()).rejects.toBeInstanceOf(WorkflowExecutionTerminatedError);
   });
 
   it("validates input and starts with a generated execution ID", async () => {
@@ -234,6 +287,9 @@ describe("WorkflowClient", () => {
     const client = new WorkflowClient(adapter);
     const handle = await client.start(orderWorkflow, { count: 2 });
 
+    await expect(handle.signal(approvalSignal, { approved: "yes" }, { idempotencyKey: "" })).rejects.toBeInstanceOf(TypeError);
+    expect(adapter.inspectSignals()).toEqual([]);
+
     await expect(handle.signal(
       approvalSignal,
       { approved: "yes" },
@@ -325,5 +381,7 @@ describe("WorkflowClient", () => {
     });
     await expect(client.getHandle(newerDefinition, "known"))
       .rejects.toBeInstanceOf(WorkflowExecutionVersionUnsupportedError);
+    const previousDefinition = defineWorkflow({ name: "order.fulfill", handler: () => undefined });
+    await expect(client.getHandle(previousDefinition, "known")).rejects.toBeInstanceOf(WorkflowExecutionVersionUnsupportedError);
   });
 });

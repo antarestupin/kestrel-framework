@@ -11,7 +11,7 @@ Each primary lot owns one top-level component directory and every nested adapter
 - **Not assessed:** no dedicated complete component reference. Historical partial monolithic observations may exist.
 - **Partial / selected evidence:** one or more selected slices have results; the full component is not established.
 - **Assessment complete; review pending:** the selected full component assessment finished, but remaining errors/survivors have not been reviewed or material follow-up remains outstanding.
-- **Reviewed:** the full declared scope has results, material survivors and uncovered paths have classifications, and limitations are documented. The current actions component has this state, with its diagnostic/metadata limitations recorded.
+- **Reviewed:** the full declared scope has results, material survivors and uncovered paths have classifications, and limitations are documented.
 - **No candidate sources:** no eligible runtime-source candidates exist in this checkout. This is not a 100% mutation score.
 
 Source counts do not measure executable lines, mutant volume or test strength. A `NoCoverage` observation is a test/instrumentation finding, not a completed behavior review. Fast-mode results never establish a full-mode reference. Mode, date and source/test/configuration revisions must remain attached to future evidence.
@@ -45,18 +45,18 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `middleware` | 2 | Not assessed | Composition and error propagation | — |
 | `observability` | 15 | Not assessed | Context, buffering, redaction and flush/disposal | — |
 | `outbound_http` | 17 | Partial / selected evidence | Entire deadline/body/retry files assessed; remaining client/middleware/provider files and resource/interleaving residuals pending | `outbound-resilience` |
-| `scheduled_tasks` | 19 | Assessment complete; review pending | All 19 candidate files assessed. Runtime deadline detections converted to direct test failures. Remaining lifecycle and adapter gaps in review. | `scheduled-runtime-timeout-followup`, `postgres-ownership`, `scheduled-runtime`, `scheduled-adapters`, `scheduled-contracts` |
-| `scheduling` | 4 | Not assessed | Clock, scheduling and cancellation primitives | — |
+| `scheduled_tasks` | 19 | Reviewed | Scheduler ownership and shutdown, adapter parity and operator contracts | [Component review](mutation_testing_scheduled_tasks.md#november-11-review) |
+| `scheduling` | 4 | Reviewed | Timer limits, abort handling, lease extensions and polling budgets | [Component review](mutation_testing_scheduling_review.md) |
 | `studio` | 95 | Not assessed | Server/extensions, client state, routing and rendering | — |
 | `testing` | 1 | Assessment complete; review pending | Public HTTP policy helper; PostgreSQL/Redis fixtures excluded | `testing-component` |
 | `throttling` | 34 | Partial / selected evidence | Leased inspection/reconciliation reviewed; admission, other lease methods and adapters pending | `configuration-sample`, `adapter-circuit-pilot`, `throttling-inspection` |
 | `tokens` | 31 | Not assessed | Issuance, lookup, expiry, revocation and adapter consistency | — |
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
 | `utils` | 5 | Not assessed | Codecs, identifiers, catalog and boundary validation | — |
-| `workers` | 23 | Assessment complete; review pending | Scheduler admission, ownership and delivery assessed alongside publication, adapters and contracts. Remaining saturation, batching and failure paths in review. | `workers-scheduler`, `workers-delivery-ownership-refresh`, `workers-publication`, `workers-delivery`, `workers-adapters`, `workers-contracts` |
-| `workflows` | 38 | Partial / selected evidence | Retry identity and key contention tested with separate PostgreSQL sessions. Other concurrency cases, runtime, scheduler and adapter operations pending. | `workflow-postgres-retry-races`, `postgres-ownership`, `workflow-task-ownership`, `workflow-execution-retry`, `workflow-terminal-control` |
+| `workers` | 23 | Reviewed | Scheduler admission and ownership, delivery, publication, adapters and contracts | [Component review](mutation_testing_workers_complete_review.md) |
+| `workflows` | 38 | Reviewed | Runtime, replay, operator commands and adapter contracts | [Component review](mutation_testing_workflows_complete_review.md) |
 
-The current total is 18 not-assessed lots, 11 partially assessed lots, 1 reviewed lot, 4 completed assessments awaiting review or follow-up, and 1 lot without candidate sources. These are manual assessment states.
+The current total is 17 not-assessed lots, 10 partially assessed lots, 5 reviewed lots, 2 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
 
 ## Evidence ledger
 
@@ -167,6 +167,19 @@ The three requested profiles have fresh before and after reports. The paired wor
 
 [Analysis and residual limits](./mutation_testing_scheduler_followup.md) · [Report hashes and comparisons](./mutation_testing_scheduler_followup.json)
 
+## November 11 component reviews
+
+The four reviews cover 84 candidate sources across 29 disjoint profiles. The latest report scopes were checked against the current source spans and every candidate belongs to exactly one selected profile. Earlier ownership, retry and publication reports remain applicable to unchanged selected spans. All new completed executions finished within the ten-minute budget.
+
+| Component | Candidate files | Profiles | Killed / Survived / NoCoverage | Timeout / RuntimeError | Evidence |
+| --- | ---: | ---: | --- | --- | --- |
+| `scheduling` | 4 | 1 | 139 / 1 / 0 | 3 / 0 | [Review](mutation_testing_scheduling_review.md) |
+| `scheduled_tasks` | 19 | 3 | 1372 / 57 / 9 | 6 / 25 | [Review](mutation_testing_scheduled_tasks.md#november-11-review) |
+| `workers` | 23 | 5 | 1875 / 227 / 16 | 1 / 41 | [Review](mutation_testing_workers_complete_review.md) |
+| `workflows` | 38 | 20 | 5760 / 1029 / 105 | 30 / 106 | [Review](mutation_testing_workflows_complete_review.md) |
+
+These are raw Stryker outcomes. The linked reviews distinguish direct assertion failures, Vitest test deadlines, Stryker execution limits and static import errors. Scores remain informational.
+
 ## Historical global campaign
 
 The interrupted November 9 campaign has 18,525 recorded statuses out of 42,816 generated mutations. It is incomplete, uses older tests and does not establish any current complete component baseline. Keep `artifacts/mutation/checkpoint-stopped-by-user.json` as a historical observation. Do not merge its counters with selected slice reports or average component scores to produce a framework score.
@@ -180,4 +193,4 @@ The interrupted November 9 campaign has 18,525 recorded statuses out of 42,816 g
 5. Promote a parent to reviewed only after its full scope has a valid assessment and all material findings are classified. A successful dry-run, source count, sampled 100% score or exited process is insufficient.
 6. Update the JSON source counts and this table when the scope changes. Run `npm run check:mutation-inventory` to detect new/missing component lots, count drift, duplicate component scopes or broken evidence references.
 
-The audit command reads the actual Stryker inclusion/exclusion patterns and source tree; it never starts tests, provisions databases or changes assessment states. A green audit certifies inventory alignment only. Schema/type contracts with no generated mutations, browser interactions, subprocess coverage and embedded SQL/Lua semantics still require explicit review. Extending the checker to validate arbitrary file/range sublot partitions and automating report ingestion remain deferred; the current automated partition check covers primary component lots only.
+The audit command reads the actual Stryker inclusion/exclusion patterns and source tree. It never starts tests, provisions databases or changes assessment states. A green audit certifies inventory alignment. The mutation infrastructure suite also checks that the workflow sublots and worker scheduler ranges partition their source lines. Schema and type contracts with no generated mutations, browser interactions, subprocess coverage and embedded SQL or Lua semantics still require explicit review. Validating arbitrary sublot partitions and automating report ingestion remain deferred.

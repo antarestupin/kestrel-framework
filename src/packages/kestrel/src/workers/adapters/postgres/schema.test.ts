@@ -1,4 +1,5 @@
-import { getTableConfig } from "drizzle-orm/pg-core";
+import { SQL } from "drizzle-orm";
+import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { getFrameworkDatabaseTableKeys } from "../../../db/framework_table.js";
@@ -52,5 +53,23 @@ describe("worker PostgreSQL schema contracts", () => {
       // Names may evolve, but explicit empty SQL identifiers are invalid.
       if (index.config.name !== undefined) expect(index.config.name.length).toBeGreaterThan(0);
     }
+  });
+
+  it("generates UUIDv7 defaults and predicates for the two partial indexes", () => {
+    const dialect = new PgDialect();
+    for (const id of [workerJobs.id, workerDeadLetterJobs.id]) {
+      expect(id.default).toBeInstanceOf(SQL);
+      expect(dialect.sqlToQuery(id.default as SQL)).toMatchObject({ sql: "uuidv7()", params: [] });
+    }
+
+    // Render the actual Drizzle migration expressions, including column mapping.
+    const { indexes } = getTableConfig(workerJobs);
+    const predicates = indexes.flatMap(({ config }) => config.where === undefined
+      ? []
+      : [{ unique: config.unique, ...dialect.sqlToQuery(config.where, "indexes") }]);
+    expect(predicates).toEqual([
+      expect.objectContaining({ unique: true, sql: '"identity" IS NOT NULL', params: [] }),
+      expect.objectContaining({ unique: false, sql: '"state" = \'reserved\'', params: [] }),
+    ]);
   });
 });

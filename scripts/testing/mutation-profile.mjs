@@ -56,6 +56,47 @@ export function staticSamplePatterns() {
 
 // Keep each behavioral lot independent so reports and ten-minute budgets stay comparable.
 const focusedProfiles = {
+  // Separate activation transactions from the rest of each workflow adapter.
+  "workflow-activation-memory": [
+    ["workflows/adapters/memory/adapter.ts", "public async commitActivation(", "public async completeActivities("],
+    ["workflows/adapters/memory/adapter.ts", "private applyActivationOutcome(", "private enqueueWorkflowTask("],
+  ],
+  "workflow-activation-postgres": [
+    ["workflows/adapters/postgres/adapter.ts", "public async commitActivation(", "public async completeActivities("],
+  ],
+  "workflow-memory-admission": [
+    ["workflows/adapters/memory/adapter.ts", "", "public async commitActivation("],
+  ],
+  "workflow-memory-operations": [
+    ["workflows/adapters/memory/adapter.ts", "public async completeActivities(", "public async requestCancellation("],
+    ["workflows/adapters/memory/adapter.ts", "public async getHistory(", "private applyActivationOutcome("],
+  ],
+  "workflow-memory-internals": [
+    ["workflows/adapters/memory/adapter.ts", "private enqueueWorkflowTask(", "private cancelOpenChildren("],
+    ["workflows/adapters/memory/adapter.ts", "private deleteCommandTasks(", "private getOwnedTask("],
+    ["workflows/adapters/memory/adapter.ts", "private getRequiredHistory("],
+  ],
+  "workflow-postgres-start": [
+    ["workflows/adapters/postgres/adapter.ts", "", "public async get("],
+  ],
+  "workflow-postgres-reservation": [
+    ["workflows/adapters/postgres/adapter.ts", "public async get(", "public async commitActivation("],
+  ],
+  "workflow-postgres-activities": [
+    ["workflows/adapters/postgres/adapter.ts", "public async completeActivities(", "public async retryTask("],
+    ["workflows/adapters/postgres/adapter.ts", "public async reserveActivityDispatches(", "public async requestCancellation("],
+  ],
+  "workflow-postgres-history": [
+    ["workflows/adapters/postgres/adapter.ts", "public async getHistory(", "private async mutateReservations<"],
+    ["workflows/adapters/postgres/adapter.ts", "private async admitPendingKeyedExecutions("],
+  ],
+  "workflow-runtime": [["workflows/runtime.ts"], ["workflows/provider.ts"], ["workflows/dependencies.ts"], ["workflows/completion_buffer.ts"]],
+  "workflow-scheduler": [["workflows/scheduler.ts"]],
+  "workflow-transports": [["workflows/activity_transport.ts"], ["workflows/worker_activity_transport.ts"]],
+  "workflow-replay": [["workflows/replay/**/*.ts"], ["workflows/replayer.ts"], ["workflows/context.ts"]],
+  "workflow-operations": [["workflows/client.ts"], ["workflows/operations.ts"], ["workflows/version_operations.ts"], ["workflows/execution_cursor.ts"]],
+  "workflow-contracts": [["workflows/adapter.ts"], ["workflows/adapter_definition.ts"], ["workflows/errors.ts"], ["workflows/history.ts"], ["workflows/index.ts"], ["workflows/observations.ts"], ["workflows/concurrency.ts"], ["workflows/serialization.ts"], ["workflows/signal.ts"], ["workflows/testing.ts"], ["workflows/workflow.ts"]],
+  "workflow-adapter-contracts": [["workflows/adapters/index.ts"], ["workflows/adapters/memory/definition.ts"], ["workflows/adapters/memory/index.ts"], ["workflows/adapters/postgres/configuration.ts"], ["workflows/adapters/postgres/definition.ts"], ["workflows/adapters/postgres/index.ts"], ["workflows/adapters/postgres/polling_error.ts"], ["workflows/adapters/postgres/schema.ts"]],
   "workers-contracts": [["workers/adapter_definition.ts"], ["workers/configuration.ts"], ["workers/dependencies.ts"], ["workers/errors.ts"], ["workers/index.ts"], ["workers/provider.ts"], ["workers/runtime.ts"], ["workers/types.ts"], ["workers/worker.ts"]],
   "workflow-terminal-control": [["workflows/adapters/memory/adapter.ts", "public async requestCancellation(", "public async retryExecution("], ["workflows/adapters/memory/adapter.ts", "private cancelOpenChildren(", "private deleteCommandTasks("], ["workflows/adapters/postgres/adapter.ts", "public async requestCancellation(", "public async retryExecution("], ["workflows/adapters/postgres/adapter.ts", "private async terminateExecutionTree(", "private async admitPendingKeyedExecutions("]],
   "workflow-task-ownership": [["workflows/adapters/memory/adapter.ts", "public async releaseTasks(", "public async getHistory("], ["workflows/adapters/memory/adapter.ts", "private getOwnedTask(", "private getRequiredHistory("], ["workflows/adapters/postgres/adapter.ts", "public async releaseTasks(", "public async getHistory("], ["workflows/adapters/postgres/adapter.ts", "private async mutateReservations<", "private async terminateExecutionTree("]],
@@ -63,7 +104,7 @@ const focusedProfiles = {
   "workers-delivery": [["workers/scheduler.ts", "public runOnce(", "private async canReserveUnderPressure("], ["workers/scheduler.ts", "private async runIndividual(", "private async runObservedInvocation("], ["workers/scheduler.ts", "private async flushOutcomes(", "function getReservationAllocation("], ["workers/scheduler.ts", "function getRetryDelay(", "function combineRequirements("]],
   // Assess the scheduler ranges left out of the delivery profile.
   "workers-scheduler": [
-    ["workers/scheduler.ts", 'import { parseSchema }', "public runOnce("],
+    ["workers/scheduler.ts", "", "public runOnce("],
     ["workers/scheduler.ts", "private async canReserveUnderPressure(", "private async runIndividual("],
     ["workers/scheduler.ts", "private async runObservedInvocation(", "private async flushOutcomes("],
     ["workers/scheduler.ts", "function getReservationAllocation(", "function getRetryDelay("],
@@ -107,7 +148,12 @@ const focusedProfiles = {
   ],
 };
 
-/** Resolve anchored ranges after source edits; fail closed if a boundary disappears. */
+/** Enumerate the named focused profiles for infrastructure validation. */
+export function focusedProfileNames() {
+  return Object.keys(focusedProfiles);
+}
+
+/** Resolve anchored ranges after source edits. An empty start anchor selects line one. */
 export function focusedPatterns(mode) {
   return focusedProfiles[mode]?.map(([file, startAnchor, endAnchor]) => {
     const prefix = `src/packages/kestrel/src/${file}`;
