@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import test from "node:test";
 
 import { focusedPatterns, mutationArguments, shutdownPatterns, staticSamplePatterns } from "./mutation-profile.mjs";
@@ -25,7 +25,24 @@ test("profiles preserve Stryker flags and require a bounded existing component",
   assert.match(shutdownPatterns()[0], /^src\/packages\/kestrel\/src\/app\/app\.ts:\d+-\d+$/u);
 });
 
-for (const [mode, scope] of [...["actions-crud-pagination", "cache-pruning", "execution-diagnostics", "catalog-identities", "atlas-collection-query", "scheduled-runtime", "scheduled-adapters", "scheduled-contracts", "workers-publication", "workers-adapters", "workers-contracts", "outbound-resilience", "workflow-task-ownership", "workflow-execution-retry", "workflow-terminal-control", "workers-delivery", "authorization-decisions", "password-verification", "postgres-ownership", "throttling-inspection", "lock-renewal"].map((mode) => [mode, []]), ["static-sample", []], ["shutdown", []], ["authentication-sessions", []], ["fast", []], ["component", ["di"]]]) {
+test("worker mutation profiles partition the scheduler without gaps or overlaps", async () => {
+  const scheduler = "src/packages/kestrel/src/workers/scheduler.ts";
+  const source = await readFile(new URL(`../../${scheduler}`, import.meta.url), "utf8");
+  const coverage = Array.from({ length: source.split("\n").length }, () => 0);
+  for (const mode of ["workers-delivery", "workers-scheduler"]) {
+    for (const pattern of focusedPatterns(mode)) {
+      const [file, range] = pattern.split(":");
+      assert.equal(file, scheduler);
+      const [first, last] = range.split("-").map(Number);
+      for (let line = first; line <= last; line += 1) coverage[line - 1] += 1;
+    }
+  }
+  for (const [index, count] of coverage.entries()) {
+    assert.equal(count, 1, `Scheduler line ${index + 1} must belong to exactly one profile`);
+  }
+});
+
+for (const [mode, scope] of [...["actions-crud-pagination", "cache-pruning", "execution-diagnostics", "catalog-identities", "atlas-collection-query", "scheduled-runtime", "scheduled-adapters", "scheduled-contracts", "workers-publication", "workers-adapters", "workers-contracts", "outbound-resilience", "workflow-task-ownership", "workflow-execution-retry", "workflow-terminal-control", "workers-delivery", "workers-scheduler", "authorization-decisions", "password-verification", "postgres-ownership", "throttling-inspection", "lock-renewal"].map((mode) => [mode, []]), ["static-sample", []], ["shutdown", []], ["authentication-sessions", []], ["fast", []], ["component", ["di"]]]) {
 test(`the ${mode} deadline checkpoints Stryker and still cleans owned resources`, async () => {
   let interrupted = false;
   let cleaned = false;
@@ -57,7 +74,7 @@ test("profiles isolate reports and caches and only fast mode suppresses static a
   const previousMode = process.env.KESTREL_MUTATION_MODE;
   const previousComponent = process.env.KESTREL_MUTATION_COMPONENT;
   try {
-    for (const mode of ["fast", "component", "static-sample", "shutdown", "authentication-sessions", "actions-crud-pagination", "cache-pruning", "execution-diagnostics", "catalog-identities", "atlas-collection-query", "scheduled-runtime", "scheduled-adapters", "scheduled-contracts", "workers-publication", "workers-adapters", "workers-contracts", "outbound-resilience", "workflow-task-ownership", "workflow-execution-retry", "workflow-terminal-control", "workers-delivery", "authorization-decisions", "password-verification", "postgres-ownership", "throttling-inspection", "lock-renewal"]) {
+    for (const mode of ["fast", "component", "static-sample", "shutdown", "authentication-sessions", "actions-crud-pagination", "cache-pruning", "execution-diagnostics", "catalog-identities", "atlas-collection-query", "scheduled-runtime", "scheduled-adapters", "scheduled-contracts", "workers-publication", "workers-adapters", "workers-contracts", "outbound-resilience", "workflow-task-ownership", "workflow-execution-retry", "workflow-terminal-control", "workers-delivery", "workers-scheduler", "authorization-decisions", "password-verification", "postgres-ownership", "throttling-inspection", "lock-renewal"]) {
       process.env.KESTREL_MUTATION_MODE = mode;
       process.env.KESTREL_MUTATION_COMPONENT = mode === "component" ? "di" : "";
       const { default: config } = await import(`../../stryker.config.mjs?profile-test=${mode}`);

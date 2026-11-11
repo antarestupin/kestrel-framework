@@ -1,0 +1,698 @@
+import { setImmediate } from "node:timers/promises";
+import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+
+import { App, type ShutdownOptions } from "../app/index.js";
+import {
+  defineAdmissionPolicy,
+  localResourcePressure,
+  ThrottlingAcquisitionAbortedError,
+  ThrottlingRejectedError,
+  type AdmissionAvailability,
+  type Throttling,
+} from "../throttling/index.js";
+import { MemoryWorkerAdapter } from "./adapters/memory/index.js";
+import { WorkerScheduler, type WorkerSchedulerOptions } from "./scheduler.js";
+import type { ReservedJob } from "./types.js";
+import { defineWorker, jobFail, jobSuccess, type AnyWorker } from "./worker.js";
+
+const pressure = defineAdmissionPolicy({
+  id: "scheduler-pressure",
+  limits: [localResourcePressure({ id: "cpu-pressure", signals: { cpu: { degradedAt: 0.8, limitedAt: 0.9 } } })],
+});
+
+/** Supply only the throttling operations selected by each scheduler contract. */
+function throttlingFacade(operations: Partial<Pick<Throttling, "acquire" | "inspect">>): Throttling {
+  async function unexpected(): Promise<never> { throw new Error("Unexpected throttling operation."); }
+  return { acquire: unexpected, inspect: unexpected, run: unexpected, close: async () => undefined, ...operations };
+}
+
+/** Exercise real queue ownership while advancing storage time explicitly. */
+async function fixture(
+  workers: readonly AnyWorker[],
+  options: Partial<WorkerSchedulerOptions> = {},
+  shutdown: ShutdownOptions = {},
+) {
+  let now = new Date("2026-01-01T00:00:00.000Z");
+  let nextJob = 0;
+  let nextToken = 0;
+  const adapter = new MemoryWorkerAdapter({
+    now: () => now,
+    createId: () => `job-${++nextJob}`,
+    createReservationToken: () => `token-${++nextToken}`,
+  });
+  const app = new App({}, { shutdown });
+  await app.start();
+  const scheduler = new WorkerScheduler(app, adapter, workers, {
+    slots: 1,
+    leaseMs: 100,
+    now: () => now,
+    // A test that unexpectedly polls again should fail without waiting on a timer.
+    sleep: async () => { throw new Error("Unexpected idle poll."); },
+    ...options,
+  });
+  return { app, adapter, scheduler, advanceStorage: (ms: number) => { now = new Date(now.getTime() + ms); } };
+}
+
+describe("worker scheduler ownership", () => {
+  it.each(["available", "degraded", "limited", "unknown"] as const)("applies the %s process pressure state before touching queue storage", async (state) => {
+    const inspect = vi.fn(async (): Promise<AdmissionAvailability> => ({ state, reasons: [] }));
+    const worker = defineWorker({ name: "pressure", queue: "pressure", input: z.null(), handler: vi.fn() });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ inspect }), reservationPressure: pressure });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const list = vi.spyOn(adapter, "listReadyQueues");
+    const reserve = vi.spyOn(adapter, "reserve");
+    const admitted = state === "available" || state === "degraded";
+    try {
+      await expect(scheduler.runOnce()).resolves.toBe(admitted ? 1 : 0);
+      expect(inspect).toHaveBeenCalledExactlyOnceWith(pressure);
+      expect(list).toHaveBeenCalledTimes(admitted ? 1 : 0);
+      expect(reserve).toHaveBeenCalledTimes(admitted ? 1 : 0);
+      expect(adapter.inspectJobs()).toHaveLength(admitted ? 0 : 1);
+    } finally { await app.dispose(); }
+  });
+
+  it("publishes a cycle before a pressure callback can synchronously reenter", async () => {
+    const worker = defineWorker({ name: "reentrant", queue: "reentrant", input: z.null(), handler: vi.fn() });
+    let reenter: (() => Promise<number>) | undefined;
+    let nested: Promise<number> | undefined;
+    let inspected = false;
+    const inspect = vi.fn(async (): Promise<AdmissionAvailability> => {
+      if (!inspected) {
+        inspected = true;
+        nested = reenter!();
+      }
+      return { state: "available", reasons: [] };
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ inspect }), reservationPressure: pressure });
+    reenter = () => scheduler.runOnce();
+    const reserve = vi.spyOn(adapter, "reserve");
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    try {
+      const cycle = scheduler.runOnce();
+      await expect(cycle).resolves.toBe(1);
+      expect(nested).toBe(cycle);
+      expect(inspect).toHaveBeenCalledOnce();
+      expect(reserve).toHaveBeenCalledOnce();
+    } finally { await Promise.allSettled([nested]); await app.dispose(); }
+  });
+
+  it("refreshes cached readiness at the monotonic deadline", async () => {
+    const worker = defineWorker({ name: "readiness-cache", queue: "readiness-cache", input: z.null(), handler: vi.fn() });
+    let tick = 10;
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker], { monotonicNow: () => tick, readyQueueRefreshMs: 20 });
+    const list = vi.spyOn(adapter, "listReadyQueues");
+    const reserve = vi.spyOn(adapter, "reserve");
+    try {
+      await expect(scheduler.runOnce()).resolves.toBe(0);
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      // Storage time and the monotonic refresh clock can advance independently.
+      advanceStorage(1_000);
+      tick = 29;
+      await expect(scheduler.runOnce()).resolves.toBe(0);
+      expect(list).toHaveBeenCalledOnce();
+      expect(reserve).not.toHaveBeenCalled();
+      tick = 30;
+      await expect(scheduler.runOnce()).resolves.toBe(1);
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(reserve).toHaveBeenCalledOnce();
+    } finally { await app.dispose(); }
+  });
+
+  it("computes separate job and invocation limits for weighted queues and batches", async () => {
+    const workers = [
+      defineWorker({ name: "individual", queue: "individual", input: z.null(), weight: 2, handler: vi.fn() }),
+      defineWorker({ name: "batch", queue: "batch", input: z.null(), weight: 3, batch: { size: 4, allowOverflow: false }, handler: vi.fn() }),
+    ];
+    const { app, adapter, scheduler } = await fixture(workers, { slots: 2, leaseMs: 111 });
+    await adapter.enqueue(workers.map(({ queue }) => ({ queue, payload: null })));
+    const reserve = vi.spyOn(adapter, "reserve");
+    try {
+      await expect(scheduler.runOnce()).resolves.toBe(2);
+      expect(reserve).toHaveBeenCalledExactlyOnceWith({
+        queues: [
+          { queue: "individual", reservationLimit: 4, allowOverflow: true },
+          { queue: "batch", reservationLimit: 24, allowOverflow: false },
+        ],
+        totalLimit: 8,
+        leaseMs: 111,
+      });
+    } finally { await app.dispose(); }
+  });
+
+  it("hands a freed handler slot to a waiting job while another handler remains active", async () => {
+    vi.useFakeTimers();
+    const gates = Array.from({ length: 3 }, () => Promise.withResolvers<void>());
+    const entered: number[] = [];
+    const worker = defineWorker({
+      name: "slots", queue: "slots", input: z.number(),
+      handler: async ({ payload }) => {
+        entered.push(payload);
+        await gates[payload]!.promise;
+      },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { slots: 2, reservationLimit: 3 });
+    await adapter.enqueue([0, 1, 2].map((payload) => ({ queue: worker.queue, payload })));
+    let handled: number | undefined;
+    void scheduler.runOnce().then((count) => { handled = count; }, () => undefined);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(entered).toEqual([0, 1]);
+      gates[1]!.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(entered).toEqual([0, 1, 2]);
+      gates[0]!.resolve();
+      gates[2]!.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(handled).toBe(3);
+      expect(adapter.inspectJobs()).toEqual([]);
+    } finally {
+      for (const gate of gates) gate.resolve();
+      // Cleanup owns the cancellation signal even if a mutation loses a slot waiter.
+      await scheduler.stop("expire");
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("defers jobs beyond the hold budget and restores that budget after admission settles", async () => {
+    vi.useFakeTimers();
+    const firstHold = Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>();
+    const permit = { definitionId: pressure.id, complete: vi.fn(async () => undefined) };
+    const held: number[] = [];
+    const acquire: Throttling["acquire"] = async (_definition, options) => {
+      if (options?.maxWaitMs === undefined) throw new ThrottlingRejectedError(pressure.id);
+      held.push(options.maxWaitMs);
+      return held.length === 1 ? firstHold.promise : permit;
+    };
+    const handled: string[] = [];
+    const worker = defineWorker({
+      name: "hold", queue: "hold", input: z.string(),
+      throttling: { requirements: () => ({ admission: pressure }), buffering: { strategy: "hold", maxHoldMs: 17, maxBlockedJobs: 1, fallbackDelayMs: 250 } },
+      handler: ({ payload }) => { handled.push(payload); },
+    });
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker], { slots: 2, deferBufferSize: 1, throttling: throttlingFacade({ acquire }) });
+    await adapter.enqueue(["held", "deferred"].map((payload) => ({ queue: worker.queue, payload })));
+    const cycle = scheduler.runOnce();
+    void cycle.catch(() => undefined);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(held).toEqual([17]);
+      expect(handled).toEqual([]);
+      const deferred = adapter.inspectJobs().find(({ payload }) => payload === "deferred");
+      expect(deferred?.attempt).toBe(0);
+      expect(deferred?.availableAt).toEqual(new Date("2026-01-01T00:00:00.250Z"));
+      firstHold.resolve(permit);
+      await expect(cycle).resolves.toBe(2);
+      expect(handled).toEqual(["held"]);
+      advanceStorage(250);
+      await expect(scheduler.runOnce()).resolves.toBe(1);
+      expect(held).toEqual([17, 17]);
+      expect(handled).toEqual(["held", "deferred"]);
+      expect(permit.complete).toHaveBeenCalledTimes(2);
+    } finally {
+      firstHold.resolve(permit);
+      await Promise.allSettled([cycle]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects duplicate starts and keeps the completion of each polling lifetime", async () => {
+    const pending = Promise.withResolvers<void>();
+    const sleep = vi.fn(async (_delay: number, signal: AbortSignal) => {
+      if (signal.aborted) return;
+      await pending.promise;
+      // A mutant can start an orphan loop. Give that loop a fixture-owned exit.
+      if (!signal.aborted) throw new Error("Polling continued past the idle gate.");
+    });
+    const { app, scheduler } = await fixture([], { sleep, pollIntervalMs: 37 });
+    try {
+      expect(scheduler.completion).toBeUndefined();
+      scheduler.start();
+      const first = scheduler.completion;
+      await setImmediate();
+      expect(sleep).toHaveBeenCalledExactlyOnceWith(37, expect.any(AbortSignal));
+      expect(() => scheduler.start()).toThrow(Error);
+      const stopping = scheduler.stop();
+      const signal = sleep.mock.calls[0]![1];
+      expect(signal.aborted).toBe(true);
+      pending.resolve();
+      await stopping;
+      expect(scheduler.completion).toBe(first);
+      scheduler.start();
+      expect(scheduler.completion).not.toBe(first);
+      await scheduler.stop();
+    } finally {
+      const stopping = scheduler.stop();
+      pending.resolve();
+      await Promise.allSettled([stopping]);
+      await app.dispose();
+    }
+  });
+
+  it("stops admission while the process pressure check is pending", async () => {
+    const pressureResult = Promise.withResolvers<AdmissionAvailability>();
+    const inspect = vi.fn(() => pressureResult.promise);
+    const worker = defineWorker({ name: "pressure-stop", queue: "pressure-stop", input: z.null(), handler: vi.fn() });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ inspect }), reservationPressure: pressure });
+    const ready = vi.spyOn(adapter, "listReadyQueues");
+    let stop: Promise<void> | undefined;
+    try {
+      const cycle = scheduler.runOnce();
+      await setImmediate();
+      expect(inspect).toHaveBeenCalledOnce();
+      let stopped = false;
+      stop = scheduler.stop().then(() => { stopped = true; });
+      await setImmediate();
+      expect(stopped).toBe(false);
+      pressureResult.resolve({ state: "available", reasons: [] });
+      await expect(cycle).resolves.toBe(0);
+      await stop;
+      expect(ready).not.toHaveBeenCalled();
+    } finally {
+      pressureResult.resolve({ state: "unknown", reasons: [] });
+      await Promise.allSettled([stop, scheduler.stop()]);
+      await app.dispose();
+    }
+  });
+
+  it("stops admission while a readiness read is pending", async () => {
+    const handler = vi.fn();
+    const worker = defineWorker({ name: "readiness", queue: "readiness", input: z.null(), handler });
+    const sleep = vi.fn(async () => { throw new Error("Unexpected sleep after stop."); });
+    const { app, adapter, scheduler } = await fixture([worker], { sleep });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const readiness = Promise.withResolvers<readonly string[]>();
+    const list = vi.spyOn(adapter, "listReadyQueues").mockReturnValue(readiness.promise);
+    const reserve = vi.spyOn(adapter, "reserve");
+    let stop: Promise<void> | undefined;
+    try {
+      scheduler.start();
+      await setImmediate();
+      expect(list).toHaveBeenCalledOnce();
+      let stopped = false;
+      stop = scheduler.stop().then(() => { stopped = true; });
+      await setImmediate();
+      expect(stopped).toBe(false);
+      readiness.resolve([worker.queue]);
+      await stop;
+      expect(reserve).not.toHaveBeenCalled();
+      expect(handler.mock.calls.length).toBe(0);
+      expect(sleep).not.toHaveBeenCalled();
+    } finally {
+      readiness.resolve([]);
+      await Promise.allSettled([stop, scheduler.stop("expire"), scheduler.completion]);
+      await app.dispose();
+    }
+  });
+
+  it.each(["wait", "release", "expire"] as const)("applies %s to a reservation returned after stop", async (mode) => {
+    const handler = vi.fn();
+    const reportError = vi.fn();
+    const worker = defineWorker({ name: "late-reservation", queue: "late-reservation", input: z.null(), handler });
+    const { app, adapter, scheduler } = await fixture([worker], { reportError });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const releaseResponse = Promise.withResolvers<void>();
+    const reserve = adapter.reserve.bind(adapter);
+    let reserved: readonly ReservedJob[] | undefined;
+    vi.spyOn(adapter, "reserve").mockImplementation(async (request) => {
+      reserved = await reserve(request);
+      await releaseResponse.promise;
+      return reserved;
+    });
+    let stop: Promise<void> | undefined;
+    try {
+      scheduler.start();
+      await setImmediate();
+      expect(reserved).toHaveLength(1);
+      let stopped = false;
+      stop = scheduler.stop(mode).then(() => { stopped = true; });
+      await setImmediate();
+      expect(stopped).toBe(mode !== "wait");
+      releaseResponse.resolve();
+      await stop;
+      await scheduler.completion;
+      expect(handler.mock.calls.length).toBe(0);
+      expect(reportError).not.toHaveBeenCalled();
+      const [job] = adapter.inspectJobs();
+      expect(job?.id).toBe(reserved![0]!.id);
+      expect(job?.reservationToken).toBe(mode === "expire" ? reserved![0]!.reservationToken : undefined);
+    } finally {
+      releaseResponse.resolve();
+      await Promise.allSettled([stop, scheduler.stop("expire"), scheduler.completion]);
+      await app.dispose();
+    }
+  });
+
+  it.each(["acknowledgement", "all transitions"] as const)("drains both buffers before reporting shutdown failure in %s", async (scenario) => {
+    vi.useFakeTimers();
+    const failAck = Promise.withResolvers<void>();
+    const finishDefer = Promise.withResolvers<void>();
+    const finishHandler = Promise.withResolvers<void>();
+    const failure = new Error("Acknowledgement failed during shutdown.");
+    const deferralFailure = new Error("Deferral failed during shutdown.");
+    const releaseFailure = new Error("Release failed during shutdown.");
+    const failAll = scenario === "all transitions";
+    const retryAt = new Date("2026-01-01T00:00:01.000Z");
+    const workers = [
+      defineWorker({
+        name: "draining-ack", queue: "draining-ack", input: z.null(), batch: { size: 1 },
+        handler: async function* (jobs) {
+          yield jobSuccess(jobs[0]!.id);
+          await finishHandler.promise;
+        },
+      }),
+      defineWorker({
+        name: "draining-defer", queue: "draining-defer", input: z.null(), handler: vi.fn(),
+        throttling: { requirements: () => ({ admission: pressure }) },
+      }),
+    ];
+    const { app, adapter, scheduler } = await fixture(workers, {
+      slots: 2, ackBufferSize: 1, deferBufferSize: 1,
+      throttling: throttlingFacade({ acquire: async () => { throw new ThrottlingRejectedError(pressure.id, retryAt); } }),
+    });
+    await adapter.enqueue(workers.map(({ queue }) => ({ queue, payload: null })));
+    const ack = vi.spyOn(adapter, "ack").mockImplementation(async () => { await failAck.promise; throw failure; });
+    const originalDefer = adapter.defer.bind(adapter);
+    const defer = vi.spyOn(adapter, "defer").mockImplementation(async (requests) => {
+      await finishDefer.promise;
+      if (failAll) throw deferralFailure;
+      return originalDefer(requests);
+    });
+    const release = vi.spyOn(adapter, "release");
+    if (failAll) release.mockRejectedValue(releaseFailure);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    let stop: Promise<unknown> | undefined;
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ack).toHaveBeenCalledOnce();
+      expect(defer).toHaveBeenCalledOnce();
+      let stopped = false;
+      stop = scheduler.stop("release").catch((error: unknown) => error).finally(() => { stopped = true; });
+      failAck.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(stopped).toBe(false);
+      expect(release).not.toHaveBeenCalled();
+      finishDefer.resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(stopped).toBe(true);
+      const error = await stop;
+      if (failAll) {
+        expect(error).toBeInstanceOf(AggregateError);
+        expect((error as AggregateError).errors).toEqual([failure, deferralFailure, releaseFailure]);
+        expect(release).toHaveBeenCalledExactlyOnceWith([
+          { jobId: "job-1", reservationToken: "token-1" },
+          { jobId: "job-2", reservationToken: "token-2" },
+        ]);
+        expect(adapter.inspectJobs()).toMatchObject([
+          { id: "job-1", reservationToken: "token-1" },
+          { id: "job-2", reservationToken: "token-2" },
+        ]);
+      } else {
+        expect(error).toBe(failure);
+        expect(release).toHaveBeenCalledExactlyOnceWith([{ jobId: "job-1", reservationToken: "token-1" }]);
+        const [returned, deferred] = adapter.inspectJobs();
+        expect(returned?.id).toBe("job-1");
+        expect(returned?.reservationToken).toBeUndefined();
+        expect(deferred?.id).toBe("job-2");
+        expect(deferred?.availableAt).toEqual(retryAt);
+        expect(deferred?.reservationToken).toBeUndefined();
+      }
+    } finally {
+      failAck.resolve();
+      finishDefer.resolve();
+      finishHandler.resolve();
+      await Promise.allSettled([stop, cycle]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["release", "expire", "application"] as const)("cancels an active handler when %s shutdown aborts its signal", async (source) => {
+    vi.useFakeTimers();
+    const drainMs = 20;
+    const finish = Promise.withResolvers<void>();
+    const aborted = vi.fn();
+    let signal: AbortSignal | undefined;
+    const worker = defineWorker({
+      name: "active-shutdown", queue: "active-shutdown", input: z.null(),
+      handler: async (_job, _dependencies, context) => {
+        signal = context.signal;
+        context.signal.addEventListener("abort", aborted, { once: true });
+        try { await finish.promise; }
+        finally { context.signal.removeEventListener("abort", aborted); }
+      },
+    });
+    // Keep the lease heartbeat outside the application drain interval.
+    const { app, adapter, scheduler } = await fixture([worker], {}, { drainMs });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    let stop: Promise<void> | undefined;
+    let stopped = false;
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(signal?.aborted).toBe(false);
+      if (source === "application") {
+        await app.stop();
+        await vi.advanceTimersByTimeAsync(drainMs - 1);
+        expect(signal?.aborted).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(app.shutdown.signal.aborted).toBe(true);
+        expect(signal?.reason).toBe(app.shutdown.signal.reason);
+      } else {
+        stop = scheduler.stop(source);
+        void stop.then(() => { stopped = true; }, () => undefined);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(stopped).toBe(true);
+        expect(app.shutdown.signal.aborted).toBe(false);
+        const jobs = adapter.inspectJobs();
+        expect(jobs).toHaveLength(1);
+        expect(jobs[0]?.reservationToken).toBe(source === "expire" ? "token-1" : undefined);
+      }
+      expect(signal?.aborted).toBe(true);
+      expect(aborted).toHaveBeenCalledOnce();
+      finish.resolve();
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 1 }]);
+    } finally {
+      finish.resolve();
+      await Promise.allSettled([stop, cycle]);
+      try { await app.dispose(); }
+      finally { vi.useRealTimers(); }
+    }
+  });
+
+  it("cancels only the reclaimed invocation and never publishes its stale correlated result", async () => {
+    vi.useFakeTimers();
+    const finish = Promise.withResolvers<void>();
+    const signals = new Map<string, AbortSignal>();
+    const complete = vi.fn(async () => undefined);
+    const workers = ["reclaimed", "owned"].map((queue) => defineWorker({
+      name: queue,
+      queue,
+      input: z.null(),
+      handler: async (_job, _dependencies, context) => {
+        signals.set(queue, context.signal);
+        await finish.promise;
+        context.setResult(queue);
+      },
+    }));
+    const { app, adapter, scheduler, advanceStorage } = await fixture(workers, { slots: 2, completeCorrelatedJob: complete });
+    await adapter.enqueue(workers.map(({ queue }) => ({ queue, payload: null, correlation: { namespace: "test", id: queue } })));
+    const extend = vi.spyOn(adapter, "extendLease");
+    const cycle = scheduler.runOnce();
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect([...signals.keys()]).toEqual(["reclaimed", "owned"]);
+      advanceStorage(100);
+      // A competing poller obtains a new token for one job while both handlers run.
+      const [newLease] = await adapter.reserve({ queues: [{ queue: "reclaimed", reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
+      expect(newLease?.attempt).toBe(2);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(signals.get("reclaimed")?.aborted).toBe(true);
+      expect(signals.get("owned")?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(extend).toHaveBeenCalledTimes(2);
+      expect(extend.mock.calls[1]![0]).toEqual([{ jobId: "job-2", reservationToken: "token-2", leaseMs: 100 }]);
+      finish.resolve();
+      await expect(cycle).resolves.toBe(2);
+      expect(complete).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ jobId: "job-2", result: "owned" }));
+      expect(adapter.inspectJobs()).toMatchObject([{ id: "job-1", reservationToken: newLease!.reservationToken }]);
+    } finally {
+      finish.resolve();
+      await Promise.allSettled([cycle]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels a reclaimed job while it is waiting for dependency admission", async () => {
+    vi.useFakeTimers();
+    const admission = Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>();
+    let signal: AbortSignal | undefined;
+    const completePermit = vi.fn(async () => undefined);
+    const acquire: Throttling["acquire"] = async (_definition, options) => {
+      signal = options?.signal;
+      const onAbort = () => admission.reject(new ThrottlingAcquisitionAbortedError(pressure.id));
+      signal?.addEventListener("abort", onAbort, { once: true });
+      try { return await admission.promise; }
+      finally { signal?.removeEventListener("abort", onAbort); }
+    };
+    const handler = vi.fn();
+    const worker = defineWorker({ name: "blocked", queue: "blocked", input: z.null(), handler, throttling: { requirements: () => ({ admission: pressure }) } });
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const defer = vi.spyOn(adapter, "defer");
+    const cycle = scheduler.runOnce();
+    let settled = false;
+    void cycle.then(() => { settled = true; }, () => { settled = true; });
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(signal?.aborted).toBe(false);
+      advanceStorage(100);
+      const [replacement] = await adapter.reserve({ queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
+      expect(replacement?.attempt).toBe(2);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(signal?.aborted).toBe(true);
+      expect(settled).toBe(true);
+      await expect(cycle).resolves.toBe(1);
+      expect(handler).not.toHaveBeenCalled();
+      expect(defer).not.toHaveBeenCalled();
+    } finally {
+      admission.resolve({ definitionId: pressure.id, complete: completePermit });
+      await Promise.allSettled([cycle]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([false, true])("drops a reclaimed slot waiter while the running handler retains its lease (batch=%s)", async (batch) => {
+    vi.useFakeTimers();
+    const finish = Promise.withResolvers<void>();
+    const handlers = [vi.fn(async () => { await finish.promise; }), vi.fn()];
+    const active = defineWorker({ name: "active-slot", queue: "active-slot", input: z.null(), handler: handlers[0]! });
+    const pending = { name: "pending-slot", queue: "pending-slot", input: z.null(), handler: handlers[1]! };
+    const workers = [active, batch ? defineWorker({ ...pending, batch: { size: 2 } }) : defineWorker(pending)];
+    const reservationLimit = batch ? 3 : 2;
+    const { app, adapter, scheduler, advanceStorage } = await fixture(workers, { reservationLimit });
+    const jobs = workers.map(({ queue }) => ({ queue, payload: null }));
+    if (batch) jobs.push({ queue: pending.queue, payload: null });
+    await adapter.enqueue(jobs);
+    const cycle = scheduler.runOnce();
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(handlers[0]).toHaveBeenCalledOnce();
+      expect(handlers[1]).not.toHaveBeenCalled();
+      advanceStorage(100);
+      const [replacement] = await adapter.reserve({ queues: [{ queue: "pending-slot", reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
+      expect(replacement?.attempt).toBe(2);
+      await vi.advanceTimersByTimeAsync(50);
+      finish.resolve();
+      await expect(cycle).resolves.toBe(reservationLimit);
+      expect(handlers[1]).not.toHaveBeenCalled();
+      const [reclaimed, peer] = adapter.inspectJobs();
+      expect(reclaimed).toMatchObject({ id: replacement!.id, reservationToken: replacement!.reservationToken });
+      if (batch) {
+        // The peer never entered a handler and must be immediately eligible at attempt zero.
+        expect(peer).toMatchObject({ id: "job-3", attempt: 0, availableAt: new Date("2026-01-01T00:00:00.100Z") });
+        expect(peer?.reservationToken).toBeUndefined();
+      } else {
+        expect(peer).toBeUndefined();
+      }
+    } finally {
+      finish.resolve();
+      await Promise.allSettled([cycle]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not cancel a batch when its progressive acknowledgement has committed but the response is pending", async () => {
+    vi.useFakeTimers();
+    const finishAcknowledgement = Promise.withResolvers<void>();
+    const finishHandler = Promise.withResolvers<void>();
+    let signal: AbortSignal | undefined;
+    const worker = defineWorker({
+      name: "eager-ack", queue: "eager-ack", input: z.null(), batch: { size: 2 },
+      handler: async function* (jobs, _dependencies, context) {
+        signal = context.signal;
+        yield jobSuccess(jobs[0]!.id);
+        await finishHandler.promise;
+        yield jobSuccess(jobs[1]!.id);
+      },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { ackBufferSize: 1 });
+    const ack = adapter.ack.bind(adapter);
+    vi.spyOn(adapter, "ack").mockImplementation(async (jobs) => {
+      const acknowledged = await ack(jobs);
+      if (jobs.some(({ jobId }) => jobId === "job-1")) await finishAcknowledgement.promise;
+      return acknowledged;
+    });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }, { queue: worker.queue, payload: null }]);
+    const extend = vi.spyOn(adapter, "extendLease");
+    const cycle = scheduler.runOnce();
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(signal?.aborted).toBe(false);
+      expect(adapter.inspectJobs().map(({ id }) => id)).toEqual(["job-2"]);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(extend).toHaveBeenCalledOnce();
+      expect(signal?.aborted).toBe(false);
+      finishHandler.resolve();
+      finishAcknowledgement.resolve();
+      await expect(cycle).resolves.toBe(2);
+      expect(adapter.inspectJobs()).toEqual([]);
+    } finally {
+      finishHandler.resolve();
+      finishAcknowledgement.resolve();
+      await Promise.allSettled([cycle]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["throw", "return"] as const)("returns untouched peers without counting an attempt when a batch handles lease loss by %s", async (mode) => {
+    vi.useFakeTimers();
+    const finish = Promise.withResolvers<void>();
+    const explicitFailure = new Error("Explicit worker failure.");
+    let signal: AbortSignal | undefined;
+    const worker = defineWorker({
+      name: "batch-lease-loss", queue: "batch-lease-loss", input: z.null(), batch: { size: 4 }, maxAttempts: 1,
+      handler: async function* (jobs, _dependencies, context) {
+        signal = context.signal;
+        yield jobSuccess(jobs[0]!.id);
+        yield jobFail(jobs[2]!.id, { cause: explicitFailure });
+        await finish.promise;
+        if (mode === "throw") signal.throwIfAborted();
+      },
+    });
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker], { ackBufferSize: 1 });
+    await adapter.enqueue(Array.from({ length: 4 }, () => ({ queue: worker.queue, payload: null })));
+    const cycle = scheduler.runOnce();
+    void cycle.catch(() => undefined);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(signal?.aborted).toBe(false);
+      expect(adapter.inspectJobs().map(({ id }) => id)).toEqual(["job-2", "job-3", "job-4"]);
+      advanceStorage(100);
+      const [replacement] = await adapter.reserve({ queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
+      expect(replacement?.id).toBe("job-2");
+      await vi.advanceTimersByTimeAsync(50);
+      expect(signal?.aborted).toBe(true);
+      finish.resolve();
+      await expect(cycle).resolves.toBe(4);
+      expect(adapter.inspectDeadLetters()).toMatchObject([{ originalJobId: "job-3", error: { message: explicitFailure.message } }]);
+      expect(adapter.inspectJobs()).toMatchObject([
+        { id: "job-2", reservationToken: replacement!.reservationToken },
+        { id: "job-4", attempt: 0 },
+      ]);
+      const [untouched] = await adapter.reserve({ queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
+      expect(untouched).toMatchObject({ id: "job-4", attempt: 1 });
+    } finally {
+      finish.resolve();
+      await Promise.allSettled([cycle]);
+      await app.dispose();
+      vi.useRealTimers();
+    }
+  });
+});

@@ -5,7 +5,7 @@
   "command": "npm run test:mutation:workflow-execution-retry",
   "budgetMs": 600000,
   "ignoreStatic": false,
-  "report": "artifacts/mutation/workflow-execution-retry/mutation.json",
+  "report": "artifacts/mutation/nov11-scheduler-baselines/historical-workflow-execution-retry/mutation.json",
   "beforeReport": "artifacts/mutation/workflow-execution-retry-before-two-hour-tests/mutation.json",
   "beforeCounts": {
     "NoCoverage": 41,
@@ -1317,7 +1317,7 @@
   ],
   "reportHashes": {
     "artifacts/mutation/workflow-execution-retry-before-two-hour-tests/mutation.json": "3d717d6f6dafa92329e39afe33dc67096e684a4f23937329b54959454be4c92b",
-    "artifacts/mutation/workflow-execution-retry/mutation.json": "3c0ae089c9cd12564443b98ccc6c6fa9cfa14ead39383edec29ed2f797de5285"
+    "artifacts/mutation/nov11-scheduler-baselines/historical-workflow-execution-retry/mutation.json": "3c0ae089c9cd12564443b98ccc6c6fa9cfa14ead39383edec29ed2f797de5285"
   },
   "embeddedProductionSourceHashes": {
     "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "743a52cbd4e326406d6b1ebf615d3617c49239be34187aec109ad0ea7e25e5f4",

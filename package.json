@@ -70,6 +70,7 @@
     "test:mutation:workflow-task-ownership": "node scripts/testing/mutation.mjs --mode workflow-task-ownership",
     "test:mutation:workflow-execution-retry": "node scripts/testing/mutation.mjs --mode workflow-execution-retry",
     "test:mutation:workers-delivery": "node scripts/testing/mutation.mjs --mode workers-delivery",
+    "test:mutation:workers-scheduler": "node scripts/testing/mutation.mjs --mode workers-scheduler",
     "test:mutation:workflow-terminal-control": "node scripts/testing/mutation.mjs --mode workflow-terminal-control",
     "test:mutation:workers-contracts": "node scripts/testing/mutation.mjs --mode workers-contracts"
   },

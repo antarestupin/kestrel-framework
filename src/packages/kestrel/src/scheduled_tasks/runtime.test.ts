@@ -20,9 +20,11 @@ const tasks = [
 ];
 const owned: Array<{ app: App<Record<string, never>>; runtime: ScheduledTaskRuntime<Record<string, never>> }> = [];
 afterEach(async () => {
-  for (const { app, runtime } of owned.splice(0)) {
-    try { await runtime.stop(); } finally { await app.dispose(); }
-  }
+  try {
+    for (const { app, runtime } of owned.splice(0)) {
+      try { await runtime.stop(); } finally { await app.dispose(); }
+    }
+  } finally { vi.useRealTimers(); }
 });
 
 /** Compose real runtime ownership without transport listeners or process signal handlers. */
@@ -58,15 +60,29 @@ describe("scheduled task selection", () => {
 
 describe("ScheduledTaskRuntime", () => {
   it("coalesces ordinary concurrent starts and exposes one polling completion", async () => {
+    // Keep polling timers under test ownership while checking one event-loop turn.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { runtime, adapter } = await setup();
     const reconcile = vi.spyOn(adapter, "reconcile");
-    expect(runtime.completion).toBeUndefined();
-    await Promise.all([runtime.start({ taskIds: ["second"], groups: [] }), runtime.start()]);
-    expect(reconcile).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({ taskId: "second" })]);
-    expect(runtime.completion).toBeInstanceOf(Promise);
-    await runtime.stop();
-    await runtime.completion;
-    await expect(runtime.start()).rejects.toThrow(/stopped/);
+    const build = vi.spyOn(runtime, "buildScheduler");
+    try {
+      expect(runtime.completion).toBeUndefined();
+      await Promise.all([runtime.start({ taskIds: ["second"], groups: [] }), runtime.start()]);
+      expect(reconcile).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({ taskId: "second" })]);
+      const completion = runtime.completion;
+      expect(completion).toBeInstanceOf(Promise);
+      const outcomes: PromiseSettledResult<void>[] = [];
+      void Promise.all([runtime.stop(), completion]).then(
+        () => outcomes.push({ status: "fulfilled", value: undefined }),
+        (reason: unknown) => outcomes.push({ status: "rejected", reason }),
+      );
+      await setImmediate();
+      expect(outcomes).toEqual([{ status: "fulfilled", value: undefined }]);
+      await expect(runtime.start()).rejects.toThrow(/stopped/);
+    } finally {
+      // The fixture owns the built scheduler even if the runtime's stop is removed.
+      await build.mock.results.find((result) => result.type === "return")?.value.stop();
+    }
   });
 
   it("publishes startup ownership before a synchronous adapter callback reenters start", async () => {

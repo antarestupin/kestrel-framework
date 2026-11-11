@@ -1,0 +1,1867 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-11",
+  "startedAt": "2026-11-11T16:00:20Z",
+  "originalDeadline": "2026-11-11T17:00:20Z",
+  "resumedAt": "2026-11-11T16:26:58Z",
+  "resumedDeadline": "2026-11-11T17:26:58Z",
+  "reservedValidationMinutes": 10,
+  "runBudgetMs": 600000,
+  "maxConcurrentCampaigns": 2,
+  "policy": "Fresh, static-inclusive, with separate Stryker and Vitest deadline outcomes. Timings are local observations. The optional delivery refresh uses a preserved historical reference.",
+  "sharedInputHashes": {
+    "package.json": "8bb4a448fd9b9e925822337ff2e5baa7c6562f2f09e50df08c33605df60f171b",
+    "package-lock.json": "c093b8b5679fb82253a482b2f302e4cb6d18d283192bde00b64a08f473d71033",
+    "stryker.config.mjs": "6547e4208038f26b78d3cc5cd56ad6563b97a3db76c2397e5d52c5d38510a98b",
+    "vitest.mutation.config.ts": "6a3a25d490332cbea020533b4e05dc30b1d786f8a081a8496c18af9d90a83c8a",
+    "scripts/testing/mutation-profile.mjs": "3e75cc5c7552fcbea48bed956587e9e069a5d1205a1ca8ec733179daaf45f629",
+    "scripts/testing/mutation-profile.test.mjs": "7c05b097c50d857a4b0cb1c7fae0c1b5b6ea743dd5bd5ac629bf88d7f8bf29be",
+    "scripts/testing/mutation.mjs": "62ff8561ff9407b83e9072b81e88465c3c24984255af6313885edb8d37082c84",
+    "scripts/testing/coverage-runner.mjs": "f87eeffee717374a8deb475fc9b8bb21dc67a90636e2b3b2b92639066c855c72"
+  },
+  "lots": [
+    {
+      "id": "workers-scheduler",
+      "profile": "workers-scheduler",
+      "command": "npm run test:mutation:workers-scheduler",
+      "extent": "Scheduler lifecycle, pressure, reservation allocation, admission and lease-maintenance ranges outside workers-delivery",
+      "before": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/workers-scheduler-before/mutation.json",
+        "sha256": "f9e090e95e65adca6bb7d43a1ff06ed33c0a68e5fc5043450de19a39cca28548",
+        "seconds": 223,
+        "baselineTestsFromRunnerLog": 208,
+        "exitCode": 0,
+        "mutate": [
+          "src/packages/kestrel/src/workers/scheduler.ts:1-306",
+          "src/packages/kestrel/src/workers/scheduler.ts:428-831",
+          "src/packages/kestrel/src/workers/scheduler.ts:1040-1105",
+          "src/packages/kestrel/src/workers/scheduler.ts:1206-1214",
+          "src/packages/kestrel/src/workers/scheduler.ts:1253-1515",
+          "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+          "!src/packages/kestrel/src/**/*.d.ts",
+          "!src/packages/kestrel/src/testing/postgres.ts",
+          "!src/packages/kestrel/src/testing/redis.ts",
+          "!src/packages/kestrel/src/workers/testing/**"
+        ],
+        "archivedAt": "2026-11-11T16:05:10.523660+00:00",
+        "counts": {
+          "NoCoverage": 77,
+          "Survived": 181,
+          "Killed": 348,
+          "Timeout": 3
+        },
+        "mutants": 609,
+        "static": 0,
+        "vitestDeadlineKills": [
+          "4",
+          "10",
+          "64",
+          "66",
+          "68",
+          "74",
+          "75",
+          "76",
+          "77",
+          "84",
+          "101",
+          "149",
+          "343",
+          "347",
+          "348",
+          "364",
+          "365",
+          "547",
+          "548",
+          "556",
+          "558",
+          "559",
+          "561",
+          "562",
+          "578",
+          "579",
+          "580",
+          "584",
+          "586",
+          "588",
+          "599",
+          "600"
+        ],
+        "timeouts": [
+          {
+            "id": "124",
+            "reason": null
+          },
+          {
+            "id": "135",
+            "reason": null
+          },
+          {
+            "id": "583",
+            "reason": "Hit limit reached (102/100)"
+          }
+        ],
+        "executedWithoutCompletedTests": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.ts": "94e9aedee6abd04055d67d2c34818ac3c63f746ecdcbd9c8eabdd222382fb78b"
+        },
+        "testSourceHashes": {
+          "src/packages/kestrel/src/background/provider_contract.test.ts": "4a5706818230a2fe0f943710867988bb9c3688fe0dfe62356fced61a78be4ba2",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/background/runtime.test.ts": "7c4c48810ab067e8868b4496d25817144167dd23216c3ccf75c51a78b2badfe8",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/workers-scheduler-after-resume/mutation.json",
+        "sha256": "ee11b9f2fa38142a3e0fbbaf30c0ad3c06d3e1144825535fd51955aaec513e99",
+        "seconds": 186,
+        "baselineTestsFromRunnerLog": 235,
+        "exitCode": 0,
+        "mutate": [
+          "src/packages/kestrel/src/workers/scheduler.ts:1-334",
+          "src/packages/kestrel/src/workers/scheduler.ts:459-967",
+          "src/packages/kestrel/src/workers/scheduler.ts:1189-1254",
+          "src/packages/kestrel/src/workers/scheduler.ts:1359-1367",
+          "src/packages/kestrel/src/workers/scheduler.ts:1406-1669",
+          "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+          "!src/packages/kestrel/src/**/*.d.ts",
+          "!src/packages/kestrel/src/testing/postgres.ts",
+          "!src/packages/kestrel/src/testing/redis.ts",
+          "!src/packages/kestrel/src/workers/testing/**"
+        ],
+        "archivedAt": "2026-11-11T16:33:36.651883+00:00",
+        "counts": {
+          "NoCoverage": 67,
+          "Survived": 175,
+          "Killed": 487,
+          "Timeout": 2
+        },
+        "mutants": 731,
+        "static": 0,
+        "vitestDeadlineKills": [
+          "6",
+          "465",
+          "671",
+          "681",
+          "690",
+          "696",
+          "698",
+          "723"
+        ],
+        "timeouts": [
+          {
+            "id": "670",
+            "reason": null
+          },
+          {
+            "id": "706",
+            "reason": "Hit limit reached (201/200)"
+          }
+        ],
+        "executedWithoutCompletedTests": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.ts": "f04ef33027c16e7610931e38a2eb41b059435dfe1afaf69d9d27f56c5ba310f1"
+        },
+        "testSourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "8eb7e0131dfa7a85c357157ea5eef8ddac76ff3597b4810b1c8e22e79561e1cb",
+          "src/packages/kestrel/src/background/runtime.test.ts": "7c4c48810ab067e8868b4496d25817144167dd23216c3ccf75c51a78b2badfe8",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/background/provider_contract.test.ts": "4a5706818230a2fe0f943710867988bb9c3688fe0dfe62356fced61a78be4ba2",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "15237c5630ce3660ee947978f968da7179c6a4ac274b4e6cd19b76c710008f40",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/workers/scheduler_contract.test.ts": "91d3d6c027d8a8927e07c2a0b8e7e828bad48a48036e0bf39beaa3f9c6399f83",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552"
+        }
+      },
+      "comparison": {
+        "policy": "File and unchanged contiguous source lines, location columns, mutator and replacement. Matches do not establish semantic equivalence across changed surrounding code.",
+        "matched": 550,
+        "unmatchedBefore": 59,
+        "unmatchedAfter": 181,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 312
+          },
+          {
+            "before": "Killed",
+            "after": "Timeout",
+            "count": 1
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 5
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 58
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 7
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 30
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 134
+          },
+          {
+            "before": "Timeout",
+            "after": "Killed",
+            "count": 2
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 1
+          }
+        ],
+        "previousKillsWithDifferentStatus": [
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "547",
+            "afterId": "670",
+            "afterStatus": "Timeout",
+            "afterReason": null
+          }
+        ],
+        "previousVitestDeadlineKills": [
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "4",
+            "afterId": "6",
+            "afterStatus": "Killed",
+            "afterReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+            "afterVitestDeadline": true
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "10",
+            "afterId": "12",
+            "afterStatus": "Killed",
+            "afterReason": "expected true to be false // Object.is equality",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "64",
+            "afterId": null,
+            "afterStatus": null,
+            "afterReason": null,
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "66",
+            "afterId": "73",
+            "afterStatus": "Killed",
+            "afterReason": "expected false to be true // Object.is equality",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "68",
+            "afterId": "75",
+            "afterStatus": "Killed",
+            "afterReason": "expected true to be false // Object.is equality",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "74",
+            "afterId": "89",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"release\" to be called once with arguments: [ [ { jobId: 'job-1', \u2026(1) } ] ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "75",
+            "afterId": "90",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"release\" to be called once with arguments: [ [ { jobId: 'job-1', \u2026(1) } ] ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "76",
+            "afterId": "91",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"release\" to be called once with arguments: [ [ { jobId: 'job-1', \u2026(1) } ] ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "77",
+            "afterId": null,
+            "afterStatus": null,
+            "afterReason": null,
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "84",
+            "afterId": "113",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"listReadyQueues\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "101",
+            "afterId": "147",
+            "afterStatus": "Killed",
+            "afterReason": "expected +0 to be 1 // Object.is equality",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "149",
+            "afterId": "224",
+            "afterStatus": "Killed",
+            "afterReason": "invocation.jobs is not iterable",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "343",
+            "afterId": "465",
+            "afterStatus": "Killed",
+            "afterReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+            "afterVitestDeadline": true
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "347",
+            "afterId": "469",
+            "afterStatus": "Killed",
+            "afterReason": "Cannot read properties of undefined (reading 'job')",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "348",
+            "afterId": "470",
+            "afterStatus": "Killed",
+            "afterReason": "Cannot read properties of undefined (reading 'record')",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "364",
+            "afterId": "486",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once with arguments: [ { ready: true } ]\n\nNumber of calls: 0\n",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "365",
+            "afterId": "487",
+            "afterStatus": "Killed",
+            "afterReason": "Cannot read properties of undefined (reading 'record')",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "547",
+            "afterId": "670",
+            "afterStatus": "Timeout",
+            "afterReason": null,
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "548",
+            "afterId": "671",
+            "afterStatus": "Killed",
+            "afterReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+            "afterVitestDeadline": true
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "556",
+            "afterId": "679",
+            "afterStatus": "Killed",
+            "afterReason": "expected [] to have a length of 1 but got +0",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "558",
+            "afterId": "681",
+            "afterStatus": "Killed",
+            "afterReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+            "afterVitestDeadline": true
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "559",
+            "afterId": "682",
+            "afterStatus": "Killed",
+            "afterReason": "expected [] to have a length of 1 but got +0",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "561",
+            "afterId": "684",
+            "afterStatus": "Killed",
+            "afterReason": "expected [ +0, 1 ] to deeply equal [ +0, 1, 2 ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "562",
+            "afterId": "685",
+            "afterStatus": "Killed",
+            "afterReason": "expected [ +0, 1 ] to deeply equal [ +0, 1, 2 ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "578",
+            "afterId": "701",
+            "afterStatus": "Killed",
+            "afterReason": "expected [ +0, 1 ] to deeply equal [ +0, 1, 2 ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "579",
+            "afterId": "702",
+            "afterStatus": "Killed",
+            "afterReason": "expected [ +0, 1 ] to deeply equal [ +0, 1, 2 ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "580",
+            "afterId": "703",
+            "afterStatus": "Killed",
+            "afterReason": "expected [ +0, 1 ] to deeply equal [ +0, 1, 2 ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "584",
+            "afterId": "707",
+            "afterStatus": "Killed",
+            "afterReason": "expected [ +0, 1 ] to deeply equal [ +0, 1, 2 ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "586",
+            "afterId": "709",
+            "afterStatus": "Killed",
+            "afterReason": "expected [ +0, 1 ] to deeply equal [ +0, 1, 2 ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "588",
+            "afterId": "711",
+            "afterStatus": "Killed",
+            "afterReason": "expected [ +0, 1 ] to deeply equal [ +0, 1, 2 ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "599",
+            "afterId": "722",
+            "afterStatus": "Killed",
+            "afterReason": "expected [ +0, 1 ] to deeply equal [ +0, 1, 2 ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "600",
+            "afterId": "723",
+            "afterStatus": "Killed",
+            "afterReason": "Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".",
+            "afterVitestDeadline": true
+          }
+        ]
+      },
+      "reference": "fresh November 11 run",
+      "classification": "mutation_testing_workers_scheduler_classification.json",
+      "interruptedCheckpoint": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/workers-scheduler-after/mutation.json",
+        "sha256": "c7d23220a5df68e00190881df00dce2511f31ccd1a4aa4183e39e913b9b291c5",
+        "seconds": 203,
+        "baselineTestsFromRunnerLog": 230,
+        "exitCode": 0,
+        "mutate": [
+          "src/packages/kestrel/src/workers/scheduler.ts:1-334",
+          "src/packages/kestrel/src/workers/scheduler.ts:459-967",
+          "src/packages/kestrel/src/workers/scheduler.ts:1189-1254",
+          "src/packages/kestrel/src/workers/scheduler.ts:1359-1367",
+          "src/packages/kestrel/src/workers/scheduler.ts:1406-1669",
+          "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+          "!src/packages/kestrel/src/**/*.d.ts",
+          "!src/packages/kestrel/src/testing/postgres.ts",
+          "!src/packages/kestrel/src/testing/redis.ts",
+          "!src/packages/kestrel/src/workers/testing/**"
+        ],
+        "archivedAt": "2026-11-11T16:23:56.693628+00:00",
+        "counts": {
+          "NoCoverage": 70,
+          "Survived": 181,
+          "Killed": 476,
+          "Timeout": 4
+        },
+        "mutants": 731,
+        "static": 0,
+        "vitestDeadlineKills": [
+          "6",
+          "66",
+          "465",
+          "671",
+          "681",
+          "690",
+          "696",
+          "698",
+          "723"
+        ],
+        "timeouts": [
+          {
+            "id": "60",
+            "reason": null
+          },
+          {
+            "id": "62",
+            "reason": null
+          },
+          {
+            "id": "670",
+            "reason": null
+          },
+          {
+            "id": "706",
+            "reason": "Hit limit reached (201/200)"
+          }
+        ],
+        "executedWithoutCompletedTests": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.ts": "f04ef33027c16e7610931e38a2eb41b059435dfe1afaf69d9d27f56c5ba310f1"
+        },
+        "testSourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "8eb7e0131dfa7a85c357157ea5eef8ddac76ff3597b4810b1c8e22e79561e1cb",
+          "src/packages/kestrel/src/background/runtime.test.ts": "7c4c48810ab067e8868b4496d25817144167dd23216c3ccf75c51a78b2badfe8",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/background/provider_contract.test.ts": "4a5706818230a2fe0f943710867988bb9c3688fe0dfe62356fced61a78be4ba2",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "15237c5630ce3660ee947978f968da7179c6a4ac274b4e6cd19b76c710008f40",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/workers/scheduler_contract.test.ts": "55d9a588678875cc94852388ca86e322ab4bbe4db8c700217738d48811b98f6b",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552"
+        }
+      },
+      "resumeComparison": {
+        "matchingMutants": 731,
+        "productionSourceUnchanged": true,
+        "addedCases": 5,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 476
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Killed",
+            "count": 2
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 67
+          },
+          {
+            "before": "NoCoverage",
+            "after": "Survived",
+            "count": 1
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 7
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 174
+          },
+          {
+            "before": "Timeout",
+            "after": "Killed",
+            "count": 2
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "scheduled-runtime-timeout-followup",
+      "profile": "scheduled-runtime",
+      "command": "npm run test:mutation:scheduled-runtime",
+      "extent": "Whole scheduler and runtime files, with controlled fixture completion and scope cleanup",
+      "before": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/scheduled-runtime-before/mutation.json",
+        "sha256": "e306cc7ee7c11d64ce86333e56b6fa02c2274649100209add3ade3559ff723c8",
+        "seconds": 298,
+        "baselineTestsFromRunnerLog": 549,
+        "exitCode": 0,
+        "mutate": [
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+          "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+          "!src/packages/kestrel/src/**/*.d.ts",
+          "!src/packages/kestrel/src/testing/postgres.ts",
+          "!src/packages/kestrel/src/testing/redis.ts",
+          "!src/packages/kestrel/src/workers/testing/**"
+        ],
+        "archivedAt": "2026-11-11T16:06:10.173195+00:00",
+        "counts": {
+          "NoCoverage": 5,
+          "Killed": 421,
+          "Survived": 71,
+          "Timeout": 16
+        },
+        "mutants": 513,
+        "static": 0,
+        "vitestDeadlineKills": [
+          "98",
+          "103",
+          "111",
+          "119",
+          "120",
+          "134",
+          "135",
+          "137",
+          "149",
+          "159",
+          "164",
+          "165",
+          "167",
+          "168",
+          "172",
+          "174",
+          "175",
+          "177",
+          "178",
+          "185",
+          "186",
+          "194",
+          "205",
+          "206",
+          "211",
+          "213",
+          "216",
+          "241",
+          "244",
+          "246",
+          "247",
+          "248",
+          "250",
+          "252",
+          "254",
+          "256",
+          "263",
+          "269",
+          "295",
+          "302",
+          "304",
+          "307",
+          "319",
+          "320",
+          "325",
+          "330",
+          "333",
+          "504",
+          "64",
+          "65",
+          "67"
+        ],
+        "timeouts": [
+          {
+            "id": "124",
+            "reason": "Hit limit reached (901/900)"
+          },
+          {
+            "id": "128",
+            "reason": "Hit limit reached (901/900)"
+          },
+          {
+            "id": "129",
+            "reason": "Hit limit reached (301/300)"
+          },
+          {
+            "id": "130",
+            "reason": "Hit limit reached (301/300)"
+          },
+          {
+            "id": "132",
+            "reason": "Hit limit reached (301/300)"
+          },
+          {
+            "id": "133",
+            "reason": "Hit limit reached (201/200)"
+          },
+          {
+            "id": "139",
+            "reason": null
+          },
+          {
+            "id": "212",
+            "reason": null
+          },
+          {
+            "id": "225",
+            "reason": null
+          },
+          {
+            "id": "227",
+            "reason": null
+          },
+          {
+            "id": "279",
+            "reason": null
+          },
+          {
+            "id": "280",
+            "reason": null
+          },
+          {
+            "id": "329",
+            "reason": null
+          },
+          {
+            "id": "340",
+            "reason": null
+          },
+          {
+            "id": "350",
+            "reason": null
+          },
+          {
+            "id": "352",
+            "reason": null
+          }
+        ],
+        "executedWithoutCompletedTests": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.ts": "8cf7613913faf6dd21298fc01779b5e5c7fb99eda9f49d7ef55d5da9a3965761",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.ts": "838ba4b7c85fbfb564b9e631c3a35878d9d6d03953c8f080f71a6e7c3cef5d12"
+        },
+        "testSourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/scheduler_contract.test.ts": "5de9ffcd58604035c7bb6773cf70a4053a5c31ef1c86211dc506fd4babef7a7a",
+          "src/packages/kestrel/src/background/provider_contract.test.ts": "4a5706818230a2fe0f943710867988bb9c3688fe0dfe62356fced61a78be4ba2",
+          "src/packages/kestrel/src/workers/definition_contract.test.ts": "7160d9b7061a48337b73da160cb522d917a1b6d08cdea8a66006f5d436bcdfa0",
+          "src/packages/kestrel/src/cache/cache_pool.test.ts": "25a3c3835c3598d4925baeeacfa13bbaf6ca355899f14f474348d943cc359444",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.test.ts": "aefb9b5c8663c71c5e163949ba65e2d08fe61e006b8e34726248a69a80266109",
+          "src/packages/kestrel/src/studio/extensions/scheduled_tasks/extension.test.ts": "b468dcac41f95d52ebd285fadb47e404165a52c68d8f79dfb9d14fdcfa484716",
+          "src/packages/kestrel/src/authentication/http/controllers.test.ts": "ac1a7e1bc6436e2c3398a39af6144220852cc72b409aa2e2d2c347de073df21d",
+          "src/packages/kestrel/src/throttling/circuit.test.ts": "9246c363c96372b6f920128ea670d8d527016ae4824232b755b626160d7bf907",
+          "src/packages/kestrel/src/cache/provider.test.ts": "768fa7cb5086cefcc439dd1b69ca2a719fd4c4e52f4f31f25a85a5e904d424ff",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/throttling/adapters/redis/adapter.unit.test.ts": "1958f8412d4e473aef9f8587556f9b62072ea491d101cdebdd53a2c547f9f1ed",
+          "src/packages/kestrel/src/throttling/composition.test.ts": "9b3b2023d03a16adbdf0d9fb7bd89eef555940963852bda6a9638c20f9b17e20",
+          "src/packages/kestrel/src/throttling/manager.test.ts": "d8534083d7727dd2260c133ecb69311ac9a2793325c8390ff82bf0a6f562210e",
+          "src/packages/kestrel/src/authentication/provider.test.ts": "8d48b5ed18bb4d16168ef79655b188ab7153708d2f9060fc1eae91102be2a568",
+          "src/packages/kestrel/src/throttling/pressure.test.ts": "2280519a42a84e9c63df6c4760094b24c7335d56f1b20ff26aba3ab499c3771e",
+          "src/packages/kestrel/src/lock/provider.test.ts": "898a4933073321798d13c8171d5a97279ee9565fd9b9dee1fc6a87863f151cd7",
+          "src/packages/kestrel/src/throttling/provider.test.ts": "385df56cc19d0f8f626402532712604ab37706b7603990b09f41d2eac6494af0",
+          "src/packages/kestrel/src/throttling/definitions.test.ts": "507bb7795b97ec5916683bba92abe4f3d169f947f534531b5e98535be5feb484",
+          "src/packages/kestrel/src/authorization/manager.test.ts": "ae71bcc25a1d449b6c586e2e5d5c0a59a1f899ca6ee05560bc870f497dc58955",
+          "src/packages/kestrel/src/authorization/middleware.test.ts": "90f83f35435715adea19ac8125be0bca58db0d7cd43fbf8bc59a62ee2e12bb03",
+          "src/packages/kestrel/src/authentication/guards/throttling.test.ts": "e6f1446193b3cd64daeec59b8128fbfedfeb46403172c5532aca75e5fe90ffe0",
+          "src/packages/kestrel/src/lock/adapters/redis/adapter.unit.test.ts": "fd4d4b5c9141de4d03d165cf97f8c046d5a9a83af21cb36915c5d02a1c885960",
+          "src/packages/kestrel/src/scheduled_tasks/provider.test.ts": "bc22f8d92134afd58f77e32a2dbc1a878a4087a7c29fef246af291dad12feb00",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/background/runtime.test.ts": "7c4c48810ab067e8868b4496d25817144167dd23216c3ccf75c51a78b2badfe8",
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/scheduled_tasks/provider_contract.test.ts": "a15d9b851385a3afbb6297a3fb9e0ca903fb2132535fad84e79db98225ad030a",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.test.ts": "ed6ea5f11666e8344cbb4a97bc69d09c07037ae5535bd1db291f70a8e19a9cd9",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/scheduled-runtime-after/mutation.json",
+        "sha256": "35b725255d4859fae1011e82614b82df3e6e2448eaa50155e48574409f1d3ba7",
+        "seconds": 119,
+        "baselineTestsFromRunnerLog": 566,
+        "exitCode": 0,
+        "mutate": [
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+          "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+          "!src/packages/kestrel/src/**/*.d.ts",
+          "!src/packages/kestrel/src/testing/postgres.ts",
+          "!src/packages/kestrel/src/testing/redis.ts",
+          "!src/packages/kestrel/src/workers/testing/**"
+        ],
+        "archivedAt": "2026-11-11T16:14:24.111808+00:00",
+        "counts": {
+          "NoCoverage": 5,
+          "Killed": 431,
+          "Survived": 71,
+          "Timeout": 6
+        },
+        "mutants": 513,
+        "static": 0,
+        "vitestDeadlineKills": [],
+        "timeouts": [
+          {
+            "id": "124",
+            "reason": "Hit limit reached (901/900)"
+          },
+          {
+            "id": "128",
+            "reason": "Hit limit reached (901/900)"
+          },
+          {
+            "id": "129",
+            "reason": "Hit limit reached (301/300)"
+          },
+          {
+            "id": "130",
+            "reason": "Hit limit reached (301/300)"
+          },
+          {
+            "id": "132",
+            "reason": "Hit limit reached (301/300)"
+          },
+          {
+            "id": "133",
+            "reason": "Hit limit reached (201/200)"
+          }
+        ],
+        "executedWithoutCompletedTests": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.ts": "8cf7613913faf6dd21298fc01779b5e5c7fb99eda9f49d7ef55d5da9a3965761",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.ts": "838ba4b7c85fbfb564b9e631c3a35878d9d6d03953c8f080f71a6e7c3cef5d12"
+        },
+        "testSourceHashes": {
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/background/runtime.test.ts": "7c4c48810ab067e8868b4496d25817144167dd23216c3ccf75c51a78b2badfe8",
+          "src/packages/kestrel/src/cache/cache_pool.test.ts": "25a3c3835c3598d4925baeeacfa13bbaf6ca355899f14f474348d943cc359444",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/studio/extensions/scheduled_tasks/extension.test.ts": "b468dcac41f95d52ebd285fadb47e404165a52c68d8f79dfb9d14fdcfa484716",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/authentication/http/controllers.test.ts": "ac1a7e1bc6436e2c3398a39af6144220852cc72b409aa2e2d2c347de073df21d",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler_contract.test.ts": "0947e909fe02a6358f9b493775454e9a0cf3cc82b418cb100e69306935027d6d",
+          "src/packages/kestrel/src/cache/provider.test.ts": "768fa7cb5086cefcc439dd1b69ca2a719fd4c4e52f4f31f25a85a5e904d424ff",
+          "src/packages/kestrel/src/throttling/circuit.test.ts": "9246c363c96372b6f920128ea670d8d527016ae4824232b755b626160d7bf907",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/throttling/adapters/redis/adapter.unit.test.ts": "1958f8412d4e473aef9f8587556f9b62072ea491d101cdebdd53a2c547f9f1ed",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/throttling/composition.test.ts": "9b3b2023d03a16adbdf0d9fb7bd89eef555940963852bda6a9638c20f9b17e20",
+          "src/packages/kestrel/src/background/provider_contract.test.ts": "4a5706818230a2fe0f943710867988bb9c3688fe0dfe62356fced61a78be4ba2",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/workers/definition_contract.test.ts": "7160d9b7061a48337b73da160cb522d917a1b6d08cdea8a66006f5d436bcdfa0",
+          "src/packages/kestrel/src/authentication/provider.test.ts": "8d48b5ed18bb4d16168ef79655b188ab7153708d2f9060fc1eae91102be2a568",
+          "src/packages/kestrel/src/throttling/manager.test.ts": "d8534083d7727dd2260c133ecb69311ac9a2793325c8390ff82bf0a6f562210e",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/throttling/pressure.test.ts": "2280519a42a84e9c63df6c4760094b24c7335d56f1b20ff26aba3ab499c3771e",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/throttling/provider.test.ts": "385df56cc19d0f8f626402532712604ab37706b7603990b09f41d2eac6494af0",
+          "src/packages/kestrel/src/throttling/definitions.test.ts": "507bb7795b97ec5916683bba92abe4f3d169f947f534531b5e98535be5feb484",
+          "src/packages/kestrel/src/lock/provider.test.ts": "898a4933073321798d13c8171d5a97279ee9565fd9b9dee1fc6a87863f151cd7",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/authorization/manager.test.ts": "ae71bcc25a1d449b6c586e2e5d5c0a59a1f899ca6ee05560bc870f497dc58955",
+          "src/packages/kestrel/src/authorization/middleware.test.ts": "90f83f35435715adea19ac8125be0bca58db0d7cd43fbf8bc59a62ee2e12bb03",
+          "src/packages/kestrel/src/outbound_http/budgets.test.ts": "cdf441410c8733ca6d8808e1ad6c9f8c9544f622b5a10b680681d30754c2729f",
+          "src/packages/kestrel/src/outbound_http/client.test.ts": "a791ef219ba60bb803c9b209a5815526c59e272273ca7761eb8f7a3f344159ea",
+          "src/packages/kestrel/src/scheduled_tasks/provider.test.ts": "bc22f8d92134afd58f77e32a2dbc1a878a4087a7c29fef246af291dad12feb00",
+          "src/packages/kestrel/src/scheduled_tasks/provider_contract.test.ts": "a15d9b851385a3afbb6297a3fb9e0ca903fb2132535fad84e79db98225ad030a",
+          "src/packages/kestrel/src/scheduled_tasks/runtime.test.ts": "7377d262407fa00d356496fdd4156f76004223595cef6788e7754fea82ec1fc2",
+          "src/packages/kestrel/src/scheduled_tasks/scheduler.test.ts": "e2cfdeb4e2ae610fc4f4263cd3e9f12bc6c33fb6adae0a4e116367e58d8eb0d1",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/workers/scheduler_contract.test.ts": "8754aa0c2d7fdcee997dd611e0e96fed1089ea29e282882fe0e29d24f9a56a7f",
+          "src/packages/kestrel/src/workers/worker.test.ts": "0822fb20be4de7ffc135500657464056c7105ae7e3d56ca4ef3d83e25e64c8d3",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/authentication/guards/throttling.test.ts": "e6f1446193b3cd64daeec59b8128fbfedfeb46403172c5532aca75e5fe90ffe0",
+          "src/packages/kestrel/src/outbound_http/middleware/integration.test.ts": "ad8748e3f6ff6fe6d4f62270e52290ac4a5030efc72069c98b4d63845f060c4a",
+          "src/packages/kestrel/src/lock/adapters/redis/adapter.unit.test.ts": "fd4d4b5c9141de4d03d165cf97f8c046d5a9a83af21cb36915c5d02a1c885960",
+          "src/packages/kestrel/src/outbound_http/middleware/cache/budgets.test.ts": "78c21ea68bf94fcab268a13a5163dfd4466c566893755a6692ad25ea43c893e6"
+        }
+      },
+      "comparison": {
+        "policy": "File and unchanged contiguous source lines, location columns, mutator and replacement. Matches do not establish semantic equivalence across changed surrounding code.",
+        "matched": 513,
+        "unmatchedBefore": 0,
+        "unmatchedAfter": 0,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 421
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 5
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 71
+          },
+          {
+            "before": "Timeout",
+            "after": "Killed",
+            "count": 10
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 6
+          }
+        ],
+        "previousKillsWithDifferentStatus": [],
+        "previousVitestDeadlineKills": [
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "98",
+            "afterId": "98",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to deeply equal { status: 'fulfilled', \u2026(1) }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "103",
+            "afterId": "103",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to deeply equal { status: 'fulfilled', \u2026(1) }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "111",
+            "afterId": "111",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"listStates\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "119",
+            "afterId": "119",
+            "afterStatus": "Killed",
+            "afterReason": "Cannot read properties of undefined (reading 'taskId')",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "120",
+            "afterId": "120",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "134",
+            "afterId": "134",
+            "afterStatus": "Killed",
+            "afterReason": "undefined is not iterable (cannot read property Symbol(Symbol.iterator))",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "135",
+            "afterId": "135",
+            "afterStatus": "Killed",
+            "afterReason": "undefined is not iterable (cannot read property Symbol(Symbol.iterator))",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "137",
+            "afterId": "137",
+            "afterStatus": "Killed",
+            "afterReason": "undefined is not iterable (cannot read property Symbol(Symbol.iterator))",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "149",
+            "afterId": "149",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"listStates\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "159",
+            "afterId": "159",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "164",
+            "afterId": "164",
+            "afterStatus": "Killed",
+            "afterReason": "Cannot read properties of undefined (reading 'resolved')",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "165",
+            "afterId": "165",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "167",
+            "afterId": "167",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "168",
+            "afterId": "168",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "172",
+            "afterId": "172",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "174",
+            "afterId": "174",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "175",
+            "afterId": "175",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "177",
+            "afterId": "177",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "178",
+            "afterId": "178",
+            "afterStatus": "Killed",
+            "afterReason": "Cannot destructure property 'task' of 'resolved' as it is undefined.",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "185",
+            "afterId": "185",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "186",
+            "afterId": "186",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "194",
+            "afterId": "194",
+            "afterStatus": "Killed",
+            "afterReason": "Cannot read properties of undefined (reading 'listStates')",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "205",
+            "afterId": "205",
+            "afterStatus": "Killed",
+            "afterReason": "Cannot read properties of undefined (reading 'getTime')",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "206",
+            "afterId": "206",
+            "afterStatus": "Killed",
+            "afterReason": "leaseMs must be a positive integer.",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "211",
+            "afterId": "211",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "213",
+            "afterId": "213",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "216",
+            "afterId": "216",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "241",
+            "afterId": "241",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "244",
+            "afterId": "244",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "246",
+            "afterId": "246",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "247",
+            "afterId": "247",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "248",
+            "afterId": "248",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "250",
+            "afterId": "250",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "252",
+            "afterId": "252",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "254",
+            "afterId": "254",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "256",
+            "afterId": "256",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "263",
+            "afterId": "263",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "269",
+            "afterId": "269",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "295",
+            "afterId": "295",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "302",
+            "afterId": "302",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "304",
+            "afterId": "304",
+            "afterStatus": "Killed",
+            "afterReason": "Cannot read properties of undefined (reading 'tryAcquire')",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "307",
+            "afterId": "307",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "319",
+            "afterId": "319",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "320",
+            "afterId": "320",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "325",
+            "afterId": "325",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "330",
+            "afterId": "330",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "333",
+            "afterId": "333",
+            "afterStatus": "Killed",
+            "afterReason": "expected \"vi.fn()\" to be called once, but got 0 times",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/scheduler.ts",
+            "beforeId": "504",
+            "afterId": "504",
+            "afterStatus": "Killed",
+            "afterReason": "expected undefined to match object { status: 'reserved' }",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+            "beforeId": "64",
+            "afterId": "64",
+            "afterStatus": "Killed",
+            "afterReason": "expected [] to deeply equal [ { status: 'fulfilled', \u2026(1) } ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+            "beforeId": "65",
+            "afterId": "65",
+            "afterStatus": "Killed",
+            "afterReason": "expected [] to deeply equal [ { status: 'fulfilled', \u2026(1) } ]",
+            "afterVitestDeadline": false
+          },
+          {
+            "file": "src/packages/kestrel/src/scheduled_tasks/runtime.ts",
+            "beforeId": "67",
+            "afterId": "67",
+            "afterStatus": "Killed",
+            "afterReason": "expected [] to deeply equal [ { status: 'fulfilled', \u2026(1) } ]",
+            "afterVitestDeadline": false
+          }
+        ]
+      },
+      "reference": "fresh November 11 run"
+    },
+    {
+      "id": "workflow-postgres-retry-races",
+      "profile": "workflow-execution-retry",
+      "command": "npm run test:mutation:workflow-execution-retry",
+      "extent": "Memory and PostgreSQL retryExecution ranges, including real PostgreSQL contention with an ordinary start",
+      "before": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/workflow-execution-retry-before/mutation.json",
+        "sha256": "91cb202619a4474d5adf37688ffcc58e6e0aa8d2eb4bc417d58a8261aa553442",
+        "seconds": 38,
+        "baselineTestsFromRunnerLog": 214,
+        "exitCode": 0,
+        "mutate": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:879-948",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1868-1956",
+          "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+          "!src/packages/kestrel/src/**/*.d.ts",
+          "!src/packages/kestrel/src/testing/postgres.ts",
+          "!src/packages/kestrel/src/testing/redis.ts",
+          "!src/packages/kestrel/src/workers/testing/**"
+        ],
+        "archivedAt": "2026-11-11T16:06:04.113135+00:00",
+        "counts": {
+          "NoCoverage": 2,
+          "Killed": 121,
+          "Survived": 13
+        },
+        "mutants": 136,
+        "static": 0,
+        "vitestDeadlineKills": [],
+        "timeouts": [],
+        "executedWithoutCompletedTests": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "743a52cbd4e326406d6b1ebf615d3617c49239be34187aec109ad0ea7e25e5f4",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "4569fb5cb69d9225ec245d1c4b87f030f573b781be5fae8ad83f7efcbb19f861"
+        },
+        "testSourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "d3f453d0d363c08101867f4ceebf44268a37a6088585c1f73f88e0a313d5dbca",
+          "src/packages/kestrel/src/workflows/adapters/memory/terminal_control.test.ts": "1140a02c17bec12394f878a6a53112bbe0d09576a5fdd7177f4e84d0f5947363",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/adapters/memory/retry_execution.test.ts": "4ff4a5a303fb7e8402397b31d11fd398440adbd4628ead6ecd96b03f94a39176",
+          "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+          "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+          "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+          "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+          "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+          "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/workflow-execution-retry-after/mutation.json",
+        "sha256": "228f4c12a84fb68cc448f175bff19c526a1c3f14220f1601ad2cc8fbc3e552de",
+        "seconds": 38,
+        "baselineTestsFromRunnerLog": 218,
+        "exitCode": 0,
+        "mutate": [
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts:879-948",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts:1868-1963",
+          "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+          "!src/packages/kestrel/src/**/*.d.ts",
+          "!src/packages/kestrel/src/testing/postgres.ts",
+          "!src/packages/kestrel/src/testing/redis.ts",
+          "!src/packages/kestrel/src/workers/testing/**"
+        ],
+        "archivedAt": "2026-11-11T16:08:20.311138+00:00",
+        "counts": {
+          "NoCoverage": 4,
+          "Killed": 129,
+          "Survived": 10
+        },
+        "mutants": 143,
+        "static": 0,
+        "vitestDeadlineKills": [],
+        "timeouts": [],
+        "executedWithoutCompletedTests": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "4e377047136dec25fc5b847af7bf1a986d370852b7b2df3ff7895461877ed783",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "4569fb5cb69d9225ec245d1c4b87f030f573b781be5fae8ad83f7efcbb19f861"
+        },
+        "testSourceHashes": {
+          "src/packages/kestrel/src/workflows/adapters/memory/retry_execution.test.ts": "4ff4a5a303fb7e8402397b31d11fd398440adbd4628ead6ecd96b03f94a39176",
+          "src/packages/kestrel/src/workflows/primitives.test.ts": "55e62df9ed8536227fd8fd82d4793d3dd29ae2167c9501fe32df8c7106a202cb",
+          "src/packages/kestrel/src/workflows/adapters/postgres/adapter.test.ts": "676891c57c169a46cff4710ec7551c3abe4a02528b0ca25af6af9b2ded1fe618",
+          "src/packages/kestrel/src/workflows/scheduler.test.ts": "012909a255cd84440f6775b92de5e70598b5328fa97e0b6ca640d93e89c3544b",
+          "src/packages/kestrel/src/workflows/observations.test.ts": "3a0cace9e0101de8cc59cdb055c5ffbf1d1dd95920af6615124f417cc0aa8b9b",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/workflows/adapters/memory/terminal_control.test.ts": "1140a02c17bec12394f878a6a53112bbe0d09576a5fdd7177f4e84d0f5947363",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/testing.test.ts": "eaca9b7862c8ee721de0734a8911d0016eb7ecacefcc04d059ad4d74bcbbc824",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workflows/concurrency.test.ts": "b86ff973619d89cc26cbf072148d05641664a9c7305444961e8dd648758a52be",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/adapters/memory/task_ownership.test.ts": "cf788bc47984bfdf40b6ee94a99b56ef37500353a811a9d75d1671109a965464",
+          "src/packages/kestrel/src/workflows/shutdown_redelivery.test.ts": "c36d83f5c6f5e56caecd21379755832911c01afd2637391b7c66125c14fe2fbe",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workflows/version_operations.test.ts": "89b66213d96e1d248196b51cc60206d03a021ba69e623531502a5cccb19f3def",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/workflows/operations.test.ts": "0f95142169e69d95bba738bae75f840642c41c4a5a4c98fc81438017c2d2b94e",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7"
+        }
+      },
+      "comparison": {
+        "policy": "File and unchanged contiguous source lines, location columns, mutator and replacement. Matches do not establish semantic equivalence across changed surrounding code.",
+        "matched": 127,
+        "unmatchedBefore": 9,
+        "unmatchedAfter": 16,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 113
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 1
+          },
+          {
+            "before": "Survived",
+            "after": "Killed",
+            "count": 5
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 8
+          }
+        ],
+        "previousKillsWithDifferentStatus": [],
+        "previousVitestDeadlineKills": []
+      },
+      "reference": "fresh November 11 run",
+      "classification": "mutation_testing_workflow_retry_races_classification.json"
+    },
+    {
+      "id": "workers-delivery-ownership-refresh",
+      "profile": "workers-delivery",
+      "command": "npm run test:mutation:workers-delivery",
+      "extent": "Delivery and outcome ranges refreshed after supporting scheduler changes",
+      "before": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/workers-delivery-before/mutation.json",
+        "sha256": "2a9535521476b23aa85b60c85d2fb247e30ea4a11c23300a0064a049f4f2796f",
+        "seconds": 79,
+        "baselineTestsFromRunnerLog": 192,
+        "exitCode": 0,
+        "mutate": [
+          "src/packages/kestrel/src/workers/scheduler.ts:307-427",
+          "src/packages/kestrel/src/workers/scheduler.ts:832-1039",
+          "src/packages/kestrel/src/workers/scheduler.ts:1106-1205",
+          "src/packages/kestrel/src/workers/scheduler.ts:1215-1252",
+          "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+          "!src/packages/kestrel/src/**/*.d.ts",
+          "!src/packages/kestrel/src/testing/postgres.ts",
+          "!src/packages/kestrel/src/testing/redis.ts",
+          "!src/packages/kestrel/src/workers/testing/**"
+        ],
+        "archivedAt": "2026-11-11T16:16:37.867367+00:00",
+        "counts": {
+          "NoCoverage": 2,
+          "Killed": 271,
+          "Survived": 35,
+          "Timeout": 5
+        },
+        "mutants": 313,
+        "static": 0,
+        "vitestDeadlineKills": [],
+        "timeouts": [
+          {
+            "id": "13",
+            "reason": "Hit limit reached (601/600)"
+          },
+          {
+            "id": "18",
+            "reason": "Hit limit reached (601/600)"
+          },
+          {
+            "id": "19",
+            "reason": "Hit limit reached (601/600)"
+          },
+          {
+            "id": "20",
+            "reason": "Hit limit reached (601/600)"
+          },
+          {
+            "id": "21",
+            "reason": "Hit limit reached (601/600)"
+          }
+        ],
+        "executedWithoutCompletedTests": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.ts": "94e9aedee6abd04055d67d2c34818ac3c63f746ecdcbd9c8eabdd222382fb78b"
+        },
+        "testSourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "a4b1532f1e46f92e30b49bb88316e3bd5bc026dd1b33758b74570570c3bd8a91",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/background/runtime.test.ts": "6c413254bb56ec0486de1770921c172ffc47fd32e493a71fa1c67b35ec291486",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "194ca4a2ca56dfeeeb758edf4c71c2561f319655de8524efff137d21a69007cf",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "8ae9c2676d12c5726519bd6f4a6c51e0011e4b0bc35e674e4ee33214eeebe5b1",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7"
+        }
+      },
+      "after": {
+        "report": "artifacts/mutation/nov11-scheduler-baselines/workers-delivery-after/mutation.json",
+        "sha256": "db5a7fd2e7becfb367384a3a1a292f7c2340cf4cb92e511beaef6b1f39028f5e",
+        "seconds": 97,
+        "baselineTestsFromRunnerLog": 230,
+        "exitCode": 0,
+        "mutate": [
+          "src/packages/kestrel/src/workers/scheduler.ts:335-458",
+          "src/packages/kestrel/src/workers/scheduler.ts:968-1188",
+          "src/packages/kestrel/src/workers/scheduler.ts:1255-1358",
+          "src/packages/kestrel/src/workers/scheduler.ts:1368-1405",
+          "!src/packages/kestrel/src/**/*.test.{ts,tsx}",
+          "!src/packages/kestrel/src/**/*.d.ts",
+          "!src/packages/kestrel/src/testing/postgres.ts",
+          "!src/packages/kestrel/src/testing/redis.ts",
+          "!src/packages/kestrel/src/workers/testing/**"
+        ],
+        "archivedAt": "2026-11-11T16:22:12.423962+00:00",
+        "counts": {
+          "NoCoverage": 2,
+          "Killed": 288,
+          "Survived": 40,
+          "Timeout": 6
+        },
+        "mutants": 336,
+        "static": 0,
+        "vitestDeadlineKills": [],
+        "timeouts": [
+          {
+            "id": "14",
+            "reason": "Hit limit reached (1201/1200)"
+          },
+          {
+            "id": "19",
+            "reason": "Hit limit reached (1201/1200)"
+          },
+          {
+            "id": "22",
+            "reason": "Hit limit reached (1201/1200)"
+          },
+          {
+            "id": "23",
+            "reason": "Hit limit reached (1201/1200)"
+          },
+          {
+            "id": "24",
+            "reason": "Hit limit reached (501/500)"
+          },
+          {
+            "id": "25",
+            "reason": "Hit limit reached (501/500)"
+          }
+        ],
+        "executedWithoutCompletedTests": [],
+        "sourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.ts": "f04ef33027c16e7610931e38a2eb41b059435dfe1afaf69d9d27f56c5ba310f1"
+        },
+        "testSourceHashes": {
+          "src/packages/kestrel/src/workers/scheduler.test.ts": "8eb7e0131dfa7a85c357157ea5eef8ddac76ff3597b4810b1c8e22e79561e1cb",
+          "src/packages/kestrel/src/background/runtime.test.ts": "7c4c48810ab067e8868b4496d25817144167dd23216c3ccf75c51a78b2badfe8",
+          "src/packages/kestrel/src/workflows/runtime.test.ts": "38c649ffd29f4d52fc5ceba2aeea9ea3dcb688c82c17184c3ec4db67ca68c586",
+          "src/packages/kestrel/src/atlas/authorization.test.ts": "19e8bb44c95210fc92d8f7be1eba2f1ade3434131c1d02b291ef59dd430585bb",
+          "src/packages/kestrel/src/atlas/provider.test.ts": "e39526c584925b6bd9b7b9358d718da8ec2604c5205ddb1fce2572d029fbb76c",
+          "src/packages/kestrel/src/atlas/atlas.test.ts": "99e2aa8e73c34c6d0985b7c54311f26b86cda8c529bf5bcdf2ee07c6c594b28f",
+          "src/packages/kestrel/src/studio/extensions/workflows/extension.test.ts": "07a6270a1e01e7bcb69d876e85c2be9050838cb451e2d0b86b49088ca5a524f7",
+          "src/packages/kestrel/src/atlas/display.test.ts": "a7d7be4ec3010a56c255c4140b2b321526deb15f4af97ca4799a88519847c40b",
+          "src/packages/kestrel/src/workflows/client.test.ts": "bb2ed5beb1c61f1c9e63319baa36beec238c86dc0ea6ba76d50ffd61de88cd9f",
+          "src/packages/kestrel/src/workflows/adapters/memory/adapter.test.ts": "bf90ada2ec5d1e4dbf0cc53cb5c80839533140e1a98445c813ba0ff4e09b2c23",
+          "src/packages/kestrel/src/workflows/provider.test.ts": "913bc45d09404bf747b671dd2208af88cb955c9958829892f199e09312331f1f",
+          "src/packages/kestrel/src/atlas/record_links.test.ts": "e8c07de66c348015f25706b932a73027ba1c24247556769ff8cbfd483a10b4f8",
+          "src/packages/kestrel/src/background/provider_contract.test.ts": "4a5706818230a2fe0f943710867988bb9c3688fe0dfe62356fced61a78be4ba2",
+          "src/packages/kestrel/src/atlas/history.test.ts": "73a54bf0a222b802d38310b9dba7c7d64ad7a2030bab3f4321808c517422a4e3",
+          "src/packages/kestrel/src/atlas/source.test.ts": "b45d476b29603f8e6e90aa2147547934bbdd1de3a86c638c408f9f957a29581a",
+          "src/packages/kestrel/src/workers/provider.test.ts": "a82d3b1899f97cff48c76071e17f417eecd041f998f3d49ff6d79f585418071f",
+          "src/packages/kestrel/src/atlas/appearance.test.ts": "00d958b880d4c99e2f8ae7cb2056ef2913f79a7e60299bd011a001df264e254a",
+          "src/packages/kestrel/src/app/catalog.test.ts": "6146fa9dc276c4c9ed778a0ad9aae27852fbc4ea56ed0b2e26f1eca9a9b4e9ef",
+          "src/packages/kestrel/src/workflows/workflow.test.ts": "c6c1a8398d061b7c8c9879d46074e34f9d874431e5ba3a5a319d0b1580e8a71c",
+          "src/packages/kestrel/src/workflows/serialization.test.ts": "4d8c52b8a295bf0f4a40f2fc82789d9fb515164051c26f4fcdb0c8b5ced07d2e",
+          "src/packages/kestrel/src/utils/definitions.test.ts": "9983a4449ce1660254e5bedffef621aaa84daa313e1769d8b4041c15387b86b7",
+          "src/packages/kestrel/src/atlas/adapters/client/adapter.test.ts": "4a7852938721ed7b2b38164d49b4ad518d5ec322c009ffd3e28dd423d483ddf7",
+          "src/packages/kestrel/src/atlas/drizzle.test.ts": "da21b84d9db2f3f7561c88d4eb4ecbd06bf084ac8c24efc438eb1343a6b3b290",
+          "src/packages/kestrel/src/workers/delivery_contract.test.ts": "6036af2269bc512f1fe07afc8268c085728a95b73e4b2250663bd0893c03fc78",
+          "src/packages/kestrel/src/workers/provider_contract.test.ts": "9c89a72617517a7ab8423fd32799bee4868155f4cbff5d1f9c60ee7f34672839",
+          "src/packages/kestrel/src/workers/runtime.test.ts": "15237c5630ce3660ee947978f968da7179c6a4ac274b4e6cd19b76c710008f40",
+          "src/packages/kestrel/src/workers/runtime_contract.test.ts": "86d6000cdaee33c7e03f717d7f1560c8bd285e7f9df883100d4ed65250513dcf",
+          "src/packages/kestrel/src/workers/scheduler_contract.test.ts": "55d9a588678875cc94852388ca86e322ab4bbe4db8c700217738d48811b98f6b",
+          "src/packages/kestrel/src/workflows/worker_activity_transport.test.ts": "26cf671944a5d0abe6bb4fb6d69a14b271561a0d38c98e79e60043e6c8c11552"
+        }
+      },
+      "comparison": {
+        "policy": "File and unchanged contiguous source lines, location columns, mutator and replacement. Matches do not establish semantic equivalence across changed surrounding code.",
+        "matched": 266,
+        "unmatchedBefore": 47,
+        "unmatchedAfter": 70,
+        "transitions": [
+          {
+            "before": "Killed",
+            "after": "Killed",
+            "count": 232
+          },
+          {
+            "before": "Killed",
+            "after": "Survived",
+            "count": 1
+          },
+          {
+            "before": "NoCoverage",
+            "after": "NoCoverage",
+            "count": 2
+          },
+          {
+            "before": "Survived",
+            "after": "Survived",
+            "count": 30
+          },
+          {
+            "before": "Timeout",
+            "after": "Timeout",
+            "count": 1
+          }
+        ],
+        "previousKillsWithDifferentStatus": [
+          {
+            "file": "src/packages/kestrel/src/workers/scheduler.ts",
+            "beforeId": "204",
+            "afterId": "222",
+            "afterStatus": "Survived",
+            "afterReason": null
+          }
+        ],
+        "previousVitestDeadlineKills": []
+      },
+      "reference": "November 10 final report"
+    }
+  ],
+  "newTestCases": {
+    "workers": 27,
+    "postgresWorkflows": 4
+  },
+  "workerScopeAudit": {
+    "eligibleFiles": 23,
+    "schedulerRangesPartitionFile": true,
+    "profiles": {
+      "workers-scheduler": 1,
+      "workers-delivery": 1,
+      "workers-adapters": 8,
+      "workers-contracts": 9,
+      "workers-publication": 5
+    },
+    "remainingReview": "Material survivors and uncovered variants remain."
+  },
+  "validation": {
+    "test:ai": {
+      "files": 287,
+      "passed": 2480,
+      "exitCode": 0
+    },
+    "build:ai": "passed",
+    "frameworkTypecheck": "passed",
+    "mutationInfrastructure": {
+      "passed": 58,
+      "exitCode": 0
+    },
+    "ownershipBoundaries": "passed",
+    "docs:build": "passed",
+    "mutationInventory": {
+      "lots": 35,
+      "sourceFiles": 631,
+      "exitCode": 0
+    },
+    "reportHashAudit": "passed",
+    "diffCheck": "passed"
+  },
+  "finishedAt": "2026-11-11T16:34:34.428492+00:00"
+}

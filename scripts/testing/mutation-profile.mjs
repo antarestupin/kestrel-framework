@@ -61,6 +61,14 @@ const focusedProfiles = {
   "workflow-task-ownership": [["workflows/adapters/memory/adapter.ts", "public async releaseTasks(", "public async getHistory("], ["workflows/adapters/memory/adapter.ts", "private getOwnedTask(", "private getRequiredHistory("], ["workflows/adapters/postgres/adapter.ts", "public async releaseTasks(", "public async getHistory("], ["workflows/adapters/postgres/adapter.ts", "private async mutateReservations<", "private async terminateExecutionTree("]],
   "workflow-execution-retry": [["workflows/adapters/memory/adapter.ts", "public async retryExecution(", "public async releaseTasks("], ["workflows/adapters/postgres/adapter.ts", "public async retryExecution(", "public async releaseTasks("]],
   "workers-delivery": [["workers/scheduler.ts", "public runOnce(", "private async canReserveUnderPressure("], ["workers/scheduler.ts", "private async runIndividual(", "private async runObservedInvocation("], ["workers/scheduler.ts", "private async flushOutcomes(", "function getReservationAllocation("], ["workers/scheduler.ts", "function getRetryDelay(", "function combineRequirements("]],
+  // Assess the scheduler ranges left out of the delivery profile.
+  "workers-scheduler": [
+    ["workers/scheduler.ts", 'import { parseSchema }', "public runOnce("],
+    ["workers/scheduler.ts", "private async canReserveUnderPressure(", "private async runIndividual("],
+    ["workers/scheduler.ts", "private async runObservedInvocation(", "private async flushOutcomes("],
+    ["workers/scheduler.ts", "function getReservationAllocation(", "function getRetryDelay("],
+    ["workers/scheduler.ts", "function combineRequirements("],
+  ],
 
   "scheduled-runtime": [["scheduled_tasks/scheduler.ts"], ["scheduled_tasks/runtime.ts"]],
   "scheduled-adapters": [["scheduled_tasks/adapters/**/*.ts"]],

@@ -6,7 +6,7 @@
   "budgetMs": 600000,
   "modeNote": "Bounded focused component profile; ignoreStatic=False. Static mutants remain enabled in these focused profiles. SQL text is not comprehensively mutated by Stryker; exported schema contracts do not substitute for a production migration/application test.",
   "beforeReport": "artifacts/mutation/workers-delivery-before-two-hour-tests/mutation.json",
-  "report": "artifacts/mutation/workers-delivery/mutation.json",
+  "report": "artifacts/mutation/nov11-scheduler-baselines/workers-delivery-before/mutation.json",
   "beforeCounts": {
     "Timeout": 3,
     "Survived": 54,
@@ -1120,7 +1120,7 @@
   },
   "reportHashes": {
     "artifacts/mutation/workers-delivery-before-two-hour-tests/mutation.json": "a747f454ea83230942e5b9e5bfefb149f277fac3200e3fdf29079bd43ad63a27",
-    "artifacts/mutation/workers-delivery/mutation.json": "2a9535521476b23aa85b60c85d2fb247e30ea4a11c23300a0064a049f4f2796f"
+    "artifacts/mutation/nov11-scheduler-baselines/workers-delivery-before/mutation.json": "2a9535521476b23aa85b60c85d2fb247e30ea4a11c23300a0064a049f4f2796f"
   },
   "firstAfterTimeoutKillAudit": {
     "vitestTimeoutKills": 11,

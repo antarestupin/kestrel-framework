@@ -123,6 +123,8 @@ Force termination also closes open descendants of an already terminal execution,
 
 An operator retry creates a distinct execution from the failed run's original start input, including an original `null` input after continue-as-new. Ordinary keyed start policies do not attach the retry to another active execution or reject it; execution-scoped capacity can keep the new retry pending. Reusing the same retry identity for the same source is idempotent, including concurrent calls; the first creation fixes its workflow version. The failed source and unrelated active executions remain unchanged.
 
+A retry reports `WorkflowExecutionConflictError` if an unrelated execution already owns its requested identity, including when a concurrent ordinary start claims that identity first.
+
 ## Use cases still to document
 
 - Compose PostgreSQL persistence and worker-backed activities with stable effect idempotency keys.

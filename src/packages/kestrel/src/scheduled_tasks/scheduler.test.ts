@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import {
   describe,
   expect,
@@ -66,6 +67,12 @@ async function createStartedApp(): Promise<App<Record<string, never>>> {
 describe("ScheduledTaskScheduler", () => {
   it("awaits and disposes async task dependencies inside the execution", async () => {
     const app = new App({});
+    const create = app.createExecutionScope.bind(app);
+    let execution: Awaited<ReturnType<typeof create>> | undefined;
+    vi.spyOn(app, "createExecutionScope").mockImplementation(async (id) => {
+      execution = await create(id);
+      return execution;
+    });
     const resource = { ready: true };
     const dispose = vi.fn();
     app.container.registerAsyncFactory("resource", {}, async () => resource, { lifetime: "scoped", dispose });
@@ -88,7 +95,8 @@ describe("ScheduledTaskScheduler", () => {
       expect(handler).toHaveBeenCalledOnce();
       expect(dispose).toHaveBeenCalledExactlyOnceWith(resource);
     } finally {
-      await app.dispose();
+      // Verify scheduler cleanup before taking responsibility for a stranded scope.
+      try { await execution?.dispose("failure"); } finally { await app.dispose(); }
     }
   });
 
@@ -273,12 +281,9 @@ describe("ScheduledTaskScheduler", () => {
   it("coalesces a waiting overlap until the active run completes", async () => {
     let now = new Date("2026-01-01T00:00:00.000Z");
     const adapter = new MemoryScheduledTaskAdapter({ now: () => now });
-    let release = (): void => undefined;
-    const firstRun = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const firstRun = Promise.withResolvers<void>();
     const handler = vi.fn()
-      .mockImplementationOnce(() => firstRun)
+      .mockImplementationOnce(() => firstRun.promise)
       .mockResolvedValue(undefined);
     const task = defineScheduledTask({
       id: "overlap.wait",
@@ -287,8 +292,9 @@ describe("ScheduledTaskScheduler", () => {
       runtime: { state: "memory", coordination: "local" },
       handler,
     });
+    const app = await createStartedApp();
     const scheduler = new ScheduledTaskScheduler(
-      await createStartedApp(),
+      app,
       { memory: adapter },
       undefined,
       [task],
@@ -296,12 +302,29 @@ describe("ScheduledTaskScheduler", () => {
     );
 
     const running = scheduler.runOnce();
-    await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce());
-    now = new Date("2026-01-01T00:01:00.000Z");
-    await expect(scheduler.runOnce()).resolves.toBe(0);
-    release();
-    await running;
-    await expect(scheduler.runOnce()).resolves.toBe(1);
-    expect(handler).toHaveBeenCalledTimes(2);
+    void running.catch(() => undefined);
+    let overlapping: Promise<number> | undefined;
+    try {
+      await setImmediate();
+      expect(handler).toHaveBeenCalledOnce();
+      now = new Date("2026-01-01T00:01:00.000Z");
+      overlapping = scheduler.runOnce();
+      const outcomes: PromiseSettledResult<number>[] = [];
+      void overlapping.then(
+        (value) => outcomes.push({ status: "fulfilled", value }),
+        (reason: unknown) => outcomes.push({ status: "rejected", reason }),
+      );
+      // The second admission must finish while the first handler still holds its gate.
+      await setImmediate();
+      expect(outcomes).toEqual([{ status: "fulfilled", value: 0 }]);
+      firstRun.resolve();
+      await running;
+      await expect(scheduler.runOnce()).resolves.toBe(1);
+      expect(handler).toHaveBeenCalledTimes(2);
+    } finally {
+      firstRun.resolve();
+      await Promise.allSettled([running, overlapping]);
+      try { await scheduler.stop(); } finally { await app.dispose(); }
+    }
   });
 });

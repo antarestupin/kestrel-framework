@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import {
   describe,
   expect,
@@ -94,9 +95,40 @@ async function createStartedApp(): Promise<App<Record<string, never>>> {
   return app;
 }
 
+/** In-memory cycles with synchronous handlers and no external I/O settle in one turn. */
+async function settleMemoryCycle<Config>(scheduler: WorkerScheduler<Config>): Promise<number> {
+  const outcomes: PromiseSettledResult<number>[] = [];
+  void scheduler.runOnce().then(
+    (value) => outcomes.push({ status: "fulfilled", value }),
+    (reason: unknown) => outcomes.push({ status: "rejected", reason }),
+  );
+  await setImmediate();
+  expect(outcomes).toHaveLength(1);
+  const outcome = outcomes[0]!;
+  if (outcome.status === "rejected") throw outcome.reason;
+  return outcome.value;
+}
+
+/** Keep fixture cleanup independent of the scheduler's disposal callback. */
+function trackExecutionCleanup<Config>(app: App<Config>): () => Promise<void> {
+  const createScope = vi.spyOn(app, "createExecutionScope");
+  return async () => {
+    try {
+      const scopes = await Promise.allSettled(createScope.mock.results.flatMap((result) =>
+        result.type === "return" ? [result.value] : []));
+      await Promise.allSettled(scopes.flatMap((scope) =>
+        scope.status === "fulfilled" ? [scope.value.dispose("cancelled")] : []));
+    } finally {
+      createScope.mockRestore();
+      await app.dispose();
+    }
+  };
+}
+
 describe("WorkerScheduler", () => {
   it.each([false, true])("awaits and disposes async dependencies for batch=%s", async (batch) => {
     const app = new App({});
+    const cleanup = trackExecutionCleanup(app);
     const adapter = createAdapter();
     const resource = { ready: true };
     const dispose = vi.fn();
@@ -115,12 +147,12 @@ describe("WorkerScheduler", () => {
     try {
       await app.start();
       await adapter.enqueue([{ queue: worker.queue, payload: "payload" }]);
-      expect(await scheduler.runOnce()).toBe(1);
+      expect(await settleMemoryCycle(scheduler)).toBe(1);
       expect(handler).toHaveBeenCalledOnce();
       expect(create).toHaveBeenCalledOnce();
       expect(dispose).toHaveBeenCalledExactlyOnceWith(resource);
     } finally {
-      await app.dispose();
+      await cleanup();
     }
   });
 
@@ -499,6 +531,7 @@ describe("WorkerScheduler", () => {
   it("isolates a correlated job from ordinary batch invocations", async () => {
     const adapter = createAdapter();
     const { app, events } = await createObservedApp();
+    const cleanup = trackExecutionCleanup(app);
     const handledBatches: string[][] = [];
     const worker = defineWorker({
       name: "batch-correlated",
@@ -510,32 +543,30 @@ describe("WorkerScheduler", () => {
       },
     });
     const executionId = "00000000-0000-4000-8000-000000000001";
-    await adapter.enqueue([
-      { queue: worker.queue, payload: 1 },
-      { queue: worker.queue, payload: 2, executionId },
-      { queue: worker.queue, payload: 3 },
-      { queue: worker.queue, payload: 4 },
-    ]);
-    const scheduler = new WorkerScheduler(
-      app,
-      adapter,
-      [worker],
-      { slots: 2, leaseMs: 1_000 },
-    );
+    try {
+      await adapter.enqueue([
+        { queue: worker.queue, payload: 1 },
+        { queue: worker.queue, payload: 2, executionId },
+        { queue: worker.queue, payload: 3 },
+        { queue: worker.queue, payload: 4 },
+      ]);
+      const scheduler = new WorkerScheduler(app, adapter, [worker], { slots: 2, leaseMs: 1_000 });
 
-    await scheduler.runOnce();
-
-    expect(handledBatches).toEqual([
-      ["id-1"],
-      ["id-2"],
-      ["id-3", "id-4"],
-    ]);
-    const invocationExecutionIds = events
-      .filter((event) => event.name === "execution.started")
-      .map((event) => event.executionId);
-    expect(invocationExecutionIds).toHaveLength(3);
-    expect(invocationExecutionIds[1]).toBe(executionId);
-    expect(new Set(invocationExecutionIds).size).toBe(3);
+      expect(await settleMemoryCycle(scheduler)).toBe(4);
+      expect(handledBatches).toEqual([
+        ["id-1"],
+        ["id-2"],
+        ["id-3", "id-4"],
+      ]);
+      const invocationExecutionIds = events
+        .filter((event) => event.name === "execution.started")
+        .map((event) => event.executionId);
+      expect(invocationExecutionIds).toHaveLength(3);
+      expect(invocationExecutionIds[1]).toBe(executionId);
+      expect(new Set(invocationExecutionIds).size).toBe(3);
+    } finally {
+      await cleanup();
+    }
   });
 
   it("keeps yielded successes when later batch results are missing", async () => {

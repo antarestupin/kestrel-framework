@@ -1,3 +1,4 @@
+import { setTimeout as pause } from "node:timers/promises";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { workflowExecutionCursorCodec } from "../../execution_cursor.js";
@@ -14,6 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -130,7 +132,7 @@ const qualifiedHistory = qualifiedFixtureSchema.table("history_event", {
   type: text("type").notNull(),
 });
 const qualifiedTasks = qualifiedFixtureSchema.table("task", {
-  id: uuid("id").primaryKey(),
+  id: uuid("id").default(sql`uuidv7()`).primaryKey(),
   executionId: text("execution_id").notNull(),
   kind: text("kind").notNull(),
   reservationToken: uuid("reservation_token"),
@@ -257,7 +259,7 @@ beforeAll(async () => {
       type text NOT NULL
     );
     CREATE TABLE workflow_adapter_qualified_test.task (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT uuidv7(),
       execution_id text NOT NULL,
       kind text NOT NULL,
       reservation_token uuid
@@ -673,6 +675,131 @@ describe("PostgresWorkflowAdapter", () => {
     const activation = await reserveOne("workflow");
     expect(activation.executionId).toBe("retry-admitted");
     expect(activation.kind).toBe("workflow");
+  });
+
+  describe("concurrent PostgreSQL retries", () => {
+    afterEach(async () => {
+      await client.query("TRUNCATE workflow_adapter_qualified_test.task, workflow_adapter_qualified_test.execution");
+    });
+
+    it("leaves a retry pending when an ordinary start claims the last permit", async () => {
+      const sourceExecutionId = "keyed-race-failed-source";
+      const startId = "keyed-race-start";
+      const retryId = "keyed-race-retry";
+      const key = "keyed-race";
+      await seedFailedQualifiedExecution(sourceExecutionId, key);
+
+      const race = await raceQualifiedTransactions(
+        (owner) => owner.start({
+          ...startRequest(startId),
+          concurrency: { keyed: { key, limit: 1, conflict: "enqueue", scope: "execution" } },
+        }),
+        (contender) => contender.retryExecution({ sourceExecutionId, executionId: retryId, workflowVersion: 2 }),
+      );
+
+      expect(race.first).toMatchObject({
+        created: true,
+        execution: { executionId: startId, status: "queued", concurrencyAdmitted: true },
+      });
+      expect(race.second).toMatchObject({
+        status: "fulfilled",
+        value: {
+          created: true,
+          execution: {
+            executionId: retryId,
+            retryOfExecutionId: sourceExecutionId,
+            status: "pending",
+            concurrencyAdmitted: false,
+          },
+        },
+      });
+      expect(race.blockedBy).toBe("advisory");
+      expect((await client.query(
+        "SELECT execution_id FROM workflow_adapter_qualified_test.task ORDER BY execution_id",
+      )).rows).toEqual([{ execution_id: startId }]);
+    });
+
+    it("reports a conflicting ordinary start that claims the retry identity before commit", async () => {
+      const sourceExecutionId = "keyed-identity-failed-source";
+      const targetId = "keyed-identity-target";
+      const key = "keyed-identity-race";
+      await seedFailedQualifiedExecution(sourceExecutionId, key);
+
+      const race = await raceQualifiedTransactions(
+        (owner) => owner.start({
+          ...startRequest(targetId),
+          concurrency: { keyed: { key, limit: 1, conflict: "enqueue", scope: "execution" } },
+        }),
+        (contender) => contender.retryExecution({ sourceExecutionId, executionId: targetId, workflowVersion: 2 }),
+      );
+
+      expect(race.first).toMatchObject({ created: true, execution: { executionId: targetId } });
+      expect(race.blockedBy).toBe("advisory");
+      expect(race.second).toEqual({
+        status: "rejected",
+        reason: expect.any(WorkflowExecutionConflictError),
+      });
+      expect((await client.query(
+        "SELECT id, retry_of_execution_id FROM workflow_adapter_qualified_test.execution WHERE id = $1",
+        [targetId],
+      )).rows).toEqual([{ id: targetId, retry_of_execution_id: null }]);
+      expect((await client.query(
+        "SELECT execution_id FROM workflow_adapter_qualified_test.task",
+      )).rows).toEqual([{ execution_id: targetId }]);
+    });
+
+    it("classifies competing retries from different sources as an execution conflict", async () => {
+      const firstSource = "identity-race-failed-first";
+      const secondSource = "identity-race-failed-second";
+      const targetId = "identity-race-target";
+      await seedFailedQualifiedExecution(firstSource);
+      await seedFailedQualifiedExecution(secondSource);
+
+      const race = await raceQualifiedTransactions(
+        (owner) => owner.retryExecution({ sourceExecutionId: firstSource, executionId: targetId, workflowVersion: 2 }),
+        (contender) => contender.retryExecution({ sourceExecutionId: secondSource, executionId: targetId, workflowVersion: 3 }),
+      );
+
+      expect(race.first).toMatchObject({
+        created: true,
+        execution: { executionId: targetId, retryOfExecutionId: firstSource, workflowVersion: 2 },
+      });
+      expect(race.second).toEqual({
+        status: "rejected",
+        reason: expect.any(WorkflowExecutionConflictError),
+      });
+      expect(race.blockedBy).toBe("advisory");
+      expect((await client.query(
+        "SELECT execution_id FROM workflow_adapter_qualified_test.task",
+      )).rows).toEqual([{ execution_id: targetId }]);
+    });
+
+    it("allows an unrelated retry identity to complete while another retry remains uncommitted", async () => {
+      const firstSource = "independent-race-failed-first";
+      const secondSource = "independent-race-failed-second";
+      const firstId = "independent-race-first-target";
+      const secondId = "independent-race-second-target";
+      await seedFailedQualifiedExecution(firstSource);
+      await seedFailedQualifiedExecution(secondSource);
+
+      const race = await raceQualifiedTransactions(
+        (owner) => owner.retryExecution({ sourceExecutionId: firstSource, executionId: firstId, workflowVersion: 2 }),
+        (contender) => contender.retryExecution({ sourceExecutionId: secondSource, executionId: secondId, workflowVersion: 2 }),
+      );
+
+      expect(race.first).toMatchObject({
+        created: true,
+        execution: { executionId: firstId, retryOfExecutionId: firstSource },
+      });
+      expect(race.second).toMatchObject({
+        status: "fulfilled",
+        value: {
+          created: true,
+          execution: { executionId: secondId, retryOfExecutionId: secondSource },
+        },
+      });
+      expect(race.blockedBy).toBe("settled");
+    });
   });
 
   it("releases only matching task generations in request order and preserves unrelated reservations", async () => {
@@ -1855,6 +1982,99 @@ async function loadOne(task: { id: string; reservationToken: string }) {
 
 function toRef(task: { id: string; reservationToken: string }) {
   return { taskId: task.id, reservationToken: task.reservationToken };
+}
+
+function qualifiedWorkflowAdapter(connection: PostgresWorkflowDatabase): PostgresWorkflowAdapter {
+  return new PostgresWorkflowAdapter(
+    connection,
+    {},
+    qualifiedExecutions as unknown as typeof workflowExecutions,
+    qualifiedHistory as unknown as typeof workflowHistoryEvents,
+    qualifiedTasks as unknown as typeof workflowTasks,
+    testSignals as unknown as typeof workflowSignals,
+    testDispatchOutbox as unknown as typeof workflowDispatchOutbox,
+    testHistoryArchives as unknown as typeof workflowHistoryArchives,
+  );
+}
+
+async function seedFailedQualifiedExecution(id: string, key?: string): Promise<void> {
+  // Seed only the terminal source. The two contending executions use the
+  // adapter's normal entry points and write shared, schema-qualified rows.
+  await client.query(`
+    INSERT INTO workflow_adapter_qualified_test.execution (
+      id, workflow_name, workflow_version, status, root_execution_id,
+      concurrency_key, concurrency_key_limit, concurrency_conflict, concurrency_scope
+    )
+    VALUES (
+      $1, $2, 1, 'failed', $1, $3, $4, $5, $6
+    )
+  `, [
+    id, startRequest(id).workflowName, key ?? null,
+    key === undefined ? null : 1,
+    key === undefined ? null : "enqueue",
+    key === undefined ? null : "execution",
+  ]);
+}
+
+async function raceQualifiedTransactions<First, Second>(
+  hold: (owner: PostgresWorkflowAdapter) => Promise<First>,
+  contend: (contender: PostgresWorkflowAdapter) => Promise<Second>,
+): Promise<{ first: First; second: PromiseSettledResult<Second>; blockedBy: string }> {
+  const peer = await pool.connect();
+  let pending: Promise<PromiseSettledResult<Second>> | undefined;
+  try {
+    // Bound unexpected SQL stalls independently of the test runner's timeout.
+    await peer.query("SET statement_timeout = '2s'");
+    const [ownerPid, peerPid] = await Promise.all(
+      [client, peer].map(async (connection) => (await connection.query<{ pid: number }>(
+        "SELECT pg_backend_pid() AS pid",
+      )).rows[0]!.pid),
+    );
+
+    const observation = await database.transaction(async (transaction) => {
+      // The adapter's nested transaction releases its savepoint, but the outer
+      // transaction still owns the inserted rows and advisory locks.
+      const first = await hold(qualifiedWorkflowAdapter(transaction));
+      let settled = false;
+      pending = Promise.allSettled([contend(qualifiedWorkflowAdapter(drizzle(peer)))])
+        .then(([result]) => {
+          settled = true;
+          return result!;
+        });
+      const blockedBy = await observeCompetingTransaction(ownerPid!, peerPid!, () => settled);
+      return { first, blockedBy };
+    });
+
+    return { ...observation, second: await pending! };
+  } finally {
+    try {
+      // The outer transaction has committed or rolled back by this point.
+      // Drain the peer before releasing its connection or truncating the tables.
+      await pending;
+    } finally {
+      peer.release(true);
+    }
+  }
+}
+
+async function observeCompetingTransaction(
+  ownerPid: number,
+  peerPid: number,
+  settled: () => boolean,
+): Promise<string> {
+  const deadline = performance.now() + 1_000;
+  while (performance.now() < deadline) {
+    if (settled()) return "settled";
+    // Observe the PostgreSQL wait for these exact sessions. Polling only
+    // samples the server state, so no fixed delay establishes the race.
+    const result = await pool.query<{ locktype: string }>(`
+      SELECT locktype FROM pg_locks
+      WHERE pid = $1 AND NOT granted AND $2 = ANY (pg_blocking_pids(pid))
+    `, [peerPid, ownerPid]);
+    if (result.rows[0] !== undefined) return result.rows[0].locktype;
+    await pause(5);
+  }
+  throw new Error("The competing workflow transaction neither settled nor waited for the owner.");
 }
 
 /** Counts driver round trips and always restores the shared test client. */

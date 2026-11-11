@@ -2,7 +2,7 @@
 
 [Testing reference](./testing.md#framework-mutation-testing) · [Running assessments](../contributing/mutation-testing.md#run-framework-mutation-testing) · [Results and classifications](./mutation_testing_framework.md) · [Machine-readable inventory](./mutation_testing_inventory.json)
 
-Updated November 10, 2026. This is an inventory of mutation assessment progress, not line coverage, a global mutation score or a claim that tests are absent. The 35 primary lots partition all 631 TS/TSX candidate sources currently selected by the full Stryker configuration. This includes type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly; it may be absent in a fresh Git checkout.
+Updated November 11, 2026. This is an inventory of mutation assessment progress, not line coverage, a global mutation score or a claim that tests are absent. The 35 primary lots partition all 631 TS/TSX candidate sources currently selected by the full Stryker configuration. This includes type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly; it may be absent in a fresh Git checkout.
 
 ## Scope and states
 
@@ -45,7 +45,7 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `middleware` | 2 | Not assessed | Composition and error propagation | — |
 | `observability` | 15 | Not assessed | Context, buffering, redaction and flush/disposal | — |
 | `outbound_http` | 17 | Partial / selected evidence | Entire deadline/body/retry files assessed; remaining client/middleware/provider files and resource/interleaving residuals pending | `outbound-resilience` |
-| `scheduled_tasks` | 19 | Assessment complete; review pending | All 19 candidate files assessed in three disjoint profiles; material lifecycle/date/recovery cases and schema/interleaving follow-up pending | `postgres-ownership`, `scheduled-runtime`, `scheduled-adapters`, `scheduled-contracts` |
+| `scheduled_tasks` | 19 | Assessment complete; review pending | All 19 candidate files assessed. Runtime deadline detections converted to direct test failures. Remaining lifecycle and adapter gaps in review. | `scheduled-runtime-timeout-followup`, `postgres-ownership`, `scheduled-runtime`, `scheduled-adapters`, `scheduled-contracts` |
 | `scheduling` | 4 | Not assessed | Clock, scheduling and cancellation primitives | — |
 | `studio` | 95 | Not assessed | Server/extensions, client state, routing and rendering | — |
 | `testing` | 1 | Assessment complete; review pending | Public HTTP policy helper; PostgreSQL/Redis fixtures excluded | `testing-component` |
@@ -53,10 +53,10 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `tokens` | 31 | Not assessed | Issuance, lookup, expiry, revocation and adapter consistency | — |
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
 | `utils` | 5 | Not assessed | Codecs, identifiers, catalog and boundary validation | — |
-| `workers` | 23 | Partial / selected evidence | Publication, adapter and definition/provider/runtime files assessed plus selected delivery ranges; scheduler admission/pressure/allocation/lease maintenance and material residuals pending | `workers-publication`, `workers-delivery`, `workers-adapters`, `workers-contracts` |
-| `workflows` | 38 | Partial / selected evidence | Memory/PostgreSQL task ownership, operator retry and terminal-control slices assessed; runtime/scheduler/serialization, other adapter methods and concurrency/parent-graph gaps pending | `postgres-ownership`, `workflow-task-ownership`, `workflow-execution-retry`, `workflow-terminal-control` |
+| `workers` | 23 | Assessment complete; review pending | Scheduler admission, ownership and delivery assessed alongside publication, adapters and contracts. Remaining saturation, batching and failure paths in review. | `workers-scheduler`, `workers-delivery-ownership-refresh`, `workers-publication`, `workers-delivery`, `workers-adapters`, `workers-contracts` |
+| `workflows` | 38 | Partial / selected evidence | Retry identity and key contention tested with separate PostgreSQL sessions. Other concurrency cases, runtime, scheduler and adapter operations pending. | `workflow-postgres-retry-races`, `postgres-ownership`, `workflow-task-ownership`, `workflow-execution-retry`, `workflow-terminal-control` |
 
-The current total is 18 not-assessed lots, 12 partially assessed lots, 1 reviewed lot, 3 completed assessments awaiting review/follow-up, and 1 lot without candidate sources. These are manual assessment states; no completion percentage is derived from them.
+The current total is 18 not-assessed lots, 11 partially assessed lots, 1 reviewed lot, 4 completed assessments awaiting review or follow-up, and 1 lot without candidate sources. These are manual assessment states.
 
 ## Evidence ledger
 
@@ -133,7 +133,7 @@ Fresh bounded assessments on November 10, 2026 completed the full actions compon
 
 [Analysis and before/after comparisons](mutation_testing_actions_followup.md) · [Session inputs/report hashes](mutation_testing_actions_session.json). The session record links each exact residual classification. No final execution in these scopes relies on a Vitest timeout or records an executed mutant with zero completed tests. All profiles remain informational with no score gate. Component completion applies to the declared current runtime mutation scope, not every possible input or downstream dependency contract.
 
-## Asynchronous runtime evidence
+## November 10 asynchronous runtime evidence
 
 Fresh static-inclusive before/after assessments cover scheduled tasks, workers, workflow ownership/operator control, outbound resilience and the adjacent background host. All runs completed inside their ten-minute budgets. The three scheduled profiles partition all 19 current candidate files; material follow-up remains, so the parent is not marked reviewed. Worker/workflow/outbound parents retain partial states for their explicit range/file gaps. Counts include distinct raw outcomes; assertion timeouts, Stryker execution guards and runtime-invalid declarations are not interchangeable with direct behavior assertions.
 
@@ -153,6 +153,19 @@ Fresh static-inclusive before/after assessments cover scheduled tasks, workers, 
 | `component-background` | 134 / 10 / 0 | 1 / 0 | 54 |
 
 [Analysis, demonstrated bugs and next priorities](./mutation_testing_async_runtime.md) · [Resolved scopes, source/test/report hashes and timeout evidence](./mutation_testing_async_runtime_session.json). Dedicated classification files are linked from the machine-readable ledger. Older PostgreSQL ownership evidence overlaps the new adapter selections; do not add those counters. No score gate or residual exclusion was introduced.
+
+## November 11 scheduler and retry follow-up
+
+The three requested profiles have fresh before and after reports. The paired worker ranges cover the scheduler file. Scheduled runtime and workflow retry retain the November 10 reports as historical evidence.
+
+| Evidence | Final Killed / Survived / NoCoverage / Timeout | Final Vitest deadline kills | Seconds |
+| --- | --- | ---: | ---: |
+| `workers-scheduler` | 487 / 175 / 67 / 2 | 8 | 186 |
+| `scheduled-runtime-timeout-followup` | 431 / 71 / 5 / 6 | 0 | 119 |
+| `workflow-postgres-retry-races` | 129 / 10 / 4 / 0 | 0 | 38 |
+| `workers-delivery-ownership-refresh` | 288 / 40 / 2 / 6 | 0 | 97 |
+
+[Analysis and residual limits](./mutation_testing_scheduler_followup.md) · [Report hashes and comparisons](./mutation_testing_scheduler_followup.json)
 
 ## Historical global campaign
 

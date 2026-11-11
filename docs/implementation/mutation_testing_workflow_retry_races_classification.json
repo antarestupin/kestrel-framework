@@ -1,0 +1,826 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-11-11",
+  "scope": "Complete memory and PostgreSQL retryExecution scopes, including the memory retry creation helper. Ordinary start is exercised as a real transaction dependency outside the selected mutation ranges.",
+  "command": "npm run test:mutation:workflow-execution-retry",
+  "budgetMs": 600000,
+  "ignoreStatic": false,
+  "incremental": false,
+  "beforeReport": "artifacts/mutation/nov11-scheduler-baselines/workflow-execution-retry-before/mutation.json",
+  "report": "artifacts/mutation/nov11-scheduler-baselines/workflow-execution-retry-after/mutation.json",
+  "beforeCounts": {
+    "NoCoverage": 2,
+    "Killed": 121,
+    "Survived": 13
+  },
+  "counts": {
+    "NoCoverage": 4,
+    "Killed": 129,
+    "Survived": 10
+  },
+  "beforeScopeMutants": 136,
+  "scopeMutants": 143,
+  "newTestCases": 4,
+  "productionChangesInScope": true,
+  "seconds": {
+    "before": 38,
+    "after": 38
+  },
+  "baselineTests": {
+    "before": 214,
+    "after": 218
+  },
+  "demonstratedDefect": "A concurrent ordinary start committed the requested retry identity between the initial lookup and insertion. The regression originally failed with DrizzleQueryError carrying PostgreSQL 23505. The targeted conflict fallback returns the existing framework conflict and preserves the committed execution and single activation.",
+  "sourceComparison": "Pairs use the file, whitespace-normalized original expression, operator, normalized replacement and occurrence within the selected retry methods. The initial lookup was moved into a helper used in both the normal and conflict paths. New or removed expressions remain separate.",
+  "matchedSites": 132,
+  "removedBeforeSites": 4,
+  "newAfterSites": 11,
+  "transitions": [
+    {
+      "before": "Killed",
+      "after": "Killed",
+      "count": 117
+    },
+    {
+      "before": "Killed",
+      "after": "Survived",
+      "count": 1
+    },
+    {
+      "before": "NoCoverage",
+      "after": "NoCoverage",
+      "count": 1
+    },
+    {
+      "before": "Survived",
+      "after": "Killed",
+      "count": 5
+    },
+    {
+      "before": "Survived",
+      "after": "Survived",
+      "count": 8
+    }
+  ],
+  "changedMatches": [
+    {
+      "before": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "67",
+        "location": {
+          "end": {
+            "column": 8,
+            "line": 1877
+          },
+          "start": {
+            "column": 36,
+            "line": 1873
+          }
+        },
+        "original": "`\n        SELECT pg_advisory_xact_lock(\n          hashtextextended(${`workflow-retry:${request.executionId}`}, 0)\n        )\n      `",
+        "mutatorName": "StringLiteral",
+        "replacement": "``",
+        "status": "Survived",
+        "testsCompleted": 12,
+        "statusReason": null,
+        "killedBy": []
+      },
+      "after": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "67",
+        "location": {
+          "end": {
+            "column": 8,
+            "line": 1877
+          },
+          "start": {
+            "column": 36,
+            "line": 1873
+          }
+        },
+        "original": "`\n        SELECT pg_advisory_xact_lock(\n          hashtextextended(${`workflow-retry:${request.executionId}`}, 0)\n        )\n      `",
+        "mutatorName": "StringLiteral",
+        "replacement": "``",
+        "status": "Killed",
+        "testsCompleted": 7,
+        "statusReason": "expected 'transactionid' to be 'advisory' // Object.is equality",
+        "killedBy": [
+          "46"
+        ]
+      }
+    },
+    {
+      "before": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "68",
+        "location": {
+          "end": {
+            "column": 69,
+            "line": 1875
+          },
+          "start": {
+            "column": 30,
+            "line": 1875
+          }
+        },
+        "original": "`workflow-retry:${request.executionId}`",
+        "mutatorName": "StringLiteral",
+        "replacement": "``",
+        "status": "Survived",
+        "testsCompleted": 12,
+        "statusReason": null,
+        "killedBy": []
+      },
+      "after": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "68",
+        "location": {
+          "end": {
+            "column": 69,
+            "line": 1875
+          },
+          "start": {
+            "column": 30,
+            "line": 1875
+          }
+        },
+        "original": "`workflow-retry:${request.executionId}`",
+        "mutatorName": "StringLiteral",
+        "replacement": "``",
+        "status": "Killed",
+        "testsCompleted": 8,
+        "statusReason": "expected 'advisory' to be 'settled' // Object.is equality",
+        "killedBy": [
+          "47"
+        ]
+      }
+    },
+    {
+      "before": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "84",
+        "location": {
+          "end": {
+            "column": 33,
+            "line": 1892
+          },
+          "start": {
+            "column": 11,
+            "line": 1892
+          }
+        },
+        "original": "existing !== undefined",
+        "mutatorName": "ConditionalExpression",
+        "replacement": "false",
+        "status": "Killed",
+        "testsCompleted": 1,
+        "statusReason": "expected Error: Failed query: insert into \"workflo\u2026 { \u2026(2) } to be an instance of WorkflowExecutionConflictError",
+        "killedBy": [
+          "11"
+        ]
+      },
+      "after": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "95",
+        "location": {
+          "end": {
+            "column": 33,
+            "line": 1900
+          },
+          "start": {
+            "column": 11,
+            "line": 1900
+          }
+        },
+        "original": "existing !== undefined",
+        "mutatorName": "ConditionalExpression",
+        "replacement": "false",
+        "status": "Survived",
+        "testsCompleted": 15,
+        "statusReason": null,
+        "killedBy": []
+      }
+    },
+    {
+      "before": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "108",
+        "location": {
+          "end": {
+            "column": 10,
+            "line": 1910
+          },
+          "start": {
+            "column": 38,
+            "line": 1903
+          }
+        },
+        "original": "`\n          SELECT pg_advisory_xact_lock(\n            hashtextextended(\n              ${`workflow-key:${source.workflowName}:${source.concurrencyKey}`},\n              0\n            )\n          )\n        `",
+        "mutatorName": "StringLiteral",
+        "replacement": "``",
+        "status": "Survived",
+        "testsCompleted": 4,
+        "statusReason": null,
+        "killedBy": []
+      },
+      "after": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "111",
+        "location": {
+          "end": {
+            "column": 10,
+            "line": 1913
+          },
+          "start": {
+            "column": 38,
+            "line": 1906
+          }
+        },
+        "original": "`\n          SELECT pg_advisory_xact_lock(\n            hashtextextended(\n              ${`workflow-key:${source.workflowName}:${source.concurrencyKey}`},\n              0\n            )\n          )\n        `",
+        "mutatorName": "StringLiteral",
+        "replacement": "``",
+        "status": "Killed",
+        "testsCompleted": 2,
+        "statusReason": "expected { Object (status, value) } to match object { Object (status, value) }\n(11 matching properties omitted from actual)",
+        "killedBy": [
+          "44"
+        ]
+      }
+    },
+    {
+      "before": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "109",
+        "location": {
+          "end": {
+            "column": 79,
+            "line": 1906
+          },
+          "start": {
+            "column": 17,
+            "line": 1906
+          }
+        },
+        "original": "`workflow-key:${source.workflowName}:${source.concurrencyKey}`",
+        "mutatorName": "StringLiteral",
+        "replacement": "``",
+        "status": "Survived",
+        "testsCompleted": 4,
+        "statusReason": null,
+        "killedBy": []
+      },
+      "after": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "112",
+        "location": {
+          "end": {
+            "column": 79,
+            "line": 1909
+          },
+          "start": {
+            "column": 17,
+            "line": 1909
+          }
+        },
+        "original": "`workflow-key:${source.workflowName}:${source.concurrencyKey}`",
+        "mutatorName": "StringLiteral",
+        "replacement": "``",
+        "status": "Killed",
+        "testsCompleted": 2,
+        "statusReason": "expected { Object (status, value) } to match object { Object (status, value) }\n(11 matching properties omitted from actual)",
+        "killedBy": [
+          "44"
+        ]
+      }
+    },
+    {
+      "before": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "127",
+        "location": {
+          "end": {
+            "column": 32,
+            "line": 1944
+          },
+          "start": {
+            "column": 11,
+            "line": 1944
+          }
+        },
+        "original": "created === undefined",
+        "mutatorName": "ConditionalExpression",
+        "replacement": "false",
+        "status": "Survived",
+        "testsCompleted": 11,
+        "statusReason": null,
+        "killedBy": []
+      },
+      "after": {
+        "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+        "sampleId": "131",
+        "location": {
+          "end": {
+            "column": 32,
+            "line": 1947
+          },
+          "start": {
+            "column": 11,
+            "line": 1947
+          }
+        },
+        "original": "created === undefined",
+        "mutatorName": "ConditionalExpression",
+        "replacement": "false",
+        "status": "Killed",
+        "testsCompleted": 5,
+        "statusReason": "expected { status: 'rejected', \u2026(1) } to deeply equal { status: 'rejected', reason: Any{\u2026} }",
+        "killedBy": [
+          "45"
+        ]
+      }
+    }
+  ],
+  "removedBeforeIds": [
+    "66",
+    "86",
+    "129",
+    "64"
+  ],
+  "newAfterIds": [
+    "135",
+    "134",
+    "136",
+    "85",
+    "84",
+    "86",
+    "133",
+    "66",
+    "82",
+    "129",
+    "64"
+  ],
+  "allExecutedMutantsCompletedTests": true,
+  "vitestTimeoutKills": 0,
+  "directAdvisoryLockDetections": [
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "67",
+      "location": {
+        "end": {
+          "column": 8,
+          "line": 1877
+        },
+        "start": {
+          "column": 36,
+          "line": 1873
+        }
+      },
+      "original": "`\n        SELECT pg_advisory_xact_lock(\n          hashtextextended(${`workflow-retry:${request.executionId}`}, 0)\n        )\n      `",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Killed",
+      "testsCompleted": 7,
+      "statusReason": "expected 'transactionid' to be 'advisory' // Object.is equality",
+      "killedBy": [
+        "46"
+      ],
+      "beforeSampleId": "67",
+      "beforeStatus": "Survived",
+      "tests": [
+        "PostgresWorkflowAdapter concurrent PostgreSQL retries classifies competing retries from different sources as an execution conflict"
+      ],
+      "behavior": "The contender waits on the target insert transaction instead of waiting on the retry identity before accessing rows. With the new insert fallback, the final typed conflict is preserved."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "68",
+      "location": {
+        "end": {
+          "column": 69,
+          "line": 1875
+        },
+        "start": {
+          "column": 30,
+          "line": 1875
+        }
+      },
+      "original": "`workflow-retry:${request.executionId}`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Killed",
+      "testsCompleted": 8,
+      "statusReason": "expected 'advisory' to be 'settled' // Object.is equality",
+      "killedBy": [
+        "47"
+      ],
+      "beforeSampleId": "68",
+      "beforeStatus": "Survived",
+      "tests": [
+        "PostgresWorkflowAdapter concurrent PostgreSQL retries allows an unrelated retry identity to complete while another retry remains uncommitted"
+      ],
+      "behavior": "A constant retry-identity key blocks an unrelated retry that must be able to settle while the owner is uncommitted."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "111",
+      "location": {
+        "end": {
+          "column": 10,
+          "line": 1913
+        },
+        "start": {
+          "column": 38,
+          "line": 1906
+        }
+      },
+      "original": "`\n          SELECT pg_advisory_xact_lock(\n            hashtextextended(\n              ${`workflow-key:${source.workflowName}:${source.concurrencyKey}`},\n              0\n            )\n          )\n        `",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Killed",
+      "testsCompleted": 2,
+      "statusReason": "expected { Object (status, value) } to match object { Object (status, value) }\n(11 matching properties omitted from actual)",
+      "killedBy": [
+        "44"
+      ],
+      "beforeSampleId": "108",
+      "beforeStatus": "Survived",
+      "tests": [
+        "PostgresWorkflowAdapter concurrent PostgreSQL retries leaves a retry pending when an ordinary start claims the last permit"
+      ],
+      "behavior": "Omitting the business-key lock fails the pending-status and permit assertion while the ordinary start holds the last permit."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "112",
+      "location": {
+        "end": {
+          "column": 79,
+          "line": 1909
+        },
+        "start": {
+          "column": 17,
+          "line": 1909
+        }
+      },
+      "original": "`workflow-key:${source.workflowName}:${source.concurrencyKey}`",
+      "mutatorName": "StringLiteral",
+      "replacement": "``",
+      "status": "Killed",
+      "testsCompleted": 2,
+      "statusReason": "expected { Object (status, value) } to match object { Object (status, value) }\n(11 matching properties omitted from actual)",
+      "killedBy": [
+        "44"
+      ],
+      "beforeSampleId": "109",
+      "beforeStatus": "Survived",
+      "tests": [
+        "PostgresWorkflowAdapter concurrent PostgreSQL retries leaves a retry pending when an ordinary start claims the last permit"
+      ],
+      "behavior": "A constant business-key lock loses synchronization with the ordinary start and fails the pending-status and permit assertion."
+    }
+  ],
+  "remaining": [
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "15",
+      "location": {
+        "end": {
+          "column": 66,
+          "line": 899
+        },
+        "start": {
+          "column": 11,
+          "line": 899
+        }
+      },
+      "original": "this.pendingExecutionRetries.get(executionId) === entry",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 15,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "private pending-job ownership invariant",
+      "reason": "The private map keeps the same job while creation is pending. Same-source callers await it, different sources conflict, and cleanup precedes settlement."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "28",
+      "location": {
+        "end": {
+          "column": 46,
+          "line": 916
+        },
+        "start": {
+          "column": 5,
+          "line": 916
+        }
+      },
+      "original": "validateExecutionId(request.executionId);",
+      "mutatorName": "CallExpression",
+      "replacement": ";",
+      "status": "Survived",
+      "testsCompleted": 15,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "validation-order and additional-work distinction",
+      "reason": "Ordinary start still validates the retry identity before insertion. This deletion changes error precedence and work when the source and the requested identity are both invalid."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "35",
+      "location": {
+        "end": {
+          "column": 76,
+          "line": 919
+        },
+        "start": {
+          "column": 27,
+          "line": 919
+        }
+      },
+      "original": "\"Only failed workflow executions can be retried.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "unconstrained diagnostic wording",
+      "reason": "A nonfailed memory source still throws TypeError before creating a retry."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "54",
+      "location": {
+        "end": {
+          "column": 81,
+          "line": 934
+        },
+        "start": {
+          "column": 72,
+          "line": 934
+        }
+      },
+      "original": "\"enqueue\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "transient admission representation",
+      "reason": "The temporary policy string follows the enqueue fallthrough and creation restores the original policy. A reentrant callback may observe the temporary representation before completion."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts",
+      "sampleId": "57",
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 940
+        },
+        "start": {
+          "column": 11,
+          "line": 940
+        }
+      },
+      "original": "concurrency === undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 14,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "optional argument representation",
+      "reason": "The built-in memory start reads concurrency as undefined for both an absent key and an explicit undefined value."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "81",
+      "location": {
+        "end": {
+          "column": 78,
+          "line": 1886
+        },
+        "start": {
+          "column": 29,
+          "line": 1886
+        }
+      },
+      "original": "\"Only failed workflow executions can be retried.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "Survived",
+      "testsCompleted": 1,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "unconstrained diagnostic wording",
+      "reason": "A nonfailed PostgreSQL source still throws TypeError before inserting a retry."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "95",
+      "location": {
+        "end": {
+          "column": 33,
+          "line": 1900
+        },
+        "start": {
+          "column": 11,
+          "line": 1900
+        }
+      },
+      "original": "existing !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "Survived",
+      "testsCompleted": 15,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "existing-result shortcut and contention",
+      "reason": "The fresh conflict lookup still returns the same compatible retry. Skipping the first result adds capacity work and an attempted insert, and may wait on the business-key lock even for an existing retry."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "106",
+      "location": {
+        "end": {
+          "column": 42,
+          "line": 1904
+        },
+        "start": {
+          "column": 12,
+          "line": 1904
+        }
+      },
+      "original": "source.concurrencyKey !== null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "adapter-produced keyed metadata invariant",
+      "reason": "Built-in rows with an execution concurrency scope carry a resolved business key."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "108",
+      "location": {
+        "end": {
+          "column": 47,
+          "line": 1905
+        },
+        "start": {
+          "column": 12,
+          "line": 1905
+        }
+      },
+      "original": "source.concurrencyKeyLimit !== null",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "Survived",
+      "testsCompleted": 6,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "adapter-produced keyed metadata invariant",
+      "reason": "Built-in rows with an execution concurrency scope carry a resolved key limit."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "129",
+      "location": {
+        "end": {
+          "column": 65,
+          "line": 1946
+        },
+        "start": {
+          "column": 30,
+          "line": 1946
+        }
+      },
+      "original": "{ target: this.executionsTable.id }",
+      "mutatorName": "ObjectLiteral",
+      "replacement": "{}",
+      "status": "Survived",
+      "testsCompleted": 15,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "equivalent in built-in primary-key-only schema",
+      "reason": "Targetless conflict handling can absorb conflicts on additional unique constraints in supplied custom tables. The built-in execution table has only its primary-key uniqueness constraint."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "134",
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 1951
+        },
+        "start": {
+          "column": 13,
+          "line": 1951
+        }
+      },
+      "original": "competing !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "true",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "uncovered defensive competing-result branch",
+      "reason": "The ordinary-start collision throws from the fresh identity lookup. Built-in retries for the same target serialize before insertion, so the fixture never reaches this subsequent conditional."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "135",
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 1951
+        },
+        "start": {
+          "column": 13,
+          "line": 1951
+        }
+      },
+      "original": "competing !== undefined",
+      "mutatorName": "ConditionalExpression",
+      "replacement": "false",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "uncovered defensive competing-result branch",
+      "reason": "The ordinary-start collision throws from the fresh identity lookup. Built-in retries for the same target serialize before insertion, so the fixture never reaches this subsequent conditional."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "136",
+      "location": {
+        "end": {
+          "column": 36,
+          "line": 1951
+        },
+        "start": {
+          "column": 13,
+          "line": 1951
+        }
+      },
+      "original": "competing !== undefined",
+      "mutatorName": "EqualityOperator",
+      "replacement": "competing === undefined",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "uncovered defensive competing-result branch",
+      "reason": "The ordinary-start collision throws from the fresh identity lookup. Built-in retries for the same target serialize before insertion, so the fixture never reaches this subsequent conditional."
+    },
+    {
+      "file": "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts",
+      "sampleId": "138",
+      "location": {
+        "end": {
+          "column": 84,
+          "line": 1952
+        },
+        "start": {
+          "column": 25,
+          "line": 1952
+        }
+      },
+      "original": "\"PostgreSQL did not return the retried workflow execution.\"",
+      "mutatorName": "StringLiteral",
+      "replacement": "\"\"",
+      "status": "NoCoverage",
+      "testsCompleted": 0,
+      "statusReason": null,
+      "killedBy": [],
+      "classification": "uncovered defensive missing-result diagnostic",
+      "reason": "An ordinary insert returns its row and a same-target conflict reconciles the winning row. A suppressed insert or external writer could leave no winner available to the fresh lookup."
+    }
+  ],
+  "reportHashes": {
+    "artifacts/mutation/nov11-scheduler-baselines/workflow-execution-retry-before/mutation.json": "91cb202619a4474d5adf37688ffcc58e6e0aa8d2eb4bc417d58a8261aa553442",
+    "artifacts/mutation/nov11-scheduler-baselines/workflow-execution-retry-after/mutation.json": "228f4c12a84fb68cc448f175bff19c526a1c3f14220f1601ad2cc8fbc3e552de"
+  },
+  "embeddedProductionSourceHashes": {
+    "before": {
+      "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "743a52cbd4e326406d6b1ebf615d3617c49239be34187aec109ad0ea7e25e5f4",
+      "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "4569fb5cb69d9225ec245d1c4b87f030f573b781be5fae8ad83f7efcbb19f861"
+    },
+    "after": {
+      "src/packages/kestrel/src/workflows/adapters/postgres/adapter.ts": "4e377047136dec25fc5b847af7bf1a986d370852b7b2df3ff7895461877ed783",
+      "src/packages/kestrel/src/workflows/adapters/memory/adapter.ts": "4569fb5cb69d9225ec245d1c4b87f030f573b781be5fae8ad83f7efcbb19f861"
+    }
+  },
+  "executedPostgresAdapterTestHashes": {
+    "before": "d3f453d0d363c08101867f4ceebf44268a37a6088585c1f73f88e0a313d5dbca",
+    "after": "676891c57c169a46cff4710ec7551c3abe4a02528b0ca25af6af9b2ded1fe618"
+  },
+  "review": "Complete for this selected profile with the documented work, metadata and defensive branch limitations.",
+  "scorePolicy": "All remaining statuses stay in the report. The profile is informational."
+}

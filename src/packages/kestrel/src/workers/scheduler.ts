@@ -113,6 +113,22 @@ interface CombinedRequirement {
   readonly estimatedCost: ThrottlingCost;
 }
 
+interface CycleAdmission {
+  shutdownBehavior?: WorkerShutdownBehavior;
+}
+
+interface TrackedReservation {
+  readonly job: ReservedJob;
+  invocation?: AbortController;
+}
+
+/** Distinguishes reservation loss from cancellation of the whole scheduler. */
+class WorkerReservationLostError extends Error {
+  public constructor(jobId: string) {
+    super(`Worker reservation lost for job "${jobId}".`);
+  }
+}
+
 /**
  * Coordinates queue reservations and application-scoped worker executions.
  *
@@ -143,7 +159,7 @@ export class WorkerScheduler<Config> {
 
   private readonly shutdownBehavior: WorkerShutdownBehavior;
 
-  private readonly leasedJobs = new Map<string, ReservedJob>();
+  private readonly leasedJobs = new Map<string, TrackedReservation>();
 
   private readonly acknowledgements: WorkerAcknowledgementBuffer;
 
@@ -174,6 +190,8 @@ export class WorkerScheduler<Config> {
   private loopPromise: Promise<void> | undefined;
 
   private activeCycle: Promise<number> | undefined;
+
+  private activeAdmission: CycleAdmission | undefined;
 
   private rotationOffset = 0;
 
@@ -215,16 +233,14 @@ export class WorkerScheduler<Config> {
       grouping: adapter.acknowledgementGrouping ?? "global",
       onAcknowledged: (jobs) => {
         for (const job of jobs) {
-          this.leasedJobs.delete(job.jobId);
+          this.forgetReservation(job);
         }
       },
     });
     this.deferrals = new WorkerDeferralBuffer(adapter, {
       maxSize: options.deferBufferSize ?? 100,
       flushIntervalMs: options.deferFlushIntervalMs ?? 10,
-      onDeferred: (jobs) => {
-        for (const job of jobs) this.leasedJobs.delete(job.jobId);
-      },
+      onDeferred: (jobs) => { for (const job of jobs) this.forgetReservation(job); },
     });
 
     for (const worker of workers) {
@@ -278,29 +294,41 @@ export class WorkerScheduler<Config> {
   public async stop(
     behavior: WorkerShutdownBehavior = this.shutdownBehavior,
   ): Promise<void> {
+    // An in-flight storage call may return new reservations after polling stops.
+    if (this.activeAdmission !== undefined) {
+      this.activeAdmission.shutdownBehavior ??= behavior;
+    }
     this.loopAbortController?.abort();
 
     if (behavior === "wait") {
-      await this.loopPromise;
+      await (this.loopPromise ?? this.activeCycle);
       return;
     }
 
     this.handlerAbortController.abort();
 
-    // Persist buffered decisions before releasing remaining leases.
-    await Promise.all([
+    // Wait for both drains before releasing. A failed acknowledgement must not
+    // overtake a peer deferral or prevent us from returning the remaining jobs.
+    const drains = await Promise.allSettled([
       this.acknowledgements.flush(),
       this.deferrals.flush(),
     ]);
+    const errors = drains.flatMap((drain) => drain.status === "rejected" ? [drain.reason as unknown] : []);
 
     if (behavior === "release") {
-      await this.adapter.release(
-        [...this.leasedJobs.values()].map(toReservationRef),
-      );
+      const reservations = [...this.leasedJobs.values()].map(({ job }) => toReservationRef(job));
+      try {
+        await this.adapter.release(reservations);
+        for (const reservation of reservations) this.forgetReservation(reservation);
+      } catch (error) {
+        errors.push(error);
+      }
     }
 
     // Observe eventual failures even when shutdown deliberately does not wait.
     void this.loopPromise?.catch(() => undefined);
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, "Several worker shutdown transitions failed.");
   }
 
   /** Performs one complete reserve, execute and flush cycle. */
@@ -309,9 +337,13 @@ export class WorkerScheduler<Config> {
       return this.activeCycle;
     }
 
-    const cycle = this.executeCycle().finally(() => {
+    // Publish ownership before application or adapter callbacks can reenter.
+    const admission: CycleAdmission = {};
+    this.activeAdmission = admission;
+    const cycle = Promise.resolve().then(() => this.executeCycle(admission)).finally(() => {
       if (this.activeCycle === cycle) {
         this.activeCycle = undefined;
+        this.activeAdmission = undefined;
       }
     });
     this.activeCycle = cycle;
@@ -331,7 +363,7 @@ export class WorkerScheduler<Config> {
         this.reportError(error);
       }
 
-      if (handled === 0) {
+      if (handled === 0 && !signal.aborted) {
         try {
           await this.sleep(this.pollIntervalMs, signal);
         } catch (error) {
@@ -343,12 +375,9 @@ export class WorkerScheduler<Config> {
     }
   }
 
-  private async executeCycle(): Promise<number> {
-    if (this.workers.length === 0) {
-      return 0;
-    }
-
-    if (!await this.canReserveUnderPressure()) return 0;
+  private async executeCycle(admission: CycleAdmission): Promise<number> {
+    if (this.workers.length === 0 || this.isAdmissionClosed(admission)) return 0;
+    if (!await this.canReserveUnderPressure() || this.isAdmissionClosed(admission)) return 0;
 
     const orderedWorkers = rotate(this.workers, this.rotationOffset);
     this.rotationOffset = (this.rotationOffset + 1) % this.workers.length;
@@ -357,9 +386,7 @@ export class WorkerScheduler<Config> {
       readyQueues.has(worker.queue)
     );
 
-    if (readyWorkers.length === 0) {
-      return 0;
-    }
+    if (readyWorkers.length === 0 || this.isAdmissionClosed(admission)) return 0;
 
     const jobs = await this.adapter.reserve({
       queues: readyWorkers.map((worker) => ({
@@ -374,9 +401,13 @@ export class WorkerScheduler<Config> {
       totalLimit: this.reservationLimit,
       leaseMs: this.options.leaseMs,
     });
+    if (this.isAdmissionClosed(admission)) {
+      await this.finishLateReservations(admission, jobs);
+      return 0;
+    }
 
     for (const job of jobs) {
-      this.leasedJobs.set(job.id, job);
+      this.leasedJobs.set(job.id, { job });
     }
 
     const leaseExtensions = this.keepLeasesAlive(jobs);
@@ -416,7 +447,7 @@ export class WorkerScheduler<Config> {
         try {
           await leaseExtensions.close();
         } finally {
-          for (const job of jobs) this.leasedJobs.delete(job.id);
+          for (const job of jobs) this.forgetReservation(toReservationRef(job));
         }
       }
     }
@@ -439,6 +470,17 @@ export class WorkerScheduler<Config> {
     );
     return availability.state === "available"
       || availability.state === "degraded";
+  }
+
+  private isAdmissionClosed(admission: CycleAdmission): boolean {
+    return admission.shutdownBehavior !== undefined || this.executionSignal.aborted;
+  }
+
+  /** Leaves admissions that never entered a handler ready for another poller. */
+  private async finishLateReservations(admission: CycleAdmission, jobs: readonly ReservedJob[]): Promise<void> {
+    if (admission.shutdownBehavior !== "expire" && jobs.length > 0) {
+      await this.adapter.release(jobs.map(toReservationRef));
+    }
   }
 
   /** Refreshes the backend readiness hint independently from reservation pace. */
@@ -468,14 +510,48 @@ export class WorkerScheduler<Config> {
       intervalMs: Math.max(1, Math.floor(this.options.leaseMs / 2)),
       extend: async () => {
         if (this.executionSignal.aborted) return;
-        const ownedJobs = jobs.filter((job) => this.leasedJobs.has(job.id));
+        const ownedJobs = jobs.filter((job) => this.ownsJob(job));
         if (ownedJobs.length === 0) return;
-        await this.adapter.extendLease(ownedJobs.map((job) => ({
+        const renewed = await this.adapter.extendLease(ownedJobs.map((job) => ({
           ...toReservationRef(job),
           leaseMs: this.options.leaseMs,
         })));
+        const renewedTokens = new Map(renewed.map(({ jobId, reservationToken }) => [jobId, reservationToken]));
+
+        for (const job of ownedJobs) {
+          if (renewedTokens.get(job.id) === job.reservationToken) continue;
+          // A missing token confirms lost ownership. A completed acknowledgement
+          // or deferral may already have removed it during this extension.
+          const tracked = this.forgetReservation(toReservationRef(job));
+          tracked?.invocation?.abort(new WorkerReservationLostError(job.id));
+        }
       },
     });
+  }
+
+  private ownsJob(job: ReservedJob): boolean {
+    return this.leasedJobs.get(job.id)?.job.reservationToken === job.reservationToken;
+  }
+
+  private forgetReservation(reservation: JobReservationRef): TrackedReservation | undefined {
+    const tracked = this.leasedJobs.get(reservation.jobId);
+    if (tracked?.job.reservationToken !== reservation.reservationToken) return undefined;
+    this.leasedJobs.delete(reservation.jobId);
+    return tracked;
+  }
+
+  /** A batch shares one signal, while independent invocations retain their leases. */
+  private watchInvocation(invocation: WorkerInvocation): AbortSignal {
+    const leaseLoss = new AbortController();
+    for (const job of invocation.jobs) {
+      const tracked = this.leasedJobs.get(job.id);
+      if (tracked?.job.reservationToken !== job.reservationToken) {
+        leaseLoss.abort(new WorkerReservationLostError(job.id));
+      } else {
+        tracked.invocation = leaseLoss;
+      }
+    }
+    return AbortSignal.any([this.executionSignal, leaseLoss.signal]);
   }
 
   private createInvocations(
@@ -542,6 +618,8 @@ export class WorkerScheduler<Config> {
   private async runInvocation(
     invocation: WorkerInvocation,
   ): Promise<readonly JobOutcome[]> {
+    const signal = this.watchInvocation(invocation);
+    if (signal.aborted) return this.skipInvocation(invocation, signal);
     let parsedJobs: readonly ReservedJob[];
 
     try {
@@ -554,13 +632,15 @@ export class WorkerScheduler<Config> {
         ),
       })));
     } catch (error) {
-      return this.runPreparationFailure(invocation, error);
+      return this.runPreparationFailure(invocation, error, signal);
     }
 
+    if (signal.aborted) return this.skipInvocation(invocation, signal);
     if (invocation.worker.throttling === undefined) {
       return this.runPreparedInvocation(
         invocation,
         parsedJobs,
+        signal,
         unavailableActualCostReporter(invocation.worker.name),
         unavailableFeedbackReporter(invocation.worker.name),
       );
@@ -572,6 +652,7 @@ export class WorkerScheduler<Config> {
         new Error(
           `Worker "${invocation.worker.name}" declares throttling but no throttling facade is configured.`,
         ),
+        signal,
       );
     }
 
@@ -583,18 +664,18 @@ export class WorkerScheduler<Config> {
         parsedJobs,
       );
     } catch (error) {
-      return this.runPreparationFailure(invocation, error);
+      return this.runPreparationFailure(invocation, error, signal);
     }
 
     let permit: ThrottlingPermit | undefined;
 
     try {
-      permit = await this.acquireInvocationPermit(invocation, requirement);
+      permit = await this.acquireInvocationPermit(invocation, requirement, signal);
     } catch (error) {
-      return this.runPreparationFailure(invocation, error);
+      return this.runPreparationFailure(invocation, error, signal);
     }
 
-    if (permit === undefined) return [];
+    if (permit === undefined) return this.skipInvocation(invocation, signal);
 
     let actualCost: ThrottlingCost | undefined;
     let feedback: ThrottlingFeedback | undefined;
@@ -623,6 +704,7 @@ export class WorkerScheduler<Config> {
       outcomes = await this.runPreparedInvocation(
         invocation,
         parsedJobs,
+        signal,
         reportActualCost,
         reportFeedback,
       );
@@ -633,12 +715,12 @@ export class WorkerScheduler<Config> {
         ...(feedback === undefined ? {} : { feedback }),
       });
 
-      if (this.executionSignal.aborted) return [];
+      if (signal.aborted) return [];
       throw error;
     }
 
     await permit.complete({
-      outcome: outcomes.some((outcome) => outcome.kind === "failure")
+      outcome: signal.aborted || outcomes.some((outcome) => outcome.kind === "failure")
         ? "failure"
         : "success",
       ...(actualCost === undefined ? {} : { actualCost }),
@@ -650,9 +732,9 @@ export class WorkerScheduler<Config> {
   private async acquireInvocationPermit(
     invocation: WorkerInvocation,
     requirement: CombinedRequirement,
+    signal: AbortSignal,
   ): Promise<ThrottlingPermit | undefined> {
     const throttling = this.throttling!;
-    const signal = this.executionSignal;
     let firstError: unknown;
 
     try {
@@ -663,7 +745,7 @@ export class WorkerScheduler<Config> {
       this.recordDecision(invocation, "admitted");
       return permit;
     } catch (error) {
-      if (isShutdownAdmissionError(error, signal)) return undefined;
+      if (signal.reason instanceof WorkerReservationLostError || isShutdownAdmissionError(error, signal)) return undefined;
       if (!isUnavailableAdmissionError(error)) throw error;
       firstError = error;
     }
@@ -706,7 +788,7 @@ export class WorkerScheduler<Config> {
       this.recordDecision(invocation, "admitted");
       return permit;
     } catch (error) {
-      if (isShutdownAdmissionError(error, signal)) return undefined;
+      if (signal.reason instanceof WorkerReservationLostError || isShutdownAdmissionError(error, signal)) return undefined;
       if (!isUnavailableAdmissionError(error)) throw error;
 
       await this.deferInvocation(
@@ -753,10 +835,11 @@ export class WorkerScheduler<Config> {
     result: "deferred" | "released",
   ): Promise<void> {
     if (this.executionSignal.aborted) return;
-    const requests: DeferJobRequest[] = invocation.jobs.map((job) => ({
+    const requests: DeferJobRequest[] = invocation.jobs.filter((job) => this.ownsJob(job)).map((job) => ({
       ...toReservationRef(job),
       availableAt,
     }));
+    if (requests.length === 0) return;
     // Do not wait per invocation: a cycle can collect all rejected work before
     // its final flush, while the timer also handles long-running peer jobs.
     this.deferrals.enqueue(requests, () => {
@@ -788,15 +871,18 @@ export class WorkerScheduler<Config> {
   private runPreparedInvocation(
     invocation: WorkerInvocation,
     parsedJobs: readonly ReservedJob[],
+    signal: AbortSignal,
     reportActualCost: (cost: ThrottlingCost) => void,
     reportFeedback: (feedback: ThrottlingFeedback) => void,
   ): Promise<readonly JobOutcome[]> {
-    return this.handlerSlots.run(
+    return this.runInHandlerSlot(
+      invocation,
       () => invocation.worker.batch === false
         ? this.runIndividual(
             invocation.worker,
             parsedJobs[0]!,
             invocation.executionId,
+            signal,
             reportActualCost,
             reportFeedback,
           )
@@ -804,18 +890,21 @@ export class WorkerScheduler<Config> {
             invocation.worker,
             parsedJobs,
             invocation.executionId,
+            signal,
             reportActualCost,
             reportFeedback,
           ),
-      this.executionSignal,
+      signal,
     );
   }
 
   private runPreparationFailure(
     invocation: WorkerInvocation,
     error: unknown,
+    signal: AbortSignal,
   ): Promise<readonly JobOutcome[]> {
-    return this.handlerSlots.run(
+    return this.runInHandlerSlot(
+      invocation,
       () => this.runObservedInvocation(
         invocation.worker,
         invocation.executionId,
@@ -825,14 +914,62 @@ export class WorkerScheduler<Config> {
           error,
         })),
       ),
-      this.executionSignal,
+      signal,
     );
+  }
+
+  private async runInHandlerSlot(
+    invocation: WorkerInvocation,
+    operation: () => Promise<readonly JobOutcome[]>,
+    signal: AbortSignal,
+  ): Promise<readonly JobOutcome[]> {
+    try {
+      return await this.handlerSlots.run(operation, signal);
+    } catch (error) {
+      if (signal.aborted && error === signal.reason) return this.skipInvocation(invocation, signal);
+      throw error;
+    }
+  }
+
+  private skipInvocation(invocation: WorkerInvocation, signal: AbortSignal): readonly JobOutcome[] {
+    if (signal.reason instanceof WorkerReservationLostError) this.returnUnfinishedJobs(invocation.jobs);
+    return [];
+  }
+
+  /** An interrupted batch returns its still-owned, unreported members without charging an attempt. */
+  private returnUnfinishedJobs(jobs: readonly ReservedJob[]): void {
+    if (this.executionSignal.aborted) return;
+    const availableAt = this.now();
+    const requests = jobs.filter((job) => this.ownsJob(job)).map((job) => ({
+      ...toReservationRef(job),
+      availableAt,
+    }));
+    this.deferrals.enqueue(requests, () => undefined);
+  }
+
+  private getReportableBatchJobs(
+    jobs: readonly ReservedJob[],
+    signal: AbortSignal,
+    successes: ReadonlyMap<string, unknown>,
+    failures: ReadonlyMap<string, WorkerBatchFailureData>,
+  ): readonly ReservedJob[] {
+    if (!(signal.reason instanceof WorkerReservationLostError)) return jobs;
+
+    const reported: ReservedJob[] = [];
+    const unfinished: ReservedJob[] = [];
+    for (const job of jobs) {
+      if (successes.has(job.id) || failures.has(job.id)) reported.push(job);
+      else unfinished.push(job);
+    }
+    this.returnUnfinishedJobs(unfinished);
+    return reported;
   }
 
   private async runIndividual(
     worker: AnyWorker,
     job: ReservedJob,
     executionId: string | undefined,
+    signal: AbortSignal,
     reportActualCost: (cost: ThrottlingCost) => void,
     reportFeedback: (feedback: ThrottlingFeedback) => void,
   ): Promise<readonly JobOutcome[]> {
@@ -847,11 +984,12 @@ export class WorkerScheduler<Config> {
           const dependencies = await execution.container.resolveDependenciesAsync(
             worker.dependencies,
           );
+          signal.throwIfAborted();
           await worker.handler(
             job,
             dependencies,
             {
-              signal: this.executionSignal,
+              signal,
               execution,
               setResult: (value: unknown) => {
                 if (hasResult) {
@@ -896,6 +1034,7 @@ export class WorkerScheduler<Config> {
     worker: AnyWorker,
     jobs: readonly ReservedJob[],
     executionId: string | undefined,
+    signal: AbortSignal,
     reportActualCost: (cost: ThrottlingCost) => void,
     reportFeedback: (feedback: ThrottlingFeedback) => void,
   ): Promise<readonly JobOutcome[]> {
@@ -908,11 +1047,13 @@ export class WorkerScheduler<Config> {
         const successfulResults = new Map<string, unknown>();
         const eagerlyAcknowledgedJobIds = new Set<string>();
         const failuresByJobId = new Map<string, WorkerBatchFailureData>();
+        let reportableJobs: readonly ReservedJob[] | undefined;
 
         try {
           const dependencies = await execution.container.resolveDependenciesAsync(
             worker.dependencies,
           );
+          signal.throwIfAborted();
           const aggregated = await runAggregatedResult<
             string,
             unknown,
@@ -923,7 +1064,7 @@ export class WorkerScheduler<Config> {
               jobs,
               dependencies,
               {
-                signal: this.executionSignal,
+                signal,
                 execution,
                 setResult: () => {
                   throw new TypeError(
@@ -951,12 +1092,18 @@ export class WorkerScheduler<Config> {
                 }
 
                 yieldedJobIds.add(result.key);
+                const tracked = this.leasedJobs.get(job.id);
+                if (tracked?.job.reservationToken !== job.reservationToken) return;
 
                 if (result.status === "success") {
                   successfulResults.set(result.key, result.result);
                   if (job.correlation === undefined) {
                     // Preserve progressive durability when no result handoff
                     // must precede the queue acknowledgement.
+                    // The ack may commit before its response arrives. Continue
+                    // renewing ownership, but do not cancel the running batch
+                    // if an extension observes this completed member missing.
+                    delete tracked.invocation;
                     eagerlyAcknowledgedJobIds.add(result.key);
                     this.acknowledgements.enqueue(
                       job.queue,
@@ -971,15 +1118,17 @@ export class WorkerScheduler<Config> {
             },
           );
 
+          reportableJobs = this.getReportableBatchJobs(jobs, signal, successfulResults, failuresByJobId);
           return this.completeBatchOutcomes(
-            jobs,
+            reportableJobs,
             aggregated.results.length + aggregated.errors.length,
             successfulResults,
             eagerlyAcknowledgedJobIds,
             failuresByJobId,
           );
         } catch (error) {
-          return jobs.flatMap((job): JobOutcome[] => {
+          reportableJobs ??= this.getReportableBatchJobs(jobs, signal, successfulResults, failuresByJobId);
+          return reportableJobs.flatMap((job): JobOutcome[] => {
             if (eagerlyAcknowledgedJobIds.has(job.id)) return [];
 
             if (successfulResults.has(job.id)) {
@@ -1112,6 +1261,7 @@ export class WorkerScheduler<Config> {
     const successes: JobSuccess[] = [];
 
     for (const outcome of outcomes) {
+      if (!this.ownsJob(outcome.job)) continue;
       const reservation = toReservationRef(outcome.job);
 
       if (outcome.kind === "success") {
@@ -1171,7 +1321,9 @@ export class WorkerScheduler<Config> {
     // terminal results are still reaching storage. Normalize synchronous throws
     // as well, so every selected handoff participates in the same drain.
     const handoffs = await Promise.allSettled(completions.map((completion) =>
-      Promise.resolve().then(() => this.completeCorrelatedJob(completion))));
+      Promise.resolve().then(() => this.leasedJobs.has(completion.jobId)
+        ? this.completeCorrelatedJob(completion)
+        : undefined)));
     const handoffErrors = handoffs.flatMap((handoff) =>
       handoff.status === "rejected" ? [handoff.reason as unknown] : []);
     if (handoffErrors.length === 1) throw handoffErrors[0];
@@ -1180,6 +1332,7 @@ export class WorkerScheduler<Config> {
     }
 
     for (const { job } of successes) {
+      if (!this.ownsJob(job)) continue;
       this.acknowledgements.enqueue(job.queue, toReservationRef(job));
     }
 
@@ -1422,6 +1575,7 @@ class HandlerSlotGate {
     await this.enter(signal);
 
     try {
+      signal?.throwIfAborted();
       return await operation();
     } finally {
       this.leave();

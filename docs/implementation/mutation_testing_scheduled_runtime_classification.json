@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "reviewedAt": "2026-11-10",
   "budgetMs": 600000,
-  "report": "artifacts/mutation/scheduled-runtime/mutation.json",
+  "report": "artifacts/mutation/nov11-scheduler-baselines/historical-scheduled-runtime/mutation.json",
   "beforeReport": "artifacts/mutation/scheduled-runtime-before-two-hour-tests/mutation.json",
   "reportSha256": "b107d0ec36d78ee00595d0bf6c7e48e5190a9c377ec263972da80e5841689294",
   "beforeReportSha256": "e2f0d6e35a3049efbbed667fe132ed2bdeb7fcfa9a9e0112bdd4b42ef3b6ca03",

@@ -51,6 +51,7 @@ Focused behavioral profiles retain static mutants, use separate report/cache dir
 | `npm run test:mutation:scheduled-contracts` | Scheduled-task definitions, configuration, registry, provider and calendar contracts |
 | `npm run test:mutation:workers-publication` | Worker client, publication, serialization and acknowledgement/deferral buffers |
 | `npm run test:mutation:workers-delivery` | Selected scheduler cycle, invocation, result handoff and outcome persistence paths |
+| `npm run test:mutation:workers-scheduler` | Remaining scheduler ranges, including lifecycle, admission, reservation allocation and lease maintenance |
 | `npm run test:mutation:workers-adapters` | All worker adapters, definitions and schemas |
 | `npm run test:mutation:workers-contracts` | Worker definitions, configuration, metadata, provider and runtime |
 | `npm run test:mutation:workflow-task-ownership` | Memory/PostgreSQL task release, extension and ownership helpers |
@@ -60,7 +61,7 @@ Focused behavioral profiles retain static mutants, use separate report/cache dir
 
 These are selected sublots, not complete parent-component assessments. Use `npm run test:mutation:component -- actions` to assess the complete actions component, including its collection and execution helpers. Range profiles resolve method/function anchors from the current source and fail if a boundary disappears. A start-only function selection extends to the end of its file. Preserve the previous report before changing tests; run fresh references for before/after comparisons. See the [security and coordination assessment](../implementation/mutation_testing_framework.md#security-and-coordination-follow-up).
 
-The three scheduled-task profiles partition all current candidate files in that component. The worker profiles leave scheduler admission, pressure, allocation and lease-maintenance ranges unassessed; the workflow and outbound profiles cover selected operations rather than complete components. Follow the [asynchronous runtime assessment](../implementation/mutation_testing_async_runtime.md) for their before/after evidence and remaining gaps. An assessment completing within its budget does not establish that its survivors have been resolved.
+The three scheduled-task profiles partition all current candidate files in that component. `workers-delivery` and `workers-scheduler` partition the scheduler file. The workflow and outbound profiles cover selected operations. The [coverage inventory](../implementation/mutation_testing_inventory.md) records assessment and review status separately.
 
 From the repository root, prepare the dedicated PostgreSQL and Redis test infrastructure, then validate the instrumented test run before starting a complete mutation assessment:
 

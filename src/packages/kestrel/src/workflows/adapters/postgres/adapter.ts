@@ -1885,16 +1885,19 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
       if (source.status !== "failed") {
         throw new TypeError("Only failed workflow executions can be retried.");
       }
-      const [existing] = await transaction.select()
-        .from(this.executionsTable)
-        .where(eq(this.executionsTable.id, request.executionId))
-        .for("update");
-      if (existing !== undefined) {
+      const readExistingRetry = async () => {
+        const [existing] = await transaction.select()
+          .from(this.executionsTable)
+          .where(eq(this.executionsTable.id, request.executionId))
+          .for("update");
+        if (existing === undefined) return undefined;
         if (existing.retryOfExecutionId !== source.id) {
           throw new WorkflowExecutionConflictError(request.executionId);
         }
         return { execution: mapExecution(existing), created: false };
-      }
+      };
+      const existing = await readExistingRetry();
+      if (existing !== undefined) return existing;
 
       let concurrencyAdmitted = true;
       if (source.concurrencyScope === "execution"
@@ -1940,8 +1943,12 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         concurrencyKeyLimit: source.concurrencyKeyLimit,
         concurrencyConflict: source.concurrencyConflict,
         concurrencyScope: source.concurrencyScope,
-      }).returning();
+      }).onConflictDoNothing({ target: this.executionsTable.id }).returning();
       if (created === undefined) {
+        // An ordinary start can claim this identity after the first lookup.
+        // Read the winner in a new statement after PostgreSQL resolves the insert conflict.
+        const competing = await readExistingRetry();
+        if (competing !== undefined) return competing;
         throw new Error("PostgreSQL did not return the retried workflow execution.");
       }
       if (concurrencyAdmitted) {

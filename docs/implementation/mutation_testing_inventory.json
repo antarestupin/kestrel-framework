@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-10",
+  "updated": "2026-11-11",
   "sourceRoot": "src/packages/kestrel/src",
   "excludes": [
     "**/*.test.ts",
@@ -251,8 +251,9 @@
       "scope": "scheduled_tasks/**/*",
       "sourceFiles": 19,
       "state": "assessment-complete-review-pending",
-      "focus": "All 19 candidate files assessed in three disjoint profiles; material lifecycle/date/recovery cases and schema/interleaving follow-up pending",
+      "focus": "All 19 candidate files assessed. Runtime deadline detections converted to direct test failures. Remaining lifecycle and adapter gaps in review.",
       "evidence": [
+        "scheduled-runtime-timeout-followup",
         "postgres-ownership",
         "scheduled-runtime",
         "scheduled-adapters",
@@ -325,9 +326,11 @@
       "id": "workers",
       "scope": "workers/**/*",
       "sourceFiles": 23,
-      "state": "partial",
-      "focus": "Publication, adapter and definition/provider/runtime files assessed plus selected delivery ranges; scheduler admission/pressure/allocation/lease maintenance and material residuals pending",
+      "state": "assessment-complete-review-pending",
+      "focus": "Scheduler admission, ownership and delivery assessed alongside publication, adapters and contracts. Remaining saturation, batching and failure paths in review.",
       "evidence": [
+        "workers-scheduler",
+        "workers-delivery-ownership-refresh",
         "workers-publication",
         "workers-delivery",
         "workers-adapters",
@@ -339,8 +342,9 @@
       "scope": "workflows/**/*",
       "sourceFiles": 38,
       "state": "partial",
-      "focus": "Memory/PostgreSQL task ownership, operator retry and terminal-control slices assessed; runtime/scheduler/serialization, other adapter methods and concurrency/parent-graph gaps pending",
+      "focus": "Retry identity and key contention tested with separate PostgreSQL sessions. Other concurrency cases, runtime, scheduler and adapter operations pending.",
       "evidence": [
+        "workflow-postgres-retry-races",
         "postgres-ownership",
         "workflow-task-ownership",
         "workflow-execution-retry",
@@ -674,7 +678,7 @@
         "Timeout": 18
       },
       "seconds": 312,
-      "report": "artifacts/mutation/scheduled-runtime/mutation.json",
+      "report": "artifacts/mutation/nov11-scheduler-baselines/historical-scheduled-runtime/mutation.json",
       "beforeReport": "artifacts/mutation/scheduled-runtime-before-two-hour-tests/mutation.json",
       "analysis": "mutation_testing_scheduled_tasks.md",
       "classification": "mutation_testing_scheduled_runtime_classification.json",
@@ -763,7 +767,7 @@
         "Timeout": 5
       },
       "seconds": 79,
-      "report": "artifacts/mutation/workers-delivery/mutation.json",
+      "report": "artifacts/mutation/nov11-scheduler-baselines/workers-delivery-before/mutation.json",
       "beforeReport": "artifacts/mutation/workers-delivery-before-two-hour-tests/mutation.json",
       "analysis": "mutation_testing_workers_followup.md",
       "classification": "mutation_testing_workers_delivery_classification.json",
@@ -849,7 +853,7 @@
         "Survived": 13
       },
       "seconds": 37,
-      "report": "artifacts/mutation/workflow-execution-retry/mutation.json",
+      "report": "artifacts/mutation/nov11-scheduler-baselines/historical-workflow-execution-retry/mutation.json",
       "beforeReport": "artifacts/mutation/workflow-execution-retry-before-two-hour-tests/mutation.json",
       "analysis": "mutation_testing_async_runtime.md",
       "classification": "mutation_testing_workflow_retry_classification.json",
@@ -923,6 +927,95 @@
       "classification": "mutation_testing_background_classification.json",
       "session": "mutation_testing_async_runtime_session.json",
       "limits": "Full component assessment; diagnostic, startup-signal and CLI preparation boundaries retain explicit review limits."
+    },
+    {
+      "id": "workers-scheduler",
+      "date": "2026-11-11",
+      "components": [
+        "workers"
+      ],
+      "extent": "Scheduler lifecycle, pressure, reservation allocation, admission and lease-maintenance ranges outside workers-delivery",
+      "assessment": "complete",
+      "review": "pending material residual follow-up",
+      "counts": {
+        "NoCoverage": 67,
+        "Survived": 175,
+        "Killed": 487,
+        "Timeout": 2
+      },
+      "seconds": 186,
+      "report": "artifacts/mutation/nov11-scheduler-baselines/workers-scheduler-after-resume/mutation.json",
+      "beforeReport": "artifacts/mutation/nov11-scheduler-baselines/workers-scheduler-before/mutation.json",
+      "analysis": "mutation_testing_scheduler_followup.md",
+      "session": "mutation_testing_scheduler_followup.json",
+      "limits": "Material admission, buffer and failure combinations remain in review.",
+      "classification": "mutation_testing_workers_scheduler_classification.json"
+    },
+    {
+      "id": "scheduled-runtime-timeout-followup",
+      "date": "2026-11-11",
+      "components": [
+        "scheduled_tasks"
+      ],
+      "extent": "Whole scheduler and runtime files, with controlled fixture completion and scope cleanup",
+      "assessment": "complete",
+      "review": "pending material residual follow-up",
+      "counts": {
+        "NoCoverage": 5,
+        "Killed": 431,
+        "Survived": 71,
+        "Timeout": 6
+      },
+      "seconds": 119,
+      "report": "artifacts/mutation/nov11-scheduler-baselines/scheduled-runtime-after/mutation.json",
+      "beforeReport": "artifacts/mutation/nov11-scheduler-baselines/scheduled-runtime-before/mutation.json",
+      "analysis": "mutation_testing_scheduler_followup.md",
+      "session": "mutation_testing_scheduler_followup.json",
+      "limits": "No Vitest deadline kills. Six Stryker polling-loop execution guards remain. The earlier survivor and uncovered counts remain unchanged."
+    },
+    {
+      "id": "workflow-postgres-retry-races",
+      "date": "2026-11-11",
+      "components": [
+        "workflows"
+      ],
+      "extent": "Memory and PostgreSQL retryExecution ranges, including real PostgreSQL contention with an ordinary start",
+      "assessment": "complete",
+      "review": "pending material residual follow-up",
+      "counts": {
+        "NoCoverage": 4,
+        "Killed": 129,
+        "Survived": 10
+      },
+      "seconds": 38,
+      "report": "artifacts/mutation/nov11-scheduler-baselines/workflow-execution-retry-after/mutation.json",
+      "beforeReport": "artifacts/mutation/nov11-scheduler-baselines/workflow-execution-retry-before/mutation.json",
+      "analysis": "mutation_testing_scheduler_followup.md",
+      "session": "mutation_testing_scheduler_followup.json",
+      "limits": "The four earlier advisory-lock survivors are detected directly. Other isolation levels and remaining workflow slices are outside this evidence.",
+      "classification": "mutation_testing_workflow_retry_races_classification.json"
+    },
+    {
+      "id": "workers-delivery-ownership-refresh",
+      "date": "2026-11-11",
+      "components": [
+        "workers"
+      ],
+      "extent": "Delivery and outcome ranges refreshed after supporting scheduler changes",
+      "assessment": "complete",
+      "review": "pending material residual follow-up",
+      "counts": {
+        "NoCoverage": 2,
+        "Killed": 288,
+        "Survived": 40,
+        "Timeout": 6
+      },
+      "seconds": 97,
+      "report": "artifacts/mutation/nov11-scheduler-baselines/workers-delivery-after/mutation.json",
+      "beforeReport": "artifacts/mutation/nov11-scheduler-baselines/workers-delivery-before/mutation.json",
+      "analysis": "mutation_testing_scheduler_followup.md",
+      "session": "mutation_testing_scheduler_followup.json",
+      "limits": "The reference is the November 10 final report. Correlated handoff and batch residuals remain in review."
     }
   ]
 }
