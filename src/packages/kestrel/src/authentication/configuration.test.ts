@@ -37,3 +37,51 @@ describe("authentication cookie configuration", () => {
     expect(() => parseCookie({ path })).toThrow();
   });
 });
+
+describe("authentication policy constraints", () => {
+  it.each([
+    {
+      override: { session: { idleTtlSeconds: 600, absoluteTtlSeconds: 599 } },
+      path: ["session", "idleTtlSeconds"],
+      message: "Session idle TTL cannot exceed its absolute TTL.",
+    },
+    {
+      override: { session: { idleTtlSeconds: 60, touchIntervalSeconds: 61 } },
+      path: ["session", "touchIntervalSeconds"],
+      message: "Session touch interval cannot exceed its idle TTL.",
+    },
+    {
+      override: { mechanisms: { password: { minLength: 20, maxLength: 19 } } },
+      path: ["mechanisms", "password", "minLength"],
+      message: "Password minimum length cannot exceed its maximum length.",
+    },
+    {
+      override: { http: { cookie: { secure: false }, trustedOrigins: ["https://app.example"] } },
+      path: ["http", "cookie", "secure"],
+      message: "__Host- cookies require secure transport.",
+    },
+  ])("rejects an invalid policy at $path", ({ override, path, message }) => {
+    // Valid field types still have to satisfy the cross-field security rules.
+    const result = authenticationConfigBase.schema.safeParse({
+      session: {},
+      mechanisms: { password: {} },
+      http: { cookie: {}, trustedOrigins: ["https://app.example"] },
+      ...override,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual([expect.objectContaining({ path, message })]);
+  });
+
+  it("accepts equal expiry and password boundaries and an explicit local cookie", () => {
+    const policy = authenticationConfigBase.schema.parse({
+      session: { idleTtlSeconds: "60", absoluteTtlSeconds: "60", touchIntervalSeconds: "60" },
+      mechanisms: { password: { minLength: 20, maxLength: 20 } },
+      http: { cookie: { name: "local-session", secure: false }, trustedOrigins: ["http://app.example"] },
+    });
+
+    expect(policy.session).toMatchObject({ idleTtlSeconds: 60, absoluteTtlSeconds: 60, touchIntervalSeconds: 60 });
+    expect(policy.mechanisms.password).toEqual({ minLength: 20, maxLength: 20 });
+    expect(policy.http.cookie).toMatchObject({ name: "local-session", secure: false });
+  });
+});

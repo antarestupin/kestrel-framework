@@ -2,14 +2,17 @@ import { memoryAuthentication } from "./index.js";
 import { z } from "zod";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
+import { defineAction } from "../actions/index.js";
 import { authenticationContextDependency, currentUser, optionalCurrentUser } from "./dependencies.js";
 import { AuthenticationRequiredError } from "./errors.js";
 import type { AuthenticatedPrincipal, AuthenticationSubject } from "./types.js";
 import { App } from "../app/index.js";
 import { createAuthenticationActions } from "./actions.js";
 import { MemoryAuthenticationAdapter } from "./adapters/memory/index.js";
+import type { AuthenticationAttemptInput } from "./attempt_guard.js";
 import { defineAuthentication } from "./definition.js";
 import type { PasswordHasher } from "./mechanisms/password/index.js";
+import { requireAuthentication } from "./middleware.js";
 import { AuthenticationProvider } from "./provider.js";
 import type { AuthenticationConfig } from "./configuration.js";
 
@@ -79,6 +82,66 @@ describe("AuthenticationProvider", () => {
 
     expect(grant.principal.subjectId).toBe("subject-1");
   });
+
+  it("keeps the configured guard and forwards partial metadata through session creation", async () => {
+    const adapter = new MemoryAuthenticationAdapter<Record<string, never>>();
+    const definition = defineAuthentication({
+      sessionClaims: { schema: z.object({}), create: () => ({}) },
+    });
+    const { actions } = createAuthenticationActions(definition);
+    const account = await adapter.createAccount({ subjectId: "metadata-subject" });
+    await adapter.createPasswordCredential({
+      accountId: account.id, username: "user", normalizedUsername: "user", passwordHash: "hash:correct-password",
+    });
+    const attempt = vi.fn<(input: AuthenticationAttemptInput) => void>();
+    app = new App({});
+    app.container.registerValue("authenticationSubjectProvider", { findById: async (id: string) => ({ id }) });
+    app.container.registerValue("authenticationAttemptGuard", {
+      run<Value>(input: AuthenticationAttemptInput, operation: () => Promise<Value>) {
+        attempt(input);
+        return operation();
+      },
+    });
+    app.register(new AuthenticationProvider(config, memoryAuthentication(adapter), definition, new TestPasswordHasher()));
+
+    const credentials = { username: "user", password: "correct-password" };
+    const ipMetadata = { ipAddress: "192.0.2.1" };
+    const agentMetadata = { userAgent: "Test browser" };
+    const ipGrant = await app.get(actions.signInWithPassword).run({ ...credentials, metadata: ipMetadata });
+    const agentGrant = await app.get(actions.signInWithPassword).run({ ...credentials, metadata: agentMetadata });
+    const sessions = await adapter.listForAccount(account.id);
+    const ipSession = sessions.find(({ id }) => id === ipGrant.principal.sessionId);
+    const agentSession = sessions.find(({ id }) => id === agentGrant.principal.sessionId);
+
+    // Each attempt and stored session keeps only the metadata supplied to that action.
+    expect(attempt.mock.calls.map(([input]) => input.metadata)).toEqual([ipMetadata, agentMetadata]);
+    expect(ipSession).toHaveProperty("ipAddress", ipMetadata.ipAddress);
+    expect(ipSession).not.toHaveProperty("userAgent");
+    expect(agentSession).toHaveProperty("userAgent", agentMetadata.userAgent);
+    expect(agentSession).not.toHaveProperty("ipAddress");
+  });
+
+  it("prepares the dummy credential hash only during standard boot", async () => {
+    const hasher = new TestPasswordHasher();
+    const prepare = vi.spyOn(hasher, "getDummyHash");
+    const definition = defineAuthentication({
+      sessionClaims: { schema: z.object({}), create: () => ({}) },
+    });
+
+    for (const mode of ["minimal", "standard"] as const) {
+      app = new App({});
+      app.prepareBootPlan([], mode);
+      app.register(new AuthenticationProvider(config, memoryAuthentication(new MemoryAuthenticationAdapter()), definition, hasher));
+      try {
+        await app.start();
+        // Minimal CLI boot does not pay the password hashing setup cost.
+        expect(prepare).toHaveBeenCalledTimes(mode === "minimal" ? 0 : 1);
+      } finally {
+        await app.dispose();
+        app = undefined;
+      }
+    }
+  });
 });
 
 // The provider resolves application users rather than adding them to principals.
@@ -94,8 +157,37 @@ function createCurrentUserApp(findById = vi.fn(async (id: string): Promise<User 
   app.register(new AuthenticationProvider(config, memoryAuthentication(new MemoryAuthenticationAdapter()), defineAuthentication({
     sessionClaims: { schema: z.object({}), create: () => ({}) },
   }), new TestPasswordHasher()));
-  return { container: app.container, findById };
+  return { app, container: app.container, findById };
 }
+
+it("protects actions invoked outside HTTP using the execution principal", async () => {
+  const { app } = createCurrentUserApp();
+  const handler = vi.fn(() => "protected result");
+  const protectedAction = defineAction({
+    name: "test.authentication.protected",
+    input: z.null(),
+    output: z.string(),
+    middleware: [requireAuthentication],
+    handler,
+  });
+  const execute = defineAction({
+    name: "test.authentication.execute",
+    input: z.boolean(),
+    output: z.string(),
+    dependencies: { context: authenticationContextDependency(), protectedAction },
+    handler: (authenticated, { context, protectedAction }) => {
+      // Resolve the parent execution's principal before invoking the nested action.
+      if (authenticated) context.resolveAuthenticated(principal);
+      else context.resolveAnonymous();
+      return protectedAction.run(null);
+    },
+  });
+
+  await expect(app.get(execute).run(false)).rejects.toBeInstanceOf(AuthenticationRequiredError);
+  expect(handler).not.toHaveBeenCalled();
+  await expect(app.get(execute).run(true)).resolves.toBe("protected result");
+  expect(handler).toHaveBeenCalledOnce();
+});
 
 describe("current user dependencies", () => {
   it("loads lazily, shares both variants concurrently, and isolates executions", async () => {

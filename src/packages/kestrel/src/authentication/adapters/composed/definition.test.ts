@@ -5,6 +5,30 @@ import { MemoryAuthenticationAdapter } from "../memory/adapter.js";
 import { withAuthenticationSessions } from "./definition.js";
 import type { AuthenticationAdapter } from "../../stores.js";
 
+it.each(["account", "session"])("rejects an asynchronous %s adapter before creating either child", (child) => {
+  const create = vi.fn(() => new MemoryAuthenticationAdapter());
+  const initialize = vi.fn(async () => {});
+  const base = defineAuthenticationAdapter({
+    dependencies: {},
+    capabilities: {},
+    create,
+  });
+  const sessions = defineSessionStorageAdapter({
+    dependencies: {},
+    capabilities: {},
+    create,
+  });
+
+  // Simulate an external JavaScript adapter that bypasses the scoped TypeScript contract.
+  expect(() => Reflect.apply(withAuthenticationSessions, undefined, [
+    child === "account" ? { ...base, initialize } : base,
+    child === "session" ? { ...sessions, initialize } : sessions,
+  ]))
+    .toThrow("Scoped authentication adapters must be synchronously ready");
+  expect(create).not.toHaveBeenCalled();
+  expect(initialize).not.toHaveBeenCalled();
+});
+
 it("composes external definitions per scope and disposes each created child once", async () => {
   const base = new MemoryAuthenticationAdapter();
   const sessions = new MemoryAuthenticationAdapter();

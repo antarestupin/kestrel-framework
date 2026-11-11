@@ -22,6 +22,23 @@ afterEach(async () => {
 });
 
 describe("TokenProvider", () => {
+  it("rejects enabling the default stored strategy without a storage adapter", () => {
+    const application = app = new App({});
+    expect(() => application.register(new TokenProvider(config, undefined)))
+      .toThrow("Stored token strategies require a token storage adapter");
+  });
+
+  it("issues and verifies a token using only the bundled stored strategy", async () => {
+    const definition = defineToken({ name: "member.invitation", payload: z.string() });
+    app = new App({});
+    app.register(new TokenProvider(config, memoryTokens(new MemoryTokenStorageAdapter())));
+    const tokens = app.container.resolve(tokenManagerDependency);
+
+    // A plain provider still wires the configured store when no custom factories are present.
+    const grant = await tokens.issue(definition, "member-1", { ttlSeconds: 60 });
+    await expect(tokens.verify(definition, grant.token)).resolves.toBe("member-1");
+  });
+
   it("composes a signed-only strategy without requiring a token store", async () => {
     const signed = {
       capabilities: {

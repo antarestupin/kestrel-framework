@@ -21,6 +21,8 @@ import {
 
 import { PostgresDrizzleManager } from "../../../db/index.js";
 import { createPostgresTestPool } from "../../../testing/postgres.js";
+import type { CreateStoredSession } from "../../stores.js";
+import type { AuthenticationAccount } from "../../types.js";
 import { PostgresAuthenticationAdapter } from "./adapter.js";
 import type { PostgresAuthenticationTables } from "./tables.js";
 
@@ -89,6 +91,36 @@ let pool: Pool;
 let client: PoolClient;
 let adapter: PostgresAuthenticationAdapter<{ role: string }>;
 
+const subjectId = "00000000-0000-4000-8000-000000000001";
+const otherSubjectId = "00000000-0000-4000-8000-000000000002";
+
+/** Use fixed deadlines to test PostgreSQL comparisons at the exact expiration instant. */
+function sessionInput(
+  account: AuthenticationAccount,
+  seed: number,
+  overrides: Partial<CreateStoredSession<{ role: string }>> = {},
+): CreateStoredSession<{ role: string }> {
+  const createdAt = new Date("2026-01-01T00:00:00.000Z");
+
+  return {
+    id: `00000000-0000-4000-8000-${seed.toString(16).padStart(12, "0")}`,
+    accountId: account.id,
+    tokenDigest: Buffer.alloc(32, seed),
+    claims: { role: "member" },
+    accountSecurityVersion: account.securityVersion,
+    evidence: {
+      method: "password",
+      factors: ["knowledge"],
+      authenticatedAt: createdAt,
+    },
+    createdAt,
+    lastSeenAt: createdAt,
+    idleExpiresAt: new Date("2026-01-01T01:00:00.000Z"),
+    absoluteExpiresAt: new Date("2026-01-02T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
 beforeAll(async () => {
   pool = createPostgresTestPool();
   client = await pool.connect();
@@ -153,14 +185,14 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  client.release();
-  await pool.end();
+  client?.release();
+  await pool?.end();
 });
 
 describe("PostgresAuthenticationAdapter", () => {
   it("creates accounts and conditionally replaces password hashes", async () => {
     const account = await adapter.createAccount({
-      subjectId: "00000000-0000-4000-8000-000000000001",
+      subjectId,
       state: "disabled",
     });
     const credential = await adapter.createPasswordCredential({
@@ -190,58 +222,124 @@ describe("PostgresAuthenticationAdapter", () => {
     ).toBe("new-hash");
   });
 
-  it("stores, touches, lists, and revokes sessions", async () => {
-    const account = await adapter.createAccount({
-      subjectId: "00000000-0000-4000-8000-000000000001",
-    });
-    const createdAt = new Date("2026-01-01T00:00:00.000Z");
-    const session = await adapter.createSession({
-      id: "00000000-0000-4000-8000-000000000002",
-      accountId: account.id,
-      tokenDigest: Uint8Array.from({ length: 32 }, (_, index) => index),
-      claims: { role: "member" },
-      accountSecurityVersion: account.securityVersion,
-      evidence: {
-        method: "password",
-        factors: ["knowledge"],
-        authenticatedAt: createdAt,
-      },
-      createdAt,
-      lastSeenAt: createdAt,
-      idleExpiresAt: new Date("2026-01-01T01:00:00.000Z"),
-      absoluteExpiresAt: new Date("2026-01-02T00:00:00.000Z"),
-    });
+  it("returns no account for missing identifiers and rejects an invalid persisted state", async () => {
+    const account = await adapter.createAccount({ subjectId });
+    await expect(adapter.findById(account.id)).resolves.toEqual(account);
+    await expect(adapter.findById(otherSubjectId)).resolves.toBeUndefined();
+    await expect(adapter.findBySubjectId(otherSubjectId)).resolves.toBeUndefined();
 
+    // The adapter accepts application-owned tables whose state column may lack a check constraint.
+    await client.query("UPDATE authentication_account SET state = $1 WHERE id = $2", [
+      "unsupported",
+      account.id,
+    ]);
+    await expect(adapter.findById(account.id))
+      .rejects.toThrow("Unsupported authentication account state: unsupported");
+  });
+
+  it("returns no session for an unknown digest or a missing account in a combined lookup", async () => {
+    const account = await adapter.createAccount({ subjectId });
+    const stored = await adapter.createSession(sessionInput(account, 1));
+    const unknownDigest = new Uint8Array(32).fill(2);
+    await expect(adapter.findByTokenDigest(unknownDigest)).resolves.toBeUndefined();
+    await expect(adapter.findSessionAndAccountByTokenDigest(unknownDigest))
+      .resolves.toBeUndefined();
+
+    // A dangling session in an application-owned table cannot resolve to an account.
+    await client.query("DELETE FROM authentication_account WHERE id = $1", [account.id]);
+    await expect(adapter.findByTokenDigest(stored.tokenDigest)).resolves.toEqual(stored);
+    await expect(adapter.findSessionAndAccountByTokenDigest(stored.tokenDigest))
+      .resolves.toBeUndefined();
+  });
+
+  it("preserves session metadata and revocation when reloading from storage", async () => {
+    const account = await adapter.createAccount({ subjectId });
+    const input = sessionInput(account, 1, {
+      ipAddress: "192.0.2.1",
+      userAgent: "Kestrel test client",
+    });
+    const session = await adapter.createSession(input);
+
+    expect(session).toEqual(input);
     await expect(adapter.findByTokenDigest(session.tokenDigest))
       .resolves.toEqual(session);
     await expect(adapter.findSessionAndAccountByTokenDigest(session.tokenDigest))
       .resolves.toEqual({ session, account });
-    const touched = await adapter.touch({
+    const lastSeenAt = new Date("2026-01-01T00:01:00.000Z");
+    const idleExpiresAt = new Date("2026-01-01T01:01:00.000Z");
+    const touch = {
+      id: session.id, now: lastSeenAt, lastSeenAt, idleExpiresAt,
+    };
+    const touched = { ...session, lastSeenAt, idleExpiresAt };
+    await expect(adapter.touch(touch)).resolves.toEqual(touched);
+    const revokedAt = new Date("2026-01-01T00:02:00.000Z");
+    const revocation = {
       id: session.id,
-      now: new Date("2026-01-01T00:01:00.000Z"),
-      lastSeenAt: new Date("2026-01-01T00:01:00.000Z"),
-      idleExpiresAt: new Date("2026-01-01T01:01:00.000Z"),
-    });
-    expect(touched?.lastSeenAt).toEqual(
-      new Date("2026-01-01T00:01:00.000Z"),
-    );
-    await expect(adapter.listForAccount(account.id)).resolves.toHaveLength(1);
-    await expect(adapter.revoke({
-      id: session.id,
-      revokedAt: new Date("2026-01-01T00:02:00.000Z"),
+      revokedAt,
       reason: "logout",
-    })).resolves.toBe(true);
+    };
+    await expect(adapter.revoke(revocation)).resolves.toBe(true);
     await expect(adapter.revoke({
-      id: session.id,
+      ...revocation,
       revokedAt: new Date("2026-01-01T00:03:00.000Z"),
-      reason: "logout",
+      reason: "replacement",
     })).resolves.toBe(false);
+    await expect(adapter.touch({ ...touch, now: revokedAt, lastSeenAt: revokedAt }))
+      .resolves.toBeUndefined();
+    const revoked = { ...touched, revokedAt, revokeReason: "logout" };
+    await expect(adapter.findByTokenDigest(session.tokenDigest)).resolves.toEqual(revoked);
+    await expect(adapter.listForAccount(account.id)).resolves.toEqual([revoked]);
   });
 
-  it("increments the account security version when its state changes", async () => {
-    const account = await adapter.createAccount({
-      subjectId: "00000000-0000-4000-8000-000000000001",
-    });
+  it.each(["idleExpiresAt", "absoluteExpiresAt"] as const)(
+    "does not renew a session at its %s deadline",
+    async (deadline) => {
+      const account = await adapter.createAccount({ subjectId });
+      const now = new Date("2026-01-01T01:00:00.000Z");
+      const stored = await adapter.createSession(sessionInput(account, 1, {
+        // Keep the other deadline in the future to exercise each SQL predicate independently.
+        idleExpiresAt: new Date("2026-01-01T02:00:00.000Z"),
+        [deadline]: now,
+      }));
+      await expect(adapter.touch({
+        id: stored.id,
+        now,
+        lastSeenAt: now,
+        idleExpiresAt: new Date("2026-01-01T03:00:00.000Z"),
+      })).resolves.toBeUndefined();
+      await expect(adapter.findByTokenDigest(stored.tokenDigest)).resolves.toEqual(stored);
+    },
+  );
+
+  it("revokes only the selected account's active sessions and preserves prior revocations", async () => {
+    const account = await adapter.createAccount({ subjectId });
+    const other = await adapter.createAccount({ subjectId: otherSubjectId });
+    const first = await adapter.createSession(sessionInput(account, 1));
+    const second = await adapter.createSession(sessionInput(account, 2, {
+      createdAt: new Date("2026-01-01T00:01:00.000Z"),
+    }));
+    const unrelated = await adapter.createSession(sessionInput(other, 3));
+    const priorRevocation = new Date("2026-01-01T00:02:00.000Z");
+    await adapter.revoke({ id: first.id, revokedAt: priorRevocation, reason: "logout" });
+
+    const revokedAt = new Date("2026-01-01T00:03:00.000Z");
+    const revokeAll = { accountId: account.id, revokedAt, reason: "security" };
+    await expect(adapter.revokeAllForAccount(revokeAll)).resolves.toBe(1);
+    await expect(adapter.revokeAllForAccount(revokeAll)).resolves.toBe(0);
+    await expect(adapter.listForAccount(account.id)).resolves.toEqual([
+      { ...second, revokedAt, revokeReason: "security" },
+      { ...first, revokedAt: priorRevocation, revokeReason: "logout" },
+    ]);
+    await expect(adapter.findByTokenDigest(unrelated.tokenDigest)).resolves.toEqual(unrelated);
+  });
+
+  it("increments and persists the security version only for the selected account", async () => {
+    const account = await adapter.createAccount({ subjectId });
+    const other = await adapter.createAccount({ subjectId: otherSubjectId });
+    await expect(adapter.setState({ accountId: otherSubjectId, state: "disabled" }))
+      .resolves.toBeUndefined();
+    await expect(adapter.incrementSecurityVersion(otherSubjectId)).resolves.toBeUndefined();
+
     const disabled = await adapter.setState({
       accountId: account.id,
       state: "disabled",
@@ -251,5 +349,10 @@ describe("PostgresAuthenticationAdapter", () => {
       state: "disabled",
       securityVersion: account.securityVersion + 1,
     });
+    const securityVersion = account.securityVersion + 2;
+    await expect(adapter.incrementSecurityVersion(account.id)).resolves.toBe(securityVersion);
+    await expect(adapter.findById(account.id))
+      .resolves.toEqual(expect.objectContaining({ state: "disabled", securityVersion }));
+    await expect(adapter.findById(other.id)).resolves.toEqual(other);
   });
 });

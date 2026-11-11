@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import Fastify from "fastify";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createRedisTestContext, type RedisTestContext } from "../../../testing/redis.js";
 import { MemoryAuthenticationAdapter } from "../memory/adapter.js";
 import { memoryAuthentication } from "../memory/definition.js";
@@ -58,6 +58,65 @@ describe("RedisSessionStorageAdapter", () => {
     await expect(adapter.createSession(session("two", { tokenDigest: stored.tokenDigest }))).rejects.toThrow("unique");
     await expect(adapter.createSession(session("one", { tokenDigest: Buffer.from("different") }))).rejects.toThrow("unique");
     await expect(adapter.findByTokenDigest(stored.tokenDigest)).resolves.toEqual(stored);
+  });
+
+  it("rejects a corrupted digest index before returning another account's session", async ({ redis }) => {
+    const adapter = new RedisSessionStorageAdapter<Claims>(redis.client, { keyPrefix: redis.keyPrefix });
+    const stored = await adapter.createSession(session());
+    const unrelated = await adapter.createSession(session("other", { accountId: "other-account" }));
+
+    // Simulate an index left inconsistent by an external restore.
+    const indexKey = `${redis.keyPrefix}{sessions}:digests`;
+    const digest = Buffer.from(stored.tokenDigest).toString("base64url");
+    await redis.client.hSet(indexKey, digest, unrelated.id);
+    await expect(adapter.findByTokenDigest(stored.tokenDigest))
+      .rejects.toThrow("Redis returned a different session digest");
+    await expect(adapter.findByTokenDigest(unrelated.tokenDigest)).resolves.toEqual(unrelated);
+  });
+
+  it("retains imported revocation and client metadata without renewing the session", async ({ redis }) => {
+    const adapter = new RedisSessionStorageAdapter<Claims>(redis.client, { keyPrefix: redis.keyPrefix });
+    const input = session("imported", {
+      revokedAt: new Date(),
+      revokeReason: "security",
+      ipAddress: "192.0.2.10",
+      userAgent: "Kestrel test client",
+    });
+    await expect(adapter.createSession(input)).resolves.toEqual(input);
+    await expect(adapter.touch({
+      id: input.id,
+      now: input.lastSeenAt,
+      lastSeenAt: input.lastSeenAt,
+      idleExpiresAt: input.absoluteExpiresAt,
+    })).resolves.toBeUndefined();
+    await expect(adapter.listForAccount(input.accountId)).resolves.toEqual([input]);
+  });
+
+  it("rejects invalid key prefixes, digests and deadline ordering before reaching Redis", async () => {
+    const client = { eval: vi.fn() };
+    const adapter = new RedisSessionStorageAdapter<Claims>(client);
+    const stored = session();
+
+    expect(() => new RedisSessionStorageAdapter(client, { keyPrefix: "" }))
+      .toThrow("Redis session key prefixes cannot be empty");
+    await expect(adapter.findByTokenDigest(new Uint8Array()))
+      .rejects.toThrow("Session digests cannot be empty");
+    await expect(adapter.createSession({ ...stored, absoluteExpiresAt: stored.createdAt }))
+      .rejects.toThrow("Idle expiration cannot exceed absolute expiration");
+    expect(client.eval).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes malformed Redis responses from a missing session or successful revocation", async () => {
+    const client = { eval: vi.fn().mockResolvedValue(2) };
+    const adapter = new RedisSessionStorageAdapter<Claims>(client);
+    const stored = session();
+
+    await expect(adapter.findByTokenDigest(stored.tokenDigest))
+      .rejects.toThrow("Invalid Redis session result");
+    await expect(adapter.listForAccount(stored.accountId))
+      .rejects.toThrow("Invalid Redis session list result");
+    await expect(adapter.revoke({ id: stored.id, revokedAt: stored.createdAt, reason: "logout" }))
+      .rejects.toThrow("Invalid Redis session revocation result");
   });
 
   it("extends activity monotonically and never exceeds absolute expiration", async ({ redis }) => {

@@ -124,6 +124,29 @@ describe("RedisTokenStorageAdapter", () => {
     expect(await redis.client.exists(`${redis.keyPrefix}{tokens}:subjects`)).toBe(0);
   });
 
+  it("retains subjectless lifecycle records until their exact inactivity cutoff", async ({ redis }) => {
+    const adapter = new RedisTokenStorageAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+    const now = new Date("2026-01-01T00:01:00.000Z");
+    const dates = { createdAt: new Date(now.getTime() - 1), expiresAt: new Date(now.getTime() + 60_000) };
+    const { subject: _activeSubject, ...active } = token("active", dates);
+    const { subject: _consumedSubject, ...consumed } = token("consumed", { ...dates, consumedAt: now });
+    const { subject: _revokedSubject, ...revoked } = token("revoked", { ...dates, revokedAt: now });
+
+    await adapter.createMany([active, consumed, revoked]);
+    const found = await adapter.findValid(lookup(active, now));
+    expect(found).toMatchObject({ id: active.id, payload: active.payload });
+    expect(found).not.toHaveProperty("subject");
+    await expect(adapter.findValid(lookup(consumed, now))).resolves.toBeUndefined();
+    await expect(adapter.consume(lookup(revoked, now))).resolves.toBeUndefined();
+
+    // Inactive records do not participate in subject operations, but remain indexed for pruning.
+    expect(await redis.client.exists(`${redis.keyPrefix}{tokens}:subjects`)).toBe(0);
+    const prune = { expiredBefore: now, inactiveBefore: now, limit: 2 };
+    await expect(adapter.prune({ ...prune, inactiveBefore: new Date(now.getTime() - 1) })).resolves.toBe(0);
+    await expect(adapter.prune(prune)).resolves.toBe(2);
+    await expect(adapter.findValid(lookup(active, now))).resolves.toMatchObject({ id: active.id });
+  });
+
   it("isolates prefixes and rejects malformed data and input", async ({ redis }) => {
     const adapter = new RedisTokenStorageAdapter(redis.client, { keyPrefix: redis.keyPrefix });
     const separate = new RedisTokenStorageAdapter(redis.client, { keyPrefix: `${redis.keyPrefix}separate:` });

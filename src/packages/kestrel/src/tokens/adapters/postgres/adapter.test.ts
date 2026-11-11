@@ -129,6 +129,47 @@ describe("PostgresTokenStorageAdapter", () => {
     })).resolves.toBeUndefined();
   });
 
+  it("preserves a subjectless token and enforces its definition and expiry on lookup", async () => {
+    const { subject: _subject, ...token } = createToken("00000000-0000-4000-8000-000000000001", 1, {
+      replaceExistingForSubject: false,
+    });
+    await store.createMany([token]);
+    await store.createMany([]);
+
+    const lookup = { definition: token.definition, digest: token.digest, now };
+    // A nullable database column becomes an absent subject in the public result.
+    const found = await store.findValid(lookup);
+    expect(found).toMatchObject({ id: token.id, payload: token.payload });
+    expect(found).not.toHaveProperty("subject");
+    await expect(store.findValid({ ...lookup, definition: "other.token" }))
+      .resolves.toBeUndefined();
+    await expect(store.findValid({ ...lookup, now: token.expiresAt }))
+      .resolves.toBeUndefined();
+  });
+
+  it("keeps the current token valid when a replacement batch is rejected", async () => {
+    const original = createToken("00000000-0000-4000-8000-000000000001", 1);
+    const replacement = createToken("00000000-0000-4000-8000-000000000002", 2);
+    const { subject: _subject, ...subjectless } = createToken("00000000-0000-4000-8000-000000000003", 3);
+    const lookup = { definition: original.definition, digest: original.digest, now };
+    await store.createMany([original]);
+
+    await expect(store.createMany([replacement, subjectless]))
+      .rejects.toThrow("Replacement tokens require a subject");
+    await expect(store.createMany([replacement, createToken(
+      "00000000-0000-4000-8000-000000000003", 3,
+    )])).rejects.toThrow("cannot replace the same definition and subject");
+    // A conflicting insert must roll back the preceding subject revocation.
+    await expect(store.createMany([replacement, createToken(
+      "00000000-0000-4000-8000-000000000003", 1,
+      { replaceExistingForSubject: false },
+    )])).rejects.toThrow();
+
+    await expect(store.findValid(lookup)).resolves.toMatchObject({ id: original.id });
+    await expect(store.findValid({ ...lookup, digest: replacement.digest }))
+      .resolves.toBeUndefined();
+  });
+
   it("prunes expired, consumed, and revoked tokens in bounded batches", async () => {
     await store.createMany([
       createToken("00000000-0000-4000-8000-000000000001", 1, {
@@ -161,6 +202,11 @@ describe("PostgresTokenStorageAdapter", () => {
       inactiveBefore: now,
       limit: 2,
     })).resolves.toBe(1);
+    await expect(store.prune({
+      expiredBefore: now,
+      inactiveBefore: now,
+      limit: 2,
+    })).resolves.toBe(0);
     const result = await client.query("SELECT id FROM token_test");
     expect(result.rows).toEqual([
       { id: "00000000-0000-4000-8000-000000000004" },

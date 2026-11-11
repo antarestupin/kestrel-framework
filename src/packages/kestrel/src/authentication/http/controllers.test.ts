@@ -10,7 +10,7 @@ import {
 } from "vitest";
 
 import { defineAction } from "../../actions/index.js";
-import { currentUser, optionalCurrentUser } from "../dependencies.js";
+import { authenticationContextDependency, currentUser, optionalCurrentUser } from "../dependencies.js";
 import { App } from "../../app/index.js";
 import {
   defineHttpAccessPolicy,
@@ -25,7 +25,7 @@ import type { AuthenticationConfig } from "../configuration.js";
 import { defineAuthentication } from "../definition.js";
 import type { PasswordHasher } from "../mechanisms/password/index.js";
 import { AuthenticationProvider } from "../provider.js";
-import { createAuthenticationHttpControllers } from "./controllers.js";
+import { createAuthenticationHttpControllers, type AuthenticationHttpControllerOptions } from "./controllers.js";
 
 const config: AuthenticationConfig = {
   session: {
@@ -73,10 +73,12 @@ describe("authentication HTTP controllers", () => {
     const signIn = await server.inject({
       method: "POST",
       url: "/authentication/password/sign-in",
-      headers: { origin: "http://app.test" },
+      headers: { origin: "http://app.test", "user-agent": undefined },
+      remoteAddress: "192.0.2.1",
       payload: {
         username: "TESTUSER",
         password: "correct-password",
+        metadata: { ipAddress: "203.0.113.1", userAgent: "Untrusted payload" },
       },
     });
 
@@ -94,6 +96,10 @@ describe("authentication HTTP controllers", () => {
     expect(cookie).toContain("session=");
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Lax");
+    // Session metadata comes from the request transport and cannot be supplied in the credentials.
+    const [session] = await adapter.listForAccount(account.id);
+    expect(session).toHaveProperty("ipAddress", "192.0.2.1");
+    expect(session).not.toHaveProperty("userAgent");
 
     const current = await server.inject({
       method: "GET",
@@ -124,6 +130,66 @@ describe("authentication HTTP controllers", () => {
     });
     expect(anonymous.statusCode).toBe(200);
     expect(anonymous.json()).toEqual({ authenticated: false });
+
+    // Retrying with a revoked cookie still clears it and succeeds anonymously.
+    const repeatedSignOut = await server.inject({
+      method: "POST", url: "/authentication/sign-out", headers: { cookie, origin: "http://app.test" },
+    });
+    expect(repeatedSignOut.statusCode).toBe(204);
+    expect(repeatedSignOut.headers["set-cookie"]).toContain("Max-Age=0");
+  });
+
+  it("reuses session resolution and denies ambiguous or absent cookies before the protected handler", async () => {
+    const { adapter, server, manager, middleware } = await createHttpAuthentication({
+      ...config,
+      http: { ...config.http, cookie: { name: "__Host-session", secure: true, sameSite: "strict", path: "/" } },
+    });
+    const account = await adapter.createAccount({ subjectId: "protected-subject" });
+    await adapter.createPasswordCredential({
+      accountId: account.id, username: "user", normalizedUsername: "user", passwordHash: "hash:correct-password",
+    });
+    const findSession = vi.spyOn(adapter, "findByTokenDigest");
+    const onRead = vi.fn();
+    manager.register(defineHttpController({
+      route: get("/protected"),
+      access: defineHttpAccessPolicy("test.protected", [middleware.optionalSession, middleware.requiredSession]),
+      dependencies: { context: authenticationContextDependency() },
+      handler: ({ deps }) => {
+        onRead();
+        return { subjectId: deps.context.getPrincipal()?.subjectId };
+      },
+    }));
+
+    const signIn = await server.inject({
+      method: "POST", url: "/authentication/password/sign-in", headers: { origin: "http://app.test" },
+      payload: { username: "user", password: "correct-password" },
+    });
+    expect(signIn.statusCode).toBe(200);
+    const setCookie = String(signIn.headers["set-cookie"]);
+    expect(setCookie).toMatch(/^__Host-session=.+; .*SameSite=Strict/);
+    expect(setCookie.split("; ")).toContain("Secure");
+    const cookie = setCookie.split(";", 1)[0];
+
+    // A second session middleware must use the principal already resolved for this request.
+    const accepted = await server.inject({ url: "/protected", headers: { cookie } });
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json()).toEqual({ subjectId: "protected-subject" });
+    expect(findSession).toHaveBeenCalledOnce();
+
+    for (const headers of [{}, { cookie: "__Host-session=" }, { cookie: `${cookie}; ${cookie}` }, { cookie: "__Host-session=%zz" }]) {
+      const denied = await server.inject({ url: "/protected", headers });
+      expect(denied.statusCode).toBe(401);
+    }
+    expect(findSession).toHaveBeenCalledOnce();
+    expect(onRead).toHaveBeenCalledOnce();
+
+    const signOut = await server.inject({
+      method: "POST", url: "/authentication/sign-out", headers: { origin: "http://app.test", cookie },
+    });
+    expect(signOut.statusCode).toBe(204);
+    expect(String(signOut.headers["set-cookie"]).split("; ")).toEqual(expect.arrayContaining([
+      "__Host-session=", "Max-Age=0", "SameSite=Strict", "Secure",
+    ]));
   });
 
   it("shares a lazy user between HTTP middleware, controller and nested action, with 401 semantics", async () => {
@@ -208,6 +274,50 @@ describe("authentication HTTP controllers", () => {
     });
   });
 
+  it.each([
+    undefined,
+    "null",
+    "ftp://app.test",
+    "http://user:password@app.test",
+    "http://app.test/path",
+    "http://app.test/?query=value",
+    "http://app.test/#fragment",
+  ])("rejects an absent or malformed Origin before checking credentials (%s)", async (origin) => {
+    const { adapter, server } = await createHttpAuthentication();
+    const lookup = vi.spyOn(adapter, "findByNormalizedUsername");
+
+    // These origins can never be normalized into an allowed HTTP origin.
+    const response = await server.inject({
+      method: "POST", url: "/authentication/password/sign-in",
+      ...(origin === undefined ? {} : { headers: { origin } }),
+      payload: { username: "user", password: "correct-password" },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.headers["set-cookie"]).toBeUndefined();
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic credential failure if valid proof cannot create a session", async () => {
+    const { adapter, server, findById } = await createHttpAuthentication();
+    const account = await adapter.createAccount({ subjectId: "removed-subject" });
+    await adapter.createPasswordCredential({
+      accountId: account.id, username: "user", normalizedUsername: "user", passwordHash: "hash:correct-password",
+    });
+    findById.mockResolvedValue(null);
+
+    // Correct credentials for a removed subject cannot issue a session or reveal the subject's state.
+    const response = await server.inject({
+      method: "POST", url: "/authentication/password/sign-in", headers: { origin: "http://app.test" },
+      payload: { username: "user", password: "correct-password" },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ message: "The supplied credentials are invalid." });
+    expect(response.headers["set-cookie"]).toBeUndefined();
+    expect(await adapter.listForAccount(account.id)).toEqual([]);
+  });
+
   it("rejects oversized credential payloads before authentication work", async () => {
     const { server } = await createHttpAuthentication();
     const response = await server.inject({
@@ -255,9 +365,16 @@ describe("authentication HTTP controllers", () => {
     });
     expect(crossOrigin.statusCode).toBe(403);
   });
+
+  it.each(["authentication", "/authentication/"])("rejects invalid controller prefix %s", async (prefix) => {
+    // Invalid mount prefixes fail at controller definition time, before registering any routes.
+    await expect(createHttpAuthentication(config, { prefix })).rejects.toThrow(
+      "Authentication HTTP prefix must start with one slash and omit a trailing slash.",
+    );
+  });
 });
 
-async function createHttpAuthentication(): Promise<{
+async function createHttpAuthentication(httpConfig = config, options?: AuthenticationHttpControllerOptions): Promise<{
   adapter: MemoryAuthenticationAdapter<Record<string, never>>;
   server: FastifyInstance;
   app: App<Record<string, never>>;
@@ -274,8 +391,9 @@ async function createHttpAuthentication(): Promise<{
   const authentication = createAuthenticationActions(definition);
   const controllers = createAuthenticationHttpControllers(
     authentication,
-    config,
+    httpConfig,
     anonymousAccess,
+    options,
   );
   const adapter = new MemoryAuthenticationAdapter<Record<string, never>>();
   const app = new App({});
@@ -284,7 +402,7 @@ async function createHttpAuthentication(): Promise<{
   app.container.registerValue("authenticationAdapter", adapter);
   const findById = vi.fn(async (id: string): Promise<{ id: string } | null> => ({ id }));
   app.container.registerValue("authenticationSubjectProvider", { findById });
-  app.register(new AuthenticationProvider(config, memoryAuthentication(adapter), definition, new TestPasswordHasher()));
+  app.register(new AuthenticationProvider(httpConfig, memoryAuthentication(adapter), definition, new TestPasswordHasher()));
 
   const manager = new HttpControllerManager(app, server);
   manager.register(controllers.signInWithPassword);

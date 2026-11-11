@@ -5,7 +5,7 @@ import {
   generateKeyPair,
 } from "jose";
 import { z } from "zod";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemoryTokenStorageAdapter } from "../../adapters/memory/index.js";
 import { defineToken } from "../../definition.js";
@@ -132,6 +132,61 @@ describe("HybridTokenStrategy", () => {
       .resolves.toBeUndefined();
   });
 
+  it("rejects an expired JWT before consuming or revoking server state", async () => {
+    const definition = createDefinition("member.access");
+    const grant = await fixture.manager.issue(
+      definition,
+      { memberId: "member-1", roles: [] },
+      { ttlSeconds: 60 },
+    );
+    const consume = vi.spyOn(fixture.store, "consume");
+    const revoke = vi.spyOn(fixture.store, "revoke");
+    fixture.setNow(grant.expiresAt);
+
+    // An expired signature must not trigger a lifecycle write.
+    await expect(fixture.strategy.consume(definition, grant.token)).resolves.toBeUndefined();
+    await expect(fixture.strategy.revoke(definition, grant.token)).resolves.toBe(false);
+    expect(consume).not.toHaveBeenCalled();
+    expect(revoke).not.toHaveBeenCalled();
+  });
+
+  it("issues and resolves subjectless tokens with the default clock and state ID", async () => {
+    const definition = defineToken({
+      name: "service.access",
+      payload: z.object({ scope: z.string() }),
+      strategy: "hybrid",
+    });
+    const strategy = new HybridTokenStrategy(fixture.store, {
+      issuer, audience, keyring: fixture.keyring,
+    });
+    const payload = { scope: "read" };
+
+    // Freeze only Date so the actual signing and storage paths still run.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(initialNow);
+      const [grant] = await strategy.issue(definition, [payload], { ttlSeconds: 60 });
+      const { jti } = decodeJwt(grant!.token);
+      const state = await fixture.store.findValid({
+        definition: definition.name,
+        digest: digestId(jti!),
+        now: initialNow,
+      });
+
+      expect(state).toMatchObject({
+        createdAt: initialNow,
+        expiresAt: new Date(initialNow.getTime() + 60_000),
+      });
+      expect(z.uuidv7().safeParse(state?.id).success).toBe(true);
+      expect(state).not.toHaveProperty("subject");
+      await expect(strategy.verify(definition, grant!.token)).resolves.toEqual({
+        payload, expiresAt: grant!.expiresAt,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("expires and prunes hybrid lifecycle state", async () => {
     const definition = createDefinition("member.temporary-access");
     const grant = await fixture.manager.issue(
@@ -209,6 +264,7 @@ async function createFixture() {
       currentNow = value;
     },
     store,
+    strategy,
   };
 }
 
