@@ -50,4 +50,18 @@ describe("Cache capabilities", () => {
     // @ts-expect-error Validate the runtime boundary for JavaScript consumers.
     expect(() => new TagAwareCachePool(adapter, options)).toThrow("does not support tag invalidation");
   });
+
+  it("requires a callable invalidation method from dynamic implementations", () => {
+    const adapter = {
+      get: async () => undefined,
+      set: async () => {},
+      delete: async () => false,
+      invalidateAllTags: undefined,
+    };
+    const cache = new CachePool(adapter, options);
+    Reflect.set(cache, "invalidateAllTags", undefined);
+    expect(isTagAwareCache(cache)).toBe(false);
+    // @ts-expect-error JavaScript implementations can supply malformed capability properties.
+    expect(() => new TagAwareCachePool(adapter, options)).toThrow("does not support tag invalidation");
+  });
 });

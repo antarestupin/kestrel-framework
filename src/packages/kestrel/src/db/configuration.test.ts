@@ -20,19 +20,47 @@ describe("PostgreSQL resource configuration", () => {
   it("uses finite native budgets and a separate resource policy", () => {
     expect(postgresDrizzleConfigBase.schema.parse(connection)).toMatchObject({
       max: 10, min: 0, connectionTimeoutMillis: 5_000, idleTimeoutMillis: 30_000,
+      ssl: true,
       statement_timeout: 30_000, lock_timeout: 5_000, idle_in_transaction_session_timeout: 10_000,
       query_timeout: 35_000, options: "-c transaction_timeout=60000",
       resourcePolicy: { maxWaitingRequests: 100, shutdownTimeoutMs: 10_000 },
     });
   });
 
+  it("accepts the exact upper bounds and an equally sized minimum pool", () => {
+    expect(postgresDrizzleConfigBase.schema.parse({
+      ...connection, port: 65_535, maxLifetimeSeconds: 2_147_483, min: 5, max: 5,
+    })).toMatchObject({ port: 65_535, maxLifetimeSeconds: 2_147_483, min: 5, max: 5 });
+  });
+
+  it("reports the conflicting minimum at its configuration path", () => {
+    const result = postgresDrizzleConfigBase.schema.safeParse({ ...connection, min: 2, max: 1 });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({ path: ["min"], message: "min must not exceed max" }),
+    ]);
+  });
+
   it.each([
     { max: 0 }, { min: 11 }, { connectionTimeoutMillis: 0 },
     { statement_timeout: -1 }, { lock_timeout: "no" }, { max: 1.5 },
     { maxLifetimeSeconds: 2_147_484 }, { idleTimeoutMillis: 2 ** 32 }, { resourcePolicy: { shutdownTimeoutMs: 0 } },
-    { resourcePolicy: { maxWaitingRequests: -1 } },
+    { resourcePolicy: { maxWaitingRequests: -1 } }, { port: 65_536 },
+    { idleTimeoutMillis: "invalid20" }, { idleTimeoutMillis: "20invalid" },
   ])("rejects invalid budgets: %j", (override) => {
     expect(() => postgresDrizzleConfigBase.schema.parse({ ...connection, ...override })).toThrow();
+  });
+
+  it.each(["none", "stack"])("accepts the explicit query origin policy %s", (origin) => {
+    expect(postgresDrizzleConfigBase.schema.parse({
+      ...connection, queryObservability: { origin },
+    }).queryObservability.origin).toBe(origin);
+  });
+
+  it("retains certificate arrays and passphrases on individual native TLS keys", () => {
+    const cert = ["certificate", Buffer.from("other certificate")];
+    const key = ["private key", { pem: Buffer.from("protected key"), passphrase: "test passphrase" }];
+    expect(postgresDrizzleConfigBase.schema.parse({ ...connection, ssl: { cert, key } }).ssl)
+      .toEqual({ cert, key, rejectUnauthorized: true });
   });
 
   it("accepts environment numbers and preserves advanced native pg and TLS options", () => {

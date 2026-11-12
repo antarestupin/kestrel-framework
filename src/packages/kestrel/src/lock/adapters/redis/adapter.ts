@@ -55,8 +55,8 @@ export class RedisLockAdapter implements LockAdapter {
       throw new TypeError("Lock batches require unique keys.");
     }
     for (const request of requests) {
-      if (!request.key || !request.ownerId || !Number.isFinite(request.ttlMs) || request.ttlMs <= 0 || Date.now() + request.ttlMs > 8_640_000_000_000_000) {
-        throw new TypeError("Lock requests require a key, owner and representable positive TTL.");
+      if (!request.key || !request.ownerId || !Number.isFinite(request.ttlMs) || request.ttlMs <= 0) {
+        throw new TypeError("Lock requests require a key, owner and positive finite TTL.");
       }
     }
     if (requests.length === 0) return [];

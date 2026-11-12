@@ -272,8 +272,13 @@ export class PostgresPoolRuntime {
 
 /** Error messages, SQL, credentials and arbitrary user-supplied codes are excluded. */
 function safeErrorCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
-  const code = error.code;
-  return typeof code === "string" && (/^[0-9A-Z]{5}$/.test(code) || ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "EPIPE"].includes(code))
-    ? code : undefined;
+  try {
+    if (typeof error !== "object" || error === null || !("code" in error)) return undefined;
+    const code = error.code;
+    return typeof code === "string" && (/^[0-9A-Z]{5}$/.test(code) || ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "EPIPE"].includes(code))
+      ? code : undefined;
+  } catch {
+    // Accessors and proxy traps are diagnostic failures, not pool failures.
+    return undefined;
+  }
 }

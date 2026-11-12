@@ -22,6 +22,17 @@ const instrumentedClients = new WeakSet<ClientBase>();
 const instrumentedPools = new WeakSet<Pool>();
 const queryContext = new AsyncLocalStorage<PoolQueryContext>();
 
+function resolveInstrumentation(
+  getInstrumentation: () => DatabaseQueryInstrumentation | undefined,
+): DatabaseQueryInstrumentation | undefined {
+  try {
+    return getInstrumentation();
+  } catch {
+    // Resolving an observation sink is optional and must not prevent a query.
+    return undefined;
+  }
+}
+
 interface PoolQueryContext {
   origin: DatabaseQueryOrigin | undefined;
 }
@@ -50,7 +61,7 @@ export function instrumentPostgresPool(
 
   // Capture before pg-pool crosses its asynchronous connection callback.
   pool.query = ((...arguments_: unknown[]) => {
-    if (getInstrumentation() === undefined) {
+    if (resolveInstrumentation(getInstrumentation) === undefined) {
       return query(...arguments_);
     }
 
@@ -89,7 +100,7 @@ export function instrumentDrizzleDatabase<Database extends object>(
 
         if (typeof member === "function") {
           return (...arguments_: unknown[]) => {
-            if (getInstrumentation() === undefined) {
+            if (resolveInstrumentation(getInstrumentation) === undefined) {
               return Reflect.apply(member, target, arguments_);
             }
 
@@ -134,7 +145,7 @@ export function instrumentDrizzleDatabase<Database extends object>(
 
         if (typeof member === "function") {
           return (...arguments_: unknown[]) => {
-            if (getInstrumentation() === undefined) {
+            if (resolveInstrumentation(getInstrumentation) === undefined) {
               return Reflect.apply(member, target, arguments_);
             }
 
@@ -228,10 +239,13 @@ export function instrumentPostgresClient(
   const query = client.query.bind(client) as QueryFunction;
 
   client.query = ((...arguments_: unknown[]) => {
-    const instrumentation = getInstrumentation();
+    const instrumentation = resolveInstrumentation(getInstrumentation);
+    if (instrumentation === undefined) {
+      return query(...arguments_);
+    }
     const queryDetails = readQueryDetails(arguments_);
 
-    if (instrumentation === undefined || queryDetails === undefined) {
+    if (queryDetails === undefined) {
       return query(...arguments_);
     }
 
@@ -241,29 +255,30 @@ export function instrumentPostgresClient(
       ? captureQueryOrigin(config.origin)
       : poolQueryContext.origin;
     const callbackIndex = findCallbackIndex(arguments_);
+    let callbackCompleted = false;
 
     if (callbackIndex !== undefined) {
       const callback = arguments_[callbackIndex] as QueryFunction;
-      const wrappedArguments = [...arguments_];
 
-      wrappedArguments[callbackIndex] = (
+      arguments_[callbackIndex] = (
         error: unknown,
         result: QueryResult | undefined,
       ) => {
+        callbackCompleted = true;
         recordQuery(
           instrumentation,
           queryDetails,
           config,
           startedAt,
           origin,
+          // node-postgres callbacks use a nullish error for success.
+          error == null ? "success" : "failure",
           error,
           result,
         );
 
         return callback(error, result);
       };
-
-      return query(...wrappedArguments);
     }
 
     let result: unknown;
@@ -271,18 +286,14 @@ export function instrumentPostgresClient(
     try {
       result = query(...arguments_);
     } catch (error: unknown) {
-      recordQuery(
-        instrumentation,
-        queryDetails,
-        config,
-        startedAt,
-        origin,
-        error,
-      );
+      // A synchronously invoked application callback can throw after the query settled.
+      if (!callbackCompleted) {
+        recordQuery(instrumentation, queryDetails, config, startedAt, origin, "failure", error);
+      }
       throw error;
     }
 
-    if (isPromiseLike<QueryResult>(result)) {
+    if (callbackIndex === undefined && isPromiseLike<QueryResult>(result)) {
       return result.then(
         (queryResult) => {
           recordQuery(
@@ -291,6 +302,7 @@ export function instrumentPostgresClient(
             config,
             startedAt,
             origin,
+            "success",
             undefined,
             queryResult,
           );
@@ -304,6 +316,7 @@ export function instrumentPostgresClient(
             config,
             startedAt,
             origin,
+            "failure",
             error,
           );
           throw error;
@@ -402,17 +415,15 @@ function recordQuery(
   config: QueryObservabilityConfig,
   startedAt: number,
   origin: DatabaseQueryOrigin | undefined,
+  outcome: "success" | "failure",
   error?: unknown,
   result?: QueryResult,
 ): void {
   try {
-    // node-postgres callback queries use null, not undefined, for success.
-    const succeeded = error === undefined || error === null;
-
     instrumentation.record({
       data: createObservationData(query, config, origin, error, result),
       durationMs: performance.now() - startedAt,
-      outcome: succeeded ? "success" : "failure",
+      outcome,
     });
   } catch {
     // Diagnostic capture must never change the result of an application query.

@@ -52,4 +52,36 @@ describe("sparse history reader", () => {
     }
     await expect(readHistoryPage(db.client, source, request)).rejects.toThrow("defineHistoryTable");
   });
+
+  it("validates page boundaries, cursor syntax, and explicit identity ownership", async () => {
+    const db = database([]);
+    const request = { identity: { tenant: "t", id: "i" }, fields: ["title"] };
+    for (const pageSize of [0, 1.5, Number.NaN, 101]) {
+      await expect(readHistoryPage(db.client, table, { ...request, pageSize })).rejects.toThrow("Invalid history page size.");
+    }
+    for (const before of ["0", "01", " 1", "1 ", "1x", "9223372036854775808"]) {
+      await expect(readHistoryPage(db.client, table, { ...request, before })).rejects.toThrow("Invalid history cursor.");
+    }
+    for (const identity of [{ tenant: null, id: "i" }, Object.create({ tenant: "t", id: "i" })]) {
+      await expect(readHistoryPage(db.client, table, { ...request, identity })).rejects.toThrow("Missing history identity.");
+    }
+    await expect(readHistoryPage(db.client, table, { ...request, fields: ["title", "missing"] })).rejects.toThrow("Unknown history field.");
+    expect(db.inspect().selection).toBeUndefined();
+
+    await readHistoryPage(db.client, table, { ...request, before: "9223372036854775807", pageSize: 100 });
+    expect(db.inspect().limit).toBe(101);
+  });
+
+  it("returns each selected field once and omits a cursor on an exactly full last page", async () => {
+    const db = database([event(9n)]);
+    const result = await readHistoryPage(db.client, table, {
+      identity: { tenant: "t", id: "i" }, fields: ["title", "title"], pageSize: 1,
+    });
+    expect(result).toEqual({
+      fields: ["title"], nextCursor: null, events: [{
+        sequence: "9", changedAt: "2026-10-01T00:00:00.000Z", operation: "update",
+        actor: null, reason: "Correction", values: { title: null },
+      }],
+    });
+  });
 });

@@ -8,7 +8,7 @@ import { defineAction } from "../actions/index.js";
 import { App } from "../app/index.js";
 import { dep } from "../di/index.js";
 import { LockProvider } from "../lock/index.js";
-import { applicationLoggerDependency, LoggerProvider } from "../log/index.js";
+import { applicationLoggerDependency, loggerDependency, LoggerProvider } from "../log/index.js";
 import {
   AsyncLocalObserverContext,
   ScopedObserver,
@@ -25,7 +25,7 @@ import { defineCacheAdapter } from "./adapter_definition.js";
 import type { CacheConfig } from "./configuration.js";
 import { cacheDependency, tagAwareCacheDependency } from "./dependencies.js";
 import { CacheProvider, type CacheResource } from "./provider.js";
-import type { PrunableCacheAdapter } from "./types.js";
+import type { Cache, PrunableCacheAdapter, TagAwareCache } from "./types.js";
 import { MemoryLockAdapter, type PostgresLockDatabase } from "../lock/adapters/index.js";
 import type { LockConfig } from "../lock/configuration.js";
 
@@ -120,14 +120,40 @@ describe("CacheProvider", () => {
 
   it("registers one lazy cache resource from dedicated configuration", async () => {
     const app = createTestApp();
-    const cache = app.container.resolve(cacheDependency);
-    const resource = app.container.resolve(dep<CacheResource>("cacheResource"));
+    try {
+      type Consumer = { cache: Cache; tagAwareCache: TagAwareCache };
+      // A singleton consumer needs singleton declarations, even if the returned object is shared.
+      app.container.registerFactory(
+        "cacheConsumer", ({ cache, tagAwareCache }: Consumer) => ({ cache, tagAwareCache }),
+        { lifetime: "singleton" },
+      );
+      await app.start();
+      const cache = app.container.resolve(cacheDependency);
+      const resource = app.container.resolve(dep<CacheResource>("cacheResource"));
+      expect(app.container.resolve(dep<Consumer>("cacheConsumer"))).toEqual({
+        cache, tagAwareCache: cache,
+      });
+      const scope = await app.createExecutionScope();
+      try {
+        expect(scope.container.resolve(cacheDependency)).toBe(cache);
+        expect(scope.container.resolve(tagAwareCacheDependency)).toBe(cache);
+      } finally {
+        await scope.dispose("success");
+      }
+      expect(resource.cache).toBe(cache);
+      expect(resource.prune).toEqual(expect.any(Function));
+    } finally {
+      await app.dispose();
+    }
+  });
 
-    expect(app.container.resolve(cacheDependency)).toBe(cache);
-    expect(resource.cache).toBe(cache);
-    expect(resource.prune).toEqual(expect.any(Function));
-
-    await app.dispose();
+  it("fails standard startup when the configured facade cannot be constructed", async () => {
+    const app = createTestApp({ ...cacheConfig, lockKeyPrefix: "invalid:prefix" });
+    try {
+      await expect(app.start()).rejects.toThrow("Cache lock key prefixes cannot contain a colon.");
+    } finally {
+      await app.dispose();
+    }
   });
 
   it("contributes maintenance from its injected configuration", async () => {
@@ -145,7 +171,14 @@ describe("CacheProvider", () => {
       {
         task: {
           id: "maintenance.cache-prune",
+          description: "Remove expired and excess cache entries.",
           groups: ["maintenance"],
+          overlap: "skip",
+          runtime: { state: "persistent", coordination: "distributed" },
+          dependencies: {
+            cacheResource: expect.objectContaining({ id: "cacheResource" }),
+            logger: loggerDependency,
+          },
           executionLog: false,
           observe: false,
         },
@@ -186,6 +219,9 @@ describe("CacheProvider", () => {
 
       await task.handler({ cacheResource, logger: { debug } }, execution);
       await task.handler({ cacheResource, logger: { debug } }, execution);
+      await expect(task.handler({
+        cacheResource: { cache: cacheResource.cache }, logger: { debug },
+      }, execution)).rejects.toThrow("The configured cache adapter does not support pruning.");
       expect(prune.mock.calls).toEqual([[{ limit: 2 }], [{ limit: 2 }]]);
       expect(debug).toHaveBeenCalledExactlyOnceWith({ removed: 2 }, "Pruned cache entries");
     } finally {
@@ -299,6 +335,9 @@ describe("CacheProvider", () => {
         "cache.invalidation",
         "execution.completed",
       ]);
+      expect(events.filter((event) => event.name.startsWith("cache.")).map(({ outcome, durationMs }) => [
+        outcome, durationMs,
+      ])).toEqual(Array.from({ length: 5 }, () => ["success", expect.any(Number)]));
     } finally {
       await app.dispose();
     }
@@ -349,4 +388,28 @@ it("rejects false capability declarations and releases the constructed adapter",
     await app.dispose();
   }
   expect(dispose).toHaveBeenCalledOnce();
+});
+
+it("checks tag capability independently and recognizes only callable prune methods", async () => {
+  const adapter = {
+    get: async () => undefined,
+    set: async () => {},
+    delete: async () => false,
+    prune: undefined,
+  };
+  for (const tags of [false, true]) {
+    const app = createTestApp(cacheConfig, defineCacheAdapter({
+      dependencies: {}, capabilities: { prune: false, tags }, create: () => adapter,
+    }));
+    try {
+      if (tags) {
+        await expect(app.start()).rejects.toThrow("capabilities");
+      } else {
+        await expect(app.start()).resolves.toBeUndefined();
+        expect(app.container.resolve(dep<CacheResource>("cacheResource")).prune).toBeUndefined();
+      }
+    } finally {
+      await app.dispose();
+    }
+  }
 });

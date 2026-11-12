@@ -85,7 +85,12 @@ export function contributionsEqual(
   left: DatabaseSchemaContribution,
   right: DatabaseSchemaContribution,
 ): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  // Serialization order is not part of the lifecycle or its persisted snapshot.
+  return left.id === right.id
+    && left.installSql === right.installSql
+    && left.updateSql === right.updateSql
+    && left.uninstallBeforeSql === right.uninstallBeforeSql
+    && left.uninstallAfterSql === right.uninstallAfterSql;
 }
 
 function assertContribution(contribution: DatabaseSchemaContribution): void {

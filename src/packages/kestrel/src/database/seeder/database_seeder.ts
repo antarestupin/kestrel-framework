@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { getTableColumns } from "drizzle-orm";
 import { getTableConfig, type PgDatabase } from "drizzle-orm/pg-core";
 import { seed } from "drizzle-seed";
@@ -68,6 +69,8 @@ async function executeSeed(
     }
 
     validateReferences(step, identities);
+    // Prior steps or their triggers can populate this table after the empty-table preflight.
+    const previousIdentities = await selectIdentities(database, step);
     const schema = { [step.key]: step.insertionTable };
 
     await seed(database, schema, {
@@ -85,7 +88,8 @@ async function executeSeed(
       },
     }) as never);
 
-    identities.set(step.key, await selectIdentities(database, step));
+    const insertedIdentities = await selectIdentities(database, step);
+    identities.set(step.key, excludePreviousIdentities(insertedIdentities, previousIdentities));
   }
 }
 
@@ -118,6 +122,16 @@ async function assertTablesAreEmpty(
       );
     }
   }
+}
+
+/** Compares database identities by value, including decoded byte arrays and custom values. */
+function excludePreviousIdentities(current: unknown[], previous: readonly unknown[]): unknown[] {
+  if (previous.length === 0) return current;
+  const existing = new Set(previous);
+  const structured = previous.filter((value) => value !== null && typeof value === "object");
+  return current.filter((value) => !existing.has(value)
+    && (value === null || typeof value !== "object"
+      || !structured.some((oldValue) => isDeepStrictEqual(oldValue, value))));
 }
 
 /** Inserts curated rows individually so returned identities keep their aliases. */

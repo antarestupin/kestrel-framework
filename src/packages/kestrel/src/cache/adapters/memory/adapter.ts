@@ -63,7 +63,9 @@ export class MemoryCacheAdapter implements
     key: string,
     entry: CacheEntry,
   ): Promise<void> {
-    if (entry.sizeBytes > this.options.maxEntrySizeBytes) {
+    // A candidate that cannot fit on its own must not evict unrelated entries.
+    if (entry.sizeBytes > this.options.maxEntrySizeBytes
+      || entry.sizeBytes > this.options.maxSizeBytes) {
       return;
     }
 

@@ -21,6 +21,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 
 import { createPostgresTestPool } from "../../testing/postgres.js";
@@ -292,6 +293,169 @@ describe("seedDatabase", () => {
     expect(members).toEqual([1, 2].map((id) => ({
       id, groupId: groups[0]!.id, name: "Generated member", joinedAt: expect.any(Date),
     })));
+  });
+
+  it.each(["records", "generated"] as const)(
+    "resolves generated references only to identities from their named step after a %s step",
+    async (firstStep) => {
+      const database = drizzle(client);
+      await seedDatabase(database, defineDatabaseSeed({
+        seed: 42,
+        steps: [
+          firstStep === "records"
+            ? { type: "records", key: "firstGroup", table: seedGroups, records: () => [
+              { key: "first", values: { name: "First" } },
+            ] }
+            : {
+              key: "firstGroup", table: seedGroups, insertionTable: groupInsertion, count: 1,
+              columns: (generators) => ({ name: generators.valuesFromArray({ values: ["First"] }) }),
+            },
+          { key: "generated", table: seedGroups, insertionTable: groupInsertion, count: 1 },
+          {
+            key: "generatedMembers", table: seedMembers, insertionTable: memberInsertion, count: 12,
+            references: { groupId: "generated" },
+            columns: (generators) => ({ name: generators.valuesFromArray({ values: ["Generated"] }) }),
+          },
+          {
+            key: "curatedMembers", table: seedMembers, insertionTable: memberInsertion, count: 1,
+            references: { groupId: "firstGroup" },
+            columns: (generators) => ({ name: generators.valuesFromArray({ values: ["First"] }) }),
+          },
+        ],
+      }));
+
+      // The groups share a table, but their reference sets stay separate.
+      const groups = await database.select().from(seedGroups).orderBy(seedGroups.id);
+      const members = await database.select().from(seedMembers).orderBy(seedMembers.id);
+      expect(groups).toHaveLength(2);
+      expect(groups[0]?.name).toBe("First");
+      expect(members).toHaveLength(13);
+      expect(members.filter(({ name }) => name === "Generated").map(({ groupId }) => groupId))
+        .toEqual(Array.from({ length: 12 }, () => groups[1]!.id));
+      expect(members.filter(({ name }) => name === "First").map(({ groupId }) => groupId))
+        .toEqual([groups[0]!.id]);
+    },
+  );
+
+  it("compares decoded non-primitive seed identities by value", async () => {
+    const database = drizzle(client);
+    const calendar = pgTable("seeder_calendar", {
+      id: timestamp("id", { withTimezone: true, mode: "date" }).primaryKey(),
+      name: text().notNull(),
+    });
+    const calendarInsertion = pgTable("seeder_calendar", { name: text().notNull() });
+    const memberWithDate = pgTable("seeder_member", {
+      groupId: integer("group_id").notNull(),
+      name: text().notNull(),
+      joinedAt: timestamp("joined_at", { withTimezone: true, mode: "date" }).notNull(),
+    });
+    const curated = new Date("2026-01-01T00:00:00Z");
+    const generated = new Date("2026-02-01T00:00:00Z");
+    await client.query(`
+      DROP TABLE IF EXISTS pg_temp.seeder_calendar;
+      CREATE TEMPORARY TABLE seeder_calendar (
+        id timestamptz PRIMARY KEY DEFAULT '2026-02-01T00:00:00Z',
+        name text NOT NULL
+      )
+    `);
+    await seedDatabase(database, defineDatabaseSeed({
+      seed: 42,
+      steps: [
+        { type: "records", key: "group", table: seedGroups, records: () => [
+          { key: "first", values: { name: "Group" } },
+        ] },
+        { type: "records", key: "curatedDates", table: calendar, records: () => [
+          { key: "first", values: { id: curated, name: "Curated" } },
+          { key: "second", values: { id: new Date("2026-01-02T00:00:00Z"), name: "Other curated" } },
+        ] },
+        { key: "generatedDates", table: calendar, insertionTable: calendarInsertion, count: 1 },
+        {
+          key: "members", table: seedMembers, insertionTable: memberWithDate, count: 12,
+          references: { groupId: "group", joinedAt: "generatedDates" },
+        },
+      ],
+    }));
+
+    // PostgreSQL returns distinct Date objects for the same pre-existing identity.
+    const members = await database.select().from(seedMembers);
+    expect(members.map(({ joinedAt }) => joinedAt)).toEqual(Array.from({ length: 12 }, () => generated));
+  });
+
+  it("excludes rows a prior step's trigger inserted into the generated target", async () => {
+    const database = drizzle(client);
+    const initializer = pgTable("seeder_initializer", { id: integer().primaryKey() });
+    await database.transaction(async (tx) => {
+      // The target is empty at preflight, but this other table can populate it before generation.
+      await tx.execute(sql.raw(`
+        CREATE TEMPORARY TABLE seeder_initializer (id integer PRIMARY KEY);
+        CREATE FUNCTION pg_temp.seeder_fill_group() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          INSERT INTO pg_temp.seeder_group (name) VALUES ('Trigger-created group');
+          RETURN NEW;
+        END;
+        $$;
+        CREATE TRIGGER seeder_fill_group AFTER INSERT ON seeder_initializer
+          FOR EACH ROW EXECUTE FUNCTION pg_temp.seeder_fill_group();
+      `));
+      await seedDatabase(tx, defineDatabaseSeed({
+        seed: 42,
+        steps: [
+          { type: "records", key: "init", table: initializer, records: () => [{ key: "init", values: { id: 1 } }] },
+          { key: "generated", table: seedGroups, insertionTable: groupInsertion, count: 1 },
+          {
+            key: "members", table: seedMembers, insertionTable: memberInsertion, count: 12,
+            references: { groupId: "generated" },
+          },
+        ],
+      }), { transaction: false });
+
+      const groups = await tx.select().from(seedGroups).orderBy(seedGroups.id);
+      expect(groups).toHaveLength(2);
+      expect(groups[0]?.name).toBe("Trigger-created group");
+      const members = await tx.select().from(seedMembers);
+      expect(members.map(({ groupId }) => groupId)).toEqual(Array.from({ length: 12 }, () => groups[1]!.id));
+      tx.rollback();
+    }).catch((error: unknown) => {
+      if (!(error instanceof TransactionRollbackError)) throw error;
+    });
+  });
+
+  it("uses the supplied generator version and seed reproducibly", async () => {
+    const database = drizzle(client);
+    const generate = async (seed: number, version: "1" | "2") => {
+      await client.query("TRUNCATE pg_temp.seeder_member, pg_temp.seeder_group RESTART IDENTITY");
+      await seedDatabase(database, defineDatabaseSeed({
+        seed,
+        version,
+        steps: [{
+          key: "groups", table: seedGroups, insertionTable: groupInsertion, count: 4,
+          columns: (generators) => ({ name: generators.string({ isUnique: true }) }),
+        }],
+      }));
+      return database.select().from(seedGroups).orderBy(seedGroups.id);
+    };
+
+    const original = await generate(11, "1");
+    expect(await generate(11, "1")).toEqual(original);
+    expect(await generate(12, "1")).not.toEqual(original);
+    expect(await generate(11, "2")).not.toEqual(original);
+  });
+
+  it("honors an existing transaction without creating a nested savepoint", async () => {
+    const database = drizzle(client);
+    await expect(database.transaction(async (transaction) => {
+      const nested = vi.spyOn(transaction, "transaction");
+      await seedDatabase(transaction, defineDatabaseSeed({
+        steps: [{
+          type: "records", key: "groups", table: seedGroups,
+          records: () => [{ key: "first", values: { name: "Owned by caller" } }],
+        }],
+      }), { transaction: false });
+      expect(nested).not.toHaveBeenCalled();
+      await expect(transaction.select().from(seedGroups)).resolves.toMatchObject([{ name: "Owned by caller" }]);
+      transaction.rollback();
+    })).rejects.toBeInstanceOf(TransactionRollbackError);
+    await expect(database.select().from(seedGroups)).resolves.toEqual([]);
   });
 
   it.each(["missing", "empty"])("rejects a generated reference to a %s step", async (reference) => {

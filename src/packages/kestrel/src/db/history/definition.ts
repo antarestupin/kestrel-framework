@@ -29,6 +29,7 @@ import {
   createHistoryBaselineSql,
   createHistoryTriggerRemovalSql,
   createHistoryTriggerSql,
+  managedIdentifier,
 } from "./trigger_sql.js";
 
 export const historyMetadataKeys = [
@@ -431,7 +432,7 @@ function decodeHistoryOperation(value: number): HistoryOperation {
 
 function createIndexName(schema: string | undefined, table: string): string {
   const prefix = schema === undefined ? table : `${schema}_${table}`;
-  return truncateIdentifier(`${prefix}_identity_sequence_idx`);
+  return managedIdentifier(`${prefix}_identity_sequence_idx`);
 }
 
 function createContributionId(
@@ -447,18 +448,5 @@ function createOperationCheckName(
   table: string,
 ): string {
   const prefix = schema === undefined ? table : `${schema}_${table}`;
-  return truncateIdentifier(`${prefix}_operation_check`);
-}
-
-function truncateIdentifier(identifier: string): string {
-  if (identifier.length <= 63) {
-    return identifier;
-  }
-
-  let hash = 0;
-  for (const character of identifier) {
-    hash = ((hash * 31) + character.codePointAt(0)!) >>> 0;
-  }
-  const suffix = hash.toString(16).padStart(8, "0");
-  return `${identifier.slice(0, 54)}_${suffix}`;
+  return managedIdentifier(`${prefix}_operation_check`);
 }

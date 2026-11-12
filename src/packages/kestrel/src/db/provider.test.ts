@@ -109,6 +109,13 @@ describe("PostgresDrizzleProvider", () => {
     });
   });
 
+  it("validates direct provider construction before creating a pool", () => {
+    const createDatabase = vi.fn();
+    expect(() => new PostgresDrizzleProvider({ ...databaseConfig, port: 65_536 }, { createDatabase }))
+      .toThrow();
+    expect(createDatabase).not.toHaveBeenCalled();
+  });
+
   it("registers lazy database infrastructure from dedicated configuration", async () => {
     const app = createTestApp();
     const client = app.container.resolve(dep<PostgresDrizzleClient>("databaseClient"));
@@ -195,6 +202,9 @@ describe("PostgresDrizzleProvider", () => {
     app.register(provider);
 
     expect(provider.extensionRegistered).toBe(true);
+    expect(app.catalog.cliControllers.registrations).toContainEqual(expect.objectContaining({
+      source: { kind: "provider", provider: ExtendedDatabaseProvider.name },
+    }));
     await app.dispose();
   });
 });

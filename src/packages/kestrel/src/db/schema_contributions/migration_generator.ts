@@ -33,6 +33,7 @@ interface MigrationSqlPlan {
 }
 
 const embeddedSnapshotPrefix = "-- database-schema-contributions: ";
+const statementBreakpoint = "--> statement-breakpoint";
 
 type CommandRunner = (
   executable: string,
@@ -213,7 +214,7 @@ async function mergeMigrationSql(
 
   await writeFile(
     path,
-    `${sections.join("\n--> statement-breakpoint\n")}\n`,
+    `${sections.join(`\n${statementBreakpoint}\n`)}\n`,
     "utf8",
   );
 }
@@ -236,13 +237,35 @@ async function readJournal(
       join(migrationsFolder, "meta", "_journal.json"),
       "utf8",
     );
-    return JSON.parse(contents) as DrizzleJournal;
+    return parseJournal(contents);
   } catch (error) {
     // Only the initial read permits a fresh application. Drizzle must create
     // its own journal, and malformed or unreadable existing files still fail.
     if (allowMissing && isMissingFileError(error)) return { entries: [] };
     throw error;
   }
+}
+
+/** Validates migration basenames before reading or rewriting any derived path. */
+function parseJournal(contents: string): DrizzleJournal {
+  const journal: unknown = JSON.parse(contents);
+  if (typeof journal !== "object" || journal === null || !("entries" in journal) || !Array.isArray(journal.entries)) {
+    throw new TypeError("Invalid Drizzle migration journal.");
+  }
+
+  const tags = new Set<string>();
+  for (const entry of journal.entries) {
+    if (typeof entry !== "object" || entry === null || !Number.isSafeInteger(entry.idx)
+      || typeof entry.tag !== "string" || entry.tag.trim() === ""
+      || entry.tag === "." || entry.tag === ".." || /[/\\\u0000]/u.test(entry.tag)) {
+      throw new TypeError("Invalid Drizzle migration journal entry.");
+    }
+    if (tags.has(entry.tag)) {
+      throw new TypeError(`Duplicate Drizzle migration journal tag "${entry.tag}".`);
+    }
+    tags.add(entry.tag);
+  }
+  return journal as DrizzleJournal;
 }
 
 async function readLatestContributionSnapshot(
@@ -279,9 +302,12 @@ async function readEmbeddedSnapshot(
     join(migrationsFolder, `${entry.tag}.sql`),
     "utf8",
   );
-  const marker = migrationSql.split("\n")
-    .find((line) => line.startsWith(embeddedSnapshotPrefix));
-  if (marker === undefined) {
+  const lines = migrationSql.trimEnd().split("\n");
+  // Prefer the wrapper's standalone section, even when a maintainer appends SQL afterward.
+  // Accept a terminal marker without a separator for compatibility with older snapshots.
+  const marker = lines.findLast((line, index) => line.startsWith(embeddedSnapshotPrefix)
+    && (index === 0 || lines[index - 1]!.trimEnd() === statementBreakpoint)) ?? lines.at(-1);
+  if (!marker?.startsWith(embeddedSnapshotPrefix)) {
     return undefined;
   }
 

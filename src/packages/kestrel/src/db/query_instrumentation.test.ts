@@ -97,7 +97,13 @@ describe("PostgreSQL query instrumentation", () => {
         await transaction.insert(instrumentedUsers).values({ id: 42, name: "Ada" });
         const users = transaction.query.users;
         expect(transaction.query.users).toBe(users);
-        expect(await users.findFirst({ where: (table, { eq }) => eq(table.id, 42) })).toEqual({ id: 42, name: "Ada" });
+        function findObservedUser() {
+          return users.findFirst({ where: (table, { eq }) => eq(table.id, 42) });
+        }
+        const lookup = findObservedUser();
+        // A relational builder is not executed at construction time.
+        await Promise.resolve();
+        expect(await lookup).toEqual({ id: 42, name: "Ada" });
         expect(users.findMany().toSQL().sql).toContain('"query_instrumentation_user"');
 
         // The same wrapped transaction and relation remain usable outside observation.
@@ -117,6 +123,7 @@ describe("PostgreSQL query instrumentation", () => {
       const select = events.find((event) => event.data.sql.startsWith("select"));
       expect(begin?.data.origin?.file).toContain("query_instrumentation.test.ts");
       expect(select?.data).toMatchObject({ parameters: [42, 1], command: "SELECT", rowCount: 1 });
+      expect(select?.data.origin?.function).toContain("findObservedUser");
       const frames = select?.data.origin?.stack ?? [];
       expect(frames[0]).toContain("query_instrumentation.test.ts");
       expect(frames.every((frame) => !frame.includes("/node_modules/") && !frame.includes("node:internal"))).toBe(true);
@@ -218,6 +225,24 @@ describe("PostgreSQL query instrumentation", () => {
     });
   });
 
+  it("records elapsed query time from the monotonic clock", async () => {
+    const client = createClient(vi.fn(async () => successfulResult));
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresClient(client, { parameters: "omit", origin: "none" }, () => ({ record }));
+    let now = 100;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+
+    try {
+      // Move the clock after dispatch and before the asynchronous result is observed.
+      const result = client.query("select 42");
+      now = 112;
+      await expect(result).resolves.toBe(successfulResult);
+      expect(record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ durationMs: 12 }));
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("keeps pg parameter precedence and converts observations without changing driver values", async () => {
     const query = vi.fn(async () => ({ ...successfulResult, rowCount: null }));
     const client = createClient(query);
@@ -289,6 +314,34 @@ describe("PostgreSQL query instrumentation", () => {
     ]);
   });
 
+  it.each([undefined, null])("records a Promise query rejecting %s as a failure", async (failure) => {
+    const client = createClient(vi.fn(() => Promise.reject(failure)));
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresClient(client, { parameters: "omit", origin: "none" }, () => ({ record }));
+
+    await expect(client.query("select 42")).rejects.toBe(failure);
+    expect(record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ outcome: "failure" }));
+  });
+
+  it("records a native throw in the callback overload without counting a user callback throw again", () => {
+    const nativeFailure = new Error("query construction failed");
+    const callbackFailure = new Error("application callback failed");
+    const query = vi.fn<(...args: unknown[]) => unknown>()
+      .mockImplementationOnce(() => { throw nativeFailure; })
+      .mockImplementationOnce((...args) => Reflect.apply(args.at(-1) as Function, undefined, [null, successfulResult]));
+    const client = createClient(query);
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresClient(client, { parameters: "omit", origin: "none" }, () => ({ record }));
+    const callback = vi.fn(() => { throw callbackFailure; });
+
+    expect(() => client.query("select 1", callback)).toThrow(nativeFailure);
+    expect(callback).not.toHaveBeenCalled();
+    expect(() => client.query("select 2", callback)).toThrow(callbackFailure);
+    expect(record.mock.calls.map(([event]) => [event.data.sql, event.outcome])).toEqual([
+      ["select 1", "failure"], ["select 2", "success"],
+    ]);
+  });
+
   it("omits parameters and records PostgreSQL failure codes", async () => {
     const failure = Object.assign(new Error("duplicate key"), {
       code: "23505",
@@ -354,6 +407,60 @@ describe("PostgreSQL query instrumentation", () => {
       line: expect.any(Number),
       column: expect.any(Number),
     });
+    expect(events[0]?.data.origin).not.toHaveProperty("stack");
+  });
+
+  it("passes supported non-promise driver handles through without reporting a result", () => {
+    const callbackHandle = { then: "not a Promise" };
+    const query = vi.fn().mockReturnValueOnce(callbackHandle).mockReturnValueOnce(null);
+    const client = createClient(query);
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresClient(client, { parameters: "include", origin: "none" }, () => ({ record }));
+
+    expect(client.query("select 42")).toBe(callbackHandle);
+    expect(client.query("select 43")).toBeNull();
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("does not invent parameters for the string-and-callback overload", () => {
+    const query = vi.fn((...arguments_: unknown[]) =>
+      Reflect.apply(arguments_.at(-1) as Function, undefined, [null, successfulResult]));
+    const client = createClient(query);
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    const callback = vi.fn();
+    instrumentPostgresClient(client, { parameters: "include", origin: "none" }, () => ({ record }));
+
+    client.query("select 42", callback);
+    expect(callback).toHaveBeenCalledExactlyOnceWith(null, successfulResult);
+    expect(record).toHaveBeenCalledExactlyOnceWith({
+      data: { sql: "select 42", command: "SELECT", rowCount: 1 },
+      durationMs: expect.any(Number), outcome: "success",
+    });
+  });
+
+  it("takes the first well-formed application stack frame and keeps its exact location", async () => {
+    const client = createClient(vi.fn(async () => successfulResult));
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresClient(client, { parameters: "omit", origin: "stack" }, () => ({ record }));
+    const result = withStackFormatter(() => [
+      "Error at wrong (/app/heading.ts:1:1)",
+      "prefix at wrong (/app/prefix.ts:1:1)",
+      "    at wrong (/app/suffix.ts:1:1) suffix",
+      "    at query (/app/node_modules/pg/lib/client.js:42:10)",
+      "    at observe (/app/db/query_instrumentation.mjs:7:9)",
+      "    at read (/app/src/read.ts:12:34)",
+      "    at /app/src/caller.ts:56:78",
+    ].join("\n"), () => client.query("select 42"));
+
+    await expect(result).resolves.toBe(successfulResult);
+    expect(record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      data: expect.objectContaining({
+        origin: {
+          function: "read", file: "/app/src/read.ts", line: 12, column: 34,
+          stack: ["at read (/app/src/read.ts:12:34)", "at /app/src/caller.ts:56:78"],
+        },
+      }),
+    }));
   });
 
   it.each([
@@ -421,6 +528,20 @@ describe("PostgreSQL query instrumentation", () => {
     );
 
     await expect(client.query("select 42")).resolves.toBe(successfulResult);
+  });
+
+  it("continues through the database, pool and client when resolving the optional sink throws", async () => {
+    const query = vi.fn(async () => successfulResult);
+    const client = Object.assign(new EventEmitter(), createClient(query));
+    const pool = createAsynchronousPool(client);
+    const config = { parameters: "omit", origin: "caller" } as const;
+    const getInstrumentation = () => { throw new Error("observer resolution failed"); };
+    instrumentPostgresPool(pool, config, getInstrumentation);
+    pool.emit("connect", client);
+    const database = instrumentDrizzleDatabase({ read: () => pool.query("select 42") }, config, getInstrumentation);
+
+    await expect(database.read()).resolves.toBe(successfulResult);
+    expect(query).toHaveBeenCalledExactlyOnceWith("select 42");
   });
 });
 

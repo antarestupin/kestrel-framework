@@ -209,6 +209,60 @@ const focusedProfiles = {
     ["tokens/stored_strategy.ts"],
     ["tokens/types.ts"],
   ],
+  // Separate database contracts so integration-heavy paths stay inside the same run budget.
+  "db-provider": [
+    ["db/configuration.ts"],
+    ["db/database_manager.ts"],
+    ["db/index.ts"],
+    ["db/pool_runtime.ts"],
+    ["db/provider.ts"],
+  ],
+  "db-instrumentation": [
+    ["db/middleware.ts"],
+    ["db/observations.ts"],
+    ["db/query_instrumentation.ts"],
+  ],
+  "db-repository": [
+    ["db/collection.ts"],
+    ["db/pagination.ts"],
+    ["db/repository.ts"],
+  ],
+  "db-history-declarations": [["db/history/definition.ts", "", "function selectHistoryColumns<"]],
+  "db-history-column-types": [["db/history/definition.ts", "function selectHistoryColumns<", "function resolveIdentityKeys<"]],
+  "db-history-identities": [["db/history/definition.ts", "function resolveIdentityKeys<"]],
+  "db-history-events": [
+    ["db/history/context.ts"],
+    ["db/history/index.ts"],
+    ["db/history/reader.ts"],
+    ["db/history/trigger_sql.ts"],
+  ],
+  "db-reference-counter-declarations": [["db/reference_counter/definition.ts", "", "export function getReferenceCounterDefinitions("]],
+  "db-reference-counter-discovery": [["db/reference_counter/definition.ts", "export function getReferenceCounterDefinitions("]],
+  "db-reference-counter-runtime": [
+    ["db/reference_counter/cli.ts"],
+    ["db/reference_counter/index.ts"],
+    ["db/reference_counter/maintenance.ts"],
+    ["db/reference_counter/sql.ts"],
+    ["db/reference_counter/trigger_sql.ts"],
+    ["db/reference_counter/types.ts"],
+  ],
+  "db-schema-table-metadata": [
+    ["db/dev_schema.ts"],
+    ["db/framework_table.ts"],
+    ["db/schema_contributions/apply.ts"],
+    ["db/schema_contributions/definition.ts"],
+    ["db/schema_contributions/index.ts"],
+    ["db/utils_schema.ts"],
+  ],
+  "db-schema-migrations": [
+    ["db/schema_contributions/description_diff.ts"],
+    ["db/schema_contributions/migration_generator.ts"],
+  ],
+  "db-schema-descriptions": [
+    ["db/schema_contributions/descriptions.ts"],
+    ["db/schema_contributions/unlogged_table.ts"],
+    ["db/sql_dollar_quote.ts"],
+  ],
   // Assess HTTP route contracts, access checks, runtime policies and client tooling independently.
   "http-routing": [
     ["http/bindings.ts"],
@@ -281,6 +335,25 @@ const focusedProfiles = {
   "lock-renewal": [
     ["lock/lock_manager.ts", "private async extendMany(", "private async tryAcquireMany("],
     ["lock/lock_manager.ts", "function validateExtensionBatch(", "/** Mutable internal implementation"],
+  ],
+  // Separate admission, lease ownership and backend behavior while covering every lock source.
+  "lock-acquisition": [
+    ["lock/lock_manager.ts", "", "public async runExclusive<Value>("],
+  ],
+  "lock-ownership": [
+    ["lock/lock_manager.ts", "public async runExclusive<Value>("],
+  ],
+  "lock-adapters": [["lock/adapters/**/*.ts"]],
+  "lock-contracts": [
+    ["lock/adapter_definition.ts"],
+    ["lock/configuration.ts"],
+    ["lock/dependencies.ts"],
+    ["lock/errors.ts"],
+    ["lock/index.ts"],
+    ["lock/observations.ts"],
+    ["lock/postgres_schema.ts"],
+    ["lock/provider.ts"],
+    ["lock/types.ts"],
   ],
 };
 

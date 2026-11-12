@@ -295,6 +295,8 @@ The in-memory adapter uses an LRU policy backed by insertion-ordered maps or an 
 
 `maxEntries` is a hard and reliable bound. `maxSizeBytes` counts the serialized JSON value plus the encoded key and tags. It remains an estimate of JavaScript heap usage, not an exact measurement: object overhead and engine internals are not observable precisely. Both limits are useful together because an entry-count limit alone does not protect against a single unusually large value or metadata set.
 
+A write that exceeds either the per-entry budget or the entire memory budget is skipped before eviction, so an oversized candidate cannot displace existing entries.
+
 The adapter must not create one timer per entry. Expiration is checked lazily, with a bounded prune pass on writes and an explicit `prune()` operation for maintenance. Per-entry timers add substantial overhead and become unreliable under load.
 
 The memory adapter snapshots entries on write and read. Mutating a retrieved value or its metadata cannot affect other callers, change tag membership or bypass the stored size budget.
@@ -323,6 +325,8 @@ The initial PostgreSQL policy uses:
 Pruning runs periodically through the definition contributed by `CacheProvider` to the application scheduled-task registry. The cache resource itself exposes only one-shot maintenance and owns no timer. Multiple instances may prune concurrently only if the query safely claims bounded batches, for example through a CTE using `FOR UPDATE SKIP LOCKED` before deletion.
 
 A TTL does not impose a strict upper bound during a burst of distinct writes. A configurable logical row limit may therefore trigger eviction after expired rows have been pruned. PostgreSQL eviction should prefer the earliest expiration and then the oldest creation time. It should not update an access timestamp on every read merely to implement perfect LRU, because those writes create contention, dead tuples and table bloat.
+
+An overflow pass calculates its limit and selects its ordered candidates in one SQL snapshot before claiming rows. A locked candidate can remain until the next pass without causing this pass to evict an unrelated row.
 
 PostgreSQL cannot cheaply enforce an exact on-disk byte budget from the cache hot path. JSON size excludes row and index overhead, and PostgreSQL's MVCC means deleted rows do not immediately return disk space to the operating system. Disk capacity should consequently be protected at two levels:
 

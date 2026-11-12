@@ -65,4 +65,31 @@ describe("RedisCacheAdapter failure boundaries", () => {
     })).toThrow("prefixes cannot be empty");
     expect(sendCommand).not.toHaveBeenCalled();
   });
+
+  it("accepts the size boundary and treats the exact expiry as a miss or deletion", async () => {
+    const { adapter, sendCommand, entry } = fixture();
+    const boundary = { ...entry, sizeBytes: 1_024 };
+    sendCommand.mockResolvedValueOnce("OK");
+    await adapter.set("app:boundary", boundary);
+    expect(sendCommand.mock.calls[0]?.[0]).toMatchObject([
+      "SET", "kestrel:cache:app:boundary", expect.any(String), "PXAT",
+      String(boundary.expiresAt.getTime()),
+    ]);
+    const raw = sendCommand.mock.calls[0]?.[0][2];
+    expect(raw).toBeDefined();
+    sendCommand.mockClear();
+
+    const expired = new RedisCacheAdapter({ sendCommand }, {
+      maxEntrySizeBytes: 1_024,
+      now: () => boundary.expiresAt,
+    });
+    // Redis may return a value just before its physical deadline becomes visible.
+    sendCommand.mockResolvedValueOnce(raw).mockResolvedValueOnce(1);
+    await expect(expired.get("app:boundary")).resolves.toBeUndefined();
+    await expired.set("app:boundary", boundary);
+    expect(sendCommand.mock.calls).toEqual([
+      [["GET", "kestrel:cache:app:boundary"]],
+      [["DEL", "kestrel:cache:app:boundary"]],
+    ]);
+  });
 });

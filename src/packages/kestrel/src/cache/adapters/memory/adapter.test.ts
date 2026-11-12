@@ -144,6 +144,30 @@ describe("MemoryCacheAdapter", () => {
     await expect(adapter.get(key("large"))).resolves.toBeUndefined();
   });
 
+  it("preserves existing values when a new entry cannot fit the total size budget", async () => {
+    const adapter = createAdapter({ maxSizeBytes: 10, maxEntrySizeBytes: 20 });
+    await adapter.set(key("stored"), entry("stored", { sizeBytes: 10 }));
+
+    // The candidate passes the individual limit but would evict even itself.
+    await adapter.set(key("too-big"), entry("too-big", { sizeBytes: 11 }));
+
+    await expect(adapter.get(key("stored"))).resolves.toMatchObject({ value: "stored" });
+    await expect(adapter.get(key("too-big"))).resolves.toBeUndefined();
+  });
+
+  it("stores an entry at the individual size boundary and prunes expired rows on write", async () => {
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const adapter = createAdapter({ maxEntrySizeBytes: 10, pruneBatchSize: 1, now: () => now });
+    const expiresAt = new Date("2026-01-01T00:01:00.000Z");
+    await adapter.set(key("expired"), entry("expired", { expiresAt }));
+    now = expiresAt;
+
+    await adapter.set(key("boundary"), entry("boundary", { sizeBytes: 10 }));
+
+    expect(await adapter.delete(key("expired"))).toBe(false);
+    expect(await adapter.get(key("boundary"))).toMatchObject({ value: "boundary" });
+  });
+
   it("uses AND semantics when invalidating tags", async () => {
     const adapter = createAdapter();
     await adapter.set(key("all"), entry("all", { tags: ["a", "b"] }));
@@ -220,6 +244,17 @@ describe("MemoryCacheAdapter", () => {
     now = expiresAt;
 
     await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
+    await expect(adapter.delete(key("boundary"))).resolves.toBe(false);
+  });
+
+  it("treats a read at the exact expiration boundary as a miss", async () => {
+    let now = new Date("2026-01-01T00:00:00.000Z");
+    const expiresAt = new Date("2026-01-01T00:01:00.000Z");
+    const adapter = createAdapter({ now: () => now });
+    await adapter.set(key("boundary"), entry("boundary", { expiresAt }));
+    now = expiresAt;
+
+    await expect(adapter.get(key("boundary"))).resolves.toBeUndefined();
     await expect(adapter.delete(key("boundary"))).resolves.toBe(false);
   });
 

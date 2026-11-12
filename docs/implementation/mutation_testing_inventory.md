@@ -26,21 +26,21 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `authentication` | 44 | Assessment complete; review pending | Review remaining survivors, including production PostgreSQL provider and migration wiring | [Coverage reassessment](mutation_testing_coverage_reassessment.md#authentication) · [Follow-up](mutation_testing_gap_followup.md#authentication) |
 | `authorization` | 23 | Reviewed | Requirement evaluation, scoped composition, denial semantics and role stores reviewed | [Boundary review](mutation_testing_http_boundaries.md#authorization) |
 | `background` | 4 | Assessment complete; review pending | All four candidate files assessed; synchronous stop-drain bug fixed; controlled steady-state completion assertions and residual policy follow-up pending | `component-background` |
-| `cache` | 24 | Partial / selected evidence | Memory/PostgreSQL pruning reviewed; other adapter methods, Redis and broader concurrency contracts pending | `cache-pruning` |
+| `cache` | 24 | Reviewed | Capacity, pruning, coordination, adapter ownership and all storage contracts reviewed | [Storage review](mutation_testing_storage_boundaries.md#cache) |
 | `cli` | 8 | Not assessed | Parsing, dispatch and exit/signals; subprocess observation limit | — |
 | `client` | 10 | Not assessed | Client generation and development/build adapters | — |
 | `concurrency` | 4 | Not assessed | Queue, batch and cancellation contracts | — |
 | `configuration` | 1 | Not assessed | Parsing and composition contracts | — |
 | `controllers` | 2 | Not assessed | Contract/type exports; establish whether runtime mutations exist | — |
-| `database` | 8 | Not assessed | Seeder and legacy/public database contracts | — |
-| `db` | 34 | Partial / selected evidence | Provider, pools, repositories, history and counters; configuration sample assessed | `configuration-sample` |
+| `database` | 8 | Reviewed | Maintenance commands, caller-owned transactions and generated identity isolation reviewed | [Storage review](mutation_testing_storage_boundaries.md#maintenance-and-seeding) |
+| `db` | 34 | Reviewed | Pool and query diagnostics, pagination, history, counters and schema contributions reviewed | [Storage review](mutation_testing_storage_boundaries.md#database-runtime-and-repositories) |
 | `definitions` | 5 | Not assessed | Definition validation and composition | — |
 | `di` | 5 | Partial / selected evidence | Container/scopes; historical adapter-lifecycle pilot | `adapter-circuit-pilot` |
 | `email` | 34 | Not assessed | Composition, rendering, transport failures and adapter ownership | — |
 | `errors` | 5 | Reviewed | Transport representation lookup, opaque fallback and cyclic diagnostics reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
 | `events` | 4 | Not assessed | Dispatch, asynchronous failures, scopes and close semantics | — |
 | `http` | 28 | Reviewed | Routing, access and lifecycle, Host admission, client transport and generation reviewed | [Boundary review](mutation_testing_http_boundaries.md#http) |
-| `lock` | 22 | Partial / selected evidence | Batch renewal and extension validation reviewed with handle-composition limit; acquisition, handle and adapter sources pending | `lock-renewal` |
+| `lock` | 22 | Reviewed | Acquisition, lease ownership, batch renewal and all adapter contracts reviewed | [Storage review](mutation_testing_storage_boundaries.md#lock) |
 | `log` | 13 | Not assessed | Redaction, formatting, filtering and transport ownership | — |
 | `middleware` | 2 | Reviewed | Entry, replay, dependency resolution and unwind failure behavior reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
 | `observability` | 15 | Not assessed | Context, buffering, redaction and flush/disposal | — |
@@ -56,7 +56,7 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `workers` | 23 | Reviewed | Scheduler admission and ownership, delivery, publication, adapters and contracts | [Component review](mutation_testing_workers_complete_review.md) |
 | `workflows` | 38 | Reviewed | Runtime, replay, operator commands and adapter contracts | [Component review](mutation_testing_workflows_complete_review.md) |
 
-The current total is 13 not-assessed lots, 6 partially assessed lots, 9 reviewed lots, 6 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
+The current total is 12 not-assessed lots, 3 partially assessed lots, 13 reviewed lots, 6 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
 
 ## Evidence ledger
 
@@ -216,6 +216,19 @@ All seven profiles completed with static and hybrid mutants retained. The scope 
 | `middleware` | 18 | 18 / 0 / 0 → 18 / 0 / 0 | 0 / 0 → 0 / 0 | 100.00% → 100.00% |
 
 Local reports, exact comparisons and input hashes are archived under `artifacts/mutation/nov12-http-boundaries/`.
+
+## November 12 storage boundary review
+
+All completed comparisons retain static and hybrid mutants. The disjoint profiles account for the full mutation set in 88 candidate sources. The [storage boundary review](mutation_testing_storage_boundaries.md) records the confirmed bugs, remaining mutations, and the execution budget for each profile.
+
+| Component | Matched mutants | Killed / Survived / NoCoverage | Timeout / RuntimeError | Stryker score |
+| --- | ---: | --- | --- | --- |
+| `db` | 2380 | 1880 / 483 / 14 → 2299 / 188 / 9 | 17 / 132 → 12 / 127 | 79.24% → 92.15% |
+| `lock` | 1144 | 974 / 158 / 22 → 1119 / 42 / 3 | 8 / 8 → 3 / 8 | 84.51% → 96.14% |
+| `database` | 152 | 134 / 18 / 4 → 172 / 16 / 0 | 0 / 0 → 0 / 0 | 85.90% → 91.49% |
+| `cache` | 848 | 724 / 118 / 12 → 817 / 31 / 1 | 2 / 10 → 2 / 10 | 84.81% → 96.24% |
+
+Local reports, exact comparisons and input hashes are archived under `artifacts/mutation/nov12-storage-boundaries/`.
 
 ## Historical global campaign
 

@@ -7,6 +7,7 @@ import { LockProvider } from "../../provider.js";
 import { locksDependency } from "../../dependencies.js";
 import { RedisLockAdapter } from "./adapter.js";
 import { redisLocks } from "./definition.js";
+import { redisLocksConfigBase } from "./configuration.js";
 
 it("selects a borrowed native client lazily and never registers Redis pruning", async () => {
   const client = { eval: vi.fn(async (_script: string, _options: unknown) => null), destroy: vi.fn() };
@@ -33,6 +34,32 @@ it("rejects an empty prefix before constructing physical lease keys", () => {
   expect(() => new RedisLockAdapter({ eval: evalScript }, { keyPrefix: "" }))
     .toThrow("Redis lock key prefixes cannot be empty");
   expect(evalScript).not.toHaveBeenCalled();
+});
+
+it("validates Redis prefixes and acquisition fields before contacting the store", async () => {
+  const evalScript = vi.fn<RedisClientType["eval"]>();
+  const adapter = new RedisLockAdapter({ eval: evalScript });
+  const request = { key: "resource", ownerId: "owner", ttlMs: 1_000 };
+  expect(redisLocksConfigBase.schema.safeParse({ keyPrefix: "" }).success).toBe(false);
+  expect(redisLocksConfigBase.schema.parse({ keyPrefix: "long:prefix:" }).keyPrefix).toBe("long:prefix:");
+
+  for (const overrides of [{ key: "" }, { ownerId: "" }, { ttlMs: Infinity }]) {
+    await expect(adapter.tryAcquire({ ...request, ...overrides })).rejects.toThrow("key, owner and positive finite TTL");
+  }
+  expect(evalScript).not.toHaveBeenCalled();
+});
+
+it.each([
+  { expiresAt: "12e3" }, { expiresAt: " 1234" },
+  { fencingToken: "0x1" }, { fencingToken: " 3" },
+])("rejects noncanonical decimal fields from the Redis lease reply (%j)", async (overrides) => {
+  const request = { key: "resource", ownerId: "owner", ttlMs: 1_000 };
+  const lease = { version: 1, key: request.key, ownerId: request.ownerId, expiresAt: "1234", fencingToken: "3" };
+  const evalScript = vi.fn<RedisClientType["eval"]>()
+    .mockResolvedValue(JSON.stringify([{ ...lease, ...overrides }]));
+  const adapter = new RedisLockAdapter({ eval: evalScript });
+
+  await expect(adapter.tryAcquire(request)).rejects.toThrow();
 });
 
 it("rejects invalid Redis replies without interpreting them as contention or lost ownership", async () => {

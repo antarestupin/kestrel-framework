@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createRedisTestContext, type RedisTestContext } from "../../../testing/redis.js";
 import { RedisLockAdapter } from "./adapter.js";
 
@@ -23,6 +23,9 @@ describe("RedisLockAdapter", () => {
       expect(await redis.client.pTTL(leaseKey(redis.keyPrefix))).toBeGreaterThan(0);
       await expect(second.tryAcquire(request("resource", "second"))).resolves.toBeUndefined();
       await expect(second.extend(request("resource", "second"))).resolves.toBeUndefined();
+      const extended = await first.extend({ ...request(), ttlMs: 120_000 });
+      expect(extended).toMatchObject({ ownerId: "first", fencingToken: lease!.fencingToken });
+      expect(extended!.expiresAt.getTime()).toBeGreaterThan(lease!.expiresAt.getTime());
       await expect(second.release(request("resource", "second"))).resolves.toBe(false);
       await expect(first.release(request())).resolves.toBe(true);
       const successor = await second.tryAcquire(request("resource", "second"));
@@ -69,6 +72,38 @@ describe("RedisLockAdapter", () => {
     await expect(adapter.tryAcquireMany([request("a"), request("b")])).rejects.toThrow();
     expect(await redis.client.exists(leaseKey(redis.keyPrefix, "a"))).toBe(0);
     expect(await redis.client.exists(leaseKey(redis.keyPrefix, "b"))).toBe(0);
+  });
+
+  it("rejects expiry outside the Date range at Redis time before reserving a fencing token", async ({ redis }) => {
+    const adapter = new RedisLockAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+    // A skewed process clock cannot validate an absolute expiry computed by Redis.
+    const clock = vi.spyOn(Date, "now").mockReturnValue(0);
+    try {
+      await expect(adapter.tryAcquireMany([
+        request("valid"), { ...request("out-of-range"), ttlMs: 8_640_000_000_000_000 },
+      ])).rejects.toThrow();
+    } finally {
+      clock.mockRestore();
+    }
+    expect(await redis.client.get(leaseKey(redis.keyPrefix, "valid"))).toBeNull();
+    expect(await redis.client.get(leaseKey(redis.keyPrefix, "out-of-range"))).toBeNull();
+    expect(await redis.client.get(`${redis.keyPrefix}{locks}:sequence`)).toBeNull();
+  });
+
+  it("validates persisted fencing values before extending any batch member", async ({ redis }) => {
+    const adapter = new RedisLockAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+    await adapter.tryAcquireMany([request("valid"), request("corrupt")]);
+    const validKey = leaseKey(redis.keyPrefix, "valid");
+    const corruptKey = leaseKey(redis.keyPrefix, "corrupt");
+    const before = await redis.client.get(validKey);
+    const corrupt = JSON.parse((await redis.client.get(corruptKey))!);
+    await redis.client.set(corruptKey, JSON.stringify({ ...corrupt, fencingToken: "not-a-token" }), { KEEPTTL: true });
+
+    // Redis scripts have no rollback after a write, so every reply must be validated first.
+    await expect(adapter.extendMany([
+      { ...request("valid"), ttlMs: 120_000 }, request("corrupt"),
+    ])).rejects.toThrow();
+    expect(await redis.client.get(validKey)).toBe(before);
   });
 
   it("isolates adapter prefixes and validates requests before mutation", async ({ redis }) => {

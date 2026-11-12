@@ -8,7 +8,9 @@ import type { Pool } from "pg";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineUnloggedTable } from "../../db/schema_contributions/index.js";
+import { LocalDatabaseMaintenance } from "./database_maintenance.js";
 import { resetDatabase } from "./database_resetter.js";
+import { defineDatabaseMaintenance } from "./definition.js";
 
 let migrationsFolder: string | undefined;
 
@@ -94,5 +96,42 @@ describe("resetDatabase", () => {
       schemas: ["development"], push: { schema: { entry } },
     }, { migrationsFolder: migrationsFolder! })).rejects.toBe(failure);
     expect(query).toHaveBeenCalledExactlyOnceWith('DROP SCHEMA IF EXISTS "development" CASCADE;');
+  });
+});
+
+describe("LocalDatabaseMaintenance", () => {
+  it("runs migrations outside the local environment without resetting or seeding", async () => {
+    const { pool, database, events } = resetFixture();
+    const definition = {
+      migration: { migrationsFolder: migrationsFolder! },
+      reset: { schemas: ["public"] },
+      seed: { steps: [] },
+    };
+    expect(defineDatabaseMaintenance(definition)).toBe(definition);
+    const maintenance = new LocalDatabaseMaintenance({ database, environment: "prod", pool }, definition);
+
+    await maintenance.migrate();
+
+    // Deployment migrations are permitted in every environment.
+    expect(events).toEqual(["migrate"]);
+  });
+
+  it("resets and migrates before opening the seed transaction", async () => {
+    const { pool, database, events } = resetFixture();
+    const executor = Object.assign(database, {
+      async transaction(operation: (executor: NodePgDatabase) => Promise<void>) {
+        events.push("seed");
+        await operation(database);
+      },
+    });
+    const maintenance = new LocalDatabaseMaintenance({ database: executor, environment: "local", pool }, {
+      migration: { migrationsFolder: migrationsFolder! },
+      reset: { schemas: ["development"] },
+      seed: { steps: [] },
+    });
+
+    await maintenance.resetAndSeed();
+
+    expect(events).toEqual(['DROP SCHEMA IF EXISTS "development" CASCADE;', "migrate", "seed"]);
   });
 });

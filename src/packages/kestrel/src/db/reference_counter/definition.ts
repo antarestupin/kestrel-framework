@@ -22,17 +22,15 @@ export function defineReferenceCounter<Source extends AnyPgTable>(
   }
   const foreignKey = getTableConfig(source).foreignKeys.some((key) => {
     const reference = key.reference();
-    return reference.columns.length === 1 && reference.columns[0] === options.reference
-      && reference.foreignColumns.length === 1 && reference.foreignColumns[0] === options.target;
+    return reference.columns.length === 1 && isSameColumn(reference.columns[0]!, options.reference)
+      && reference.foreignColumns.length === 1 && isSameColumn(reference.foreignColumns[0]!, options.target);
   });
   if (!foreignKey) throw new TypeError("The reference must declare a single-column foreign key to the target.");
   const target = getTableConfig(options.target.table);
   const primaryKeys = target.primaryKeys.flatMap((key) => key.columns);
-  // Drizzle wraps table-level primary-key columns in extra-config column objects.
   const singlePrimary = options.target.primary
     ? target.columns.filter((column) => column.primary).length === 1 && primaryKeys.length === 0
-    : primaryKeys.length === 1 && primaryKeys[0]?.table === options.target.table
-      && primaryKeys[0].name === options.target.name;
+    : primaryKeys.length === 1 && isSameColumn(primaryKeys[0]!, options.target);
   if (!singlePrimary || !options.target.notNull) {
     throw new TypeError("The counter target must be a single-column primary key.");
   }
@@ -82,6 +80,11 @@ export function defineReferenceCounter<Source extends AnyPgTable>(
   table[metadata]!.push(definition);
   Object.defineProperty(options.counter, destinationOwner, { value: definition, enumerable: false });
   return definition;
+}
+
+/** Drizzle table-level constraints can wrap columns in extra-config objects. */
+function isSameColumn(column: PgColumn, expected: PgColumn): boolean {
+  return column.table === expected.table && column.name === expected.name;
 }
 
 /** Discovers counters through exported source tables, deduplicating schema aliases. */

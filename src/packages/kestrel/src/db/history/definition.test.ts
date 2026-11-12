@@ -7,6 +7,7 @@ import {
   pgEnum,
   pgSchema,
   pgTable,
+  PgDialect,
   primaryKey,
   serial,
   smallserial,
@@ -22,6 +23,7 @@ import {
 } from "vitest";
 
 import { getDatabaseSchemaContributions } from "../schema_contributions/index.js";
+import { getFrameworkDatabaseTableKeys } from "../framework_table.js";
 import {
   defineHistoryTable,
   getHistoryTableDefinitions,
@@ -56,6 +58,8 @@ describe("defineHistoryTable", () => {
     expect(config.uniqueConstraints).toEqual([]);
     expect(config.checks).toHaveLength(1);
     expect(config.indexes).toHaveLength(1);
+    expect(config.checks[0]?.name).toBe("history_definition_test_article_history_operation_check");
+    expect(config.indexes[0]?.config.name).toBe("history_definition_test_article_history_identity_sequence_idx");
     expect(config.indexes[0]?.config.columns.map((column) =>
       "name" in column ? column.name : undefined
     ))
@@ -78,7 +82,7 @@ describe("defineHistoryTable", () => {
 
   it("filters tracked columns and preserves inferred identity and result types", () => {
     const excluded = defineHistoryTable(source, { exclude: [source.revision] });
-    const included = defineHistoryTable(source, { include: [source.title] });
+    const included = defineHistoryTable(source, { include: [source.id, source.title] });
     const identityOnly = defineHistoryTable(source, { include: [] });
     expect(Object.keys(getTableColumns(excluded))).not.toContain("revision");
     expect(Object.keys(getTableColumns(included)).filter(key => !key.startsWith("__")))
@@ -130,14 +134,15 @@ describe("defineHistoryTable", () => {
         identityKeys: ["id"],
       }),
     ]);
-    expect(Object.keys(history)).not.toContain("historyTableDefinition");
-    expect(getDatabaseSchemaContributions({ history })).toEqual([
-      expect.objectContaining({
-        id: "postgres.history:history_definition_test.article:article_history",
-        installSql: expect.stringContaining("CREATE OR REPLACE FUNCTION"),
-        uninstallBeforeSql: expect.stringContaining("DROP TRIGGER IF EXISTS"),
-      }),
-    ]);
+    // Spreading a Drizzle table must not also register the copy as a history definition.
+    expect(getHistoryTableDefinitions({ copy: { ...history } })).toEqual([]);
+    const [contribution] = getDatabaseSchemaContributions({ history });
+    expect(contribution).toMatchObject({
+      id: "postgres.history:history_definition_test.article:article_history",
+      installSql: expect.stringContaining("CREATE OR REPLACE FUNCTION"),
+      uninstallBeforeSql: expect.stringContaining("DROP TRIGGER IF EXISTS"),
+    });
+    expect(contribution?.installSql).toBe(contribution?.updateSql);
   });
 
   it("supports an explicit composite identity", () => {
@@ -226,5 +231,74 @@ describe("defineHistoryTable", () => {
     expect(() => defineHistoryTable(unsupported)).toThrow(
       'does not support PostgreSQL type "made_up_type"',
     );
+  });
+
+  it("retains metadata types and marks only generated tables as framework-owned", () => {
+    const unqualifiedSource = pgTable("public_record", { id: integer("id").primaryKey() });
+    const unqualifiedHistory = defineHistoryTable(unqualifiedSource, { baseline: "existing_rows" });
+    const config = getTableConfig(unqualifiedHistory);
+    const columns = getTableColumns(unqualifiedHistory);
+    expect(config.schema).toBeUndefined();
+    expect(columns.__sequence.name).toBe("__sequence");
+    expect(columns.__sequence.mapFromDriverValue("9007199254740993")).toBe(9007199254740993n);
+    expect(columns.__operation.name).toBe("__operation");
+    expect(columns.__changedAt.getSQLType()).toBe("timestamp with time zone");
+    expect(columns.__changedAt.mapFromDriverValue("2026-10-01T10:00:00+02:00")).toEqual(new Date("2026-10-01T08:00:00Z"));
+    expect(columns.__actor.name).toBe("__actor");
+    expect(columns.__reason.name).toBe("__reason");
+    expect(config.indexes[0]?.config.name).toBe("public_record_history_identity_sequence_idx");
+    expect(config.checks[0]?.name).toBe("public_record_history_operation_check");
+    expect(new PgDialect().sqlToQuery(config.checks[0]!.value).sql).toContain('"__operation" IN (1, 2, 3)');
+    expect(getFrameworkDatabaseTableKeys({ unqualifiedSource, unqualifiedHistory })).toEqual(new Set(['["public","public_record_history"]']));
+
+    const [contribution] = getDatabaseSchemaContributions({ unqualifiedHistory });
+    expect(contribution?.id).toBe("postgres.history:public.public_record:public_record_history");
+    expect(contribution?.installSql).toContain('LOCK TABLE "public"."public_record"');
+    expect(contribution?.installSql).toContain("CREATE OR REPLACE FUNCTION");
+    expect(contribution?.updateSql).toContain("CREATE OR REPLACE FUNCTION");
+    expect(contribution?.updateSql).not.toContain("LOCK TABLE");
+    expect(getHistoryTableDefinitions({ unqualifiedHistory, alias: unqualifiedHistory, invalid: 1, absent: null })).toHaveLength(1);
+  });
+
+  it("preserves supported PostgreSQL type dimensions and rejects partial type matches", () => {
+    // Drizzle custom types may expose these PostgreSQL forms even when it lacks a built-in builder.
+    const tableForType = (sqlType: string) => pgTable("typed_history_source", {
+      id: integer("id").primaryKey(), value: customType<{ data: string }>({ dataType: () => sqlType })("value"),
+    });
+    const supported = [
+      "smallint", "integer", "bigint", "real", "double precision", "boolean",
+      "text", "uuid", "json", "jsonb", "bytea", "date", "inet", "cidr", "macaddr", "macaddr8",
+      "character varying(32)", "varchar", "character(2)", "char(1)", "bit(4)", "bit varying(16)",
+      "numeric", "numeric(20)", "decimal(20,12)",
+      "timestamp", "time", "time(0)", "time with time zone", "timestamp(6) without time zone",
+      "interval", "interval(6)", "interval year to month", "interval day to second(4)",
+      "text[]", "integer[12]", "varchar(16)[8]", "timestamp(3) with time zone[]",
+    ];
+    for (const sqlType of supported) {
+      expect(getTableColumns(defineHistoryTable(tableForType(sqlType))).value.getSQLType()).toBe(sqlType);
+    }
+
+    const unsupported = [
+      "text extra", "extra text", "extra varchar", "varchar(1) extra", "varchar()",
+      "text[1] extra", "te[1]xt", "timestamp[] with time zone", "integer[bogus]",
+      "extra numeric", "numeric(20) extra", "decimal(20,)",
+      "extra time", "time(7)", "timestamp(12)", "timestamp with timezone",
+      "extra interval", "interval year(9)", "interval day to second()",
+    ];
+    for (const sqlType of unsupported) {
+      expect(() => defineHistoryTable(tableForType(sqlType))).toThrow(`does not support PostgreSQL type "${sqlType}"`);
+    }
+  });
+
+  it("keeps managed index and constraint names distinct within PostgreSQL's byte limit", () => {
+    const longPrefix = "é".repeat(29);
+    const create = (suffix: string) => getTableConfig(defineHistoryTable(source, { name: `${longPrefix}${suffix}` }));
+    const first = create("a");
+    const second = create("b");
+    const names = [first.indexes[0]!.config.name!, first.checks[0]!.name,
+      second.indexes[0]!.config.name!, second.checks[0]!.name];
+    expect(new Set(names).size).toBe(4);
+    expect(names.every((name) => Buffer.byteLength(name, "utf8") <= 63)).toBe(true);
+    expect(names[0]).toBe(create("a").indexes[0]?.config.name);
   });
 });

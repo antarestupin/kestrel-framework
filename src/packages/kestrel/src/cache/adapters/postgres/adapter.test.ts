@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
   integer,
@@ -177,6 +178,14 @@ describe("PostgresCacheAdapter", () => {
     await expect(adapter.get(key("large"))).resolves.toBeUndefined();
   });
 
+  it("stores an entry at the exact individual size boundary", async () => {
+    const adapter = createAdapter({ maxEntrySizeBytes: 10 });
+    const boundary = entry("boundary", { sizeBytes: 10 });
+
+    await adapter.set(key("boundary"), boundary);
+    await expect(adapter.get(key("boundary"))).resolves.toEqual(boundary);
+  });
+
   it("deletes one key and reports whether it existed", async () => {
     const adapter = createAdapter();
     await adapter.set(key("key"), entry("value"));
@@ -333,5 +342,48 @@ describe("PostgresCacheAdapter", () => {
     await expect(adapter.get(key("first"))).resolves.toBeUndefined();
     await expect(adapter.get(key("second"))).resolves.toBeDefined();
     await expect(adapter.get(key("third"))).resolves.toBeDefined();
+  });
+
+  it("does not evict below the configured row limit when a peer has already claimed the overflow", async () => {
+    const schema = `cache_pruning_${randomUUID().replaceAll("-", "")}`;
+    let first: PoolClient | undefined;
+    let second: PoolClient | undefined;
+    await client.query(`CREATE SCHEMA "${schema}"`);
+    try {
+      await client.query(`CREATE TABLE "${schema}".cache_entry (LIKE pg_temp.cache_entry INCLUDING ALL)`);
+      first = await pool.connect();
+      second = await pool.connect();
+      for (const connection of [first, second]) {
+        await connection.query(`SET search_path TO "${schema}"`);
+        await connection.query("SET statement_timeout TO '2s'");
+      }
+      const options = {
+        maxEntries: 1, maxEntrySizeBytes: 100,
+        now: () => new Date("2026-01-01T00:30:00.000Z"),
+      };
+      const writer = new PostgresCacheAdapter(
+        drizzle(first) as PostgresCacheDatabase, options, testCacheEntries as unknown as typeof cacheEntries,
+      );
+      const peer = new PostgresCacheAdapter(
+        drizzle(second) as PostgresCacheDatabase, options, testCacheEntries as unknown as typeof cacheEntries,
+      );
+      const keeper = entry("keep", { expiresAt: new Date("2026-01-01T02:00:00.000Z") });
+      await writer.set(key("old"), entry("evict"));
+      await writer.set(key("new"), keeper);
+
+      // The peer's snapshot still includes the first deletion, whose row lock must not displace eviction.
+      await first.query("BEGIN");
+      expect(await writer.prune({ limit: 1 })).toBe(1);
+      const removedByPeer = await peer.prune({ limit: 1 });
+      await first.query("COMMIT");
+
+      expect(removedByPeer).toBe(0);
+      await expect(peer.get(key("old"))).resolves.toBeUndefined();
+      await expect(peer.get(key("new"))).resolves.toEqual(keeper);
+    } finally {
+      first?.release(true);
+      second?.release(true);
+      await client.query(`DROP SCHEMA "${schema}" CASCADE`);
+    }
   });
 });

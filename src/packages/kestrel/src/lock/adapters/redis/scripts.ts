@@ -9,12 +9,19 @@ local mode = ARGV[1]
 local requests = cjson.decode(ARGV[2])
 local time = redis.call('TIME')
 local now = tonumber(time[1]) * 1000 + math.floor(tonumber(time[2]) / 1000)
+local maxDate = 8640000000000000
+-- Validate absolute expiries against Redis time before reserving tokens or writing leases.
+for _, request in ipairs(requests) do
+  if now + request.ttlMs > maxDate then return redis.error_reply('Redis lock expiry is outside the Date range') end
+end
 local leases = {}
 for i, request in ipairs(requests) do
   local raw = redis.call('GET', KEYS[i + 1])
   local lease = raw and cjson.decode(raw) or nil
-  if lease and (lease.version ~= 1 or type(lease.ownerId) ~= 'string'
-      or not tonumber(lease.expiresAt) or type(lease.fencingToken) ~= 'string') then
+  if lease and (lease.version ~= 1 or lease.key ~= request.key or type(lease.ownerId) ~= 'string'
+      or type(lease.expiresAt) ~= 'string' or not string.match(lease.expiresAt, '^%d+$')
+      or tonumber(lease.expiresAt) > maxDate or type(lease.fencingToken) ~= 'string'
+      or not string.match(lease.fencingToken, '^%d+$')) then
     return redis.error_reply('Invalid Redis lock record')
   end
   if mode == 'acquire' then

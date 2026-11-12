@@ -197,6 +197,8 @@ No production bug was demonstrated: the current implementation already preserved
 
 The [actions, cache and application follow-up](./mutation_testing_actions_followup.md) records the next bounded session: a real unsafe numbered-default bug fixed, the complete actions component reviewed, and selected cache pruning, execution diagnostics, catalog identities and Atlas URL state assessed. The [inventory](./mutation_testing_inventory.md) is the current source of component states. The complete actions scope retains 12 diagnostic/optional-property survivors; it is not an adjusted 100% claim. Historical CRUD/pruning/diagnostic/Atlas observations below explain the original gaps and are superseded where the follow-up states an exact scope.
 
+The [storage boundary review](./mutation_testing_storage_boundaries.md) extends the selected cache, lock and database evidence to the full `db`, `lock`, `database` and `cache` lots. It records fresh measurements with static mutants, the defects reproduced against PostgreSQL and Redis, and the remaining limitations.
+
 ## Historical execution and interpretation
 
 The first full-scope attempts exposed two execution constraints: cumulative coverage metadata can exhaust a non-isolated runner's heap, and repeated runner startup dominates many small mutation runs. Deterministic projects containing at most six non-isolated test files were an intermediate workaround that passed the complete instrumented baseline. Their checkpoints remain historical observations.

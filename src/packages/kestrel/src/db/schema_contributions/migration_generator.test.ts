@@ -2,6 +2,7 @@ import {
   mkdtemp,
   mkdir,
   readFile,
+  realpath,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -102,10 +103,46 @@ describe("createMigrationSqlPlan", () => {
 
     // A duplicate statement could carry a contradictory value; preserve the full custom SQL.
     const duplicate = `${original!.installSql}\n${original!.installSql}`;
-    expect(descriptionContributionsEqual(original!, { ...original!, installSql: duplicate, updateSql: duplicate })).toBe(false);
+    const duplicatedCleanup = `${original!.uninstallBeforeSql}\n${original!.uninstallBeforeSql}`;
+    const duplicatedBundle = { ...original!, installSql: duplicate, updateSql: duplicate, uninstallBeforeSql: duplicatedCleanup };
+    expect(descriptionContributionsEqual(duplicatedBundle, duplicatedBundle)).toBe(false);
+    expect(createMigrationSqlPlan([original!], [duplicatedBundle]))
+      .toEqual({ before: [original!.uninstallBeforeSql], after: [duplicate] });
     const mismatchedCleanup = { ...original!, uninstallBeforeSql: "SELECT 1;" };
     expect(descriptionContributionsEqual(original!, mismatchedCleanup)).toBe(false);
     expect(descriptionContributionsEqual(original!, { ...original!, id: "postgres.table:content.other:descriptions" })).toBe(false);
+  });
+
+  it("recognizes descriptions only for managed ids and a matching cleanup lifecycle", () => {
+    const [table] = describedTable({ description: "Entries." });
+    const [schema] = getDatabaseSchemaContributions({
+      schema: defineDatabaseSchemaDescription(pgSchema("content"), "Content."),
+    });
+    for (const contribution of [
+      { ...table!, id: "custom.table:content.entry:descriptions" },
+      { ...table!, id: "postgres.table:content.entry:custom" },
+      { ...schema!, id: "custom.schema:content:description" },
+      { ...schema!, id: "postgres.schema:content:custom" },
+      { ...table!, uninstallAfterSql: "SELECT 1;" },
+      { ...table!, uninstallBeforeSql: "SELECT 1;" },
+      { ...table!, updateSql: "SELECT 1;" },
+      { ...table!, installSql: "", uninstallBeforeSql: "", updateSql: "" },
+    ]) {
+      expect(descriptionContributionsEqual(contribution, contribution)).toBe(false);
+    }
+    const withoutUpdate = {
+      id: table!.id, installSql: table!.installSql, uninstallBeforeSql: table!.uninstallBeforeSql!,
+    };
+    expect(descriptionContributionsEqual(withoutUpdate, table!)).toBe(true);
+  });
+
+  it("does not mistake a shared subset of comments for an unchanged bundle", () => {
+    const [twoColumns] = describedTable({ columns: { title: "Title.", body: "Body." } });
+    const [oneColumn] = describedTable({ columns: { title: "Title." } });
+    const [changed] = describedTable({ columns: { title: "Title.", body: "Changed." } });
+    expect(descriptionContributionsEqual(twoColumns!, oneColumn!)).toBe(false);
+    expect(descriptionContributionsEqual(oneColumn!, twoColumns!)).toBe(false);
+    expect(descriptionContributionsEqual(twoColumns!, changed!)).toBe(false);
   });
 
   it("orders old cleanup around Drizzle before applying the new definition", () => {
@@ -214,7 +251,10 @@ describe("generateDatabaseMigration", () => {
     const ddl = operation === "rename" ? 'ALTER TABLE "content"."entry" RENAME COLUMN "body" TO "renamed";' : 'ALTER TABLE "content"."entry" DROP COLUMN "body";';
     await generateDatabaseMigration({ cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations"), schema: { table }, runCommand: async () => { await writeGeneratedMigration(root, "0001_change", ddl); } });
     const sql = (await readMigration(root, "0001_change")).split("-- database-schema-contributions:")[0]!;
-    expect(sql.indexOf('COMMENT ON COLUMN "content"."entry"."body" IS NULL;')).toBeLessThan(sql.indexOf(ddl));
+    const cleanup = 'COMMENT ON COLUMN "content"."entry"."body" IS NULL;';
+    expect(sql).toContain(cleanup);
+    expect(sql).toContain(ddl);
+    expect(sql.indexOf(cleanup)).toBeLessThan(sql.indexOf(ddl));
     expect(sql).not.toContain('COMMENT ON TABLE');
     expect(sql).not.toContain('COMMENT ON COLUMN "content"."entry"."title"');
     if (operation === "rename") expect(sql.indexOf(ddl)).toBeLessThan(sql.indexOf('COMMENT ON COLUMN "content"."entry"."renamed" IS \'Body.\';'));
@@ -271,6 +311,87 @@ describe("generateDatabaseMigration", () => {
     expect(invocations).toEqual([]);
   });
 
+  it.each([
+    null, "journal", {}, { entries: {} }, { entries: [null] },
+    { entries: ["tag"] }, { entries: [{ idx: "0", tag: "0000_initial" }] },
+    ...["", " ", ".", "..", "nested/tag", "nested\\tag", "a\u0000b", 1].map((tag) => ({ entries: [{ idx: 0, tag }] })),
+    { entries: [{ idx: 0, tag: "0000_initial" }, { idx: 1, tag: "0000_initial" }] },
+  ])("rejects invalid journal shape or unsafe migration tags before invoking Drizzle (%j)", async (journal) => {
+    const root = await createMigrationFixture();
+    const migrationsFolder = join(root, "migrations");
+    await writeFile(join(migrationsFolder, "meta", "_journal.json"), JSON.stringify(journal));
+    const calls: unknown[] = [];
+
+    await expect(generateDatabaseMigration({
+      cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder, schema: {},
+      runCommand: async (...args) => { calls.push(args); },
+    })).rejects.toThrow(/Drizzle migration journal/u);
+    expect(calls).toEqual([]);
+  });
+
+  it("rejects a generated journal tag that would rewrite a sibling file", async () => {
+    const root = await createMigrationFixture();
+    const outside = join(root, "outside.sql");
+    const sentinel = "SELECT 'outside the migration folder';\n";
+    await writeFile(outside, sentinel);
+
+    await expect(generateDatabaseMigration({
+      cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations"),
+      schema: { table: createDisposableTable("entry") },
+      runCommand: async () => writeJournal(root, [{ idx: 0, tag: "../outside" }]),
+    })).rejects.toThrow("Invalid Drizzle migration journal entry.");
+    await expect(readFile(outside, "utf8")).resolves.toBe(sentinel);
+  });
+
+  it.each([false, true])("reads the managed snapshot when SQL contains a marker-like line (trailing SQL: %s)", async (appendSql) => {
+    const root = await createMigrationFixture();
+    const table = pgSchema("content").table("entry", { id: integer() });
+    defineDatabaseTableDescriptions(table, {
+      description: "A multiline description\n-- database-schema-contributions: ordinary comment text\ncontinues here.",
+    });
+    const options = {
+      cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations"),
+      schema: { table },
+    };
+    await generateDatabaseMigration({
+      ...options, runCommand: async () => writeGeneratedMigration(root, "0000_initial", "SELECT 1;"),
+    });
+    // An interrupted sidecar write must not prevent recovery from the SQL file.
+    await rm(join(root, "migrations", "custom-meta", "0000_initial.json"));
+    if (appendSql) {
+      const path = join(root, "migrations", "0000_initial.sql");
+      // Preserve both the delimiter and metadata when a maintainer appends a statement in a CRLF editor.
+      const sql = (await readFile(path, "utf8")).replaceAll("\n", "\r\n");
+      await writeFile(path, `${sql}--> statement-breakpoint\r\n-- Hand-edited migration note.\r\nSELECT 2;\r\n`);
+    }
+    await expect(generateDatabaseMigration({
+      ...options, runCommand: async () => {},
+    })).resolves.toEqual({ customContributionsChanged: false, source: "none" });
+  });
+
+  it("skips a newer migration without metadata and still reads the last managed snapshot", async () => {
+    const root = await createMigrationFixture();
+    const options = await installDisposableTable(root);
+    await writeGeneratedMigration(root, "0001_manual", "SELECT 2;");
+
+    await expect(generateDatabaseMigration({ ...options, runCommand: async () => {} }))
+      .resolves.toEqual({ customContributionsChanged: false, source: "none" });
+  });
+
+  it("propagates an unreadable sidecar instead of generating against an empty snapshot", async () => {
+    const root = await createMigrationFixture();
+    await writeGeneratedMigration(root, "0000_initial", "SELECT 1;");
+    // A directory at the expected snapshot path is a filesystem failure distinct from absence.
+    await mkdir(join(root, "migrations", "custom-meta", "0000_initial.json"), { recursive: true });
+    const calls: unknown[] = [];
+
+    await expect(generateDatabaseMigration({
+      cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations"),
+      schema: {}, runCommand: async (...args) => { calls.push(args); },
+    })).rejects.toMatchObject({ code: "EISDIR" });
+    expect(calls).toEqual([]);
+  });
+
   it.each(["embedded", "sidecar"] as const)("rejects invalid %s metadata before Drizzle can write a migration", async (storage) => {
     const root = await createMigrationFixture();
     await writeGeneratedMigration(root, "0000_initial", "-- Historical migration");
@@ -316,6 +437,14 @@ describe("generateDatabaseMigration", () => {
     expect(result).toEqual({ customContributionsChanged: false, migrationTag: "0001_manual", source: "delegated" });
     expect(await readMigration(root, "0001_manual")).toBe(`${manualSql}\n`);
     await expect(readFile(join(root, "migrations", "custom-meta", "0001_manual.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("reports delegated generation without a migration tag when the journal is unchanged", async () => {
+    const root = await createMigrationFixture();
+    await expect(generateDatabaseMigration({
+      cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations"),
+      schema: {}, drizzleArguments: ["--custom"], runCommand: async () => {},
+    })).resolves.toStrictEqual({ customContributionsChanged: false, source: "delegated" });
   });
 
   it("reports a schema-only migration without creating custom metadata", async () => {
@@ -371,7 +500,8 @@ describe("generateDatabaseMigration", () => {
       ...options, drizzleKitExecutable: process.execPath, drizzleKitExecutableArguments: ["-e", source, "--"],
     });
 
-    await expect(child("process.exit(0)")).resolves.toEqual({ customContributionsChanged: false, source: "none" });
+    await expect(child(`process.exit(process.cwd() === ${JSON.stringify(await realpath(root))} ? 0 : 8)`))
+      .resolves.toEqual({ customContributionsChanged: false, source: "none" });
     await expect(child("process.exit(7)")).rejects.toThrow("Drizzle Kit exited with code 7");
     await expect(child("process.kill(process.pid, 'SIGTERM')")).rejects.toThrow("Drizzle Kit exited after signal SIGTERM");
     await expect(generateDatabaseMigration({ ...options, drizzleKitExecutable: join(root, "missing-executable") }))
@@ -433,6 +563,26 @@ describe("generateDatabaseMigration", () => {
       runCommand: async (_executable, arguments_) => { invocations.push([...arguments_]); },
     })).toEqual({ customContributionsChanged: false, source: "none" });
     expect(invocations).toHaveLength(3);
+  });
+
+  it("records removal of a contribution with no cleanup SQL", async () => {
+    const root = await createMigrationFixture();
+    const options = { cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations") };
+    const target = defineDatabaseSchemaContribution({}, { id: "custom:one-way", installSql: "SELECT 1;" });
+    await generateDatabaseMigration({
+      ...options, schema: { target }, runCommand: async () => writeGeneratedMigration(root, "0000_initial", "SELECT 2;"),
+    });
+
+    // Removing the contribution still needs a snapshot so adding it back can install it again.
+    const result = await generateDatabaseMigration({
+      ...options, schema: {}, runCommand: async (_executable, args) => {
+        if (args.includes("--custom")) await writeGeneratedMigration(root, "0001_remove", "");
+      },
+    });
+    expect(result).toEqual({ customContributionsChanged: true, migrationTag: "0001_remove", source: "custom" });
+    expect(JSON.parse(await readFile(join(root, "migrations", "custom-meta", "0001_remove.json"), "utf8")))
+      .toEqual({ version: 1, contributions: [] });
+    expect((await readMigration(root, "0001_remove")).trimEnd()).toMatch(/^-- database-schema-contributions: [\w-]+$/u);
   });
 
   it.each(["rename", "drop"] as const)("orders contribution cleanup around a table %s", async (operation) => {
@@ -529,7 +679,7 @@ describe("generateDatabaseMigration", () => {
           }]);
           await writeFile(
             join(root, "migrations", "0000_database_schema_contributions.sql"),
-            "-- Custom SQL migration file, put your code below! --\n",
+            "\n  \n",
           );
         }
       },
@@ -555,6 +705,8 @@ describe("generateDatabaseMigration", () => {
     expect(migrationSql).toContain("custom schema changes after Drizzle");
     expect(migrationSql).toContain("SELECT 'installed';");
     expect(migrationSql).toContain("-- database-schema-contributions: ");
+    // A custom-only migration has no empty DDL section between its SQL and metadata.
+    expect(migrationSql.split("\n--> statement-breakpoint\n")).toHaveLength(2);
     await expect(readFile(
       join(
         root,

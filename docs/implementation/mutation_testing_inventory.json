@@ -91,10 +91,11 @@
       "id": "cache",
       "scope": "cache/**/*",
       "sourceFiles": 24,
-      "state": "partial",
-      "focus": "Memory/PostgreSQL pruning reviewed; other adapter methods, Redis and broader concurrency contracts pending",
+      "state": "reviewed",
+      "focus": "Capacity, pruning, coordination, adapter ownership and all storage contracts reviewed",
       "evidence": [
-        "cache-pruning"
+        "cache-pruning",
+        "cache-storage-review"
       ]
     },
     {
@@ -141,18 +142,21 @@
       "id": "database",
       "scope": "database/**/*",
       "sourceFiles": 8,
-      "state": "not-assessed",
-      "focus": "Seeder and legacy/public database contracts",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Maintenance commands, caller-owned transactions and generated identity isolation reviewed",
+      "evidence": [
+        "database-storage-review"
+      ]
     },
     {
       "id": "db",
       "scope": "db/**/*",
       "sourceFiles": 34,
-      "state": "partial",
-      "focus": "Provider, pools, repositories, history and counters; configuration sample assessed",
+      "state": "reviewed",
+      "focus": "Pool and query diagnostics, pagination, history, counters and schema contributions reviewed",
       "evidence": [
-        "configuration-sample"
+        "configuration-sample",
+        "db-storage-review"
       ]
     },
     {
@@ -213,10 +217,11 @@
       "id": "lock",
       "scope": "lock/**/*",
       "sourceFiles": 22,
-      "state": "partial",
-      "focus": "Batch renewal and extension validation reviewed with handle-composition limit; acquisition, handle and adapter sources pending",
+      "state": "reviewed",
+      "focus": "Acquisition, lease ownership, batch renewal and all adapter contracts reviewed",
       "evidence": [
-        "lock-renewal"
+        "lock-renewal",
+        "lock-storage-review"
       ]
     },
     {
@@ -1654,6 +1659,187 @@
       },
       "analysis": "mutation_testing_http_boundaries.md",
       "limits": "All 18 mutants killed, including static variants."
+    },
+    {
+      "id": "db-storage-review",
+      "date": "2026-11-12",
+      "components": [
+        "db"
+      ],
+      "extent": "All 34 candidate sources in db/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 2299,
+        "Survived": 188,
+        "Timeout": 12,
+        "RuntimeError": 127,
+        "NoCoverage": 9
+      },
+      "baselineCounts": {
+        "Survived": 483,
+        "Killed": 1880,
+        "Timeout": 17,
+        "RuntimeError": 132,
+        "NoCoverage": 14
+      },
+      "matchedMutants": 2380,
+      "unmatchedBefore": 146,
+      "unmatchedAfter": 255,
+      "baselineRevision": "ca41c5eecc77867e6848241c74c3a7b177923258",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-storage-boundaries/",
+      "profiles": [
+        "db-provider",
+        "db-instrumentation",
+        "db-repository",
+        "db-history-declarations",
+        "db-history-column-types",
+        "db-history-identities",
+        "db-history-events",
+        "db-reference-counter-declarations",
+        "db-reference-counter-discovery",
+        "db-reference-counter-runtime",
+        "db-schema-table-metadata",
+        "db-schema-migrations",
+        "db-schema-descriptions"
+      ],
+      "afterSeconds": {
+        "db-provider": 251,
+        "db-instrumentation": 202,
+        "db-repository": 107,
+        "db-history-declarations": 302,
+        "db-history-column-types": 330,
+        "db-history-identities": 279,
+        "db-history-events": 583,
+        "db-reference-counter-declarations": 257,
+        "db-reference-counter-discovery": 101,
+        "db-reference-counter-runtime": 221,
+        "db-schema-table-metadata": 301,
+        "db-schema-migrations": 115,
+        "db-schema-descriptions": 276
+      },
+      "analysis": "mutation_testing_storage_boundaries.md",
+      "limits": "Disjoint profiles cover the component. Residual diagnostics, optional payloads, progress limits and import-time errors are documented in the review."
+    },
+    {
+      "id": "lock-storage-review",
+      "date": "2026-11-12",
+      "components": [
+        "lock"
+      ],
+      "extent": "All 22 candidate sources in lock/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1119,
+        "Survived": 42,
+        "Timeout": 3,
+        "NoCoverage": 3,
+        "RuntimeError": 8
+      },
+      "baselineCounts": {
+        "NoCoverage": 22,
+        "Killed": 974,
+        "Survived": 158,
+        "Timeout": 8,
+        "RuntimeError": 8
+      },
+      "matchedMutants": 1144,
+      "unmatchedBefore": 26,
+      "unmatchedAfter": 31,
+      "baselineRevision": "ca41c5eecc77867e6848241c74c3a7b177923258",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-storage-boundaries/",
+      "profiles": [
+        "lock-acquisition",
+        "lock-ownership",
+        "lock-adapters",
+        "lock-contracts"
+      ],
+      "afterSeconds": {
+        "lock-acquisition": 52,
+        "lock-ownership": 140,
+        "lock-adapters": 114,
+        "lock-contracts": 59
+      },
+      "analysis": "mutation_testing_storage_boundaries.md",
+      "limits": "Three defensive uncovered branches, three progress-limit detections and eight invalid schema variants are classified separately."
+    },
+    {
+      "id": "database-storage-review",
+      "date": "2026-11-12",
+      "components": [
+        "database"
+      ],
+      "extent": "All 8 candidate sources in database/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 172,
+        "Survived": 16
+      },
+      "baselineCounts": {
+        "Killed": 134,
+        "NoCoverage": 4,
+        "Survived": 18
+      },
+      "matchedMutants": 152,
+      "unmatchedBefore": 4,
+      "unmatchedAfter": 36,
+      "baselineRevision": "ca41c5eecc77867e6848241c74c3a7b177923258",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-storage-boundaries/",
+      "profiles": [
+        "component-database"
+      ],
+      "afterSeconds": {
+        "component-database": 109
+      },
+      "analysis": "mutation_testing_storage_boundaries.md",
+      "limits": "The remaining variants involve equivalent defaults, identity comparison and redundant work for ordinary seed values."
+    },
+    {
+      "id": "cache-storage-review",
+      "date": "2026-11-12",
+      "components": [
+        "cache"
+      ],
+      "extent": "All 24 candidate sources in cache/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 817,
+        "NoCoverage": 1,
+        "Survived": 31,
+        "Timeout": 2,
+        "RuntimeError": 10
+      },
+      "baselineCounts": {
+        "Killed": 724,
+        "NoCoverage": 12,
+        "Survived": 118,
+        "Timeout": 2,
+        "RuntimeError": 10
+      },
+      "matchedMutants": 848,
+      "unmatchedBefore": 18,
+      "unmatchedAfter": 13,
+      "baselineRevision": "ca41c5eecc77867e6848241c74c3a7b177923258",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-storage-boundaries/",
+      "profiles": [
+        "component-cache"
+      ],
+      "afterSeconds": {
+        "component-cache": 299
+      },
+      "analysis": "mutation_testing_storage_boundaries.md",
+      "limits": "One infeasible guard, two progress-limit detections, and ten invalid schema variants are classified separately."
     }
   ]
 }

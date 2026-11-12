@@ -237,9 +237,8 @@ function historyContextSetting(name: "actor" | "reason"): string {
 }
 
 function qualifiedIdentifier(schema: string | undefined, name: string): string {
-  return schema === undefined
-    ? quoteIdentifier(name)
-    : `${quoteIdentifier(schema)}.${quoteIdentifier(name)}`;
+  // Default-schema Drizzle tables belong to public even when the writer uses a different search path.
+  return `${quoteIdentifier(schema ?? "public")}.${quoteIdentifier(name)}`;
 }
 
 function quoteIdentifier(identifier: string): string {
@@ -250,15 +249,20 @@ function escapeLiteral(value: string): string {
   return value.replaceAll("'", "''");
 }
 
-function managedIdentifier(identifier: string): string {
-  if (identifier.length <= 63) {
+/** Keep generated identifiers within PostgreSQL's UTF-8 byte budget. */
+export function managedIdentifier(identifier: string): string {
+  if (Buffer.byteLength(identifier, "utf8") <= 63) {
     return identifier;
   }
 
   let hash = 0;
+  let prefixEnd = 0;
+  let bytesLeft = 54; // The underscore and hexadecimal suffix use nine ASCII bytes.
   for (const character of identifier) {
     hash = ((hash * 31) + character.codePointAt(0)!) >>> 0;
+    bytesLeft -= Buffer.byteLength(character, "utf8");
+    if (bytesLeft >= 0) prefixEnd += character.length;
   }
   const suffix = hash.toString(16).padStart(8, "0");
-  return `${identifier.slice(0, 54)}_${suffix}`;
+  return `${identifier.slice(0, prefixEnd)}_${suffix}`;
 }

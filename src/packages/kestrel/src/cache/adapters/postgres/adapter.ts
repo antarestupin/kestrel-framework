@@ -1,7 +1,6 @@
 import {
   and,
   arrayContains,
-  count,
   eq,
   gt,
   sql,
@@ -181,33 +180,31 @@ export class PostgresCacheAdapter implements
   private async deleteOverflow(
     limit: number,
   ): Promise<number> {
-    const [current] = await this.database
-      .select({ count: count() })
-      .from(this.table);
-    const overflow = Math.max(
-      (current?.count ?? 0) - this.options.maxEntries,
-      0,
-    );
-    const evictionLimit = Math.min(limit, overflow);
-
-    if (evictionLimit === 0) {
-      return 0;
-    }
-
+    // Bound the candidate set in the same snapshot as the count, before acquiring
+    // row locks. A peer that already holds one of those rows must not make this
+    // pass evict a different entry outside the overflow.
     const result = await this.database.execute(sql`
-      WITH candidates AS (
+      WITH candidates AS MATERIALIZED (
         SELECT ${this.table.key}
         FROM ${this.table}
         ORDER BY
           ${this.table.expiresAt},
           ${this.table.createdAt},
           ${this.table.key}
-        LIMIT ${evictionLimit}
+        LIMIT (
+          SELECT LEAST(${limit}, GREATEST(count(*) - ${this.options.maxEntries}::numeric, 0))
+          FROM ${this.table}
+        )
+      ),
+      claimed AS (
+        SELECT ${this.table.key}
+        FROM ${this.table}
+        WHERE ${this.table.key} IN (SELECT key FROM candidates)
         FOR UPDATE SKIP LOCKED
       )
       DELETE FROM ${this.table}
-      USING candidates
-      WHERE ${this.table.key} = candidates.key
+      USING claimed
+      WHERE ${this.table.key} = claimed.key
       RETURNING ${this.table.key}
     `);
 

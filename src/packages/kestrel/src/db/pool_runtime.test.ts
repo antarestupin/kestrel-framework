@@ -49,7 +49,13 @@ describe("PostgreSQL pool lifecycle", () => {
 
     try {
       await expect(pool.connect()).resolves.toBe(client);
-      await expect(reentrant).rejects.toMatchObject({ code: "queue_full" });
+      await expect(reentrant).rejects.toMatchObject({
+        code: "queue_full", name: "PostgresPoolPolicyError", message: "PostgreSQL pool policy: queue_full",
+      });
+      expect(runtime.snapshot()).toMatchObject({
+        state: "unknown", acquisitionFailures: 1,
+        lastFailure: { type: "acquisition", failure: "queue_full" },
+      });
       expect(nativeConnect).toHaveBeenCalledOnce();
     } finally {
       client.release();
@@ -89,6 +95,90 @@ describe("PostgreSQL pool lifecycle", () => {
     await runtime.close();
   });
 
+  it("retains only supported error codes and gives consumers detached copies", async () => {
+    const pool = new Pool();
+    const onEvent = vi.fn();
+    const runtime = new PostgresPoolRuntime(pool, policy, onEvent);
+    try {
+      expect(runtime.snapshot()).toMatchObject({ state: "unknown", lastFailure: undefined });
+      for (const code of ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "EPIPE", "57P01"]) {
+        pool.emit("error", Object.assign(new Error("network error"), { code }));
+        expect(runtime.snapshot().lastFailure).toMatchObject({ type: "pool_error", errorCode: code });
+        expect(onEvent.mock.lastCall?.[0]).toMatchObject({ errorCode: code });
+      }
+      for (const code of ["57P01suffix", "prefix57P01", "private connection detail", 57_001]) {
+        pool.emit("error", Object.assign(new Error("network error"), { code }));
+        expect(runtime.snapshot().lastFailure?.errorCode).toBeUndefined();
+      }
+      // Mutating event and snapshot copies must leave the retained diagnostic intact.
+      const event = onEvent.mock.lastCall?.[0];
+      const snapshot = runtime.snapshot().lastFailure;
+      expect(event).not.toBe(snapshot);
+      Object.assign(event, { failure: "shutdown_timeout" });
+      Object.assign(snapshot!, { failure: "shutdown_timeout" });
+      expect(runtime.snapshot().lastFailure?.failure).toBe("pool_error");
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("never lets an error-code getter escape the pool boundary or mask a checkout failure", async () => {
+    const pool = new Pool();
+    const failure = Object.defineProperty(new Error("connection failed"), "code", {
+      get() { throw new Error("code getter failed"); },
+    });
+    pool.connect = vi.fn((callback) => callback(failure)) as unknown as Pool["connect"];
+    const runtime = new PostgresPoolRuntime(pool, policy);
+    try {
+      expect(() => pool.emit("error", failure)).not.toThrow();
+      await expect(pool.connect()).rejects.toBe(failure);
+      expect(runtime.snapshot().lastFailure).toMatchObject({
+        type: "acquisition", outcome: "failure", failure: "acquisition_failed", errorCode: undefined,
+      });
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("deduplicates a forwarded connection error and removes its listener when the connection ends", async () => {
+    const pool = new Pool();
+    const client = new EventEmitter();
+    const onEvent = vi.fn();
+    const runtime = new PostgresPoolRuntime(pool, policy, onEvent);
+    try {
+      pool.emit("connect", client);
+      const failure = new Error("idle connection lost");
+      client.emit("error", failure);
+      pool.emit("error", failure);
+      expect(onEvent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        type: "pool_error", outcome: "failure", failure: "pool_error",
+      }));
+      client.emit("end");
+      expect(client.listenerCount("error")).toBe(0);
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("publishes successful shutdown, clears its timer and retains the last failure", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const pool = new Pool();
+      const onEvent = vi.fn();
+      const runtime = new PostgresPoolRuntime(pool, policy, onEvent);
+      pool.emit("error", new Error("old failure"));
+      const failure = runtime.snapshot().lastFailure;
+      await runtime.close();
+      expect(runtime.snapshot()).toMatchObject({ state: "closed", lastFailure: failure });
+      expect(vi.getTimerCount()).toBe(0);
+      expect(onEvent).toHaveBeenLastCalledWith({
+        type: "shutdown", outcome: "success", timestamp: expect.any(Number),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps acquisition callbacks and late release safe during forced disposal", async () => {
     // A held client models application work that never returns its lease.
     const pool = new Pool({ max: 1 });
@@ -108,6 +198,7 @@ describe("PostgreSQL pool lifecycle", () => {
     expect(runtime.close()).toBe(close);
     await expect(close).rejects.toMatchObject({ code: "shutdown_timeout" });
     expect(release).toHaveBeenCalledExactlyOnceWith(true);
+    expect(client.connection.stream.destroyed).toBe(true);
     client.release();
     expect(release).toHaveBeenCalledOnce();
     expect(runtime.snapshot().state).toBe("closed");
@@ -196,6 +287,7 @@ describe("PostgreSQL pool lifecycle", () => {
     let resolve!: () => void;
     pool.query = vi.fn(() => new Promise<void>((done) => { resolve = done; })) as unknown as Pool["query"];
     const checking = runtime.checkHealth();
+    expect(pool.query).toHaveBeenCalledExactlyOnceWith("select 1");
     pool.emit("error", new Error("lost connection"));
     resolve();
     expect((await checking).state).toBe("degraded");

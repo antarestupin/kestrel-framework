@@ -1,3 +1,4 @@
+import { setImmediate as nextTurn } from "node:timers/promises";
 import {
   afterEach,
   describe,
@@ -64,6 +65,13 @@ describe("LockManager", () => {
   it("waits and retries until a lock becomes available", async () => {
     const adapter = new RecordingAdapter();
     adapter.available = false;
+    const acquire = adapter.tryAcquire.bind(adapter);
+    vi.spyOn(adapter, "tryAcquire")
+      .mockImplementationOnce(acquire)
+      .mockImplementation(async (request) => {
+        if (!adapter.available) throw new Error("The configured sleeper did not release contention.");
+        return acquire(request);
+      });
     let nowMs = 0;
     const sleep = vi.fn(async (delayMs: number) => {
       nowMs += delayMs;
@@ -100,10 +108,92 @@ describe("LockManager", () => {
     })).rejects.toEqual(new LockAcquisitionTimeoutError("job"));
   });
 
+  it.each([false, true])("clamps jittered waits to the deadline and reports timeout (batch=%s)", async (batch) => {
+    const adapter = new RecordingAdapter();
+    const instrumentation = new RecordingInstrumentation();
+    adapter.available = false;
+    let nowMs = 1_000;
+    const waitTimeoutMs = batch ? 30 : 25;
+    const sleep = vi.fn(async (delayMs: number) => {
+      nowMs += delayMs;
+      if (nowMs > 1_000 + waitTimeoutMs) throw new Error("Wait exceeded its budget.");
+    });
+    const locks = createManager(adapter, {
+      instrumentation, now: () => new Date(nowMs), monotonicNow: () => nowMs,
+      sleep, random: () => batch ? 1 : 0, retryJitterRatio: 0.25,
+    });
+    const options = { waitTimeoutMs, retryIntervalMs: 20 };
+
+    await expect(batch ? locks.acquireMany(["job"], options) : locks.acquire("job", options))
+      .rejects.toBeInstanceOf(batch ? LockBatchAcquisitionTimeoutError : LockAcquisitionTimeoutError);
+    // Jitter adjusts the first wait in both directions; the second stops at the deadline.
+    expect(sleep.mock.calls).toEqual(batch ? [[25, undefined], [5, undefined]] : [[15, undefined], [10, undefined]]);
+    expect(adapter.acquireRequests).toHaveLength(2);
+    expect(instrumentation.events).toEqual([expect.objectContaining({
+      type: batch ? "batch-acquisition" : "acquisition", outcome: "failure", durationMs: waitTimeoutMs,
+      data: expect.objectContaining({ result: "timeout", attempts: 2, waitTimeoutMs }),
+    })]);
+  });
+
+  it.each([false, true])("translates sleep cancellation and preserves ordinary sleep failures (batch=%s)", async (batch) => {
+    const adapter = new RecordingAdapter();
+    const instrumentation = new RecordingInstrumentation();
+    adapter.available = false;
+    const controller = new AbortController();
+    const failure = new Error("Retry scheduler unavailable");
+    const attempt = vi.spyOn(adapter, "tryAcquire")
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValue(new Error("A failed wait must not retry."));
+    const sleep = vi.fn(async (_delayMs: number, signal?: AbortSignal) => {
+      if (signal === controller.signal) controller.abort(failure);
+      throw failure;
+    });
+    const locks = createManager(adapter, { sleep, instrumentation, monotonicNow: () => 0 });
+    const acquire = (signal?: AbortSignal) => {
+      const options = signal === undefined ? {} : { signal };
+      return batch ? locks.acquireMany(["job"], options) : locks.acquire("job", options);
+    };
+
+    await expect(acquire(controller.signal))
+      .rejects.toBeInstanceOf(batch ? LockBatchAcquisitionAbortedError : LockAcquisitionAbortedError);
+    await expect(acquire()).rejects.toBe(failure);
+    expect(attempt).toHaveBeenCalledTimes(2);
+    expect(sleep.mock.calls).toEqual([[10, controller.signal], [10, undefined]]);
+    expect(instrumentation.events.map(({ type, outcome, data }) => ({ type, outcome, ...data }))).toMatchObject([
+      { type: batch ? "batch-acquisition" : "acquisition", outcome: "failure", result: "aborted", attempts: 1 },
+      { type: batch ? "batch-acquisition" : "acquisition", outcome: "failure", result: "error", attempts: 1 },
+    ]);
+    if (!batch) expect(instrumentation.events[1]!.data).toHaveProperty("mode", "wait");
+  });
+
+  it("passes cancellation into the default retry timer", async () => {
+    const adapter = new RecordingAdapter();
+    const controller = new AbortController();
+    const acquire = vi.spyOn(adapter, "tryAcquire").mockResolvedValueOnce(undefined)
+      .mockRejectedValue(new Error("A blocked retry should not acquire again."));
+    const operation = createManager(adapter).acquire("job", {
+      signal: controller.signal, retryIntervalMs: 100, waitTimeoutMs: 100,
+    });
+    // Observe the settled result on the next turn after abort, before the timer's normal expiry.
+    let rejected: unknown;
+    const settled = operation.catch((error: unknown) => { rejected = error; });
+    try {
+      await nextTurn();
+      controller.abort();
+      await nextTurn();
+      expect(rejected).toBeInstanceOf(LockAcquisitionAbortedError);
+      expect(acquire).toHaveBeenCalledOnce();
+    } finally {
+      controller.abort();
+      await settled;
+    }
+  });
+
   it("does not retry when the wait timeout is zero", async () => {
     const adapter = new RecordingAdapter();
     adapter.available = false;
-    const sleep = vi.fn(async () => undefined);
+    const sleep = vi.fn(async () => { throw new Error("A zero wait must not schedule a retry."); });
     const locks = createManager(adapter, { sleep });
 
     await expect(locks.acquire("job", { waitTimeoutMs: 0 }))
@@ -241,7 +331,7 @@ describe("LockManager", () => {
     const adapter = new RecordingAdapter();
     const locks = createManager(adapter);
 
-    const handles = await locks.acquireMany(["second", "first"]);
+    const handles = await locks.acquireMany(["second", "first"], { waitTimeoutMs: 0 });
 
     expect(handles.map((handle) => handle.key)).toEqual(["second", "first"]);
     expect(adapter.acquireRequests.map((request) => request.key)).toEqual([
@@ -249,6 +339,16 @@ describe("LockManager", () => {
       "test:second",
     ]);
   });
+
+  it.each([["a", "b", "B"], ["B", "b", "a"]])(
+    "uses code-unit acquisition order for input %s, %s, %s", async (...keys) => {
+      const adapter = new RecordingAdapter();
+      const handles = await createManager(adapter).acquireMany(keys, { waitTimeoutMs: 0 });
+      expect(adapter.acquireRequests.map(({ key }) => key)).toEqual(["test:B", "test:a", "test:b"]);
+      expect(handles.map(({ key }) => key)).toEqual(keys);
+      await Promise.all(handles.map((handle) => handle.release()));
+    },
+  );
 
   it("releases a partial fallback batch before retrying", async () => {
     const adapter = new RecordingAdapter();
@@ -273,7 +373,7 @@ describe("LockManager", () => {
     const adapter = new BatchRecordingAdapter();
     const locks = createManager(adapter);
 
-    await locks.acquireMany(["second", "first"]);
+    await locks.acquireMany(["second", "first"], { waitTimeoutMs: 0 });
 
     expect(adapter.batchRequests).toHaveLength(1);
     expect(adapter.acquireRequests).toHaveLength(0);
@@ -328,7 +428,7 @@ describe("LockManager", () => {
       return variant === "incomplete" ? leases.slice(0, 1) : [leases[0]!, foreign];
     });
 
-    await expect(createManager(storage).acquireMany(["first", "second"])).rejects.toMatchObject({
+    await expect(createManager(storage).acquireMany(["first", "second"], { waitTimeoutMs: 0 })).rejects.toMatchObject({
       name: "AggregateError", errors: [expect.objectContaining({ message: expect.stringContaining("acquisition batch") })],
     });
     await expect(storage.tryAcquire({ key: "test:other", ownerId: "contender", ttlMs: 1_000 })).resolves.toBeUndefined();
@@ -344,6 +444,28 @@ describe("LockManager", () => {
 
     await expect(locks.acquireMany([])).resolves.toEqual([]);
     expect(adapter.acquireRequests).toHaveLength(0);
+  });
+
+  it("records a successful zero-attempt batch without touching storage", async () => {
+    const adapter = new BatchRecordingAdapter();
+    const instrumentation = new RecordingInstrumentation();
+    const locks = createManager(adapter, { instrumentation, monotonicNow: () => 0 });
+    await expect(locks.acquireMany([])).resolves.toEqual([]);
+    expect(adapter.batchRequests).toEqual([]);
+    expect(instrumentation.events).toEqual([{
+      type: "batch-acquisition", outcome: "success", durationMs: 0,
+      data: { keys: [], result: "acquired", attempts: 0, ttlMs: 1_000, waitTimeoutMs: 100, fencingTokens: [] },
+    }]);
+  });
+
+  it("does not start a native batch after cancellation", async () => {
+    const adapter = new BatchRecordingAdapter();
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(createManager(adapter).acquireMany(["first"], { signal: controller.signal }))
+      .rejects.toBeInstanceOf(LockBatchAcquisitionAbortedError);
+    expect(adapter.batchRequests).toEqual([]);
   });
 
   it("runs an empty exclusive batch without starting a heartbeat", async () => {
@@ -427,10 +549,39 @@ describe("LockManager", () => {
     expect(adapter.releaseRequests).toEqual([{ key: "test:first", ownerId: "owner-1" }]);
   });
 
+  it("rolls back original requests when a successful fallback batch contains a changed reply", async () => {
+    const adapter = new RecordingAdapter();
+    const acquire = adapter.tryAcquire.bind(adapter);
+    let firstReply: LockLease;
+    vi.spyOn(adapter, "tryAcquire")
+      .mockImplementationOnce(async (request) => {
+        firstReply = (await acquire(request))!;
+        return firstReply;
+      })
+      .mockImplementationOnce(async (request) => {
+        firstReply.ownerId = "successor";
+        return acquire(request);
+      });
+
+    await expect(createManager(adapter).acquireMany(["first", "second"]))
+      .rejects.toMatchObject({
+        message: "Lock adapter returned an invalid acquisition batch.",
+        errors: [expect.objectContaining({ message: "Lock adapter returned a mismatched acquisition batch." })],
+      });
+    expect(adapter.releaseRequests).toEqual([
+      { key: "test:first", ownerId: "owner-1" },
+      { key: "test:second", ownerId: "owner-2" },
+    ]);
+  });
+
   it.each([
     [{ namespace: "" }, "Lock namespaces cannot be empty"],
     [{ namespace: "other:scope" }, "Lock namespaces cannot contain a colon"],
     [{ maxTtlMs: 999 }, "defaultTtlMs cannot exceed maxTtlMs"],
+    [{ defaultTtlMs: 0 }, "defaultTtlMs must be a positive finite number"],
+    [{ maxTtlMs: Infinity }, "maxTtlMs must be a positive finite number"],
+    [{ defaultWaitTimeoutMs: -1 }, "defaultWaitTimeoutMs must be a non-negative finite number"],
+    [{ retryIntervalMs: 0 }, "retryIntervalMs must be a positive finite number"],
     [{ retryJitterRatio: -0.1 }, "retryJitterRatio must be between 0 and 1"],
     [{ retryJitterRatio: 2 }, "retryJitterRatio must be between 0 and 1"],
     [{ retryJitterRatio: NaN }, "retryJitterRatio must be between 0 and 1"],
@@ -438,6 +589,12 @@ describe("LockManager", () => {
     const adapter = new RecordingAdapter();
     expect(() => createManager(adapter, overrides)).toThrow(message);
     expect(adapter.acquireRequests).toEqual([]);
+  });
+
+  it("accepts maximum jitter and equal default and maximum TTL", () => {
+    expect(() => createManager(new RecordingAdapter(), {
+      retryJitterRatio: 1, maxTtlMs: 1_000,
+    })).not.toThrow();
   });
 
   it("times out, aborts and rejects duplicate lock batches", async () => {
@@ -456,7 +613,7 @@ describe("LockManager", () => {
     await expect(locks.acquireMany(["first", "second"], {
       signal: controller.signal,
     })).rejects.toBeInstanceOf(LockBatchAcquisitionAbortedError);
-    await expect(locks.acquireMany(["same", "same"]))
+    await expect(locks.acquireMany(["same", "same"], { waitTimeoutMs: 0 }))
       .rejects.toThrow("duplicate keys");
   });
 
@@ -519,6 +676,70 @@ describe("LockManager", () => {
     );
   });
 
+  it("detaches a handle from adapter-owned acquisition and renewal replies", async () => {
+    class ExternalLease {
+      public constructor(private readonly lease: LockLease) {}
+
+      public get key(): string { return this.lease.key; }
+      public get ownerId(): string { return this.lease.ownerId; }
+      public get expiresAt(): Date { return this.lease.expiresAt; }
+      public get fencingToken(): bigint { return this.lease.fencingToken; }
+    }
+
+    const adapter = new RecordingAdapter();
+    const acquired = { key: "test:job", ownerId: "owner-1", expiresAt: new Date(1_000), fencingToken: 1n };
+    const renewed = { ...acquired, expiresAt: new Date(2_000) };
+    vi.spyOn(adapter, "tryAcquire").mockResolvedValue(new ExternalLease(acquired));
+    vi.spyOn(adapter, "extend").mockResolvedValue(new ExternalLease(renewed));
+    const handle = await createManager(adapter, { maxTtlMs: 1_000 }).acquire("job");
+
+    // An external adapter can reuse a mutable response after ownership moves to a new lease.
+    acquired.ownerId = "successor";
+    acquired.expiresAt.setTime(5_000);
+    acquired.fencingToken = 2n;
+    expect(handle.expiresAt).toEqual(new Date(1_000));
+    expect(handle.fencingToken).toBe(1n);
+    await handle.extend(2_000);
+    expect(adapter.extend).toHaveBeenCalledExactlyOnceWith({ key: "test:job", ownerId: "owner-1", ttlMs: 1_000 });
+    renewed.ownerId = "successor";
+    renewed.expiresAt.setTime(5_000);
+    expect(handle.expiresAt).toEqual(new Date(2_000));
+    await handle.release();
+    expect(adapter.releaseRequests).toEqual([{ key: "test:job", ownerId: "owner-1" }]);
+  });
+
+  it.each([false, true])("shares a concurrent release result and allows retry after failure (%s)", async (fails) => {
+    const adapter = new RecordingAdapter();
+    const pending = Promise.withResolvers<boolean>();
+    const release = vi.spyOn(adapter, "release").mockImplementation(() => pending.promise);
+    const handle = await createManager(adapter).acquire("job");
+    const calls = Promise.allSettled([handle.release(), handle.release()]);
+    const failure = new Error("Release unavailable");
+    try {
+      await Promise.resolve();
+      expect(release).toHaveBeenCalledExactlyOnceWith({ key: "test:job", ownerId: "owner-1" });
+    } finally {
+      if (fails) pending.reject(failure);
+      else pending.resolve(true);
+      await calls;
+    }
+
+    if (fails) {
+      expect(await calls).toEqual([
+        { status: "rejected", reason: failure }, { status: "rejected", reason: failure },
+      ]);
+      release.mockResolvedValue(true);
+      await expect(handle.release()).resolves.toBeUndefined();
+      expect(release).toHaveBeenCalledTimes(2);
+    } else {
+      expect(await calls).toEqual([
+        { status: "fulfilled", value: undefined }, { status: "fulfilled", value: undefined },
+      ]);
+      await handle.release();
+      expect(release).toHaveBeenCalledOnce();
+    }
+  });
+
   it("releases after successful and failed exclusive operations", async () => {
     const adapter = new RecordingAdapter();
     const locks = createManager(adapter);
@@ -567,26 +788,22 @@ describe("LockManager", () => {
     const adapter = new RecordingAdapter();
     adapter.extendResult = undefined;
     const locks = createManager(adapter);
-    const started = deferred();
-    let abortReason: unknown;
+    const finish = deferred();
+    let handlerSignal: AbortSignal | undefined;
     const operation = locks.runExclusive("job", async (_lock, { signal }) => {
-      started.resolve();
-      await new Promise<void>((resolve) => signal.addEventListener(
-        "abort",
-        () => {
-          abortReason = signal.reason;
-          resolve();
-        },
-        { once: true },
-      ));
-    });
-    const outcome = expect(operation).rejects.toBeInstanceOf(LockLostError);
-    await started.promise;
-
-    await vi.advanceTimersByTimeAsync(500);
-
-    await outcome;
-    expect(abortReason).toBeInstanceOf(LockLostError);
+      handlerSignal = signal;
+      await finish.promise;
+    }, { waitTimeoutMs: 0 });
+    const outcome = Promise.allSettled([operation]);
+    try {
+      await vi.advanceTimersByTimeAsync(500);
+      expect(handlerSignal?.aborted).toBe(true);
+      expect(handlerSignal?.reason).toBeInstanceOf(LockLostError);
+    } finally {
+      finish.resolve();
+      await outcome;
+    }
+    expect(await outcome).toEqual([{ status: "rejected", reason: handlerSignal?.reason }]);
     expect(adapter.releaseRequests).toHaveLength(1);
   });
 
@@ -601,6 +818,7 @@ describe("LockManager", () => {
 
     await expect(result).rejects.toBeInstanceOf(AggregateError);
     await expect(result).rejects.toMatchObject({
+      message: 'Exclusive lock operation failed for "job".',
       errors: [
         expect.objectContaining({ message: "operation failed" }),
         adapter.releaseError,
@@ -735,6 +953,7 @@ describe("LockManager", () => {
 
     await expect(operation).rejects.toBeInstanceOf(AggregateError);
     await expect(operation).rejects.toMatchObject({
+      message: "Exclusive lock batch operation failed.",
       errors: [
         expect.objectContaining({ message: "operation failed" }),
         adapter.releaseError,
@@ -783,6 +1002,12 @@ describe("LockManager", () => {
       .rejects.toThrow("ttlMs must be a positive finite number");
     await expect(locks.acquire("job", { waitTimeoutMs: -1 }))
       .rejects.toThrow("waitTimeoutMs must be a non-negative finite number");
+    await expect(locks.acquire("job", { retryIntervalMs: 0 }))
+      .rejects.toThrow("retryIntervalMs must be a positive finite number");
+    await expect(locks.acquireMany(["job"], { waitTimeoutMs: -1 }))
+      .rejects.toThrow("waitTimeoutMs must be a non-negative finite number");
+    await expect(locks.acquireMany(["job"], { retryIntervalMs: 0 }))
+      .rejects.toThrow("retryIntervalMs must be a positive finite number");
   });
 
   it("exports stable typed observation definitions", () => {
@@ -791,10 +1016,20 @@ describe("LockManager", () => {
       category: "lock",
       schemaVersion: 1,
     });
-    expect(lockBatchAcquisitionObservation.name)
-      .toBe("lock.batch-acquisition");
-    expect(lockExtensionObservation.name).toBe("lock.extension");
-    expect(lockReleaseObservation.name).toBe("lock.release");
+    expect(lockBatchAcquisitionObservation).toMatchObject({ name: "lock.batch-acquisition", category: "lock" });
+    expect(lockExtensionObservation).toMatchObject({ name: "lock.extension", category: "lock" });
+    expect(lockReleaseObservation).toMatchObject({ name: "lock.release", category: "lock" });
+  });
+
+  it.each([
+    [new LockAcquisitionTimeoutError("one"), "LockAcquisitionTimeoutError", 'Lock "one" could not be acquired before the timeout.'],
+    [new LockAcquisitionAbortedError("one"), "LockAcquisitionAbortedError", 'Lock acquisition for "one" was aborted.'],
+    [new LockBatchAcquisitionTimeoutError(["one", "two"]), "LockBatchAcquisitionTimeoutError", 'Locks ["one", "two"] could not be acquired before the timeout.'],
+    [new LockBatchAcquisitionAbortedError(["one", "two"]), "LockBatchAcquisitionAbortedError", 'Lock acquisition for ["one", "two"] was aborted.'],
+    [new LockLostError("one"), "LockLostError", 'Lock "one" is no longer owned by this handle.'],
+    [new LockReleasedError("one"), "LockReleasedError", 'Lock "one" has already been released.'],
+  ])("exports the public error name and diagnostic for %s", (error, name, message) => {
+    expect(error).toMatchObject({ name, message });
   });
 
   it("records immediate acquisition and contention outcomes", async () => {
@@ -958,7 +1193,7 @@ describe("LockManager", () => {
     expect(errorInstrumentation.events[0]).toMatchObject({
       type: "acquisition",
       outcome: "failure",
-      data: { result: "error", attempts: 1 },
+      data: { mode: "immediate", result: "error", attempts: 1 },
     });
   });
 

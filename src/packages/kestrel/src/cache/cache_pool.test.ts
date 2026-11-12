@@ -117,11 +117,9 @@ describe("CachePool", () => {
       category: "cache",
       schemaVersion: 1,
     });
-    expect(cacheLoadObservation.name).toBe("cache.load");
-    expect(cacheWriteObservation.name).toBe("cache.write");
-    expect(cacheInvalidationObservation.name).toBe(
-      "cache.invalidation",
-    );
+    expect(cacheLoadObservation).toMatchObject({ name: "cache.load", category: "cache" });
+    expect(cacheWriteObservation).toMatchObject({ name: "cache.write", category: "cache" });
+    expect(cacheInvalidationObservation).toMatchObject({ name: "cache.invalidation", category: "cache" });
   });
 
   it("distinguishes a cached null value from a miss", async () => {
@@ -188,6 +186,27 @@ describe("CachePool", () => {
     await cache.set("large", "larger than five bytes");
 
     expect(adapter.entries).toHaveLength(0);
+  });
+
+  it("allows explicit and read-through writes at the exact UTF-8 size budget", async () => {
+    const adapter = new TestAdapter();
+    const instrumentation = new RecordingCacheInstrumentation();
+    // Seven key bytes, two bytes for the empty tags array, and four JSON value bytes.
+    const cache = createPool(adapter, { maxEntrySizeBytes: 13, instrumentation });
+    await cache.set("é", "é");
+    await expect(cache.remember("ç", async () => "é")).resolves.toBe("é");
+    await cache.set("ü", "éé");
+
+    expect(adapter.entries.get("test:é")).toMatchObject({ value: "é", sizeBytes: 13 });
+    expect(adapter.entries.get("test:ç")).toMatchObject({ value: "é", sizeBytes: 13 });
+    expect(adapter.entries.has("test:ü")).toBe(false);
+    expect(instrumentation.events.filter((event) => event.type === "write").map(({ data }) => [
+      data.key, data.operation, data.result, data.sizeBytes,
+    ])).toEqual([
+      ["test:é", "set", "stored", 13],
+      ["test:ç", "remember", "stored", 13],
+      ["test:ü", "set", "oversized", 15],
+    ]);
   });
 
   it("returns oversized read-through values without storing them", async () => {
@@ -327,13 +346,13 @@ describe("CachePool", () => {
     const accessEvents = instrumentation.events.filter(
       (event) => event.type === "access",
     );
-    expect(accessEvents.map((event) => event.data.result)).toEqual([
-      "miss",
-      "miss",
-      "miss",
-      "local-coalesced",
-      "hit",
-      "error",
+    expect(accessEvents.map(({ outcome, data }) => [outcome, data])).toEqual([
+      ["success", { key: "test:missing", operation: "get", result: "miss" }],
+      ["success", { key: "test:coalesced", operation: "remember", result: "miss", phase: "initial" }],
+      ["success", { key: "test:coalesced", operation: "remember", result: "miss", phase: "initial" }],
+      ["success", { key: "test:coalesced", operation: "remember", result: "local-coalesced", phase: "initial" }],
+      ["success", { key: "test:coalesced", operation: "get", result: "hit" }],
+      ["failure", { key: "test:error", operation: "get", result: "error" }],
     ]);
     expect(accessEvents.at(-1)?.outcome).toBe("failure");
   });
@@ -365,8 +384,33 @@ describe("CachePool", () => {
         && event.data.key === "test:write",
     )).toMatchObject({
       outcome: "failure",
-      data: { result: "error" },
+      data: {
+        operation: "remember", result: "error", ttlSeconds: 60,
+        sizeBytes: 20, tagCount: 0,
+      },
     });
+  });
+
+  it("reports preparation failures separately from adapter failures", async () => {
+    const adapter = new TestAdapter();
+    const instrumentation = new RecordingCacheInstrumentation();
+    const reportStorageError = vi.fn();
+    const cache = createPool(adapter, { instrumentation, reportStorageError });
+    const value = { toJSON() { throw new Error("private value"); } };
+
+    await expect(cache.set("set", value)).rejects.toThrow("Cache values must be JSON serializable");
+    await expect(cache.remember("remember", async () => value)).resolves.toBe(value);
+
+    expect(adapter.entries.size).toBe(0);
+    expect(reportStorageError).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      key: "test:remember", operation: "set",
+    }));
+    expect(instrumentation.events.filter((event) => event.type === "write").map(({ outcome, data }) => [
+      outcome, data,
+    ])).toEqual([
+      ["failure", { key: "test:set", operation: "set", result: "error" }],
+      ["failure", { key: "test:remember", operation: "remember", result: "error" }],
+    ]);
   });
 
   it("coalesces concurrent loaders for the same key", async () => {
@@ -429,6 +473,22 @@ describe("CachePool", () => {
     await expect(cache.remember("key", loader, { lock: true }))
       .rejects.toEqual(new CacheLockUnavailableError());
     expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("reports the post-lease lookup and load when an adapter read fails", async () => {
+    const adapter = new TestAdapter();
+    adapter.getError = new Error("cache offline");
+    const instrumentation = new RecordingCacheInstrumentation();
+    const cache = createPool(adapter, { instrumentation }, new RecordingLocks());
+
+    await expect(cache.remember("key", async () => "fresh", { lock: true })).resolves.toBe("fresh");
+    expect(instrumentation.events.filter((event) => event.type === "access").map(({ data }) => data)).toEqual([
+      { key: "test:key", operation: "remember", phase: "initial", result: "error" },
+      { key: "test:key", operation: "remember", phase: "after-lock", result: "error" },
+    ]);
+    expect(instrumentation.events.find((event) => event.type === "load")).toMatchObject({
+      data: { key: "test:key", coordination: "lock", result: "loaded" },
+    });
   });
 
   it("propagates lock failures without running the loader", async () => {
@@ -607,7 +667,10 @@ describe("CachePool", () => {
       { operation: "delete", result: "error", key: "redacted" },
       { operation: "invalidate-all-tags", result: "error", tagCount: 1 },
     ]);
-    expect(instrumentation.events.every((event) => event.outcome === "failure")).toBe(true);
+    expect(instrumentation.events.map(({ type, outcome }) => [type, outcome])).toEqual([
+      ["invalidation", "failure"],
+      ["invalidation", "failure"],
+    ]);
   });
 
   it("ignores instrumentation, formatting and clock failures", async () => {
@@ -678,6 +741,21 @@ describe("CachePool", () => {
     await expect(cache.remember("key", loader, { tags: ["tag"] }))
       .rejects.toThrow("TagAwareCache");
     expect(loader).not.toHaveBeenCalled();
+  });
+
+  it("reports an invalidation failure if a dynamic adapter loses its advertised method", async () => {
+    const adapter = new TaggedTestAdapter();
+    const instrumentation = new RecordingCacheInstrumentation();
+    const cache = createPool(adapter, { instrumentation });
+    // Adapter methods may be changed after the constructor checked the capability.
+    Reflect.set(adapter, "invalidateAllTags", undefined);
+
+    await expect(cache.invalidateAllTags(["group"]))
+      .rejects.toThrow("The configured cache adapter does not support tag invalidation.");
+    expect(instrumentation.events).toEqual([{
+      type: "invalidation", outcome: "failure", durationMs: expect.any(Number),
+      data: { operation: "invalidate-all-tags", result: "error", tagCount: 1 },
+    }]);
   });
 
   it("rejects invalid lock key prefixes", () => {

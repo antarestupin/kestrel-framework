@@ -5,6 +5,7 @@ import {
   integer,
   json,
   pgSchema,
+  pgTable,
   text,
   timestamp,
   uuid,
@@ -27,6 +28,7 @@ import {
 } from "./definition.js";
 import {
   createHistoryBaselineSql,
+  createHistoryTriggerRemovalSql,
   createHistoryTriggerSql,
 } from "./trigger_sql.js";
 
@@ -162,6 +164,39 @@ describe("database history", () => {
     }
   });
 
+  it("keeps histories distinct for source names with a common multi-byte prefix", async () => {
+    const prefix = "é".repeat(28);
+    const sources = [`${prefix}a`, `${prefix}b`].map((name) =>
+      historySchema.table(name, { id: integer("id").primaryKey(), value: text("value") }));
+    const histories = sources.map((source, index) => defineHistoryTable(source, { name: `wide_audit_${index}` }));
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Each source name fits PostgreSQL's byte budget. Their generated function names need shortening.
+      for (const [index, source] of sources.entries()) {
+        const history = histories[index]!;
+        const [definition] = getHistoryTableDefinitions({ history });
+        await client.query(`CREATE TABLE kestrel_history_test."${prefix}${index === 0 ? "a" : "b"}" (id integer PRIMARY KEY, value text)`);
+        await client.query(`CREATE TABLE kestrel_history_test."wide_audit_${index}" (
+          id integer, value text, __sequence bigint GENERATED ALWAYS AS IDENTITY,
+          __operation smallint, __changed_columns text[], __changed_at timestamptz, __actor text, __reason text
+        )`);
+        expect(definition?.source).toBe(source);
+        await client.query(createHistoryTriggerSql(definition!));
+      }
+
+      const database = drizzle(client);
+      await database.insert(sources[0]!).values({ id: 1, value: "first source" });
+      await database.insert(sources[1]!).values({ id: 2, value: "second source" });
+      for (const [index, history] of histories.entries()) {
+        expect(await database.select({ id: history.id }).from(history)).toEqual([{ id: index + 1 }]);
+      }
+    } finally {
+      try { await client.query("ROLLBACK"); }
+      finally { client.release(); }
+    }
+  });
+
   it("reads real sparse events across stable cursor pages with explicit null and deletion", async () => {
     const database = drizzle(pool);
     const id = crypto.randomUUID();
@@ -247,7 +282,9 @@ describe("database history", () => {
       .set({ title: "Initial title" })
       .where(eq(records.id, id));
 
-    await manager.database.delete(records).where(eq(records.id, id));
+    await runWithHistoryContext(manager, { actor: "member:third", reason: "Remove the record" }, () =>
+      manager.database.delete(records).where(eq(records.id, id))
+    );
 
     const events = await database.select()
       .from(recordHistory)
@@ -285,8 +322,8 @@ describe("database history", () => {
       updatedAt: null,
       __operation: "delete",
       __changedColumns: [],
-      __actor: null,
-      __reason: null,
+      __actor: "member:third",
+      __reason: "Remove the record",
     });
   });
 
@@ -353,5 +390,70 @@ describe("database history", () => {
     expect(actors.get(firstId)).toBe("outer");
     expect(actors.get(nestedId)).toBe("nested");
     expect(actors.get(lastId)).toBe("outer");
+  });
+
+  it("clears omitted nested metadata and restores the parent when the operation throws", async () => {
+    const database = drizzle(pool, { schema });
+    const manager = new PostgresDrizzleManager({ database });
+    const nestedId = "d4e97f0c-117b-4da9-8c4b-d983b295c498";
+    const lastId = "99bda09f-53e0-45f9-8039-6dd504cae167";
+    const updatedAt = new Date("2026-08-27T13:00:00.000Z");
+    const failure = new Error("Nested operation failed.");
+
+    // The nested scope joins the same transaction, so a caught application error
+    // leaves both inserts available while the outer history metadata is restored.
+    await runWithHistoryContext(manager, { actor: "outer", reason: "review" }, async () => {
+      await expect(runWithHistoryContext(manager, {}, async () => {
+        await manager.database.insert(records).values({ id: nestedId, title: "Nested event", updatedAt });
+        throw failure;
+      })).rejects.toBe(failure);
+      await manager.database.insert(records).values({ id: lastId, title: "Last outer event", updatedAt });
+    });
+
+    const events = await database.select({ id: recordHistory.id, actor: recordHistory.__actor, reason: recordHistory.__reason })
+      .from(recordHistory);
+    expect(events.find((event) => event.id === nestedId)).toEqual({ id: nestedId, actor: null, reason: null });
+    expect(events.find((event) => event.id === lastId)).toEqual({ id: lastId, actor: "outer", reason: "review" });
+  });
+
+  it("keeps default-schema audit writes on their declared table when search_path changes", async () => {
+    const source = pgTable("kestrel_history_path_record", { id: integer("id").primaryKey() });
+    const history = defineHistoryTable(source);
+    const [definition] = getHistoryTableDefinitions({ history });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN; SET LOCAL search_path = public");
+      await client.query(`
+        CREATE TABLE public.kestrel_history_path_record (id integer PRIMARY KEY);
+        CREATE TABLE public.kestrel_history_path_record_history (
+          id integer, __operation smallint, __changed_columns text[], __changed_at timestamptz, __actor text, __reason text
+        );
+        CREATE TABLE kestrel_history_test.kestrel_history_path_record_history
+          (LIKE public.kestrel_history_path_record_history);
+      `);
+      await client.query(createHistoryTriggerSql(definition!));
+
+      // A tenant-specific search path may contain a table with the same name.
+      await client.query("SET LOCAL search_path = kestrel_history_test, public");
+      await client.query("INSERT INTO public.kestrel_history_path_record (id) VALUES (1)");
+      const audit = await client.query("SELECT id FROM public.kestrel_history_path_record_history");
+      const shadow = await client.query("SELECT id FROM kestrel_history_test.kestrel_history_path_record_history");
+      expect(audit.rows).toEqual([{ id: 1 }]);
+      expect(shadow.rows).toEqual([]);
+
+      const trigger = await client.query<{ function_id: string }>(`SELECT tgfoid::text AS function_id
+        FROM pg_trigger WHERE tgrelid = 'public.kestrel_history_path_record'::regclass AND tgname = '__history_insert'`);
+      expect(trigger.rows).toHaveLength(1);
+      await client.query(createHistoryTriggerRemovalSql(definition!));
+      await client.query("INSERT INTO public.kestrel_history_path_record (id) VALUES (2)");
+      expect((await client.query("SELECT id FROM public.kestrel_history_path_record_history")).rows).toEqual([{ id: 1 }]);
+      expect((await client.query("SELECT oid FROM pg_proc WHERE oid = $1", [trigger.rows[0]!.function_id])).rows).toEqual([]);
+    } finally {
+      try {
+        await client.query("ROLLBACK");
+      } finally {
+        client.release();
+      }
+    }
   });
 });

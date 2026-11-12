@@ -11,9 +11,13 @@ import {
 
 import {
   defineDatabaseSchemaContribution,
+  contributionsEqual,
   getDatabaseSchemaContributions,
 } from "./definition.js";
 import { defineUnloggedTable } from "./unlogged_table.js";
+import { devSchema } from "../dev_schema.js";
+import { utilsSchema } from "../utils_schema.js";
+import { quoteSqlBody } from "../sql_dollar_quote.js";
 
 describe("database schema contributions", () => {
   it("attaches composable metadata without exposing it to Drizzle", () => {
@@ -28,10 +32,39 @@ describe("database schema contributions", () => {
     });
 
     expect(Object.keys(target)).toEqual([]);
+    const [metadata] = Object.getOwnPropertySymbols(target);
+    expect(Object.getOwnPropertyDescriptor(target, metadata!)).toMatchObject({
+      configurable: false, enumerable: false, writable: false,
+    });
     expect(getDatabaseSchemaContributions({ target })).toEqual([
       { id: "test:first", installSql: "SELECT 1;" },
       { id: "test:second", installSql: "SELECT 2;" },
     ]);
+  });
+
+  it("compares only the complete SQL lifecycle, independent of property order", () => {
+    const original = {
+      id: "test:equal",
+      installSql: "SELECT 1;",
+      updateSql: "SELECT 2;",
+      uninstallBeforeSql: "SELECT 3;",
+      uninstallAfterSql: "SELECT 4;",
+    };
+    const reordered = {
+      uninstallAfterSql: original.uninstallAfterSql,
+      uninstallBeforeSql: original.uninstallBeforeSql,
+      updateSql: original.updateSql,
+      installSql: original.installSql,
+      id: original.id,
+    };
+
+    // Two exports can describe the same lifecycle with a different object construction order.
+    const first = defineDatabaseSchemaContribution({}, original);
+    const second = defineDatabaseSchemaContribution({}, reordered);
+    expect(getDatabaseSchemaContributions({ first, second })).toEqual([original]);
+    for (const property of Object.keys(original) as (keyof typeof original)[]) {
+      expect(contributionsEqual(original, { ...original, [property]: "Changed." })).toBe(false);
+    }
   });
 
   it("rejects conflicting stable identifiers across schema exports", () => {
@@ -69,6 +102,7 @@ describe("database schema contributions", () => {
       expect.objectContaining({
         id: "postgres.table:storage_test.cache_entry:unlogged",
         installSql: 'ALTER TABLE "storage_test"."cache_entry" SET UNLOGGED;',
+        updateSql: 'ALTER TABLE "storage_test"."cache_entry" SET UNLOGGED;',
       }),
     ]);
   });
@@ -80,5 +114,19 @@ describe("database schema contributions", () => {
     expect(contribution?.installSql).toBe('ALTER TABLE "entry$database_schema$$database_schema_1$" SET UNLOGGED;');
     // Both earlier tags occur inside the quoted name and cannot delimit its body.
     expect(contribution?.uninstallAfterSql).toMatch(/^DO \$database_schema_2\$\n[\s\S]+\n\$database_schema_2\$;$/u);
+  });
+
+  it("quotes identifiers and regclass literals independently during cleanup", () => {
+    const table = defineUnloggedTable(pgSchema('owner\'s "schema"').table('the "table"', { id: text() }));
+    const [contribution] = getDatabaseSchemaContributions({ table });
+    const identifier = `"owner's ""schema"""."the ""table"""`;
+    expect(contribution?.installSql).toBe(`ALTER TABLE ${identifier} SET UNLOGGED;`);
+    expect(contribution?.uninstallAfterSql).toContain(`to_regclass('${identifier.replaceAll("'", "''")}')`);
+    expect(contribution?.uninstallAfterSql).toContain(`ALTER TABLE ${identifier} SET LOGGED;`);
+  });
+
+  it("preserves the normal SQL delimiter and the framework schema names", () => {
+    expect(quoteSqlBody("SELECT 1;", "migration")).toBe("$migration$\nSELECT 1;\n$migration$");
+    expect([devSchema.schemaName, utilsSchema.schemaName]).toEqual(["dev", "utils"]);
   });
 });

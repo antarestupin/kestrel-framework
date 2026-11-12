@@ -1,6 +1,6 @@
 import { asc, desc, eq, gt, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { integer, pgTable, text, type PgColumn } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp, type PgColumn } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 
 import type { CollectionQuery, RepositoryCollectionOptions } from "./collection.js";
@@ -11,6 +11,9 @@ import { Repository } from "./repository.js";
 const records = pgTable("configuration_record", {
   id: integer("id").primaryKey(),
   name: text("name").notNull(),
+  rank: integer("rank").notNull(),
+  active: boolean("active").notNull(),
+  recordedAt: timestamp("recorded_at", { mode: "string", withTimezone: true }).notNull(),
 });
 const page = { type: "page", page: 1, pageSize: 2 } as const;
 const cursor = {
@@ -27,8 +30,8 @@ class DefaultRepository extends Repository<
   Partial<typeof records.$inferInsert>,
   number
 > {
-  public constructor(databaseManager: PostgresDrizzleManager) {
-    super(databaseManager, { table: records, idColumn: records.id, cursor });
+  public constructor(databaseManager: PostgresDrizzleManager, enableCursor: boolean) {
+    super(databaseManager, { table: records, idColumn: records.id, ...(enableCursor ? { cursor } : {}) });
   }
 
   /** Expose explicit ordering so cursor rejection covers the protected API. */
@@ -50,20 +53,26 @@ class ConfiguredRepository extends DefaultRepository {
   protected override getCollectionConfiguration(): RepositoryCollectionOptions {
     return {
       search: { name: records.name },
-      filters: { name: { column: records.name, operators: ["equals"] } },
+      filters: {
+        name: { column: records.name, operators: ["equals"] },
+        rank: { column: records.rank, operators: ["equals"] },
+        active: { column: records.active, operators: ["equals"] },
+        recordedAt: { column: records.recordedAt, operators: ["equals"] },
+        missing: { column: null, operators: ["equals"] },
+      },
       sorting: { name: records.name },
     };
   }
 }
 
-function setup(configured = false) {
+function setup(configured = false, enableCursor = true) {
   // Keep real Drizzle SQL compilation while replacing only the database transport.
   const query = vi.fn().mockResolvedValue({ rows: [] });
   const database = drizzle({ client: { query } as never });
   const manager = new PostgresDrizzleManager({ database });
   const repository = configured
-    ? new ConfiguredRepository(manager)
-    : new DefaultRepository(manager);
+    ? new ConfiguredRepository(manager, enableCursor)
+    : new DefaultRepository(manager, enableCursor);
 
   return {
     repository,
@@ -91,14 +100,63 @@ describe("repository configuration hooks", () => {
     expect(query.mock.calls[1]![0].text).toContain("limit $1");
   });
 
-  it.each<Partial<CollectionQuery>>([
-    { search: { term: "selected" } },
-    { filters: [{ field: "name", operator: "equals", value: "selected" }] },
-    { sort: [{ field: "name", direction: "asc" }] },
-  ])("rejects unsupported collection criteria before querying: %j", async (criteria) => {
+  it.each<[Partial<CollectionQuery>, string]>([
+    [{ search: { term: "selected" } }, "This repository does not support collection search."],
+    [{ filters: [{ field: "name", operator: "equals", value: "selected" }] }, 'Collection filter "name.equals" is not supported.'],
+    [{ sort: [{ field: "name", direction: "asc" }] }, 'This repository does not support sorting "name".'],
+  ])("rejects unsupported collection criteria before querying: %j", async (criteria, message) => {
     const { repository, query } = setup();
     await expect(repository.findCollection({ pagination: page, ...criteria }))
-      .rejects.toThrow(TypeError);
+      .rejects.toThrow(message);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("omits empty ID queries and still supports numbered reads without a cursor contract", async () => {
+    const { repository, query, sql } = setup(false, false);
+    await expect(repository.findManyByIds([])).resolves.toEqual([]);
+    expect(query).not.toHaveBeenCalled();
+    await expect(repository.findAll(page)).resolves.toMatchObject({
+      items: [], pageInfo: { type: "page", hasNextPage: false },
+    });
+    expect(sql()).toContain("limit $1");
+  });
+
+  it("rejects a missing INSERT result when returning is requested", async () => {
+    const { repository, query, sql } = setup();
+    await expect(repository.create({ id: 1, name: "new", rank: 0, active: false, recordedAt: "2026-01-01T00:00:00Z" }, {
+      returning: true,
+    })).rejects.toThrow("The repository create operation did not return a record.");
+    expect(query).toHaveBeenCalledOnce();
+    expect(sql()).toContain("returning");
+  });
+
+  it("normalizes wire numbers and booleans but preserves string-mode timestamp values", async () => {
+    const { repository, query, sql } = setup(true);
+    const recordedAt = "2026-01-02 03:04:05+01";
+    await repository.findCollection({
+      pagination: page,
+      filters: [
+        { field: "rank", operator: "equals", value: "42" },
+        { field: "active", operator: "equals", value: "true" },
+        { field: "active", operator: "equals", value: "false" },
+        { field: "active", operator: "equals", value: "native-boolean-spelling" },
+        { field: "recordedAt", operator: "equals", value: recordedAt },
+      ],
+      sort: [{ field: "name", direction: "desc" }],
+    });
+    // Assert the driver arguments before PostgreSQL's implicit coercions.
+    expect(query.mock.calls[0]![1]).toEqual([42, true, false, "native-boolean-spelling", recordedAt, 3]);
+    expect(sql()).toContain('order by "configuration_record"."name" desc limit');
+    await expect(repository.findCollection({
+      pagination: page, filters: [{ field: "missing", operator: "equals", value: "ignored" }],
+    })).rejects.toThrow('This repository does not support filter "missing".');
+    expect(query).toHaveBeenCalledOnce();
+  });
+
+  it("rejects invalid numbered pagination before executing an unbounded select", async () => {
+    const { repository, query } = setup();
+    await expect(repository.findAll({ type: "page", page: 1, pageSize: NaN }))
+      .rejects.toThrow("positive safe integers");
     expect(query).not.toHaveBeenCalled();
   });
 

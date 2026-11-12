@@ -26,6 +26,8 @@ describe("framework table provenance", () => {
     expect(markFrameworkDatabaseTable(entry)).toBe(entry);
     expect(markFrameworkDatabaseTable(entry)).toBe(entry);
     expect(Object.keys(entry)).toEqual(columns);
+    expect(Object.getOwnPropertyDescriptor(entry, Symbol.for("kestrel.database.frameworkTable")))
+      .toEqual({ value: true, enumerable: false, configurable: false, writable: false });
     expect(getFrameworkDatabaseTableKeys({ entry, alias: entry, ignored: "entry" }))
       .toEqual(new Set([JSON.stringify(["public", "entry"])]));
   });

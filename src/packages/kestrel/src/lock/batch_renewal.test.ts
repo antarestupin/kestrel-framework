@@ -26,14 +26,23 @@ function setup(batch?: (requests: readonly LockExtendRequest[]) => Promise<reado
     retryIntervalMs: 10, now: () => new Date(0), createOwnerId: () => `owner-${++owner}`,
     instrumentation: { record: (event) => events.push(event) },
   });
-  const started = deferred<{ handles: readonly LockHandle[]; signal: AbortSignal }>();
+  let started: { handles: readonly LockHandle[]; signal: AbortSignal } | undefined;
   const finish = deferred<void>();
   const outcome = manager.runExclusiveMany(["first", "second"], async (handles, { signal }) => {
-    started.resolve({ handles, signal });
+    started = { handles, signal };
     await finish.promise;
     return "completed";
   }).then((value) => ({ value, error: undefined }), (error: unknown) => ({ value: undefined, error }));
-  return { adapter, events, started: started.promise, finish: () => finish.resolve(), outcome };
+  const requireStarted = async () => {
+    // Flush ready work and fail immediately if acquisition never invokes the handler.
+    await vi.advanceTimersByTimeAsync(0);
+    if (started === undefined) {
+      finish.resolve();
+      throw new Error("The lock batch handler did not start.");
+    }
+    return started;
+  };
+  return { adapter, events, requireStarted, finish: () => finish.resolve(), outcome };
 }
 
 function renewed(requests: readonly LockExtendRequest[]): LockLease[] {
@@ -56,7 +65,7 @@ describe("LockManager batch renewal contracts", () => {
         if (variant === "reordered") leases.reverse();
         return leases;
       });
-      const { handles, signal } = await state.started;
+      const { handles, signal } = await state.requireStarted();
       try {
         await vi.advanceTimersByTimeAsync(500);
       } finally {
@@ -84,7 +93,7 @@ describe("LockManager batch renewal contracts", () => {
 
   it("reports every lost lease when atomic batch renewal reports lost ownership", async () => {
     const state = setup(async () => undefined);
-    const { signal } = await state.started;
+    const { signal } = await state.requireStarted();
     try { await vi.advanceTimersByTimeAsync(500); } finally { state.finish(); }
     const result = await state.outcome;
     expect(signal.aborted).toBe(true);
@@ -104,7 +113,7 @@ describe("LockManager batch renewal contracts", () => {
   for (const batch of [false, true]) {
     it(`publishes every successful ${batch ? "batch" : "fallback"} renewal to the handler`, async () => {
       const state = setup(batch ? async (requests) => renewed(requests) : undefined);
-      const { handles, signal } = await state.started;
+      const { handles, signal } = await state.requireStarted();
       try {
         await vi.advanceTimersByTimeAsync(500);
         expect(handles.map((handle) => handle.expiresAt)).toEqual([new Date(2_000), new Date(2_000)]);
@@ -128,7 +137,7 @@ describe("LockManager batch renewal contracts", () => {
       if (request.key === "test:first") throw first;
       return pending.promise;
     });
-    const { signal } = await state.started;
+    const { signal } = await state.requireStarted();
     try {
       await vi.advanceTimersByTimeAsync(500);
       expect(state.adapter.extend).toHaveBeenCalledTimes(2);

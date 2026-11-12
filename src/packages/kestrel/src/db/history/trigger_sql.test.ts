@@ -1,4 +1,5 @@
 import {
+  integer,
   pgSchema,
   text,
   uuid,
@@ -92,6 +93,17 @@ describe("createHistoryTriggerSql", () => {
     );
     expect(triggerSql).toContain(
       "current_setting('kestrel.history.actor', true)",
+    );
+  });
+
+  it("combines every column of a composite identity in the immutability check", () => {
+    const source = sqlSchema.table("composite_record", {
+      tenant: integer("tenant_id").notNull(), id: integer("record_id").notNull(),
+    });
+    const history = defineHistoryTable(source, { identity: [source.tenant, source.id] });
+    const [definition] = getHistoryTableDefinitions({ history });
+    expect(createHistoryTriggerSql(definition!)).toContain(
+      'IF OLD."tenant_id" IS DISTINCT FROM NEW."tenant_id" OR OLD."record_id" IS DISTINCT FROM NEW."record_id" THEN',
     );
   });
 });

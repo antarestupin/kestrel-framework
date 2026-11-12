@@ -108,6 +108,15 @@ describe("database pagination helpers", () => {
       .toThrow("null is not a valid cursor");
   });
 
+  it("validates cursor arguments at the independent predicate and result entry points", () => {
+    const records = pgTable("record", { id: integer("id").primaryKey() });
+    const options = { orderBy: [asc(records.id)] as const, getCursor: (value: number) => value, getCondition: (value: number) => gt(records.id, value) };
+    expect(() => getCursorPaginationCondition({ type: "cursor", pageSize: 0 }, options))
+      .toThrow("positive safe integer");
+    expect(() => createPaginatedResult([1], { type: "cursor", pageSize: 0 }, (value) => value))
+      .toThrow("positive safe integer");
+  });
+
   it("does not create a query window for an all-record strategy", () => {
     expect(
       getPaginationQueryWindow({ type: "all" }),
@@ -148,6 +157,21 @@ describe("database pagination helpers", () => {
         hasNextPage: true,
       },
     });
+  });
+
+  it.each([
+    { page: 0, pageSize: 2 }, { page: 1.5, pageSize: 2 },
+    { page: 1, pageSize: NaN }, { page: 1, pageSize: Number.MAX_SAFE_INTEGER },
+    { page: Number.MAX_SAFE_INTEGER, pageSize: 2 },
+  ])("rejects invalid numbered window dimensions: %j", (dimensions) => {
+    const pagination = { type: "page", ...dimensions } as const;
+    expect(() => getPaginationQueryWindow(pagination)).toThrow("positive safe integers");
+    expect(() => createPaginatedResult([], pagination)).toThrow("positive safe integers");
+  });
+
+  it("has no next numbered page when a full page contains no lookahead", () => {
+    expect(createPaginatedResult([1, 2], { type: "page", page: 3, pageSize: 2 }).pageInfo)
+      .toEqual({ type: "page", page: 3, pageSize: 2, hasNextPage: false });
   });
 
   it("applies pagination to arbitrary ordered queries without executing them", async () => {

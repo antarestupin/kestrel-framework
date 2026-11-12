@@ -1,8 +1,8 @@
 import { setTimeout as pause } from "node:timers/promises";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { bigint, integer, pgSchema, text } from "drizzle-orm/pg-core";
-import type { Pool } from "pg";
+import { bigint, integer, pgSchema, pgTable, text } from "drizzle-orm/pg-core";
+import type { Pool, PoolClient } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { App } from "../../app/index.js";
@@ -12,7 +12,8 @@ import { PostgresDrizzleProvider } from "../provider.js";
 import { applyDatabaseSchemaContributions } from "../schema_contributions/apply.js";
 import { defineReferenceCounter, getReferenceCounterDefinitions } from "./definition.js";
 import { ReferenceCounterMaintenance, type ReferenceCounterProgress } from "./maintenance.js";
-import { tableIdentifier } from "./sql.js";
+import { counterObjectName, tableIdentifier } from "./sql.js";
+import { createReferenceCounterRemovalSql } from "./trigger_sql.js";
 
 const namespace = pgSchema("kestrel_counter_test");
 const topic = namespace.table("topic", {
@@ -86,6 +87,55 @@ async function waitForLock(fragment: string) {
 }
 
 describe("synchronous reference counters", () => {
+  it("qualifies default-schema counter objects and removes both trigger functions", async () => {
+    const parent = pgTable("kestrel_counter_path_parent", {
+      id: integer("id").primaryKey(), count: integer("count").notNull().default(0),
+    });
+    const child = pgTable("kestrel_counter_path_child", {
+      id: integer("id").primaryKey(), parentId: integer("parent_id").references(() => parent.id),
+    });
+    const definition = defineReferenceCounter(child, {
+      id: "counter.path", reference: child.parentId, target: parent.id, counter: parent.count,
+    });
+    const functionName = counterObjectName(definition);
+    const client = await pool.connect();
+    try {
+      // A tenant-first search path must leave the installation on the declared public tables.
+      await client.query(`
+        BEGIN;
+        SET LOCAL search_path = kestrel_counter_test, public;
+        CREATE TABLE public.kestrel_counter_path_parent (id integer PRIMARY KEY, count integer NOT NULL DEFAULT 0);
+        CREATE TABLE public.kestrel_counter_path_child (
+          id integer PRIMARY KEY, parent_id integer REFERENCES public.kestrel_counter_path_parent
+        );
+        CREATE TABLE kestrel_counter_test.kestrel_counter_path_parent (LIKE public.kestrel_counter_path_parent INCLUDING ALL);
+        CREATE TABLE kestrel_counter_test.kestrel_counter_path_child (LIKE public.kestrel_counter_path_child INCLUDING ALL);
+        INSERT INTO public.kestrel_counter_path_parent (id) VALUES (1);
+        INSERT INTO kestrel_counter_test.kestrel_counter_path_parent (id) VALUES (1);
+      `);
+      await applyDatabaseSchemaContributions({ parent, child }, async (statement) => { await client.query(statement); });
+      await client.query("INSERT INTO public.kestrel_counter_path_child VALUES (1, 1)");
+      expect((await client.query("SELECT count FROM public.kestrel_counter_path_parent")).rows).toEqual([{ count: 1 }]);
+      expect((await client.query("SELECT count FROM kestrel_counter_test.kestrel_counter_path_parent")).rows).toEqual([{ count: 0 }]);
+
+      const installedFunctions = () => client.query(`SELECT proname FROM pg_proc
+        WHERE pronamespace = 'public'::regnamespace AND proname IN ($1, $2)`, [functionName, `${functionName}_key`]);
+      expect((await installedFunctions()).rows).toHaveLength(2);
+
+      await client.query(createReferenceCounterRemovalSql(definition));
+      await client.query(`
+        DELETE FROM public.kestrel_counter_path_child WHERE id = 1;
+        UPDATE public.kestrel_counter_path_parent SET id = 2 WHERE id = 1;
+        INSERT INTO public.kestrel_counter_path_child VALUES (2, 2);
+      `);
+      expect((await client.query("SELECT id, count FROM public.kestrel_counter_path_parent")).rows).toEqual([{ id: 2, count: 1 }]);
+      expect((await installedFunctions()).rows).toEqual([]);
+    } finally {
+      try { await client.query("ROLLBACK"); }
+      finally { client.release(); }
+    }
+  });
+
   it("handles filters, null references, transfers, deletes and independent counters", async () => {
     await database.insert(item).values([
       { id: 1, topicId: 1, status: "published" },
@@ -167,6 +217,41 @@ describe("synchronous reference counters", () => {
     expect((await counts()).map((row) => row.count)).toEqual([0, 99, 99]);
   });
 
+  it("validates rebuild limits and preserves the resume cursor when cancelled before work", async () => {
+    await database.update(topic).set({ count: 99 });
+    for (const options of [
+      { batchSize: 1.5 }, { batchSize: 10_001 }, { batchSize: Number.NaN },
+      { pauseMs: -1 }, { pauseMs: 0.5 }, { pauseMs: 60_001 },
+    ]) {
+      await expect(maintenance.rebuild(filtered.id, options))
+        .rejects.toThrow("Counter rebuild requires batchSize 1..10000 and pauseMs 0..60000.");
+    }
+
+    const controller = new AbortController();
+    controller.abort();
+    const progress: ReferenceCounterProgress[] = [];
+    // Maximum values are valid. A pre-cancelled rebuild must leave every batch untouched.
+    expect(await maintenance.rebuild(filtered.id, {
+      after: "1", batchSize: 10_000, pauseMs: 60_000, signal: controller.signal,
+      onProgress: (value) => { progress.push(value); },
+    })).toEqual({ id: filtered.id, processed: 0, updated: 0, cursor: "1", completed: false });
+    expect(progress).toEqual([]);
+    expect((await counts()).map((row) => row.count)).toEqual([99, 99, 99]);
+  });
+
+  it("reports cancellation even when the just-committed partial batch reached the end", async () => {
+    await database.update(topic).set({ count: 99 });
+    const controller = new AbortController();
+    const onProgress = (progress: ReferenceCounterProgress) => {
+      expect(progress).toEqual({ id: filtered.id, cursor: "3", processed: 3, updated: 3 });
+      controller.abort();
+    };
+
+    expect(await maintenance.rebuild(filtered.id, { batchSize: 10, pauseMs: 0, signal: controller.signal, onProgress }))
+      .toEqual({ id: filtered.id, cursor: "3", processed: 3, updated: 3, completed: false });
+    expect((await counts()).map((row) => row.count)).toEqual([0, 0, 0]);
+  });
+
   it("interrupts the inter-batch pause without starting another batch", async () => {
     await database.update(topic).set({ count: 99 });
     const controller = new AbortController();
@@ -241,19 +326,29 @@ describe("synchronous reference counters", () => {
 
   it("takes a fresh count snapshot after waiting for an uncommitted writer", async () => {
     const writer = await pool.connect();
+    let rebuildClient: PoolClient | undefined;
     let rebuilding: Promise<unknown> | undefined;
     try {
+      // The rebuild must explicitly use READ COMMITTED even with stricter application defaults.
+      rebuildClient = await pool.connect();
+      await rebuildClient.query("SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE");
       await writer.query("BEGIN");
       await writer.query("INSERT INTO kestrel_counter_test.item (id, topic_id, status) VALUES (1, 1, 'published')");
-      rebuilding = maintenance.rebuild(filtered.id, { pauseMs: 0 });
+      const service = new ReferenceCounterMaintenance(drizzle(rebuildClient), [filtered]);
+      rebuilding = service.rebuild(filtered.id, { pauseMs: 0 });
+      void rebuilding.catch(() => {});
       await waitForLock('SELECT "id"::text AS cursor');
       await writer.query("COMMIT");
       await rebuilding;
       expect((await counts())[0]?.count).toBe(1);
     } finally {
-      await writer.query("ROLLBACK");
-      writer.release();
-      await rebuilding;
+      try {
+        await writer.query("ROLLBACK");
+        await rebuilding;
+      } finally {
+        writer.release();
+        rebuildClient?.release(true);
+      }
     }
   });
 

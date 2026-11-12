@@ -819,17 +819,21 @@ function validateExtensionBatch(
 /** Mutable internal implementation exposed through the readonly handle API. */
 class LockHandleImpl implements LockHandle {
   private released = false;
+  private releasePromise: Promise<void> | undefined;
+  private lease: LockLease;
 
   public constructor(
     public readonly key: string,
-    private lease: LockLease,
+    lease: LockLease,
     private ttlMs: number,
     private readonly acquiredAtMs: number,
     private readonly adapter: LockAdapter,
     private readonly normalizeTtlMs: (ttlMs?: number) => number,
     private readonly monotonicNow: () => number,
     private readonly record: (event: LockInstrumentationEvent) => void,
-  ) {}
+  ) {
+    this.lease = snapshotLease(lease);
+  }
 
   public get expiresAt(): Date {
     // Date instances are mutable even when exposed through a readonly getter.
@@ -912,7 +916,7 @@ class LockHandleImpl implements LockHandle {
       throw new LockLostError(this.key);
     }
 
-    this.lease = lease;
+    this.lease = snapshotLease(lease);
     this.ttlMs = attempt.ttlMs;
     this.record({
       type: "extension",
@@ -944,6 +948,10 @@ class LockHandleImpl implements LockHandle {
 
   /** Releases at most once while preserving retryability after store errors. */
   public async release(): Promise<void> {
+    if (this.releasePromise !== undefined) {
+      return this.releasePromise;
+    }
+
     const startedAt = this.monotonicNow();
 
     if (this.released) {
@@ -964,6 +972,17 @@ class LockHandleImpl implements LockHandle {
       return;
     }
 
+    // Publish the in-flight release before entering an external adapter.
+    const pending = Promise.resolve().then(() => this.releaseLease(startedAt));
+    this.releasePromise = pending;
+    try {
+      await pending;
+    } finally {
+      this.releasePromise = undefined;
+    }
+  }
+
+  private async releaseLease(startedAt: number): Promise<void> {
     try {
       const released = await this.adapter.release({
         key: this.lease.key,
@@ -999,6 +1018,16 @@ class LockHandleImpl implements LockHandle {
       throw error;
     }
   }
+}
+
+/** Copy lease identity and expiry before exposing adapter responses to the handle. */
+function snapshotLease(lease: LockLease): LockLease {
+  return {
+    key: lease.key,
+    ownerId: lease.ownerId,
+    expiresAt: new Date(lease.expiresAt),
+    fencingToken: lease.fencingToken,
+  };
 }
 
 async function defaultSleep(

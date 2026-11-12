@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { boolean, integer, pgSchema, pgTable, primaryKey, text } from "drizzle-orm/pg-core";
+import { boolean, foreignKey, integer, pgSchema, pgTable, primaryKey, text, varchar } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { getDatabaseSchemaContributions } from "../schema_contributions/definition.js";
@@ -109,5 +109,114 @@ describe("reference counter definitions", () => {
     const [contribution] = getDatabaseSchemaContributions({ child });
     expect(contribution!.installSql).toContain('"odd.schema"""."parent.name"""');
     expect(contribution!.uninstallBeforeSql).toContain('DROP FUNCTION IF EXISTS "odd.schema"""."__counter_');
+  });
+
+  it("rejects composite or mismatched keys before installing a trigger", () => {
+    const parent = pgTable("parent", {
+      id: integer("id").notNull(), secondId: integer("second_id").notNull(), count: integer("count").notNull().default(0),
+    }, (row) => [primaryKey({ columns: [row.id, row.secondId] })]);
+    const child = pgTable("child", { parentId: integer("parent_id").references(() => parent.id) });
+    expect(() => defineReferenceCounter(child, {
+      id: "composite.count", reference: child.parentId, target: parent.id, counter: parent.count,
+    })).toThrow("single-column primary key");
+
+    const singleParent = pgTable("single_parent", {
+      id: integer("id").primaryKey(), count: integer("count").notNull().default(0),
+    });
+    const mismatchedChild = pgTable("mismatched_child", { parentId: text("parent_id").references(() => singleParent.id) });
+    expect(() => defineReferenceCounter(mismatchedChild, {
+      id: "mismatch.count", reference: mismatchedChild.parentId, target: singleParent.id, counter: singleParent.count,
+    })).toThrow("matching UUID, text or integer SQL types");
+  });
+
+  it("deduplicates exports, orders counters by id, and rejects physical destination conflicts", () => {
+    const first = tables();
+    const last = tables();
+    const a = defineReferenceCounter(first.child, {
+      id: "a", reference: first.child.parentId, target: first.parent.id, counter: first.parent.count,
+    });
+    const z = defineReferenceCounter(last.child, {
+      id: "z", reference: last.child.parentId, target: last.parent.id, counter: last.parent.count,
+    });
+    expect(() => getReferenceCounterDefinitions({ a: first.child, z: last.child })).toThrow('Duplicate reference counter id or destination: "z".');
+
+    const other = pgTable("other_parent", {
+      id: integer("id").primaryKey(), count: integer("count").notNull().default(0),
+      duplicateCount: integer("duplicate_count").notNull().default(0),
+    });
+    const otherChild = pgTable("other_child", { parentId: integer("parent_id").references(() => other.id) });
+    const b = defineReferenceCounter(otherChild, { id: "b", reference: otherChild.parentId, target: other.id, counter: other.count });
+    expect(getReferenceCounterDefinitions({ z: last.child, b: otherChild, alias: last.child, null: null, primitive: true }))
+      .toEqual([b, z]);
+    expect(getReferenceCounterDefinitions({ a: first.child })).toEqual([a]);
+
+    defineReferenceCounter(otherChild, { id: "z", reference: otherChild.parentId, target: other.id, counter: other.duplicateCount });
+    expect(() => getReferenceCounterDefinitions({ z: last.child, otherChild })).toThrow('Duplicate reference counter id or destination: "z".');
+  });
+
+  it("requires a single-column foreign key to the actual single-column primary key", () => {
+    const parent = pgTable("parent", {
+      id: integer("id").notNull(), otherId: integer("other_id").notNull(), count: integer("count").notNull().default(0),
+    }, (row) => [primaryKey({ columns: [row.id] })]);
+    const child = pgTable("child", {
+      parentId: integer("parent_id"), otherId: integer("other_id").references(() => parent.otherId),
+    }, (row) => [foreignKey({ columns: [row.parentId, row.otherId], foreignColumns: [parent.id, parent.otherId] })]);
+    const options = { id: "parent.count", counter: parent.count };
+    expect(() => defineReferenceCounter(child, { ...options, reference: child.parentId, target: parent.id }))
+      .toThrow("single-column foreign key to the target");
+    expect(() => defineReferenceCounter(child, { ...options, reference: child.otherId, target: parent.otherId }))
+      .toThrow("single-column primary key");
+  });
+
+  it("accepts a single-column foreign key declared through Drizzle table configuration", () => {
+    const parent = pgTable("parent", { id: integer("id").primaryKey(), count: integer("count").notNull().default(0) });
+    const child = pgTable("child", { parentId: integer("parent_id") }, (row) => [
+      foreignKey({ columns: [row.parentId], foreignColumns: [parent.id] }),
+    ]);
+
+    expect(defineReferenceCounter(child, {
+      id: "parent.count", reference: child.parentId, target: parent.id, counter: parent.count,
+    }).reference).toBe(child.parentId);
+  });
+
+  it("accepts bounded text keys and rejects counters with incompatible ownership or write behavior", () => {
+    const parent = pgTable("parent", {
+      id: varchar("id", { length: 16 }).primaryKey(), count: integer("count").notNull().default(0),
+      generated: integer("generated").notNull().default(0).generatedAlwaysAs(sql`0`),
+      identity: integer("identity").notNull().generatedAlwaysAsIdentity(),
+      updated: integer("updated").notNull().default(0).$onUpdateFn(() => 0),
+      clientDefault: integer("client_default").notNull().default(0).$defaultFn(() => 0),
+      sqlZero: integer("sql_zero").notNull().default(sql` 0 `),
+      sqlNonzero: integer("sql_nonzero").notNull().default(sql`1`),
+      parentId: varchar("parent_id", { length: 16 }),
+    }, (row) => [foreignKey({ columns: [row.parentId], foreignColumns: [row.id] })]);
+    const child = pgTable("child", {
+      parentId: varchar("parent_id", { length: 16 }).references(() => parent.id),
+      count: integer("count").notNull().default(0),
+    });
+    const options = { id: "parent.count", reference: child.parentId, target: parent.id };
+    for (const counter of [child.count, parent.generated, parent.identity, parent.updated, parent.clientDefault]) {
+      expect(() => defineReferenceCounter(child, { ...options, counter })).toThrow("dedicated NOT NULL integer/bigint");
+    }
+    expect(() => defineReferenceCounter(child, { ...options, counter: parent.sqlNonzero })).toThrow("default must be zero");
+    expect(() => defineReferenceCounter(parent, { ...options, reference: parent.parentId, counter: parent.count }))
+      .toThrow("dedicated NOT NULL integer/bigint");
+    expect(defineReferenceCounter(child, { ...options, counter: parent.sqlZero }).target).toBe(parent.id);
+  });
+
+  it("rejects duplicate ids and reused destination columns independently", () => {
+    const parent = pgTable("parent", {
+      id: integer("id").primaryKey(), first: integer("first").notNull().default(0),
+      second: integer("second").notNull().default(0), third: integer("third").notNull().default(0),
+    });
+    const child = pgTable("child", { parentId: integer("parent_id").references(() => parent.id), status: text("status") });
+    const options = { reference: child.parentId, target: parent.id };
+    expect(() => defineReferenceCounter(child, {
+      ...options, id: "a", counter: parent.first, where: () => sql`${[eq(child.status, "closed-over")]}`,
+    })).toThrow("supplied source columns");
+    defineReferenceCounter(child, { ...options, id: "a", counter: parent.first });
+    defineReferenceCounter(child, { ...options, id: "b", counter: parent.second });
+    expect(() => defineReferenceCounter(child, { ...options, id: "a", counter: parent.third })).toThrow("Duplicate");
+    expect(() => defineReferenceCounter(child, { ...options, id: "c", counter: parent.second })).toThrow("Duplicate");
   });
 });

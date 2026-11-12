@@ -61,7 +61,14 @@ const componentPartitions = {
     "authentication-sessions", "password-verification", "authentication-adapters",
     "authentication-http", "authentication-contracts",
   ],
+  db: [
+    "db-provider", "db-instrumentation", "db-repository", "db-history-declarations",
+    "db-history-column-types", "db-history-identities", "db-history-events",
+    "db-reference-counter-declarations", "db-reference-counter-discovery", "db-reference-counter-runtime",
+    "db-schema-table-metadata", "db-schema-migrations", "db-schema-descriptions",
+  ],
   http: ["http-routing", "http-access", "http-runtime", "http-clients"],
+  lock: ["lock-acquisition", "lock-ownership", "lock-adapters", "lock-contracts"],
   outbound_http: ["outbound-resilience", "outbound-client", "outbound-contracts"],
 };
 

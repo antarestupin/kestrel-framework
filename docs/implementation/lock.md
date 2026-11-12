@@ -153,6 +153,8 @@ A lock is a finite lease, not an indefinite mutex. Each acquisition receives a r
 
 `extend()` asks the store to start a new TTL from store time. It updates the handle only after confirmation. A missing or expired lease raises `LockLostError`. Calling `extend()` after an explicit release raises `LockReleasedError`; `release()` itself is idempotent.
 
+The handle snapshots the adapter's lease identity and expiry at acquisition and renewal. Concurrent `release()` calls share one storage operation and its result. A storage error leaves the release retryable.
+
 The TTL must be positive and is capped by `maxTtlMs`. Manually acquired handles must still be extended explicitly before expiration. `runExclusive()` and `runExclusiveMany()` instead start a process-local, non-blocking heartbeat after acquisition. It requests a non-overlapping extension every half TTL and stops before release. This timer only decides when to contact the adapter; the adapter remains the authority for ownership and expiration.
 
 If an automatic extension fails or ownership has been lost, the heartbeat stops and aborts the handler context signal with the extension failure as its reason. JavaScript cannot forcibly stop an asynchronous handler, so handlers must pass this signal to cancellable work or check it at safe boundaries. The facade waits for the handler to settle, stops any in-flight heartbeat, then attempts every release. Fencing tokens remain necessary because cancellation is cooperative and an unresponsive previous owner may continue after losing its lease.

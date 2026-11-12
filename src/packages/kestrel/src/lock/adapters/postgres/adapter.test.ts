@@ -178,11 +178,36 @@ describe("PostgresLockAdapter", () => {
 
   it("rejects duplicate keys in a batch", async () => {
     const adapter = createAdapter();
-
-    await expect(adapter.tryAcquireMany([
+    const duplicate = [
       { key: "test:key", ownerId: "first", ttlMs: 60_000 },
       { key: "test:key", ownerId: "second", ttlMs: 60_000 },
-    ])).rejects.toThrow("unique keys");
+    ];
+    await expect(adapter.tryAcquireMany(duplicate)).rejects.toThrow("unique keys");
+    await expect(adapter.extendMany(duplicate)).rejects.toThrow("unique keys");
+  });
+
+  it("submits both set-based writes in a canonical order across caller permutations", async () => {
+    const batches: string[][] = [];
+    const keys = ["test:B", "test:a", "test:b"];
+    const observedDatabase = drizzle(client, {
+      logger: {
+        logQuery(query, parameters) {
+          if (query.includes("insert into") || query.includes("WITH requested")) {
+            batches.push(parameters.filter((parameter): parameter is string =>
+              typeof parameter === "string" && keys.includes(parameter)));
+          }
+        },
+      },
+    }) as PostgresLockDatabase;
+    const adapter = new PostgresLockAdapter(observedDatabase, testLockLeases as unknown as typeof lockLeases);
+    const request = (key: string) => ({ key, ownerId: "owner", ttlMs: 60_000 });
+    const reversed = [...keys].reverse();
+    const rotated = [keys[1]!, keys[2]!, keys[0]!];
+
+    // SQL binds keys in code-unit order even though both result lists follow input order.
+    expect((await adapter.tryAcquireMany(reversed.map(request)))?.map(({ key }) => key)).toEqual(reversed);
+    expect((await adapter.extendMany(rotated.map(request)))?.map(({ key }) => key)).toEqual(rotated);
+    expect(batches).toEqual([keys, keys]);
   });
 
   it("extends only a live lease owned by the caller", async () => {

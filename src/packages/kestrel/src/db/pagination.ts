@@ -113,8 +113,7 @@ export function getPaginationQueryWindow(
 
   return {
     limit: pagination.pageSize + 1,
-    offset:
-      (pagination.page - 1) * pagination.pageSize,
+    offset: getNumberedPageOffset(pagination),
   };
 }
 
@@ -162,6 +161,7 @@ export function createPaginatedResult<
     } as PaginatedResult<Item, Strategy, Cursor>;
   }
 
+  getNumberedPageOffset(pagination);
   const hasNextPage = records.length > pagination.pageSize;
 
   return {
@@ -219,4 +219,16 @@ function assertCursorPagination(pagination: CursorPagination): void {
       "Omit the cursor to start a traversal; null is not a valid cursor.",
     );
   }
+}
+
+/** Keep the SQL window bounded even when a caller bypasses an action schema. */
+function getNumberedPageOffset(pagination: PagePagination): number {
+  const { page, pageSize } = pagination;
+  const offset = (page - 1) * pageSize;
+  if (!Number.isSafeInteger(page) || page < 1
+    || !Number.isSafeInteger(pageSize) || pageSize < 1
+    || pageSize >= Number.MAX_SAFE_INTEGER || !Number.isSafeInteger(offset)) {
+    throw new TypeError("The page and page size must be positive safe integers with room for lookahead and offset.");
+  }
+  return offset;
 }
