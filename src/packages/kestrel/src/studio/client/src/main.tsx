@@ -1,9 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import type { StudioManifest } from "../../extension.js";
 import { createStudioRouter } from "./router.js";
-import { readStudioClientConfig } from "./runtime_config.js";
+import { loadStudioManifest, readStudioClientConfig } from "./runtime_config.js";
 import "./styles.css";
 
 /**
@@ -24,7 +23,7 @@ async function bootstrapStudio(): Promise<void> {
   }
 
   try {
-    const manifest = await loadManifest(clientConfig.basePath);
+    const manifest = await loadStudioManifest(clientConfig.basePath);
     const { RouterProvider, router } = createStudioRouter(manifest);
 
     createRoot(rootElement).render(
@@ -45,22 +44,6 @@ async function bootstrapStudio(): Promise<void> {
       </main>,
     );
   }
-}
-
-async function loadManifest(
-  basePath: string,
-): Promise<StudioManifest> {
-  const response = await fetch(`${basePath}/api/manifest`, {
-    headers: { accept: "application/json" },
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Studio manifest request failed with status ${response.status}.`,
-    );
-  }
-
-  return response.json() as Promise<StudioManifest>;
 }
 
 void bootstrapStudio();

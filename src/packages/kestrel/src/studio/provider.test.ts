@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { describe, expect, it, vi } from "vitest";
 
 import { App } from "../app/index.js";
+import { anonymousHttpAccess } from "../http/index.js";
 import { setExecutionLogEnabledDependency } from "../log/index.js";
 import { defineActionsDocumentationExtension } from "./extensions/actions/index.js";
 import {
@@ -33,6 +34,34 @@ class TestStudioClientAdapter implements StudioClientAdapter {
 }
 
 describe("StudioProvider", () => {
+  it("serves the SPA at the root while keeping missing API and assets on their own routes", async () => {
+    const server = Fastify();
+    const app = new App({});
+    const client = defineStudioClientAdapter({
+      dependencies: {}, capabilities: {},
+      create: () => ({ setup: async () => (reply) => reply.type("text/html").send("<main>Studio</main>") }),
+    });
+    app.register(new StudioProvider({ enabled: true, devMode: false, basePath: "/" }, client));
+    try {
+      for (const extension of app.httpExtensions.definitions) {
+        await extension.mount({ app, server, defaultAccess: anonymousHttpAccess });
+      }
+      await app.start();
+      expect((await server.inject("/")).body).toBe("<main>Studio</main>");
+      expect((await server.inject("/logs/history")).body).toBe("<main>Studio</main>");
+      expect((await server.inject("/api/manifest")).json()).toMatchObject({ basePath: "/", extensions: [] });
+      for (const [path, message] of [["/api/missing", "Studio API route not found."],
+        [`${STUDIO_ASSET_BASE_PATH}missing.js`, "Studio asset not found."]] as const) {
+        const response = await server.inject(path);
+        expect(response.statusCode).toBe(404);
+        expect(response.json()).toEqual({ error: message });
+      }
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
   it("mounts its client and configured extensions when enabled", async () => {
     const server = Fastify();
     const app = new App({ name: "test" });

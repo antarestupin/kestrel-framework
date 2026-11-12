@@ -39,7 +39,7 @@ function installStudio<Config>(app: App<Config>) {
 }
 ```
 
-Register the HTTP runtime and build the Studio client when using bundled delivery (`devMode: false`). The default mount is `/_studio`. CLI/background processes do not mount its browser runtime. Select `devMode: true` or inject a shared development adapter when working on Studio itself.
+Register the HTTP runtime and build the Studio client when using bundled delivery (`devMode: false`). The default mount is `/_studio`. Use an absolute path for `basePath`, such as `/tools/studio` or `/`. Mount, page and data paths reject ambiguous separators and dot segments that browsers would reinterpret. CLI/background processes do not mount its browser runtime. Select `devMode: true` or inject a shared development adapter when working on Studio itself.
 
 ## Execute actions
 

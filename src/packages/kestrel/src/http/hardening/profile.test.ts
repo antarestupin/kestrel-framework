@@ -66,6 +66,18 @@ describe("HTTP hardening profile", () => {
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
   });
 
+  it("retains the configured HSTS policy for a rejected malformed host", async () => {
+    const server = createHardenedServer({
+      hsts: { maxAgeSeconds: 3_600, includeSubDomains: true, preload: true },
+    });
+    server.get("/", () => "ok");
+
+    // A malformed authority must stay in the 421 path rather than throw during parsing.
+    const response = await server.inject({ url: "/", headers: { host: "[malformed" } });
+    expect(response.statusCode).toBe(421);
+    expect(response.headers["strict-transport-security"]).toBe("max-age=3600; includeSubDomains; preload");
+  });
+
   it("trusts forwarding metadata only from the configured proxy CIDRs", async () => {
     const server = createHardenedServer({
       proxy: { mode: "trusted", cidrs: ["127.0.0.1/32"] },
@@ -147,6 +159,9 @@ describe("HTTP hardening profile", () => {
     expect(() => parseConfig({
       proxy: { mode: "trusted", cidrs: ["not-a-cidr"] },
     })).toThrow("IP address or CIDR");
+    expect(() => parseConfig({ proxy: { mode: "trusted", cidrs: ["::1/128/1"] } })).toThrow("IP address or CIDR");
+    expect(parseConfig({ proxy: { mode: "trusted", cidrs: ["::1/128"] } }).proxy)
+      .toEqual({ mode: "trusted", cidrs: ["::1/128"] });
     expect(() => parseConfig({
       timeouts: {
         connectionMs: 30_000,

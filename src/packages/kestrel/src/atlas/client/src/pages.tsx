@@ -723,8 +723,9 @@ export function ResourceForm({
       ),
     onSuccess,
   });
+  // Only updates bind the identity from the route. A create action may require an explicit identity.
   const bodyInputs = (operation?.inputs ?? []).filter(
-    (input) => input.id !== resource.identity,
+    (input) => mode === "create" || input.id !== resource.identity,
   );
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -736,7 +737,7 @@ export function ResourceForm({
       return value === undefined ? [] : [[definition.id, value]];
     }));
 
-    if (recordId !== undefined) {
+    if (mode === "update" && recordId !== undefined) {
       input[resource.identity] = recordId;
     }
 
@@ -1872,9 +1873,7 @@ function StandardOperationInput({
     );
   }
 
-  const schema = typeof definition.schema === "boolean"
-    ? {}
-    : definition.schema;
+  const schema = getFormInputSchema(definition.schema);
   const label = field?.label ?? humanize(definition.id);
   const commonProperties = {
     id: definition.id,
@@ -1923,9 +1922,7 @@ function StandardOperationInput({
 function getOperationInputRendererKey(
   definition: AtlasOperationInputManifest,
 ): string {
-  const schema = typeof definition.schema === "boolean"
-    ? {}
-    : definition.schema;
+  const schema = getFormInputSchema(definition.schema);
 
   if (schema.type === "boolean") {
     return "boolean";
@@ -2001,9 +1998,7 @@ export function readFormValue(
   form: FormData,
   definition: AtlasOperationInputManifest,
 ): unknown {
-  const schema = typeof definition.schema === "boolean"
-    ? {}
-    : definition.schema;
+  const schema = getFormInputSchema(definition.schema);
 
   if (schema.type === "boolean") {
     return form.has(definition.id);
@@ -2026,12 +2021,25 @@ export function readFormValue(
 }
 
 function coerceFormValue(value: string, schema: unknown): unknown {
-  return typeof schema === "object"
-      && schema !== null
-      && "type" in schema
-      && (schema.type === "number" || schema.type === "integer")
-    ? Number(value)
-    : value;
+  const { type } = getFormInputSchema(schema);
+  return type === "number" || type === "integer" ? Number(value) : value;
+}
+
+/** Selects a concrete control for nullable inputs without guessing between other unions. */
+function getFormInputSchema(schema: unknown): Record<string, unknown> {
+  if (!isRecord(schema)) return {};
+
+  if (Array.isArray(schema.type) && schema.type.length === 2 && schema.type.includes("null")) {
+    return { ...schema, type: schema.type.find((type) => type !== "null") };
+  }
+
+  const alternatives = schema.anyOf ?? schema.oneOf;
+  if (Array.isArray(alternatives) && alternatives.length === 2
+    && alternatives.some((alternative) => isRecord(alternative) && alternative.type === "null")) {
+    return alternatives.filter(isRecord).find((alternative) => alternative.type !== "null") ?? schema;
+  }
+
+  return schema;
 }
 
 /** Returns whether schema-derived form values contain user-entered content. */

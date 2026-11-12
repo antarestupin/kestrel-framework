@@ -190,6 +190,59 @@ describe("development observations extension", () => {
     await server.close();
     await app.dispose();
   });
+
+  it("reports unfinished executions and empty logs when there is no correlation data", async () => {
+    const listObservations = vi.fn(async () => ({ items: [], nextBefore: null }));
+    const listExecutions = vi.fn(async () => ({
+      items: [{
+        executionId: "active", operation: "generate", transport: "cli" as const,
+        startedAt: new Date("2026-08-07T10:00:00.000Z"),
+        completedAt: null, durationMs: null, outcome: null,
+      }],
+      nextBefore: null,
+    }));
+    const listEvents = vi.fn(async () => []);
+    const listEventsByContext = vi.fn(async () => []);
+    const source: DevObservationSource = {
+      clear: async () => undefined,
+      getObservation: async () => undefined,
+      listObservations, listExecutions, listEvents, listEventsByContext,
+    };
+    const server = Fastify();
+    const app = new App({});
+    const listByExecution = vi.fn(async () => []);
+    const listByExecutions = vi.fn(async () => []);
+    const logSource: DevLogSource = {
+      clear: async () => undefined,
+      list: async () => ({ items: [], nextBefore: null }),
+      listByExecution, listByExecutions,
+    };
+    const studio = new Studio({ extensions: [defineDevObservationsExtension(source, logSource)] });
+    try {
+      const manager = new HttpControllerManager(app, server);
+      for (const controller of await studio.defineHttpControllers()) manager.register(controller);
+      await app.start();
+      const prefix = "/_studio/api/extensions/development-observations";
+      expect((await server.inject({ url: `${prefix}/executions?before=22&limit=5` })).json()).toMatchObject({
+        items: [{ executionId: "active", completedAt: null, durationMs: null, outcome: null }],
+      });
+      expect(listExecutions).toHaveBeenCalledExactlyOnceWith({ before: 22, limit: 5 });
+      expect((await server.inject({ url: `${prefix}/observations` })).json()).toEqual({ items: [], nextBefore: null });
+      expect(listObservations).toHaveBeenCalledExactlyOnceWith({});
+      for (const contextKey of ["", "&contextKey=workflow.id"]) {
+        const response = await server.inject({ url: `${prefix}/logs?executionId=active${contextKey}` });
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual({ executionId: "active", items: [] });
+      }
+      expect(listEvents).not.toHaveBeenCalled();
+      expect(listEventsByContext).toHaveBeenCalledExactlyOnceWith("workflow.id", "active");
+      expect(listByExecution).toHaveBeenCalledExactlyOnceWith("active");
+      expect(listByExecutions).toHaveBeenCalledExactlyOnceWith([]);
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
 });
 
 /** Creates a complete database row shared by list and timeline assertions. */

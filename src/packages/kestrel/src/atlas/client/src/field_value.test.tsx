@@ -24,6 +24,36 @@ const resource: AtlasResourceManifest = {
 const text = "A".repeat(51);
 
 describe("Atlas list text presentation", () => {
+  it("distinguishes absent values, zero and boolean values", () => {
+    for (const value of [null, undefined, ""]) {
+      expect(renderToStaticMarkup(<FieldValue field={field} value={value} />)).toContain('class="empty-value"');
+    }
+    expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "number" }} value={0} />)).toBe("0");
+    expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "boolean" }} value={false} />)).toContain(">No</span>");
+    expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "boolean" }} value={true} />)).toContain(">Yes</span>");
+  });
+
+  it("renders dates and structured values without losing invalid text or escaping", () => {
+    const date = "2026-01-10T12:00:00Z";
+    expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "datetime" }} value={date} />))
+      .toBe(new Date(date).toLocaleString());
+    expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "date" }} value="invalid date" />)).toBe("invalid date");
+    expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "json" }} value={{ token: "<unsafe>" }} />))
+      .toBe("<code>{&quot;token&quot;:&quot;&lt;unsafe&gt;&quot;}</code>");
+  });
+
+  it("renders related fallback values and limits links to records with a route", () => {
+    const relation = { ...field, kind: "relation" } as const;
+    const fallback = renderToStaticMarkup(<FieldValue field={relation} value={["first", "second"]} />);
+    expect(fallback).toContain("<span>first</span><span>, second</span>");
+
+    const references = [{ resourceId: "target", recordId: "t/1", label: "First" }, { resourceId: "target", label: "Missing" }];
+    const links = renderToStaticMarkup(<FieldValue basePath="/" field={relation} value="t/1" relationReferences={references} />);
+    expect(links).toContain('href="/target/t%2F1"');
+    expect(links).toContain("<span>Missing</span>");
+    expect(renderToStaticMarkup(<FieldValue field={relation} value="t/1" relationReferences={references} />)).not.toContain("href=");
+  });
+
   it("limits lists to 50 graphemes including the ellipsis and retains the full tooltip", () => {
     expect(renderToStaticMarkup(<FieldValue context="list" field={field} value={text} />))
       .toBe(`<span title="${text}">${"A".repeat(49)}…</span>`);

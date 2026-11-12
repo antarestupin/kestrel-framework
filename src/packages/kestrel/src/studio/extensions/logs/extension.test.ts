@@ -95,6 +95,21 @@ describe("development logs Studio extension", () => {
     await server.close();
     await app.dispose();
   });
+
+  it("lets the log source apply defaults when the browser sends no filters", async () => {
+    const source = createSource();
+    const server = Fastify();
+    const studio = new Studio({ extensions: [defineDevLogsExtension(source)] });
+    const app = await registerStudioControllers(studio, server);
+    try {
+      const response = await server.inject({ url: "/_studio/api/extensions/development-logs/logs" });
+      expect(response.statusCode).toBe(200);
+      expect(source.list).toHaveBeenCalledExactlyOnceWith({});
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
 });
 
 async function registerStudioControllers(

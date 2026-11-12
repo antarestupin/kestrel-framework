@@ -9,17 +9,16 @@ export function isStudioActionJson(
     return true;
   if (typeof value === "number") return Number.isFinite(value);
   if (typeof value !== "object" || ancestors.has(value)) return false;
-  if (
-    !Array.isArray(value) &&
-    Object.getPrototypeOf(value) !== Object.prototype &&
-    Object.getPrototypeOf(value) !== null
-  )
+  const array = Array.isArray(value);
+  const prototype = Object.getPrototypeOf(value);
+  // An array subclass can inherit a toJSON hook just like an object subclass.
+  if (prototype !== null && prototype !== (array ? Array.prototype : Object.prototype))
     return false;
   ancestors.add(value);
   try {
     const keys = Reflect.ownKeys(value);
     if (keys.some((key) => typeof key === "symbol")) return false;
-    if (Array.isArray(value)) {
+    if (array) {
       // Reject holes and extra properties that JSON.stringify would silently discard.
       if (keys.length !== value.length + 1) return false;
       for (let index = 0; index < value.length; index++) {
@@ -90,7 +89,8 @@ export function generateActionExample(
         "date-time": "2026-01-01T12:00:00.000Z",
         uri: "https://example.com",
       };
-      return formats[String(schema.format)] ?? "example";
+      const format = String(schema.format);
+      return Object.hasOwn(formats, format) ? formats[format]! : "example";
     }
     default:
       return null;

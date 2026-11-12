@@ -31,3 +31,22 @@ describe("MemoryEmailAdapter", () => {
     expect(adapter.getMessages()).toEqual([]);
   });
 });
+
+it("clones HTML, headers and text and binary attachments on every read", async () => {
+  const adapter = new MemoryEmailAdapter({ name: "local" });
+  const client = new EmailClient({ name: "test", driver: adapter });
+  const receipt = await client.send({
+    from: "sender@example.com", to: "member@example.com", subject: "Welcome", html: "<p>Hello</p>",
+    headers: { "X-Test": "unchanged" },
+    attachments: [{ filename: "file.txt", content: "text" }, { filename: "file.bin", content: new Uint8Array([1, 2]) }],
+  });
+  const message = adapter.getMessages()[0]!;
+  (message.attachments[1]!.content as Uint8Array)[0] = 9;
+  (message.headers as Record<string, string>)["X-Test"] = "changed";
+  expect(adapter.name).toBe("local");
+  expect(receipt).toMatchObject({ status: "accepted", messageId: expect.any(String), acceptedAt: expect.any(Date) });
+  expect(adapter.getMessages()[0]).toMatchObject({
+    html: "<p>Hello</p>", headers: { "X-Test": "unchanged" },
+    attachments: [{ content: "text" }, { content: new Uint8Array([1, 2]) }],
+  });
+});

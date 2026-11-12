@@ -108,6 +108,8 @@ export const catalog = defineCatalog({
 
 This accepts `/greetings/Sam?salutation=Hi`. Without explicit bindings, matching fields come from path parameters, remaining GET fields from the query, and remaining POST/PATCH/DELETE fields from the body. Use coercing schemas for numeric strings. `post`, `patch`, `del` and `body` support the other route and binding forms.
 
+Declare route paths on the current origin with a single leading `/`. Generated clients reject `.` and `..` as path parameter values. Bindings read properties present on the request, so a missing wire property can use its schema default.
+
 ## Add a route without a business action
 
 Use a standalone controller for transport-specific endpoints such as health checks. It declares its own response contract without introducing a reusable business action.

@@ -166,9 +166,12 @@ function renderClientBranch(
   const childIndentation = "  ".repeat(depth + 1);
   const properties = Object.entries(catalog).map(([name, value]) => {
     const path = [...parentPath, name];
+    const serializedName = JSON.stringify(name);
+    // A computed key prevents object-literal prototype setter semantics.
+    const property = name === "__proto__" ? `[${serializedName}]` : serializedName;
 
     if (!isHttpController(value)) {
-      return `${childIndentation}${JSON.stringify(name)}: ${renderClientBranch(
+      return `${childIndentation}${property}: ${renderClientBranch(
         value,
         path,
         clientTypeName,
@@ -202,7 +205,7 @@ function renderClientBranch(
     );
 
     return `${childIndentation}/** Calls {@link ${serverSymbol}} (${value.operationId}). */
-${childIndentation}${JSON.stringify(name)}: (${inputParameter}): Promise<${typeName}Output> =>
+${childIndentation}${property}: (${inputParameter}): Promise<${typeName}Output> =>
 ${childIndentation}  transport.request<${typeName}Output>(${renderOperation(value, bindings, depth + 2)}${inputArgument})`;
   });
 

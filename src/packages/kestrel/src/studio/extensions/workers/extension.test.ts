@@ -3,6 +3,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { z } from "zod";
 
@@ -31,7 +32,7 @@ describe("workers Studio extension", () => {
       examples: [{
         name: "Welcome email",
         payload: { email: "welcome@example.com" },
-      }],
+      }, { payload: { email: "receipt@example.com" } }],
       handler: () => undefined,
     });
     await adapter.enqueue([
@@ -105,7 +106,7 @@ describe("workers Studio extension", () => {
         examples: [{
           name: "Welcome email",
           payload: { email: "welcome@example.com" },
-        }],
+        }, { name: "Example 2", payload: { email: "receipt@example.com" } }],
       }],
     });
     expect(pauseResponse.statusCode).toBe(204);
@@ -239,5 +240,53 @@ describe("workers Studio extension", () => {
 
     await server.close();
     await app.dispose();
+  });
+
+  it("documents nested generated examples and detects incomplete adapter replies", async () => {
+    const adapter = new MemoryWorkerAdapter();
+    const worker = defineWorker({
+      name: "example", queue: "example",
+      input: z.object({
+        enabled: z.boolean(), count: z.number().min(5), unit: z.number(), attempts: z.int().min(2),
+        choice: z.union([z.enum(["auto", "manual"]), z.int()]),
+        entries: z.array(z.object({ tag: z.literal("entry"), note: z.null() })),
+        host: z.hostname(), day: z.iso.date(), time: z.iso.datetime(), site: z.url(),
+        id: z.uuid(), email: z.email(), note: z.string(), locale: z.string().default("en"),
+        hint: z.string().meta({ examples: ["configured"] }),
+      }),
+      handler: () => undefined,
+    });
+    const studio = new Studio({ extensions: [defineWorkersStudioExtension({ worker }, adapter)] });
+    const server = Fastify();
+    const app = new App({});
+    try {
+      const manager = new HttpControllerManager(app, server);
+      for (const controller of await studio.defineHttpControllers()) manager.register(controller);
+      await app.start();
+      const prefix = "/_studio/api/extensions/workers";
+      const catalog = await server.inject({ url: `${prefix}/catalog/worker` });
+      expect(catalog.statusCode).toBe(200);
+      const detail = catalog.json<StudioWorkerDetail>();
+      expect(detail.observability).toBeUndefined();
+      const payload = detail.worker.examples[0]?.payload;
+      expect(payload).toMatchObject({
+        enabled: true, count: 5, unit: 1, attempts: 2, choice: "auto",
+        entries: [{ tag: "entry", note: null }],
+        host: "example.com", day: "2026-01-01", time: "2026-01-01T12:00:00.000Z",
+        site: "https://example.com", hint: "configured",
+        id: "00000000-0000-4000-8000-000000000000", email: "user@example.com",
+        note: "example", locale: "en",
+      });
+      vi.spyOn(adapter, "enqueue").mockResolvedValueOnce([]);
+      expect((await server.inject({
+        method: "POST", url: `${prefix}/enqueue`, payload: { queue: worker.queue, payload },
+      })).statusCode).toBe(500);
+      vi.spyOn(adapter, "listQueueStatistics").mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      expect((await server.inject({ url: `${prefix}/catalog` })).statusCode).toBe(500);
+      expect((await server.inject({ url: `${prefix}/catalog/worker` })).statusCode).toBe(500);
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
   });
 });

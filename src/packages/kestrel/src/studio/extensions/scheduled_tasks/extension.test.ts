@@ -1,10 +1,12 @@
 import Fastify from "fastify";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { App } from "../../../app/index.js";
 import { HttpControllerManager } from "../../../http/index.js";
 import {
+  cron,
   every,
+  loop,
   MemoryScheduledTaskAdapter,
   ScheduledTaskRegistry,
 } from "../../../scheduled_tasks/index.js";
@@ -178,6 +180,75 @@ describe("scheduled-tasks Studio extension", () => {
 
     await server.close();
     await app.dispose();
+  });
+
+  it("distinguishes missing runtime state and publishes cron, loop, and prior run details", async () => {
+    const adapter = new MemoryScheduledTaskAdapter({ now: () => now });
+    const cronTask = defineScheduledTask({
+      id: "cron-report",
+      schedule: cron("0 9 * * *", { timeZone: "Europe/Paris" }),
+      handler: () => undefined,
+    });
+    const waitingTask = defineScheduledTask({
+      id: "waiting-report",
+      schedule: cron("0 12 * * *"),
+      handler: () => undefined,
+    });
+    const loopTask = defineScheduledTask({
+      id: "local-loop",
+      runtime: { state: "memory" },
+      schedule: loop({ delay: { seconds: 1 }, start: "after-delay" }),
+      handler: () => undefined,
+    });
+    const registry = new ScheduledTaskRegistry();
+    for (const task of [cronTask, waitingTask, loopTask]) {
+      registry.register(task, { kind: "application" });
+    }
+    await adapter.reconcile([{ taskId: cronTask.id, nextScheduledAt: now }]);
+    vi.spyOn(adapter, "listStates").mockResolvedValueOnce([{
+      taskId: cronTask.id,
+      paused: true,
+      activeRuns: 0,
+      manualRunRequestedAt: now,
+      lastStartedAt: now,
+      lastCompletedAt: now,
+      lastOutcome: "failure",
+      lastError: { name: "TypeError", message: "Invalid account", stack: "internal stack" },
+    }]);
+    const { server, app } = await createTestApp(registry, adapter);
+    try {
+      const catalog = await server.inject({ url: "/_studio/api/extensions/scheduled-tasks/catalog" });
+      expect(catalog.statusCode).toBe(200);
+      expect(catalog.json()).toMatchObject({
+        nodes: [{ children: expect.arrayContaining([
+          expect.objectContaining({
+            id: cronTask.id,
+            schedule: { kind: "cron", expression: "0 9 * * *", timeZone: "Europe/Paris" },
+            state: expect.objectContaining({
+              manualRunRequestedAt: now.toISOString(), lastStartedAt: now.toISOString(),
+              lastCompletedAt: now.toISOString(), lastOutcome: "failure",
+              lastError: { name: "TypeError", message: "Invalid account" },
+            }),
+          }),
+          expect.objectContaining({
+            id: waitingTask.id, controllable: false, unavailableReason: expect.stringContaining("Waiting"),
+          }),
+          expect.objectContaining({
+            id: loopTask.id, schedule: { kind: "loop", delayMs: 1_000, start: "after-delay" },
+          }),
+        ]) }],
+      });
+      expect(catalog.body).not.toContain("internal stack");
+      expect((await control(server, "unregistered", "pause")).statusCode).toBe(404);
+      expect((await control(server, waitingTask.id, "run")).statusCode).toBe(409);
+      expect((await control(server, cronTask.id, "resume")).statusCode).toBe(204);
+      await expect(adapter.listStates([cronTask.id])).resolves.toMatchObject([
+        { nextScheduledAt: new Date("2026-01-01T08:00:00.000Z") },
+      ]);
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
   });
 });
 

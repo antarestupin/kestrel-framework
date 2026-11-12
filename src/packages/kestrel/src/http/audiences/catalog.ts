@@ -36,10 +36,7 @@ function filterHttpControllerCatalogBranch(
   controllerAudiences: HttpControllerAudienceDefinition,
   selectedAudiences: ReadonlySet<string>,
 ): CatalogTree<AnyHttpController> {
-  const filteredCatalog: Record<
-    string,
-    AnyHttpController | CatalogTree<AnyHttpController>
-  > = {};
+  const entries: [string, AnyHttpController | CatalogTree<AnyHttpController>][] = [];
 
   for (const [name, value] of Object.entries(catalog)) {
     if (isHttpController(value)) {
@@ -53,7 +50,7 @@ function filterHttpControllerCatalogBranch(
           (audience) => selectedAudiences.has(audience),
         )
       ) {
-        filteredCatalog[name] = value;
+        entries.push([name, value]);
       }
 
       continue;
@@ -66,11 +63,12 @@ function filterHttpControllerCatalogBranch(
     );
 
     if (Object.keys(filteredBranch).length > 0) {
-      filteredCatalog[name] = filteredBranch;
+      entries.push([name, filteredBranch]);
     }
   }
 
-  return filteredCatalog;
+  // Creating data properties preserves catalog keys like __proto__.
+  return Object.fromEntries(entries);
 }
 
 /** Rejects identities that would make a filtered catalog ambiguous. */

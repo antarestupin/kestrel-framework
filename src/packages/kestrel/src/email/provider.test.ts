@@ -180,3 +180,42 @@ it("disposes capture storage before its connection even when delivery was never 
   finally { await app.dispose(); }
   expect(order).toEqual(["storage", "connection"]);
 });
+
+it("keeps minimal boot lazy and initializes delivery without capture storage in standard mode", async () => {
+  for (const mode of ["minimal", "standard"] as const) {
+    const create = vi.fn(() => ({ name: "controlled", send: async () => ({ status: "accepted" as const }) }));
+    const app = new App({}).register(new EmailProvider(emailConfig({ enabled: true }), defineEmailTransportAdapter({
+      dependencies: {}, capabilities: {}, create,
+    })));
+    app.prepareBootPlan([], mode);
+    try {
+      await app.start();
+      expect(create).toHaveBeenCalledTimes(mode === "minimal" ? 0 : 1);
+      expect(app.container.hasRegistration(emailCaptureInboxDependency.id)).toBe(false);
+    } finally {
+      await app.dispose();
+    }
+  }
+});
+
+it("keeps independent diagnostics active when the scoped observer fails", async () => {
+  const observerContext = new AsyncLocalObserverContext();
+  const observer: Observer = { record: vi.fn(() => { throw new Error("observer failed"); }) };
+  const record = vi.fn(() => { throw new Error("diagnostic sink failed"); });
+  const app = new App({});
+  app.container.registerValue("observerContext", observerContext);
+  app.register(new EmailProvider(emailConfig({ enabled: true }), memoryEmail(), {
+    instrumentation: { record }, monotonicNow: () => 1, createObservationId: () => "reserved-id",
+  }));
+  try {
+    const client = app.container.resolve(emailClientDependency);
+    const message = { from: "sender@example.com", to: "reader@example.com", subject: "Welcome", text: "Hello" };
+    await expect(observerContext.run(observer, () => client.send(message))).resolves.toMatchObject({ status: "accepted" });
+    await expect(client.send(message)).resolves.toMatchObject({ status: "accepted" });
+    expect(observer.record).toHaveBeenCalledOnce();
+    expect(record).toHaveBeenCalledTimes(2);
+    expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ observationId: "reserved-id", durationMs: 0, outcome: "success" }));
+  } finally {
+    await app.dispose();
+  }
+});

@@ -1,16 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AtlasOperationManifest } from "../../contract.js";
+import type { AtlasManifest, AtlasOperationManifest, AtlasResourceManifest } from "../../contract.js";
 import {
   AtlasGatewayError,
   executeAtlasRecordAction,
   executeAtlasOperation,
   getAtlasRedirectPath,
+  getAtlasTargetPath,
   getRecordActionParameters,
   getRecordActionRoute,
   getResourceListFields,
+  getResourcePath,
   getResourceRecordLabel,
   isRecordActionShownInList,
+  readListResult,
 } from "./runtime.js";
 
 const operation: AtlasOperationManifest = {
@@ -79,6 +82,43 @@ describe("Atlas client runtime", () => {
         status: 404,
         body: { error: "Not found" },
       }));
+  });
+
+  it("keeps empty, plain text and problem JSON gateway failures distinguishable", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response("Temporarily unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response('{"detail":"Conflict"}', {
+        status: 409, headers: { "content-type": "application/problem+json" },
+      }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(executeAtlasOperation("/", operation)).rejects.toMatchObject({ status: 401, body: undefined });
+    await expect(executeAtlasOperation("/", operation)).rejects.toMatchObject({ status: 503, body: "Temporarily unavailable" });
+    await expect(executeAtlasOperation("/", operation)).rejects.toMatchObject({ status: 409, body: { detail: "Conflict" } });
+    expect(fetch).toHaveBeenNthCalledWith(1, `/api/operations/${operation.id}`, expect.objectContaining({ body: '{"input":{}}' }));
+  });
+
+  it.each([
+    [null, "invalid gateway response"],
+    [{ effects: [] }, "invalid gateway response"],
+    [{ data: {} }, "invalid gateway response"],
+    [{ data: {}, effects: [], display: { shape: "array", labels: [] } }, "Invalid Atlas display metadata"],
+    [{ data: { items: [] }, effects: [], display: { shape: "list", labels: ["Extra"] } }, "Invalid Atlas display metadata"],
+    [{ data: [42], effects: [], display: { shape: "array", labels: ["Not a record"] } }, "Invalid Atlas display label"],
+    [{ data: { id: "one" }, effects: [], display: { shape: "record", labels: [42] } }, "Invalid Atlas display label"],
+  ] as const)("rejects invalid successful payload %j", async (body, message) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(body)));
+    await expect(executeAtlasOperation("/atlas", operation)).rejects.toThrow(message);
+  });
+
+  it("validates the list envelope and retains only record items", () => {
+    expect(() => readListResult(null)).toThrow("invalid result");
+    expect(() => readListResult({ items: {} })).toThrow("invalid result");
+    expect(readListResult({ items: [null, "id", [], { id: "u1" }], pageInfo: null })).toEqual({
+      items: [{ id: "u1" }], hasNextPage: false,
+    });
+    expect(readListResult({ items: [], pageInfo: { hasNextPage: true } }).hasNextPage).toBe(true);
   });
 
   it("derives record Action parameters and its canonical route", () => {
@@ -268,5 +308,17 @@ describe("Atlas client runtime", () => {
 
     expect(getResourceListFields(resource).map((field) => field.id))
       .toEqual(["name", "id", "email"]);
+    expect(getResourceListFields({ ...resource, displayField: "secret" }).map((field) => field.id)).toEqual(["id", "email", "name"]);
+    for (const record of [undefined, { name: null }, { name: "" }]) {
+      expect(getResourceRecordLabel(resource, record, "fallback")).toBe("fallback");
+    }
+    expect(getResourcePath("/", resource)).toBe("/user");
+    expect(getResourcePath("/atlas", resource, "/create")).toBe("/atlas/user/create");
+    const manifest: AtlasManifest = {
+      basePath: "/", title: "Atlas", icons: {}, resources: [resource satisfies AtlasResourceManifest],
+      defaults: { textMaxLength: 50, recordActionsInList: "none" }, notifications: { position: "bottom-left" },
+    };
+    expect(getAtlasRedirectPath(manifest, [])).toBeUndefined();
+    expect(() => getAtlasTargetPath(manifest, { resource: "missing", recordId: "u1" })).toThrow("unknown Resource");
   });
 });

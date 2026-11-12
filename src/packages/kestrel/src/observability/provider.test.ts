@@ -281,3 +281,28 @@ it("flushes a writer-only external backend before disposal without requiring a q
   }
   expect(order).toEqual(["write", "dispose"]);
 });
+
+it("does not construct a backend when observations are disabled", async () => {
+  const create = vi.fn(() => ({ writer: { append: async () => {} } }));
+  const app = new App({}).register(new ObservationProvider({ ...config, enabled: false }, defineObservationAdapter({
+    dependencies: {}, capabilities: { query: false }, create,
+  })));
+  try {
+    await app.start();
+    expect(app.container.hasRegistration("observationSource")).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+  } finally {
+    await app.dispose();
+  }
+});
+
+it("rejects an adapter whose query capability does not match its runtime shape", async () => {
+  const app = new App({}).register(new ObservationProvider(config, defineObservationAdapter({
+    dependencies: {}, capabilities: { query: true }, create: () => ({ writer: { append: async () => {} } }),
+  })));
+  try {
+    await expect(app.start()).rejects.toThrow("Observation query capability does not match its implementation");
+  } finally {
+    await app.dispose();
+  }
+});

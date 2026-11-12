@@ -128,6 +128,59 @@ describe("Studio", () => {
     expect(studio.basePath).toBe("/_tools");
   });
 
+  it("serves a metadata-only extension at the root mount", async () => {
+    const extension: StudioExtension = {
+      id: "resources",
+      title: "Resources",
+      description: "Development references.",
+      pages: [{ id: "guide", title: "Guide", path: "/guide", kind: "guide" }],
+      links: [{ id: "manual", title: "Manual", href: "https://example.com/manual" }],
+    };
+    const studio = new Studio({ basePath: "/", extensions: [extension] });
+    const manifest = studio.getManifest();
+
+    expect(studio.getManifest()).toBe(manifest);
+    expect(manifest).toEqual({
+      basePath: "/",
+      icons: {},
+      extensions: [{ ...extension, section: { id: "resources", title: "Resources" } }],
+    });
+
+    const server = Fastify();
+    const app = new App({});
+    try {
+      const manager = new HttpControllerManager(app, server);
+      for (const controller of await studio.defineHttpControllers()) {
+        manager.register(controller);
+      }
+      await app.start();
+
+      const response = await server.inject("/api/manifest");
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual(manifest);
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
+  it.each(["///", "//other.test", "/\\other.test", "/\t/other.test", "/tools/%2e%2e"])(
+    "rejects a mount path which a browser would reinterpret (%j)",
+    (basePath) => {
+      expect(() => new Studio({ basePath })).toThrow(/Studio base path/);
+    },
+  );
+
+  it.each(["path", "dataPath"] as const)("rejects navigation from a browser-normalized %s", (field) => {
+    for (const unsafe of ["/\\other.test", "/\t/other.test", "/safe/../elsewhere"] as const) {
+      const extension = {
+        ...exampleExtension,
+        pages: [{ ...exampleExtension.pages[0]!, [field]: unsafe }],
+      };
+      expect(() => new Studio({ extensions: [extension] })).toThrow(/Studio page/);
+    }
+  });
+
   it("keeps hidden pages routable in the client manifest", () => {
     const studio = new Studio({
       extensions: [
@@ -209,6 +262,42 @@ describe("Studio", () => {
       ]);
   });
 
+  it("merges navigation order regardless of installation order", () => {
+    const extensions: StudioExtension[] = [
+      { id: "tools", title: "Local tools", pages: [] },
+      { id: "unordered", title: "First", pages: [], section: { id: "tools", title: " Tools " } },
+      { id: "ordered", title: "Second", pages: [], section: { id: "tools", title: "Tools", order: 7 } },
+      { id: "support", title: "Support", pages: [], section: "developer-support" },
+    ];
+
+    for (const ordering of [extensions, [...extensions].reverse()]) {
+      const studio = new Studio({ extensions: ordering });
+      expect(Object.fromEntries(studio.getManifest().extensions.map(({ id, section }) => [id, section])))
+        .toEqual({
+          tools: { id: "tools", title: "Tools", order: 7 },
+          unordered: { id: "tools", title: "Tools", order: 7 },
+          ordered: { id: "tools", title: "Tools", order: 7 },
+          support: { id: "developer-support", title: "Developer Support" },
+        });
+    }
+  });
+
+  it.each([
+    [{ id: "tools", title: "Other", order: 1 }, /has conflicting definitions/],
+    [{ id: "tools", title: "Tools", order: 2 }, /has conflicting definitions/],
+    [{ id: "other", title: " tools " }, /is used by more than one id/],
+    [{ id: "other", title: " " }, /must have a title/],
+    [{ id: "other", title: "Other", order: Infinity }, /must be a finite number/],
+    [" ", /reference cannot be empty/],
+  ] as const)("rejects invalid navigation section %j", (section, error) => {
+    expect(() => new Studio({
+      extensions: [
+        { id: "first", title: "First", pages: [], section: { id: "tools", title: "Tools", order: 1 } },
+        { id: "second", title: "Second", pages: [], section },
+      ],
+    })).toThrow(error);
+  });
+
   it("rejects extension ids and page paths that cannot be routed safely", () => {
     expect(() => new Studio({
       extensions: [
@@ -242,6 +331,13 @@ describe("Studio", () => {
         },
       ],
     })).toThrow('page path "/example" is registered more than once');
+
+    expect(() => new Studio({
+      extensions: [{
+        ...exampleExtension,
+        pages: [...exampleExtension.pages, { ...exampleExtension.pages[0]!, path: "/other" }],
+      }],
+    })).toThrow('page id "example.overview" is registered more than once');
   });
 
   it("rejects unsafe or duplicate external links", () => {
@@ -271,5 +367,18 @@ describe("Studio", () => {
         },
       ],
     })).toThrow("registered more than once");
+  });
+
+  it.each([
+    ["/manual", /must use an absolute HTTP URL/],
+    ["https://reader@example.com", /without credentials/],
+    ["https://:password@example.com", /without credentials/],
+  ] as const)("rejects an unusable external link %s", (href, error) => {
+    expect(() => new Studio({
+      extensions: [{
+        ...exampleExtension,
+        links: [{ ...exampleExtension.links![0]!, href }],
+      }],
+    })).toThrow(error);
   });
 });

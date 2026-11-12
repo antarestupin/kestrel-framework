@@ -1,3 +1,5 @@
+import type { Transform } from "node:stream";
+
 import buildTransport from "pino-abstract-transport";
 import {
   Pool,
@@ -47,59 +49,102 @@ export default async function createPostgresTransport(
 
   // Fail during transport initialization when the local database or its dev
   // migration is unavailable instead of silently discarding log events.
-  await pool.query("select 1 from dev.log limit 1");
-  await pool.query(
-    "delete from dev.log where logged_at < now() - ($1 * interval '1 day')",
-    [retentionDays],
-  );
+  try {
+    await pool.query("select 1 from dev.log limit 1");
+    await pool.query(
+      "delete from dev.log where logged_at < now() - ($1 * interval '1 day')",
+      [retentionDays],
+    );
+  } catch (error) {
+    try {
+      await pool.end();
+    } catch (closeError) {
+      throw new AggregateError([error, closeError], "PostgreSQL log transport startup and cleanup failed.");
+    }
+    throw error;
+  }
 
-  return buildTransport(
-    async (source) => {
-      const iterator = source[Symbol.asyncIterator]();
-      const batch: PinoLogEvent[] = [];
-      const ignoredRequestIds = new Set<string>();
-      let nextEvent = iterator.next();
-
-      while (true) {
-        const result = await Promise.race([
-          nextEvent.then((event) => ({
-            kind: "event" as const,
-            event,
-          })),
-          wait(flushIntervalMs).then(() => ({
-            kind: "flush" as const,
-          })),
-        ]);
-
-        if (result.kind === "flush") {
-          await insertBatch(pool, batch);
-          continue;
-        }
-
-        if (result.event.done) {
-          await insertBatch(pool, batch);
-          break;
-        }
-
-        const event = result.event.value as PinoLogEvent;
-
-        if (shouldPersist(event, ignoredRequestIds)) {
-          batch.push(event);
-        }
-
-        nextEvent = iterator.next();
-
-        if (batch.length >= batchSize) {
-          await insertBatch(pool, batch);
-        }
-      }
-    },
+  let persistence: Promise<void> | undefined;
+  const transport = buildTransport(
+    (source) => (persistence = persistEvents(source, pool, batchSize, flushIntervalMs)),
     {
-      async close() {
-        await pool.end();
+      close(error, callback) {
+        // Auto-destroy follows the readable end event, before the final asynchronous insert settles.
+        // An explicit early destroy may instead leave the iterator waiting for the close event.
+        const pending = transport.readableEnded ? persistence : undefined;
+        void closePool(pool, pending, error).then(() => callback(), (failure) => callback(failure));
       },
     },
   );
+  return transport;
+}
+
+/** Owns the outstanding read, timer and batch for the lifetime of one worker stream. */
+async function persistEvents(source: Transform, pool: Pool, batchSize: number, flushIntervalMs: number): Promise<void> {
+  const iterator = source[Symbol.asyncIterator]();
+  const readEvent = () => iterator.next().then((event) => ({ kind: "event" as const, event }));
+  const batch: PinoLogEvent[] = [];
+  const ignoredRequestIds = new Set<string>();
+  let nextEvent = readEvent();
+  let flushTimer: ReturnType<typeof setTimeout> | undefined;
+  let flush: Promise<{ kind: "flush" }> | undefined;
+
+  const cancelFlush = () => {
+    clearTimeout(flushTimer);
+    flushTimer = undefined;
+    flush = undefined;
+  };
+
+  try {
+    while (true) {
+      const result = flush === undefined ? await nextEvent : await Promise.race([nextEvent, flush]);
+
+      if (result.kind === "flush") {
+        cancelFlush();
+        await insertBatch(pool, batch);
+        continue;
+      }
+
+      if (result.event.done) {
+        await insertBatch(pool, batch);
+        break;
+      }
+
+      const event = result.event.value as PinoLogEvent;
+      if (shouldPersist(event, ignoredRequestIds)) {
+        batch.push(event);
+
+        if (batch.length >= batchSize) {
+          cancelFlush();
+          await insertBatch(pool, batch);
+        } else if (flush === undefined) {
+          // The first event starts the deadline for the whole partial batch.
+          flush = new Promise((resolve) => {
+            flushTimer = setTimeout(() => resolve({ kind: "flush" }), flushIntervalMs);
+          });
+        }
+      }
+
+      nextEvent = readEvent();
+    }
+  } finally {
+    cancelFlush();
+  }
+}
+
+async function closePool(pool: Pool, pending: Promise<void> | undefined, error: Error | null): Promise<void> {
+  try {
+    await pending;
+    if (error != null) throw error;
+  } catch (failure) {
+    try {
+      await pool.end();
+    } catch (closeError) {
+      throw new AggregateError([failure, closeError], "PostgreSQL log transport and cleanup failed.");
+    }
+    throw failure;
+  }
+  await pool.end();
 }
 
 /**
@@ -116,9 +161,9 @@ function shouldPersist(
     : typeof event.requestId === "string"
       ? event.requestId
       : undefined;
-  const isLogApiRequest = event.req?.url?.includes(
-    "/api/extensions/development-logs/logs",
-  ) === true;
+  const url = event.req?.url;
+  const isLogApiRequest = typeof url === "string"
+    && url.includes("/api/extensions/development-logs/logs");
 
   if (isLogApiRequest && requestId !== undefined) {
     ignoredRequestIds.add(requestId);
@@ -151,9 +196,7 @@ async function insertBatch(
   }
 
   const rows = batch.splice(0).map((event) => ({
-    loggedAt: new Date(
-      typeof event.time === "number" ? event.time : Date.now(),
-    ).toISOString(),
+    loggedAt: formatEventTime(event.time),
     level: typeof event.level === "number" ? event.level : 30,
     message: typeof event.msg === "string" ? event.msg : null,
     requestId: typeof event.reqId === "string"
@@ -197,8 +240,8 @@ async function insertBatch(
   );
 }
 
-function wait(durationMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, durationMs);
-  });
+/** Uses the receipt time when an application binding is outside the Date range. */
+function formatEventTime(time: number | undefined): string {
+  const date = new Date(typeof time === "number" ? time : Date.now());
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 }

@@ -39,6 +39,7 @@ const adminGenerator = {
   factoryName: "createAdminClient",
   outputFile: "/generated/admin.ts",
   catalogImportPath: "./catalog.js",
+  catalogExportName: "adminCatalog",
   runtimeImportPath: "./client.js",
 };
 const config = {
@@ -107,6 +108,7 @@ describe("HTTP client generation provider", () => {
       expect.objectContaining({
         name: "admin",
         audiences: ["app", "admin"],
+        catalogExportName: "adminCatalog",
       }),
     ]);
     expect(provider.writes.every(({ controllerAudiences }) =>

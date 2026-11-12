@@ -205,3 +205,46 @@ describe("EmailClient", () => {
     })).rejects.toMatchObject({ code: "unavailable" });
   });
 });
+
+it.each([1, 2])("keeps delivery successful when the diagnostic clock throws on reading %s", async (throwOn) => {
+  const send = vi.fn(async () => ({ status: "accepted" as const, messageId: "provider-1" }));
+  const record = vi.fn();
+  let reads = 0;
+  const client = new EmailClient({
+    name: "transactional",
+    driver: { name: "controlled", send },
+    instrumentation: { record },
+    monotonicNow: () => {
+      if (++reads === throwOn) throw new Error("diagnostic clock unavailable");
+      return NaN;
+    },
+  });
+  const message = { from: "sender@example.com", to: "reader@example.com", subject: "Welcome", text: "Hello" };
+
+  // A failure after the handoff must not encourage duplicate delivery through retry.
+  await expect(client.send(message)).resolves.toEqual({ status: "accepted", messageId: "provider-1" });
+  expect(send).toHaveBeenCalledOnce();
+  expect(record).toHaveBeenCalledWith(expect.objectContaining({ durationMs: 0, outcome: "success" }));
+});
+
+it.each([
+  null, "accepted", { status: "rejected" }, { status: "accepted", messageId: 42 },
+  { status: "accepted", captureId: 42 }, { status: "accepted", acceptedAt: "2026-01-01" },
+  { status: "accepted", acceptedAt: new Date(NaN) },
+])("does not report success for malformed driver receipt %j", async (receipt) => {
+  const client = new EmailClient({
+    name: "transactional", driver: { name: "controlled", send: async () => receipt as never },
+  });
+  await expect(client.send({
+    from: "sender@example.com", to: "reader@example.com", subject: "Welcome", text: "Hello",
+  })).rejects.toMatchObject({ operation: "transactional.send", code: "transport", retryable: false });
+});
+
+it("rejects an invalid logical operation before handing the message to its driver", async () => {
+  const send = vi.fn();
+  const client = new EmailClient({ name: "transactional", driver: { name: "controlled", send } });
+  await expect(client.send({
+    from: "sender@example.com", to: "reader@example.com", subject: "Welcome", text: "Hello",
+  }, { operation: "unexpected operation" })).rejects.toThrow("stable identifier");
+  expect(send).not.toHaveBeenCalled();
+});

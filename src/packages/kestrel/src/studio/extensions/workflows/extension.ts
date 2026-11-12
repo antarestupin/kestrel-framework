@@ -6,6 +6,10 @@ import type { ActionExecution } from "../../../app/index.js";
 import { workflowExecutionCursorCodec } from "../../../workflows/execution_cursor.js";
 import type { DefinitionCatalogRegistry } from "../../../definitions/index.js";
 import { defineHttpController, get, post } from "../../../http/index.js";
+import {
+  WorkflowExecutionConflictError,
+  WorkflowExecutionNotFoundError,
+} from "../../../workflows/index.js";
 import type {
   AnyWorkflow,
   WorkflowExecution,
@@ -220,7 +224,8 @@ export function defineWorkflowsStudioExtension(
           input: executionInput,
           handler: async ({ input, request, execution }): Promise<StudioWorkflowExecutionDetails> => {
             await authorize("read", { request, execution }, input.executionId);
-            const details = await operations.getExecution(input.executionId);
+            const details = await operations.getExecution(input.executionId)
+              .catch(throwWorkflowExecutionHttpError);
             const definition = registry.definitions.find(({ name }) =>
               name === details.execution.workflowName);
             return {
@@ -295,7 +300,7 @@ export function defineWorkflowsStudioExtension(
                   message: error.message,
                 });
               }
-              throw error;
+              throwWorkflowExecutionHttpError(error);
             }
           },
         }),
@@ -315,14 +320,14 @@ export function defineWorkflowsStudioExtension(
                 );
                 return { execution: serializeExecution(retried) };
               } catch (error) {
-                if (error instanceof TypeError) {
+                if (error instanceof TypeError || error instanceof WorkflowExecutionConflictError) {
                   return reply.code(409).send({
                     statusCode: 409,
                     error: "Conflict",
                     message: error.message,
                   });
                 }
-                throw error;
+                throwWorkflowExecutionHttpError(error);
               }
             }
             const changed = input.action === "pause"
@@ -347,6 +352,16 @@ export function defineWorkflowsStudioExtension(
       ];
     },
   };
+}
+
+/** Expired operator links are normal. Preserve unrelated failures for the error handler. */
+function throwWorkflowExecutionHttpError(error: unknown): never {
+  if (error instanceof WorkflowExecutionNotFoundError) {
+    throw Object.assign(new Error(error.message, { cause: error }), {
+      toHttpError: () => ({ statusCode: 404, message: error.message }),
+    });
+  }
+  throw error;
 }
 
 function serializeExecution(execution: WorkflowExecution): StudioWorkflowExecution {

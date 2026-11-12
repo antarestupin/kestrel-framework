@@ -79,8 +79,8 @@ export class BufferedObservationRecorder implements ObservationRecorder {
   private readonly sleep: (delayMs: number) => Promise<void>;
   private readonly pending = new Set<BufferedObservation>();
   private readonly timer: ReturnType<typeof setInterval>;
-  private preparationFailure: { error: unknown } | undefined;
-  private terminalFailure: unknown | undefined;
+  private preparationFailure: { error: unknown; reported: boolean } | undefined;
+  private terminalFailure: { error: unknown } | undefined;
   private consecutiveStorageFailures = 0;
   private droppedByOverflow = 0;
   private droppedByStorageFailure = 0;
@@ -122,7 +122,7 @@ export class BufferedObservationRecorder implements ObservationRecorder {
     this.ready = (options.ready ?? Promise.resolve()).catch((error: unknown) => {
       // Retain initialization failures without temporarily leaving a rejected
       // Promise unhandled before the first scheduled write.
-      this.preparationFailure = { error };
+      this.preparationFailure = { error, reported: false };
     });
     this.buffer = new BatchBuffer({
       maxBatchSize: batchSize,
@@ -208,7 +208,7 @@ export class BufferedObservationRecorder implements ObservationRecorder {
   private async finishClosing(): Promise<void> {
     await this.ready;
 
-    if (this.preparationFailure !== undefined && this.pending.size === 0) {
+    if (this.preparationFailure?.reported === false && this.pending.size === 0) {
       this.handlePreparationFailure(this.preparationFailure.error);
     }
 
@@ -234,6 +234,8 @@ export class BufferedObservationRecorder implements ObservationRecorder {
         await this.ready;
 
         if (this.preparationFailure !== undefined) {
+          // The batch's failure owns this report even if a later close has no pending events.
+          this.preparationFailure.reported = true;
           throw this.preparationFailure.error;
         }
 
@@ -314,7 +316,7 @@ export class BufferedObservationRecorder implements ObservationRecorder {
     });
 
     if (this.failurePolicy === "fail-fast") {
-      this.terminalFailure ??= error;
+      this.terminalFailure ??= { error };
     }
   }
 
@@ -334,14 +336,17 @@ export class BufferedObservationRecorder implements ObservationRecorder {
       return;
     }
 
-    this.terminalFailure ??= errors.length === 1
-      ? errors[0]
-      : new AggregateError(errors, "Several observation batches failed.");
+    // A rejection with undefined or null is still a failure.
+    this.terminalFailure ??= {
+      error: errors.length === 1
+        ? errors[0]
+        : new AggregateError(errors, "Several observation batches failed."),
+    };
   }
 
   private throwTerminalFailure(): void {
     if (this.terminalFailure !== undefined) {
-      const error = this.terminalFailure;
+      const { error } = this.terminalFailure;
 
       // One explicit lifecycle boundary owns each fail-fast outcome. This
       // prevents a failed application flush and the later resource close from

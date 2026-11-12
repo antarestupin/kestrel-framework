@@ -151,6 +151,64 @@ describe("development email Studio extension", () => {
     await server.close();
     await app.dispose();
   });
+
+  it("handles missing correlation and optional metadata in the local inbox", async () => {
+    const store = new MemoryEmailCaptureStorageAdapter();
+    await store.capture({
+      id: captureId, observationId, capturedAt: new Date("2026-08-24T10:00:00.000Z"),
+      message: {
+        from: { address: "sender@example.test" },
+        to: [{ address: "recipient@example.test", name: "Example recipient" }],
+        cc: [], bcc: [], replyTo: [], subject: "Minimal", text: "Only text",
+        attachments: [{ filename: "message.txt", content: "private content", disposition: "inline", contentId: "item" }],
+      },
+    });
+    const source = new EmailCaptureInbox(store, async () => ({ status: "accepted" }));
+    const list = vi.spyOn(source, "list");
+    const observations = createObservationSource();
+    observations.getObservation.mockResolvedValue(undefined);
+    const [record] = (await observations.listObservations({ name: "email.send" })).items;
+    observations.listObservations.mockResolvedValueOnce({
+      items: [{ ...record!, data: { client: 14, attachmentCount: Infinity } }],
+      nextBefore: 11,
+    });
+    const server = Fastify();
+    const app = await registerStudioControllers(
+      new Studio({ extensions: [defineDevEmailExtension(source, observations)] }), server,
+    );
+    const prefix = "/_studio/api/extensions/development-email";
+
+    try {
+      const history = await server.inject({ url: `${prefix}/history` });
+      expect(history.statusCode).toBe(200);
+      expect(history.json()).toMatchObject({
+        items: [{ client: null, operation: null, recipientCount: null, attachmentCount: null }], nextBefore: 11,
+      });
+      const page = await server.inject({ url: `${prefix}/captures?before=12&limit=1` });
+      expect(page.statusCode).toBe(200);
+      expect(list).toHaveBeenCalledExactlyOnceWith({ before: 12, limit: 1 });
+      const detail = await server.inject({ url: `${prefix}/captures/${captureId}` });
+      expect(detail.statusCode).toBe(200);
+      expect(detail.json()).toMatchObject({
+        text: "Only text", html: null, headers: {}, observation: null,
+        from: { name: null }, to: [{ name: "Example recipient" }],
+        attachments: [{ contentType: null, disposition: "inline", contentId: "item" }],
+      });
+      expect(detail.body).not.toContain("private content");
+      const resend = await server.inject({ method: "POST", url: `${prefix}/captures/${captureId}/resend` });
+      expect(resend.statusCode).toBe(201);
+      expect(resend.json()).toEqual({ captureId: null, messageId: null });
+      expect((await server.inject({ method: "DELETE", url: `${prefix}/captures` })).statusCode).toBe(204);
+      const missing = await server.inject({ method: "POST", url: `${prefix}/captures/${captureId}/resend` });
+      expect(missing.statusCode).toBe(404);
+      expect(missing.json()).toMatchObject({ message: expect.stringContaining("does not exist or has expired") });
+      vi.spyOn(source, "resend").mockRejectedValueOnce(new Error("temporary SMTP outage"));
+      expect((await server.inject({ method: "POST", url: `${prefix}/captures/${captureId}/resend` })).statusCode).toBe(500);
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
 });
 
 async function createCaptureSource(): Promise<EmailCaptureInboxSource> {

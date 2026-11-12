@@ -34,9 +34,18 @@ export function del(url: string): HttpRoute {
 }
 
 function defineRoute(method: HttpMethod, url: string): HttpRoute {
+  assertHttpRoutePath(url);
+  return { method, url };
+}
+
+/** Keeps a route on the current authority when a generated client uses a relative base URL. */
+export function assertHttpRoutePath(url: string): void {
   if (!url.startsWith("/")) {
     throw new TypeError("An HTTP route URL must start with a slash.");
   }
 
-  return { method, url };
+  // URL parsers can normalize backslashes and strip control characters.
+  if (url[1] === "/" || url[1] === "\\" || /[\u0000-\u001f\u007f]/.test(url)) {
+    throw new TypeError("An HTTP route URL must be a path on the current origin.");
+  }
 }

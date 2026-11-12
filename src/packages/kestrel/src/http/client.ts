@@ -1,4 +1,4 @@
-import type { HttpMethod } from "./route.js";
+import { assertHttpRoutePath, type HttpMethod } from "./route.js";
 
 type JsonPrimitive = boolean | null | number | string;
 
@@ -111,11 +111,11 @@ function buildRequest(
 ): { url: string; body?: string } {
   let url = operation.url;
   const query = new URLSearchParams();
-  const body: Record<string, unknown> = {};
+  const body = Object.create(null) as Record<string, unknown>;
   let hasBody = false;
 
   for (const binding of operation.bindings) {
-    const value = input[binding.field];
+    const value = Object.hasOwn(input, binding.field) ? input[binding.field] : undefined;
 
     if (binding.kind === "path") {
       if (value === undefined || value === null) {
@@ -124,7 +124,11 @@ function buildRequest(
         );
       }
 
-      url = replacePathParameter(url, binding.name, serializeScalar(value));
+      const segment = serializeScalar(value);
+      if (segment === "." || segment === "..") {
+        throw new TypeError(`HTTP path input ${binding.field} cannot be a dot segment.`);
+      }
+      url = replacePathParameter(url, binding.name, segment);
       continue;
     }
 
@@ -137,6 +141,8 @@ function buildRequest(
     hasBody = true;
   }
 
+  // Interpolation can also create an authority-like URL from an empty first segment.
+  assertHttpRoutePath(url);
   const queryString = query.toString();
 
   if (queryString !== "") {
@@ -155,20 +161,17 @@ function replacePathParameter(
   value: string,
 ): string {
   const marker = `:${name}`;
-  const markerIndex = url.split("/").findIndex(
-    (segment) => segment === marker,
-  );
+  const segments = url.split("/");
 
-  if (markerIndex < 0) {
+  if (!segments.includes(marker)) {
     throw new TypeError(
       `HTTP path parameter ${name} does not exist in route ${url}.`,
     );
   }
 
-  const segments = url.split("/");
-  segments[markerIndex] = encodeURIComponent(value);
-
-  return segments.join("/");
+  // Match whole segments so repeated parameters and longer names stay independent.
+  const encoded = encodeURIComponent(value);
+  return segments.map((segment) => segment === marker ? encoded : segment).join("/");
 }
 
 function appendQueryValue(
@@ -218,10 +221,14 @@ async function readResponseBody(response: Response): Promise<unknown> {
     return undefined;
   }
 
-  const contentType = response.headers.get("content-type") ?? "";
+  const mediaType = (response.headers.get("content-type") ?? "").split(";", 1)[0]!.trim().toLowerCase();
+  if (mediaType !== "application/json" && !mediaType.endsWith("+json")) return text;
 
-  return contentType.includes("application/json")
-    || contentType.includes("+json")
-    ? JSON.parse(text) as unknown
-    : text;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    // An invalid error payload must not mask its HTTP status or operation ID.
+    if (response.ok) throw error;
+    return text;
+  }
 }

@@ -172,7 +172,11 @@ export class PostgresObservationStore implements ObservationWriter, DevObservati
               ),
             )
             .orderBy(desc(observations.sequence));
-    const completionByExecution = new Map(completions.map((event) => [event.executionId, event]));
+    const completionByExecution = new Map<string, StoredObservation>();
+    for (const event of completions) {
+      // Rows are newest first, so a repeated completion must not replace the latest result.
+      if (!completionByExecution.has(event.executionId)) completionByExecution.set(event.executionId, event);
+    }
 
     return {
       items: visibleStarts.map((start) => {

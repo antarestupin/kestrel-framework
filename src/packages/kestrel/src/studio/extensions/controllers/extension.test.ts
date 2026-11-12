@@ -161,4 +161,60 @@ describe("controllers Studio extension", () => {
     await server.close();
     await app.dispose();
   });
+
+  it("documents implicit path fields and JSON examples with nested inputs and formats", async () => {
+    const detail = defineHttpController({
+      route: get("/entries/:entryId"),
+      handler: ({ request }) => request.params,
+    });
+    const create = defineHttpController({
+      route: post("/entries"),
+      input: z.object({
+        enabled: z.boolean(), count: z.number(), minimum: z.int().min(3),
+        records: z.array(z.object({ value: z.literal("known"), optional: z.null() })),
+        ref: z.union([z.enum(["draft", "active"]), z.int()]),
+        date: z.iso.date(), timestamp: z.iso.datetime(),
+        homepage: z.url(), hostname: z.hostname(), id: z.uuid(),
+        example: z.string().meta({ examples: ["supplied"] }),
+      }),
+      handler: ({ input }) => input,
+    });
+    const explicit = defineHttpController({
+      route: get("/named"),
+      input: z.object({ filter: z.string() }),
+      examples: [{ input: { filter: "available" } }],
+      handler: ({ input }) => input,
+    });
+    const studio = new Studio({ extensions: [defineControllersStudioExtension({ detail, create, explicit })] });
+    const server = Fastify();
+    const app = new App({});
+    try {
+      const manager = new HttpControllerManager(app, server);
+      for (const controller of await studio.defineHttpControllers()) manager.register(controller);
+      await app.start();
+      const response = await server.inject({ url: "/_studio/api/extensions/controllers" });
+      expect(response.statusCode).toBe(200);
+      const catalog = response.json<StudioHttpControllerCatalog>();
+      expect(catalog.observability).toBeUndefined();
+      expect(catalog.nodes[0]).toMatchObject({
+        id: "detail", inputs: [{ name: "entryId", sourceName: "entryId", binding: "path", required: true }],
+        examples: [{ input: { entryId: "example" } }],
+      });
+      expect(catalog.nodes[1]).toMatchObject({
+        id: "create", examples: [{ input: {
+          enabled: true, count: 1, minimum: 3,
+          records: [{ value: "known", optional: null }],
+          ref: "draft", date: "2026-01-01", timestamp: "2026-01-01T12:00:00.000Z",
+          homepage: "https://example.com", hostname: "example.com",
+          id: "00000000-0000-4000-8000-000000000000", example: "supplied",
+        } }],
+      });
+      expect(catalog.nodes[2]).toMatchObject({
+        id: "explicit", examples: [{ name: "Example 1", input: { filter: "available" } }],
+      });
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
 });

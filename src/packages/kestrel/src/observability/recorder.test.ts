@@ -287,3 +287,74 @@ describe("BufferedObservationRecorder", () => {
     })).toThrow("initial retry delay cannot exceed");
   });
 });
+
+it("reports a fail-fast rejection even when the writer did not supply a reason", async () => {
+  const recorder = new BufferedObservationRecorder({ append: async () => Promise.reject() }, {
+    failurePolicy: "fail-fast", maxAttempts: 1, flushIntervalMs: 60_000,
+  });
+  try {
+    recorder.enqueue(observation("undelivered"));
+    await expect(recorder.flush()).rejects.toBeUndefined();
+    expect(recorder.getHealth().droppedByStorageFailure).toBe(1);
+  } finally {
+    await recorder.close();
+  }
+});
+
+it("reports a queued event's preparation error without invoking the writer", async () => {
+  const failure = new Error("cannot initialize writer");
+  const append = vi.fn(async () => {});
+  const recorder = new BufferedObservationRecorder({ append }, {
+    ready: Promise.reject(failure), failurePolicy: "fail-fast", maxAttempts: 1, flushIntervalMs: 60_000,
+  });
+  try {
+    recorder.enqueue(observation("queued"));
+    await expect(recorder.flush()).rejects.toBe(failure);
+    expect(append).not.toHaveBeenCalled();
+  } finally {
+    await recorder.close();
+  }
+  recorder.enqueue(observation("closed"));
+  expect(recorder.getHealth()).toMatchObject({ status: "closed", pendingCount: 0, droppedByStorageFailure: 1 });
+});
+
+it("aggregates several failed batches at one fail-fast boundary", async () => {
+  const first = new Error("first batch failed");
+  const second = new Error("second batch failed");
+  const append = vi.fn<ObservationWriter["append"]>().mockRejectedValueOnce(first).mockRejectedValueOnce(second);
+  const recorder = new BufferedObservationRecorder({ append }, {
+    batchSize: 1, failurePolicy: "fail-fast", maxAttempts: 1, flushIntervalMs: 60_000,
+  });
+  try {
+    recorder.enqueue(observation("first"));
+    recorder.enqueue(observation("second"));
+    await expect(recorder.flush()).rejects.toMatchObject({ errors: [first, second] });
+    expect(recorder.getHealth().droppedByStorageFailure).toBe(2);
+  } finally {
+    await recorder.close();
+  }
+});
+
+it("drops further events after saturation without a diagnostics callback", async () => {
+  const pending = Promise.withResolvers<void>();
+  const recorder = new BufferedObservationRecorder({ append: async () => pending.promise }, {
+    batchSize: 1, maxQueueSize: 1, flushIntervalMs: 60_000,
+  });
+  try {
+    recorder.enqueue(observation("accepted"));
+    recorder.enqueue(observation("first-drop"));
+    recorder.enqueue(observation("second-drop"));
+    expect(recorder.getHealth()).toMatchObject({ pendingCount: 1, droppedByOverflow: 2 });
+  } finally {
+    pending.resolve();
+    await recorder.close();
+  }
+});
+
+it.each([
+  [{ initialRetryDelayMs: -1 }, "initial retry delay"],
+  [{ failurePolicy: "ignore" }, "failure policy"],
+  [{ overflowPolicy: "drop-old" }, "overflow policy"],
+])("rejects invalid recorder options at the runtime boundary", (options, diagnostic) => {
+  expect(() => new BufferedObservationRecorder({ append: async () => {} }, options as never)).toThrow(diagnostic);
+});

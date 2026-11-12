@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import type { StudioObservation } from "../contract.js";
 import { ObservationContent } from "./observation_content.js";
+import { ObservationRow } from "./observation_row.js";
+import { ExecutionGroup } from "./execution_group.js";
 
 describe("ObservationContent", () => {
   it("renders structured database query details", () => {
@@ -44,6 +46,27 @@ describe("ObservationContent", () => {
 
     expect(markup).toContain("observation-json");
     expect(markup).toContain("{\n  &quot;result&quot;: &quot;ok&quot;\n}");
+  });
+
+  it("opens failed observations while distinguishing unset outcome and duration", () => {
+    const event = observation({ name: "custom.event", data: {} });
+    const failed = renderToStaticMarkup(<ObservationRow event={{ ...event, outcome: "failure" }} showDate />);
+    expect(failed).toContain('class="observation-row" open=""');
+    expect(failed).toContain('class="observation-outcome failure"');
+    const unset = renderToStaticMarkup(<ObservationRow event={{ ...event, outcome: null, durationMs: null }} />);
+    expect(unset).toContain('class="observation-outcome unset">not set');
+    expect(unset).not.toContain(' open=""');
+  });
+
+  it("shows unattributed items without inventing an execution permalink", () => {
+    const markup = renderToStaticMarkup(
+      <ExecutionGroup count={1} executionId="unattributed" itemLabel="log" presentation={{ title: "System", details: ["Unscoped"] }}>
+        <span>Original log</span>
+      </ExecutionGroup>,
+    );
+    expect(markup).toContain("Unscoped");
+    expect(markup).toContain("Original log");
+    expect(markup).not.toContain("Open execution");
   });
 });
 

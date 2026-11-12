@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import {
   describe,
   expect,
@@ -11,7 +15,7 @@ import { path, query } from "../bindings.js";
 import { defineHttpController } from "../controller.js";
 import { get } from "../route.js";
 import { testHttpAccess } from "../../testing/http_access.js";
-import { generateHttpClientSource } from "./generator.js";
+import { generateHttpClientSource, writeHttpClient } from "./generator.js";
 
 const audiences = defineHttpControllerAudiences({
   audiences: ["app", "admin"],
@@ -61,8 +65,8 @@ const catalog = {
   typeof publicController | typeof adminController | typeof emptyController
 >;
 
-function generate(name: "app" | "admin"): string {
-  return generateHttpClientSource({
+function generatorOptions(name: "app" | "admin") {
+  return {
     catalog,
     name,
     audiences: [name],
@@ -72,7 +76,11 @@ function generate(name: "app" | "admin"): string {
       : "createAdminClient",
     catalogImportPath: "../../server/core/app_catalog.js",
     runtimeImportPath: "../../kestrel/http/client.js",
-  });
+  };
+}
+
+function generate(name: "app" | "admin"): string {
+  return generateHttpClientSource(generatorOptions(name));
 }
 
 describe("HTTP client generator", () => {
@@ -177,5 +185,52 @@ describe("HTTP client generator", () => {
       catalogImportPath: "./catalog.js",
       runtimeImportPath: "./client.js",
     })).toThrow("Conflicting generated HTTP client type name");
+  });
+
+  it("preserves an explicitly named prototype-like catalog entry as a callable property", () => {
+    const source = generateHttpClientSource({
+      ...generatorOptions("app"),
+      catalog: { ["__proto__"]: { "record-read": publicController } },
+      catalogExportName: "alternateCatalog",
+    });
+
+    // An object literal's special __proto__ setter must not consume a catalog branch.
+    expect(source).toContain('["__proto__"]: {');
+    expect(source).toContain('alternateCatalog.__proto__["record-read"]');
+    expect(source).toContain('operationId: "space.get"');
+  });
+
+  it("renders inferred bindings and supports names beginning with a digit", () => {
+    const item = defineHttpController({
+      access: testHttpAccess, route: get("/items/:id"),
+      input: z.object({ id: z.string(), constructor: z.string() }),
+      handler: () => undefined,
+    });
+    const source = generateHttpClientSource({ ...generatorOptions("app"), name: "2 routes", catalog: { "read-item": item } });
+    expect(source).toContain("export type _2RoutesReadItemInput");
+    expect(source).toContain('{"field":"id","kind":"path","name":"id"}');
+    expect(source).toContain('{"field":"constructor","kind":"query","name":"constructor"}');
+    expect(() => generateHttpClientSource({ ...generatorOptions("app"), name: "---" })).toThrow("cannot form a TypeScript identifier");
+  });
+
+  it("writes missing and changed clients, skips identical contents and propagates read failures", async () => {
+    const folder = await mkdtemp(join(tmpdir(), "kestrel-http-client-"));
+    try {
+      const outputFile = join(folder, "generated", "app.ts");
+      const options = { ...generatorOptions("app"), outputFile };
+      await expect(writeHttpClient(options)).resolves.toBe(true);
+      await expect(readFile(outputFile, "utf8")).resolves.toBe(generate("app"));
+      await expect(writeHttpClient(options)).resolves.toBe(false);
+      await writeFile(outputFile, "// Previous generated client.\n");
+      await expect(writeHttpClient(options)).resolves.toBe(true);
+      await expect(readFile(outputFile, "utf8")).resolves.toBe(generate("app"));
+
+      const directory = join(folder, "directory.ts");
+      await mkdir(directory);
+      // A filesystem error other than a missing output must stop regeneration.
+      await expect(writeHttpClient({ ...options, outputFile: directory })).rejects.toMatchObject({ code: "EISDIR" });
+    } finally {
+      await rm(folder, { recursive: true, force: true });
+    }
   });
 });

@@ -303,7 +303,7 @@ export class HttpControllerManager<Config> {
         const source = getRequestSource(request, binding);
         const sourceName = binding.name ?? field;
 
-        return [field, source[sourceName]];
+        return [field, Object.hasOwn(source, sourceName) ? source[sourceName] : undefined];
       }),
     );
   }

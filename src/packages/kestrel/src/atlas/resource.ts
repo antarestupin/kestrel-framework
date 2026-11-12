@@ -304,7 +304,8 @@ function compileResource(
   );
   const properties = findObjectProperties(readOutputSchema);
 
-  if (!(options.identity in properties)) {
+  // Manifest fields must come from the read schema, never from Object.prototype.
+  if (!Object.hasOwn(properties, options.identity)) {
     throw new TypeError(
       `Atlas resource "${options.id}" identity "${options.identity}" does not exist in its read output.`,
     );
@@ -332,7 +333,7 @@ function compileResource(
     throw new TypeError("The __atlas_display field is reserved by Atlas.");
   }
 
-  if (typeof options.display !== "object" && !(displayField in properties)) {
+  if (typeof options.display !== "object" && !Object.hasOwn(properties, displayField)) {
     throw new TypeError(
       `Atlas resource "${options.id}" display field "${displayField}" does not exist in its read output.`,
     );
@@ -961,7 +962,8 @@ function schemaAllowsNull(schema: AtlasJsonSchema): boolean {
     return false;
   }
 
-  if (schema.type === "null") {
+  // Zod emits a type array for nullable scalar fields in draft 2020-12.
+  if (schema.type === "null" || (Array.isArray(schema.type) && schema.type.includes("null"))) {
     return true;
   }
 

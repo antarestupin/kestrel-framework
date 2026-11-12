@@ -14,10 +14,15 @@ describe("installed dependency refresh", () => {
     const report = vi.fn();
     const close = watchInstalledDependencies([receipt], restart, report);
     try {
-      // A distinct timestamp makes this deterministic on filesystems with coarse clocks.
+      // The first stat is asynchronous. Continue changing the timestamp until polling sees an update.
       const later = new Date(Date.now() + 10_000);
-      await utimes(receipt, later, later);
-      await vi.waitFor(() => expect(restart).toHaveBeenCalledOnce(), { timeout: 4000 });
+      await vi.waitFor(async () => {
+        if (restart.mock.calls.length === 0) {
+          later.setTime(later.getTime() + 1_000);
+          await utimes(receipt, later, later);
+        }
+        expect(restart).toHaveBeenCalledOnce();
+      }, { interval: 200, timeout: 4_000 });
       expect(report).not.toHaveBeenCalled();
       close();
       await utimes(receipt, new Date(), new Date());

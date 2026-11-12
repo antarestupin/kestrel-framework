@@ -1,11 +1,14 @@
 import { Writable } from "node:stream";
 
 import pino from "pino";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ExecutionContext } from "../app/index.js";
 import {
+  createDelegatingLogger,
   createDynamicExecutionLogger,
+  createExecutionWorkloadLogger,
+  createLogger,
   executionContextLogDestination,
 } from "./logger.js";
 
@@ -88,4 +91,65 @@ describe("dynamic execution logger", () => {
       executionContext: { userId: "user-1" },
     });
   });
+});
+
+it("preserves Error, null and message overloads while keeping context on derived children", () => {
+  const lines: string[] = [];
+  const destination = new Writable({ write(chunk, _encoding, done) { lines.push(chunk.toString()); done(); } });
+  const context = new ExecutionContext();
+  context.setDiagnostic("operation", "example.run", { destinations: [executionContextLogDestination] });
+  context.setDiagnostic("transport", 42, { destinations: [executionContextLogDestination] });
+  const logger = createDynamicExecutionLogger(pino({ level: "info" }, destination), context);
+
+  logger.child({ worker: "reports" }).error(new Error("rejected"), "Operation failed");
+  logger.info(null, "Null binding");
+  logger.info("Received %s", "message");
+  expect(logger.isLevelEnabled("info")).toBe(true);
+  expect(logger.level).toBe("info");
+  const entries = lines.map((line) => JSON.parse(line));
+  expect(entries).toMatchObject([
+    { worker: "reports", operation: "example.run", err: { message: "rejected" }, msg: "Operation failed" },
+    { operation: "example.run", msg: "Null binding" },
+    { operation: "example.run", msg: "Received message" },
+  ]);
+  expect(entries[2]).not.toHaveProperty("transport");
+});
+
+it("keeps derived bindings and logger property writes when the destination changes", () => {
+  const first = pino({ level: "silent" });
+  const second = pino({ level: "silent" });
+  let destination = first;
+  const logger = createDelegatingLogger(() => destination);
+  const child = logger.child({ scope: "first" }).child({ task: "report" });
+  expect("level" in logger).toBe(true);
+  expect("unknown" in logger).toBe(false);
+  expect(child.bindings()).toEqual({ scope: "first", task: "report" });
+  logger.level = "error";
+  expect(first.level).toBe("error");
+  destination = second;
+  expect(logger.level).toBe("silent");
+  expect(child.bindings()).toEqual({ scope: "first", task: "report" });
+  expect(child.bindings()).toEqual({ scope: "first", task: "report" });
+});
+
+it("removes a workload binding when the execution context stops declaring a supported workload", () => {
+  const context = new ExecutionContext();
+  const logger = createExecutionWorkloadLogger(pino({ level: "silent" }), context);
+  expect(logger.bindings()).toEqual({});
+  context.setDiagnostic("workload", "workers", { destinations: [executionContextLogDestination] });
+  expect(logger.bindings()).toEqual({ workload: "workers" });
+  context.setDiagnostic("workload", "custom", { destinations: [executionContextLogDestination] });
+  expect(logger.bindings()).toEqual({});
+});
+
+it("reports Pino flush failures when closing the standard logger", async () => {
+  const resource = createLogger({ level: "silent" });
+  const failure = new Error("stdout flush failed");
+  const flush = vi.spyOn(resource.logger, "flush").mockImplementation((done) => done?.(failure));
+  try {
+    await expect(resource.close()).rejects.toBe(failure);
+  } finally {
+    flush.mockRestore();
+    await resource.close();
+  }
 });

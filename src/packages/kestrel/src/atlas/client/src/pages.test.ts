@@ -95,6 +95,24 @@ describe("atlas operation forms", () => {
       schema: { type: "array", items: { type: "string" } },
     })).toEqual(["user-1", "user-2"]);
   });
+
+  it("coerces populated nullable numeric inputs without guessing ambiguous unions", () => {
+    const form = new FormData();
+    form.append("count", "42");
+    form.append("memberIds", "3");
+    form.append("memberIds", "4");
+
+    expect(readFormValue(form, {
+      id: "count", required: false, schema: { type: ["integer", "null"] },
+    })).toBe(42);
+    expect(readFormValue(form, {
+      id: "memberIds", required: false,
+      schema: { anyOf: [{ type: "array", items: { type: "integer" } }, { type: "null" }] },
+    })).toEqual([3, 4]);
+    expect(readFormValue(form, {
+      id: "count", required: false, schema: { type: ["integer", "string", "null"] },
+    })).toBe("42");
+  });
 });
 
 describe("Atlas record link navigation", () => {

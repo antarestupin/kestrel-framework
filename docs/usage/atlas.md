@@ -161,6 +161,8 @@ const atlas = defineAtlas({ title: "Administration", basePath: "/admin", resourc
 
 Only compiled exposures are callable through the gateway. `readMany` supports batched relation hydration. Enable searchable/filterable/sortable field metadata only when the source implements those operations; the demonstration above supplies pagination only.
 
+Declare the identity and display fields in the read output schema. An explicit identity input appears in the create form when the create operation declares it. The standard form preserves entered numeric values and repeated numeric identifiers when their schema also allows `null`.
+
 ## Expose inspection with selected mutations
 
 Every resource supplies `list`, `read` and `readMany`. Omit `create`, `update` or `delete` when the application does not support that operation. For an inspection resource, provide only the three read capabilities in the example above. Add record Actions for explicit domain commands such as publishing a proposal or closing a discussion, preserving their authoritative application authorization and validation.

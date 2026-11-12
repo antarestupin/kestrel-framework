@@ -1,4 +1,4 @@
-import type { Logger } from "pino";
+import pino, { type Logger } from "pino";
 import {
   afterEach,
   describe,
@@ -23,6 +23,21 @@ afterEach(async () => {
 });
 
 describe("HttpRuntime", () => {
+  it("uses the application logger as the parent when Fastify logging is enabled", async () => {
+    const app = new App({});
+    const logger = pino({ level: "silent" });
+    app.container.registerValue("applicationLogger", logger);
+    const runtime = new HttpRuntime(app, { ...config, fastifyLogs: true });
+    try {
+      runtime.server.get("/bindings", (request) => (request.log as Logger).bindings());
+      const response = await runtime.server.inject("/bindings");
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ workload: "http" });
+    } finally {
+      await app.dispose();
+    }
+  });
+
   it("bounds a non-cooperative HTTP handler and keeps its shared dependencies alive", async () => {
     const app = new App({}, { shutdown: { timeoutMs: 40, drainMs: 10 } });
     const logger = { child: () => logger };

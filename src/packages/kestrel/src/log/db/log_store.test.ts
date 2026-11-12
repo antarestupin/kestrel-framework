@@ -1,5 +1,6 @@
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
+import type { Pool } from "pg";
 import {
   beforeEach,
   describe,
@@ -9,6 +10,7 @@ import {
 } from "vitest";
 
 import {
+  createDevLogStore,
   DevLogStore,
   type DevLogDatabase,
 } from "./log_store.js";
@@ -84,4 +86,28 @@ describe("development log store", () => {
       "workflows",
     ]);
   });
+});
+
+it("bounds pages, combines filters, preserves cursors and skips empty execution batches", async () => {
+  const timestamp = "2026-01-01T00:00:00.000Z";
+  const query = vi.fn(async (_query: { text: string }, _values: readonly unknown[]): Promise<{ rows: unknown[][] }> => ({ rows: [] }));
+  const store = createDevLogStore({ query } as unknown as Pool);
+
+  await expect(store.listByExecutions([])).resolves.toEqual([]);
+  expect(query).not.toHaveBeenCalled();
+  query.mockResolvedValueOnce({ rows: [
+    ["8", timestamp, 40, "visible", null, { workload: "workers" }, timestamp],
+    ["7", timestamp, 40, "next", null, { workload: "workers" }, timestamp],
+  ] });
+  await expect(store.list({ before: 9, level: 40, workload: "workers", limit: 0 })).resolves.toMatchObject({
+    items: [{ id: 8, loggedAt: new Date(timestamp), level: 40, message: "visible" }], nextBefore: 8,
+  });
+  expect(query.mock.calls[0]?.[0].text).toContain('"dev"."log"."id" < $1');
+  expect(query.mock.calls[0]?.[1]).toEqual([9, 40, "workers", 2]);
+  await expect(store.list({ limit: 500 })).resolves.toEqual({ items: [], nextBefore: null });
+  await expect(store.list()).resolves.toEqual({ items: [], nextBefore: null });
+  expect(query.mock.calls[1]?.[1]).toEqual([251]);
+  expect(query.mock.calls[2]?.[1]).toEqual([101]);
+  await store.clear();
+  expect(query.mock.calls[3]?.[0].text).toBe('delete from "dev"."log"');
 });

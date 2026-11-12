@@ -20,7 +20,10 @@ import {
   type ObservationRecorder,
 } from "../observability/index.js";
 import { testHttpAccess } from "../testing/http_access.js";
+import { executeHttpController } from "./controller_executor.js";
 import {
+  anonymousHttpAccess,
+  body,
   defineActionHttpController,
   defineHttpAccessPolicy,
   defineHttpController,
@@ -65,6 +68,109 @@ function createTestHttp(
 }
 
 describe("HttpControllerManager", () => {
+  it("reads only wire properties present in the request and uses defaults for missing values", async () => {
+    const { manager, server } = createTestHttp();
+    manager.register(defineHttpController({
+      access: testHttpAccess, route: post("/optional-body"),
+      input: z.object({ value: z.string().default("fallback") }),
+      bindings: { value: body("constructor") },
+      handler: ({ input }) => input.value,
+    }));
+
+    for (const payload of [{ other: true }, undefined]) {
+      const response = await server.inject({ method: "POST", url: "/optional-body", ...(payload === undefined ? {} : { payload }) });
+      expect(response.statusCode).toBe(201);
+      expect(response.body).toBe("fallback");
+    }
+    const jsonNull = await server.inject({
+      method: "POST", url: "/optional-body", headers: { "content-type": "application/json" }, payload: "null",
+    });
+    expect(jsonNull.statusCode).toBe(201);
+    expect(jsonNull.body).toBe("fallback");
+    const explicit = await server.inject({ method: "POST", url: "/optional-body", payload: { constructor: "provided" } });
+    expect(explicit.statusCode).toBe(201);
+    expect(explicit.body).toBe("provided");
+  });
+
+  it("uses a field's unnamed path binding and infers prototype-like query fields normally", async () => {
+    const { manager, server } = createTestHttp();
+    manager.register(defineHttpController({
+      access: testHttpAccess, route: get("/records/:id"),
+      input: z.object({ id: z.string(), constructor: z.string() }),
+      handler: ({ input }) => `${input.id}:${input.constructor}`,
+    }));
+    manager.register(defineHttpController({
+      access: testHttpAccess, route: get("/unnamed/:id"),
+      input: z.object({ id: z.string() }), bindings: { id: path() },
+      handler: ({ input }) => input.id,
+    }));
+
+    const response = await server.inject("/records/42?constructor=provided");
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toBe("42:provided");
+    expect((await server.inject("/unnamed/42")).body).toBe("42");
+  });
+
+  it("leaves an already-sent response intact when a controller later throws", async () => {
+    const { manager, server } = createTestHttp();
+    manager.register(defineHttpController({
+      access: testHttpAccess, route: post("/accepted"),
+      handler: ({ reply }) => {
+        reply.code(202).send({ accepted: true });
+        throw new Error("work after reply failed");
+      },
+    }));
+
+    const response = await server.inject({ method: "POST", url: "/accepted" });
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toEqual({ accepted: true });
+  });
+
+  it("supplies anonymous access to direct standalone and action-backed executions", async () => {
+    const { app, server } = createTestHttp();
+    const observeDefault = vi.fn();
+    const standalone = defineHttpController({
+      route: get("/standalone"),
+      handler: ({ defaultAccess }) => { observeDefault(defaultAccess); return "standalone"; },
+    });
+    const action = defineAction({
+      name: "direct.echo", input: z.object({}), output: z.string(), handler: () => "action",
+    });
+    const adapted = defineActionHttpController(action, get("/adapted"), {
+      audiences: ["public"],
+      examples: [{ input: {} }],
+      handler: ({ action: runner, defaultAccess }) => { observeDefault(defaultAccess); return runner.run({}); },
+    });
+
+    // Extensions can delegate without supplying an inherited access policy.
+    for (const controller of [standalone, adapted]) {
+      server.get(controller.route.url, async (request, reply) => {
+        const execution = await app.createExecutionScope();
+        try {
+          return await executeHttpController(controller, {}, { request, reply, execution });
+        } finally {
+          await execution.dispose();
+        }
+      });
+    }
+    expect(adapted.audiences).toEqual(["public"]);
+    expect(adapted.examples).toEqual([{ input: {} }]);
+    expect((await server.inject("/standalone")).body).toBe("standalone");
+    expect((await server.inject("/adapted")).body).toBe("action");
+    expect(observeDefault.mock.calls).toEqual([[anonymousHttpAccess], [anonymousHttpAccess]]);
+  });
+
+  it("rejects unsafe route definitions, blank wire names and non-success controller status codes", () => {
+    expect(() => get("records")).toThrow("must start with a slash");
+    expect(() => get("//other.example/records")).toThrow("must be a path on the current origin");
+    expect(() => body(" ")).toThrow("binding name cannot be empty");
+    for (const successStatusCode of [199, 300, 200.5]) {
+      expect(() => defineHttpController({
+        route: get("/invalid"), successStatusCode, handler: () => undefined,
+      })).toThrow("success status code must be a 2xx integer");
+    }
+  });
+
   it("inherits action parsing policies and resets replaced controller boundaries", async () => {
     const http = createTestHttp();
     const action = defineAction({

@@ -13,6 +13,9 @@ import type {
   StudioPageDefinition,
 } from "./extension.js";
 import { IconCatalogBuilder } from "./icon_catalog.js";
+import { joinStudioPath } from "./path.js";
+
+export { joinStudioPath } from "./path.js";
 
 export const DEFAULT_STUDIO_BASE_PATH = "/_studio";
 
@@ -98,37 +101,25 @@ export class Studio {
   }
 }
 
-/**
- * Joins a Studio-relative route to its configurable mount point.
- */
-export function joinStudioPath(
-  basePath: string,
-  relativePath: `/${string}`,
-): string {
-  return basePath === "/"
-    ? relativePath
-    : `${basePath}${relativePath}`;
-}
-
 function normalizeStudioBasePath(basePath: string): string {
   const trimmedPath = basePath.trim();
+  const mount = trimmedPath === "/" ? trimmedPath : trimmedPath.replace(/\/+$/u, "");
 
-  if (
-    !trimmedPath.startsWith("/")
-    || trimmedPath.includes("?")
-    || trimmedPath.includes("#")
-    || trimmedPath.includes("*")
-  ) {
+  if (!isStudioAbsolutePath(mount)) {
     throw new TypeError(
-      "The Studio base path must be an absolute URL path without a query, fragment or wildcard.",
+      "The Studio base path must be an absolute URL path without ambiguous separators, dot segments, a query, fragment or wildcard.",
     );
   }
 
-  if (trimmedPath === "/") {
-    return trimmedPath;
-  }
+  return mount;
+}
 
-  return trimmedPath.replace(/\/+$/u, "");
+/** Keep route and data paths stable under the browser's URL normalization. */
+function isStudioAbsolutePath(path: string): boolean {
+  return path.startsWith("/")
+    && !path.includes("//")
+    && !/[\\?#*\u0000-\u001f\u007f]/u.test(path)
+    && !path.split("/").some((segment) => /^(?:\.|%2e){1,2}$/iu.test(segment));
 }
 
 function validateExtensions(
@@ -424,31 +415,21 @@ function validatePage(
   );
 
   if (
-    !page.path.startsWith("/")
-    || page.path.includes("//")
+    !isStudioAbsolutePath(page.path)
     || page.path === "/"
     || page.path.endsWith("/")
-    || page.path.includes("?")
-    || page.path.includes("#")
-    || page.path.includes("*")
   ) {
     throw new TypeError(
-      `Studio page "${extensionId}.${page.id}" must use a non-root absolute path without a trailing slash, query, fragment or wildcard.`,
+      `Studio page "${extensionId}.${page.id}" must use a non-root absolute path without a trailing slash, ambiguous separators, dot segments, query, fragment or wildcard.`,
     );
   }
 
   if (
     page.dataPath !== undefined
-    && (
-      !page.dataPath.startsWith("/")
-      || page.dataPath.includes("//")
-      || page.dataPath.includes("?")
-      || page.dataPath.includes("#")
-      || page.dataPath.includes("*")
-    )
+    && !isStudioAbsolutePath(page.dataPath)
   ) {
     throw new TypeError(
-      `Studio page "${extensionId}.${page.id}" data path must be an absolute path without a query, fragment or wildcard.`,
+      `Studio page "${extensionId}.${page.id}" data path must be an absolute path without ambiguous separators, dot segments, a query, fragment or wildcard.`,
     );
   }
 }

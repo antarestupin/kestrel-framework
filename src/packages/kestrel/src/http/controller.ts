@@ -284,7 +284,7 @@ export function defineHttpController<
           ),
         }),
     inputSchema: options.input ?? emptyControllerInputSchema as InputSchema,
-    bindings: options.bindings ?? {},
+    bindings: copyInputBindings(options.bindings),
     ...(options.examples === undefined
       ? {}
       : { examples: options.examples }),
@@ -364,7 +364,7 @@ export function defineActionHttpController<
     inputSchema:
       options.input
       ?? (action.inputSchema as unknown as ControllerInputSchema),
-    bindings: options.bindings ?? {},
+    bindings: copyInputBindings(options.bindings),
     ...(options.examples === undefined
       ? {}
       : { examples: options.examples }),
@@ -411,6 +411,11 @@ function resolveHttpOperationId(
   }
 
   return operationId;
+}
+
+/** Keep inferred field bindings independent of inherited object properties. */
+function copyInputBindings<Bindings extends object>(bindings: Bindings | undefined): Bindings {
+  return Object.assign(Object.create(null) as Bindings, bindings);
 }
 
 function getSuccessStatusCode(

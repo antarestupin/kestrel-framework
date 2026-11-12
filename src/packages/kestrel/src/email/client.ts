@@ -130,9 +130,13 @@ export class EmailClient {
   }
 
   private measureTime(): number {
-    const value = this.monotonicNow();
-
-    return Number.isFinite(value) ? value : 0;
+    try {
+      const value = this.monotonicNow();
+      return Number.isFinite(value) ? value : 0;
+    } catch {
+      // A diagnostic clock failure must never change delivery or its receipt.
+      return 0;
+    }
   }
 
   private record(event: EmailInstrumentationEvent): void {

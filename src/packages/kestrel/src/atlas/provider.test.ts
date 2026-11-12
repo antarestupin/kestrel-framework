@@ -219,6 +219,30 @@ function createTestAtlas(inheritControllerAccess = false, withLinks = false, wit
 }
 
 describe("AtlasProvider", () => {
+  it("reserves API and asset fallback paths when Atlas owns the root mount", async () => {
+    const server = Fastify();
+    const app = new App({});
+    const client = new TestAtlasClientAdapter();
+    app.register(new AtlasProvider(
+      defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+      { atlas: defineAtlas({ basePath: "/", resources: [] }) },
+    ));
+    try {
+      for (const extension of app.httpExtensions.definitions) await extension.mount({ app, server });
+      await app.start();
+
+      expect((await server.inject("/")).body).toContain("Atlas test client");
+      expect((await server.inject("/nested/record")).body).toContain("Atlas test client");
+      expect((await server.inject("/api/manifest")).json()).toMatchObject({ basePath: "/", resources: [] });
+      const missing = await server.inject("/api/unknown");
+      expect(missing.statusCode).toBe(404);
+      expect(missing.json()).toEqual({ error: "Atlas API route not found." });
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
   it("delivers appearance at mounting before any authenticated manifest request", async () => {
     const server = Fastify();
     const app = new App({});
