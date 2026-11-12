@@ -282,7 +282,7 @@ export abstract class Repository<
     }
 
     for (const filter of query.filters ?? []) {
-      const definition = collection?.filters?.[filter.field];
+      const definition = getOwnCollectionField(collection?.filters, filter.field);
       if (definition === undefined || !definition.operators.includes(filter.operator)) {
         throw new TypeError(
           `Collection filter "${filter.field}.${filter.operator}" is not supported.`,
@@ -307,7 +307,7 @@ export abstract class Repository<
     }
 
     return query.sort.map((criterion) => {
-      const configuredColumn = collection?.sorting?.[criterion.field];
+      const configuredColumn = getOwnCollectionField(collection?.sorting, criterion.field);
       const column = asColumn(configuredColumn, `sorting "${criterion.field}"`);
 
       return criterion.direction === "asc" ? asc(column) : desc(column);
@@ -439,6 +439,16 @@ export abstract class Repository<
   ): PgUpdateSetSource<Table> {
     return input;
   }
+}
+
+/** Caller-selected keys can resolve only to columns explicitly present in the allowlist. */
+function getOwnCollectionField<Value>(
+  fields: Readonly<Record<string, Value>> | undefined,
+  field: string,
+): Value | undefined {
+  return fields !== undefined && Object.hasOwn(fields, field)
+    ? fields[field]
+    : undefined;
 }
 
 function asColumn(value: unknown, context: string): PgColumn {

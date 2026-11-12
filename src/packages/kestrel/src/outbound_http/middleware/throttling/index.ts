@@ -42,7 +42,10 @@ export function throttleRequests(
         : options.acquire;
       const acquire = {
         ...configuredAcquire,
-        signal: configuredAcquire?.signal ?? context.request.signal,
+        // Admission may have a shorter caller-owned cancellation boundary as well.
+        signal: configuredAcquire?.signal === undefined
+          ? context.request.signal
+          : AbortSignal.any([context.request.signal, configuredAcquire.signal]),
       };
 
       return options.throttling.run(definition, acquire, async (permit) => {
@@ -98,7 +101,9 @@ function getRetryAt(response: Response): Date | undefined {
   const seconds = Number(value);
 
   if (Number.isFinite(seconds) && seconds >= 0) {
-    return new Date(Date.now() + seconds * 1_000);
+    const retryAt = new Date(Date.now() + seconds * 1_000);
+    // A malformed delay must not mask the actual 429 with an invalid feedback date.
+    return Number.isNaN(retryAt.getTime()) ? undefined : retryAt;
   }
 
   const instant = Date.parse(value);

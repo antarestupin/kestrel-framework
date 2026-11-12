@@ -1,8 +1,5 @@
-import {
-  getTableColumns,
-  getTableUniqueName,
-} from "drizzle-orm";
-import type { PgDatabase } from "drizzle-orm/pg-core";
+import { getTableColumns } from "drizzle-orm";
+import { getTableConfig, type PgDatabase } from "drizzle-orm/pg-core";
 import { seed } from "drizzle-seed";
 
 import type {
@@ -100,13 +97,15 @@ async function assertTablesAreEmpty(
   const visited = new Set<string>();
 
   for (const step of steps) {
-    const tableName = getTableUniqueName(step.table);
+    const { schema = "public", name } = getTableConfig(step.table);
+    // Quoted identifiers can contain dots, so preserve the schema and name boundaries.
+    const tableKey = JSON.stringify([schema, name]);
 
-    if (visited.has(tableName)) {
+    if (visited.has(tableKey)) {
       continue;
     }
 
-    visited.add(tableName);
+    visited.add(tableKey);
     const identity = resolveIdentity(step);
     const rows = await database
       .select({ value: identity })
@@ -115,7 +114,7 @@ async function assertTablesAreEmpty(
 
     if (rows.length !== 0) {
       throw new Error(
-        `Cannot seed non-empty table '${tableName}'. Reset the database before seeding.`,
+        `Cannot seed non-empty table '${schema}.${name}'. Reset the database before seeding.`,
       );
     }
   }
@@ -129,20 +128,19 @@ async function insertRecords(
   identities: Map<string, unknown>,
 ): Promise<unknown[]> {
   const records = step.records({ now: new Date(now) });
-  const recordKeys = new Set<string>();
   const insertedIdentities: unknown[] = [];
   const identity = resolveIdentity(step);
 
   for (const record of records) {
-    const qualifiedKey = qualifyRecord(step.key, record.key);
+    const recordKey = recordIdentityKey(step.key, record.key);
+    const recordLabel = `${step.key}.${record.key}`;
 
-    if (recordKeys.has(record.key) || identities.has(qualifiedKey)) {
-      throw new Error(`Duplicate seed record '${qualifiedKey}'.`);
+    if (identities.has(recordKey)) {
+      throw new Error(`Duplicate seed record '${recordLabel}'.`);
     }
 
-    recordKeys.add(record.key);
     const references = resolveRecordReferences(
-      qualifiedKey,
+      recordLabel,
       record.references,
       identities,
     );
@@ -153,10 +151,10 @@ async function insertRecords(
     const value = inserted[0]?.value;
 
     if (value === undefined) {
-      throw new Error(`Seed record '${qualifiedKey}' returned no identity.`);
+      throw new Error(`Seed record '${recordLabel}' returned no identity.`);
     }
 
-    identities.set(qualifiedKey, value);
+    identities.set(recordKey, value);
     insertedIdentities.push(value);
   }
 
@@ -171,15 +169,11 @@ function resolveRecordReferences(
 ): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(references ?? {}).map(([column, reference]) => {
-      const qualifiedReference = qualifyRecord(
-        reference.step,
-        reference.record,
-      );
-      const value = identities.get(qualifiedReference);
+      const value = identities.get(recordIdentityKey(reference.step, reference.record));
 
       if (value === undefined) {
         throw new Error(
-          `Seed record '${record}' references unavailable record '${qualifiedReference}'.`,
+          `Seed record '${record}' references unavailable record '${reference.step}.${reference.record}'.`,
         );
       }
 
@@ -188,8 +182,9 @@ function resolveRecordReferences(
   );
 }
 
-function qualifyRecord(step: string, record: string): string {
-  return `${step}.${record}`;
+/** A record alias is unique within its step, including when either key contains dots. */
+function recordIdentityKey(step: string, record: string): string {
+  return JSON.stringify([step, record]);
 }
 
 /** Converts declarative references into Drizzle Seed value generators. */

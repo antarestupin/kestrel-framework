@@ -74,6 +74,52 @@ describe("PostgreSQL pool lifecycle", () => {
     expect(release).toHaveBeenCalledExactlyOnceWith(true);
   });
 
+  it("uses the client release method when native callbacks omit their release argument", async () => {
+    const pool = new Pool({ max: 3 });
+    const completions: Array<(error: undefined, client: PoolClient) => void> = [];
+    pool.connect = vi.fn((callback) => { completions.push(callback); }) as unknown as Pool["connect"];
+    const runtime = new PostgresPoolRuntime(pool, policy);
+    const client = () => Object.assign(new EventEmitter(), { release: vi.fn() });
+    const normal = client();
+    const early = client();
+    const late = client();
+    const nativeRelease = normal.release;
+
+    try {
+      const active = pool.connect();
+      completions[0]!(undefined, normal as unknown as PoolClient);
+      (await active).release();
+      expect(nativeRelease).toHaveBeenCalledOnce();
+
+      // Both an immediate completion during close and a late completion must evict their client.
+      const first = expect(pool.connect()).rejects.toMatchObject({ code: "closing" });
+      const second = expect(pool.connect()).rejects.toMatchObject({ code: "closing" });
+      const close = runtime.close();
+      completions[1]!(undefined, early as unknown as PoolClient);
+      await close;
+      completions[2]!(undefined, late as unknown as PoolClient);
+      await Promise.all([first, second]);
+      expect(early.release).toHaveBeenCalledExactlyOnceWith(true);
+      expect(late.release).toHaveBeenCalledExactlyOnceWith(true);
+    } finally { await runtime.close(); }
+  });
+
+  it("reports native shutdown failures and keeps late pool errors contained", async () => {
+    const pool = new Pool();
+    const failure = new Error("native shutdown failed");
+    pool.end = vi.fn(async () => { throw failure; }) as Pool["end"];
+    const onEvent = vi.fn();
+    const runtime = new PostgresPoolRuntime(pool, policy, onEvent);
+    const close = runtime.close();
+
+    // A late pool error must not overwrite the closing state or crash without a subscriber.
+    pool.emit("error", new Error("connection ended during close"));
+    expect(runtime.snapshot().state).toBe("closing");
+    await expect(close).rejects.toBe(failure);
+    expect(runtime.snapshot()).toMatchObject({ state: "closed", lastFailure: { type: "shutdown", failure: "shutdown_failed" } });
+    expect(onEvent.mock.calls.map(([event]) => event.failure)).toEqual(["pool_error", "shutdown_failed"]);
+  });
+
   it("does not mark an acquisition as recovery and guards concurrent health failures", async () => {
     const pool = new Pool();
     const runtime = new PostgresPoolRuntime(pool, policy);

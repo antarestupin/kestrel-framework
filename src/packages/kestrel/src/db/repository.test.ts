@@ -14,6 +14,7 @@ import {
   type NodePgDatabase,
 } from "drizzle-orm/node-postgres";
 import {
+  boolean,
   integer,
   pgTable,
   text,
@@ -37,13 +38,16 @@ import type {
 import { createPostgresTestPool } from "../testing/postgres.js";
 import { PostgresDrizzleManager } from "./database_manager.js";
 import { Repository } from "./repository.js";
-import type { RepositoryCollectionOptions } from "./collection.js";
+import type { CollectionFilter, RepositoryCollectionOptions } from "./collection.js";
 import type { CursorPagination, CursorPaginationOptions } from "./pagination.js";
 
 const records = pgTable("repository_test_record", {
   id: integer("id").generatedAlwaysAsIdentity().primaryKey(),
   value: text("value").notNull().unique(),
   category: text("category").default("initial").notNull(),
+  amount: integer("amount").default(0).notNull(),
+  active: boolean("active").default(false).notNull(),
+  note: text("note"),
   createdAt: timestamp("created_at", {
     mode: "date",
     withTimezone: true,
@@ -106,6 +110,13 @@ class TestRepository extends Repository<
           column: records.category,
           operators: ["equals", "not-equals"],
         },
+        amount: {
+          column: records.amount,
+          operators: ["greater-than", "greater-than-or-equal", "less-than", "less-than-or-equal", "in", "not-in"],
+        },
+        active: { column: records.active, operators: ["equals"] },
+        note: { column: records.note, operators: ["is-null", "is-not-null"] },
+        createdAt: { column: records.createdAt, operators: ["greater-than-or-equal"] },
       },
       sorting: { value: records.value, category: records.category },
     };
@@ -161,6 +172,9 @@ beforeAll(async () => {
       id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       value text NOT NULL UNIQUE,
       category text DEFAULT 'initial' NOT NULL,
+      amount integer DEFAULT 0 NOT NULL,
+      active boolean DEFAULT false NOT NULL,
+      note text,
       created_at timestamp with time zone DEFAULT now() NOT NULL
     ) ON COMMIT PRESERVE ROWS
   `);
@@ -357,6 +371,71 @@ describe("Repository", () => {
       pagination: { type: "page", page: 1, pageSize: 10 },
       filters: [{ field: "id", operator: "equals", value: 1 }],
     })).rejects.toThrow('Collection filter "id.equals" is not supported.');
+    await expect(repository.findCollection({
+      pagination: { type: "page", page: 1, pageSize: 10 },
+      filters: [{ field: "value", operator: "is-null" }],
+    })).rejects.toThrow('Collection filter "value.is-null" is not supported.');
+  });
+
+  it("evaluates the allowed comparison, membership and null filters in PostgreSQL", async () => {
+    const database = drizzle(client);
+    await database.insert(records).values([
+      { value: "alpha", amount: 10, category: "initial", active: false, createdAt: new Date("2026-01-01") },
+      { value: "beta", amount: 20, category: "selected", active: true, note: "", createdAt: new Date("2026-01-02") },
+      { value: "gamma", amount: 30, category: "selected", active: false, note: "text", createdAt: new Date("2026-01-03") },
+    ]);
+
+    // Collection DTOs often provide strings, including within numeric arrays.
+    const cases: readonly [CollectionFilter, readonly string[]][] = [
+      [{ field: "amount", operator: "greater-than", value: "20" }, ["gamma"]],
+      [{ field: "amount", operator: "greater-than-or-equal", value: "20" }, ["beta", "gamma"]],
+      [{ field: "amount", operator: "less-than", value: 20 }, ["alpha"]],
+      [{ field: "amount", operator: "less-than-or-equal", value: 20 }, ["alpha", "beta"]],
+      [{ field: "amount", operator: "in", value: ["10", 30] }, ["alpha", "gamma"]],
+      [{ field: "amount", operator: "not-in", value: ["10", 30] }, ["beta"]],
+      [{ field: "category", operator: "not-equals", value: "initial" }, ["beta", "gamma"]],
+      [{ field: "active", operator: "equals", value: "true" }, ["beta"]],
+      [{ field: "active", operator: "equals", value: "false" }, ["alpha", "gamma"]],
+      [{ field: "createdAt", operator: "greater-than-or-equal", value: "2026-01-02T00:00:00Z" }, ["beta", "gamma"]],
+      [{ field: "note", operator: "is-null" }, ["alpha"]],
+      [{ field: "note", operator: "is-not-null" }, ["beta", "gamma"]],
+    ];
+    for (const [filter, expected] of cases) {
+      const result = await repository.findCollection({
+        pagination: { type: "page", page: 1, pageSize: 10 }, filters: [filter],
+      });
+      expect(result.items.map(({ value }) => value), JSON.stringify(filter)).toEqual(expected);
+    }
+  });
+
+  it("matches LIKE metacharacters literally in filters and collection search", async () => {
+    const database = drizzle(client);
+    await database.insert(records).values([
+      { value: "AC%_\\actual" },
+      { value: "ACother" },
+      { value: "prefix AC%_\\nested" },
+    ]);
+    const pagination = { type: "page", page: 1, pageSize: 10 } as const;
+    const startsWith = await repository.findCollection({
+      pagination, filters: [{ field: "value", operator: "starts-with", value: "ac%_\\" }],
+    });
+    const contains = await repository.findCollection({
+      pagination, filters: [{ field: "value", operator: "contains", value: "ac%_\\" }],
+    });
+    const search = await repository.findCollection({ pagination, search: { term: "ac%_\\" } });
+    expect(startsWith.items.map(({ value }) => value)).toEqual(["AC%_\\actual"]);
+    expect(contains.items.map(({ value }) => value)).toEqual(["AC%_\\actual", "prefix AC%_\\nested"]);
+    expect(search.items).toEqual(contains.items);
+  });
+
+  it.each([
+    [{ field: "value", operator: "contains", value: 5 }, "requires a string value"],
+    [{ field: "amount", operator: "in", value: [] }, "requires a non-empty array value"],
+    [{ field: "amount", operator: "not-in", value: 5 }, "requires a non-empty array value"],
+  ] satisfies [CollectionFilter, string][])("rejects invalid operands for %j", async (filter, error) => {
+    await expect(repository.findCollection({
+      pagination: { type: "page", page: 1, pageSize: 10 }, filters: [filter],
+    })).rejects.toThrow(error);
   });
 
   it("updates a record without returning it by default", async () => {

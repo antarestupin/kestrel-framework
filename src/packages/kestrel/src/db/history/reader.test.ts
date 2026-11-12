@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { pgTable, text } from "drizzle-orm/pg-core";
+import { bigint, pgTable, text } from "drizzle-orm/pg-core";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { defineHistoryTable } from "./definition.js";
 import { readHistoryPage } from "./reader.js";
 
-const source = pgTable("entry", { tenant: text("tenant").notNull(), id: text("id").notNull(), title: text("title"), secret: text("secret") });
+const source = pgTable("entry", { tenant: text("tenant").notNull(), id: text("id").notNull(), title: text("title"), secret: text("secret"), count: bigint("count", { mode: "bigint" }) });
 const table = defineHistoryTable(source, { identity: [source.tenant, source.id] });
 
 /** Inject a bounded query result without mocking module imports or database state. */
@@ -38,6 +38,11 @@ describe("sparse history reader", () => {
     const page = await readHistoryPage(db.client, table, { identity: { tenant: "t", id: "i" }, fields: ["title"] });
     expect(page.events.map((item) => item.values)).toEqual([{}, {}]);
     expect(page.nextCursor).toBeNull();
+  });
+  it("serializes changed bigint column values without losing precision", async () => {
+    const db = database([{ ...event(4n), __changedColumns: ["count"], count: 9007199254740993n }]);
+    const page = await readHistoryPage(db.client, table, { identity: { tenant: "t", id: "i" }, fields: ["count"] });
+    expect(page.events[0]?.values).toEqual({ count: "9007199254740993" });
   });
   it("rejects invalid identities, fields, page sizes and cursors before reading", async () => {
     const db = database([]);

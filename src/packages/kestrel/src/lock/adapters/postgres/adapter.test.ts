@@ -59,11 +59,56 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  client.release();
-  await pool.end();
+  client?.release();
+  await pool?.end();
 });
 
 describe("PostgresLockAdapter", () => {
+  it("treats empty batches as no-ops and preserves ownership in single-item batches", async () => {
+    const adapter = createAdapter();
+    const request = { key: "test:single", ownerId: "owner", ttlMs: 60_000 };
+
+    await expect(adapter.tryAcquireMany([])).resolves.toEqual([]);
+    await expect(adapter.extendMany([])).resolves.toEqual([]);
+    const [lease] = (await adapter.tryAcquireMany([request]))!;
+    await expect(adapter.tryAcquireMany([{ ...request, ownerId: "other" }]))
+      .resolves.toBeUndefined();
+    await expect(adapter.extendMany([{ ...request, ownerId: "other" }]))
+      .resolves.toBeUndefined();
+
+    await expect(adapter.extendMany([{ ...request, ttlMs: 120_000 }])).resolves.toEqual([{
+      key: request.key, ownerId: request.ownerId,
+      fencingToken: lease!.fencingToken, expiresAt: expect.any(Date),
+    }]);
+    await expect(adapter.release(request)).resolves.toBe(true);
+  });
+
+  it("propagates database failures and rolls back writes for every batch member", async () => {
+    const adapter = createAdapter();
+    const first = { key: "test:first", ownerId: "first", ttlMs: 60_000 };
+    const second = { key: "test:second", ownerId: "second", ttlMs: 60_000 };
+    await client.query(`
+      ALTER TABLE lock_lease
+        ADD CONSTRAINT test_owner_guard CHECK (owner_id <> 'invalid'),
+        ADD CONSTRAINT test_expiry_guard CHECK (expires_at < '2100-01-01T00:00:00Z')
+    `);
+    try {
+      // A schema failure is distinct from contention and leaves no lease behind.
+      await expect(adapter.tryAcquireMany([first, { ...second, ownerId: "invalid" }]))
+        .rejects.toMatchObject({ cause: { code: "23514", constraint: "test_owner_guard" } });
+      expect((await client.query("SELECT key FROM lock_lease")).rows).toEqual([]);
+
+      const before = await adapter.tryAcquireMany([first, second]);
+      await expect(adapter.extendMany([
+        { ...first, ttlMs: 120_000 }, { ...second, ttlMs: 10_000_000_000_000 },
+      ])).rejects.toMatchObject({ cause: { code: "23514", constraint: "test_expiry_guard" } });
+      const after = await client.query("SELECT expires_at FROM lock_lease ORDER BY key");
+      expect(after.rows.map((row) => row.expires_at)).toEqual(before!.map((lease) => lease.expiresAt));
+    } finally {
+      await client.query("ALTER TABLE lock_lease DROP CONSTRAINT test_owner_guard, DROP CONSTRAINT test_expiry_guard");
+    }
+  });
+
   it("atomically rejects contention for a live lease", async () => {
     const adapter = createAdapter();
     const first = await adapter.tryAcquire({
@@ -245,7 +290,8 @@ describe("PostgresLockAdapter", () => {
 
     await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
     await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
-    await expect(adapter.prune({ limit: 1 })).resolves.toBe(0);
+    await expect(adapter.prune({})).resolves.toBe(0);
+    await expect(adapter.prune({ limit: 0 })).rejects.toThrow("Lock prune limit must be a positive integer");
 
     const remaining = await client.query<{ key: string }>(
       "SELECT key FROM lock_lease",

@@ -23,6 +23,7 @@ import type {
   LockHandle,
   LockLease,
   LockManagerOptions,
+  LockReleaseRequest,
   LockRunOptions,
   LockRunContext,
   Locks,
@@ -74,7 +75,7 @@ export class LockManager implements Locks {
     const startedAt = this.measureTime();
 
     try {
-      const lease = await this.adapter.tryAcquire({
+      const lease = await this.acquireLease({
         key: this.composeKey(publicKey),
         ownerId: this.createOwnerId(),
         ttlMs,
@@ -136,17 +137,32 @@ export class LockManager implements Locks {
     const deadline = this.now().getTime() + waitTimeoutMs;
     const startedAt = this.measureTime();
     let attempts = 0;
+    const assertCanContinue = () => {
+      this.throwIfAborted(publicKey, options.signal);
+      if (waitTimeoutMs > 0 && this.now().getTime() >= deadline) {
+        throw new LockAcquisitionTimeoutError(publicKey);
+      }
+    };
 
     try {
       while (true) {
-        this.throwIfAborted(publicKey, options.signal);
+        assertCanContinue();
         attempts += 1;
 
-        const lease = await this.adapter.tryAcquire({
+        const request = {
           key: this.composeKey(publicKey),
           ownerId: this.createOwnerId(),
           ttlMs,
-        });
+        };
+        const lease = await this.acquireLease(request);
+
+        try {
+          assertCanContinue();
+        } catch (error) {
+          // A late success may have committed a lease. Release only the requested owner.
+          if (lease !== undefined) await this.rejectAcquired([request], error);
+          throw error;
+        }
 
         if (lease !== undefined) {
           const completedAt = this.measureTime();
@@ -238,6 +254,12 @@ export class LockManager implements Locks {
     const deadline = this.now().getTime() + waitTimeoutMs;
     const startedAt = this.measureTime();
     let attempts = 0;
+    const assertCanContinue = () => {
+      this.throwIfBatchAborted(publicKeys, options.signal);
+      if (waitTimeoutMs > 0 && this.now().getTime() >= deadline) {
+        throw new LockBatchAcquisitionTimeoutError(publicKeys);
+      }
+    };
 
     try {
       if (publicKeys.length === 0) {
@@ -258,10 +280,17 @@ export class LockManager implements Locks {
       }
 
       while (true) {
-        this.throwIfBatchAborted(publicKeys, options.signal);
+        assertCanContinue();
         attempts += 1;
 
-        const leases = await this.tryAcquireMany(publicKeys, ttlMs);
+        const leases = await this.tryAcquireMany(publicKeys, ttlMs, assertCanContinue);
+
+        try {
+          assertCanContinue();
+        } catch (error) {
+          if (leases !== undefined) await this.rejectAcquired(leases, error);
+          throw error;
+        }
 
         if (leases !== undefined) {
           const completedAt = this.measureTime();
@@ -371,7 +400,8 @@ export class LockManager implements Locks {
     return this.runWithHeartbeat(
       ttlMs,
       locks.length === 0 ? undefined : () => this.extendMany(locks),
-      (context) => handler(locks, context),
+      // The callback may mutate its array at runtime, so retain a private cleanup list.
+      (context) => handler([...locks], context),
       async () => releaseHandles(locks),
       "Exclusive lock batch operation failed.",
     );
@@ -496,6 +526,7 @@ export class LockManager implements Locks {
   private async tryAcquireMany(
     publicKeys: readonly string[],
     ttlMs: number,
+    assertCanContinue: () => void,
   ): Promise<readonly LockLease[] | undefined> {
     const entries = publicKeys.map((publicKey, index) => ({
       index,
@@ -520,7 +551,8 @@ export class LockManager implements Locks {
       try {
         return restoreLeaseOrder(entries, leases);
       } catch (contractError) {
-        const releaseErrors = await releaseLeases(this.adapter, leases);
+        // The reply is untrusted. Roll back only the owners created for this request.
+        const releaseErrors = await releaseLeases(this.adapter, requests);
 
         throw new AggregateError(
           [contractError, ...releaseErrors],
@@ -533,10 +565,11 @@ export class LockManager implements Locks {
 
     try {
       for (const request of requests) {
-        const lease = await this.adapter.tryAcquire(request);
+        assertCanContinue();
+        const lease = await this.acquireLease(request);
 
         if (lease === undefined) {
-          const releaseErrors = await releaseLeases(this.adapter, acquired);
+          const releaseErrors = await releaseLeases(this.adapter, requests.slice(0, acquired.length));
           acquired.length = 0;
 
           if (releaseErrors.length > 0) {
@@ -552,7 +585,7 @@ export class LockManager implements Locks {
         acquired.push(lease);
       }
     } catch (acquisitionError) {
-      const releaseErrors = await releaseLeases(this.adapter, acquired);
+      const releaseErrors = await releaseLeases(this.adapter, requests.slice(0, acquired.length));
 
       if (releaseErrors.length > 0) {
         throw new AggregateError(
@@ -567,13 +600,31 @@ export class LockManager implements Locks {
     try {
       return restoreLeaseOrder(entries, acquired);
     } catch (contractError) {
-      const releaseErrors = await releaseLeases(this.adapter, acquired);
+      const releaseErrors = await releaseLeases(this.adapter, requests);
 
       throw new AggregateError(
         [contractError, ...releaseErrors],
         "Lock adapter returned an invalid acquisition batch.",
       );
     }
+  }
+
+  private async acquireLease(request: LockAcquireRequest): Promise<LockLease | undefined> {
+    const lease = await this.adapter.tryAcquire(request);
+    if (lease !== undefined && !sameLockOwner(request, lease)) {
+      await this.rejectAcquired([request], new Error("Lock adapter returned a mismatched acquisition."));
+    }
+
+    return lease;
+  }
+
+  private async rejectAcquired(requests: readonly LockReleaseRequest[], reason: unknown): Promise<never> {
+    const releaseErrors = await releaseLeases(this.adapter, requests);
+    if (releaseErrors.length > 0) {
+      throw new AggregateError([reason, ...releaseErrors], "Lock acquisition and cleanup both failed.");
+    }
+
+    throw reason;
   }
 
   private createHandle(
@@ -701,10 +752,7 @@ function restoreLeaseOrder(
     const entry = entries[index]!;
     const lease = leases[index]!;
 
-    if (
-      lease.key !== entry.request.key
-      || lease.ownerId !== entry.request.ownerId
-    ) {
+    if (!sameLockOwner(entry.request, lease)) {
       throw new Error("Lock adapter returned a mismatched acquisition batch.");
     }
 
@@ -714,12 +762,16 @@ function restoreLeaseOrder(
   return ordered;
 }
 
+function sameLockOwner(request: LockReleaseRequest, lease: LockLease): boolean {
+  return lease.key === request.key && lease.ownerId === request.ownerId;
+}
+
 async function releaseLeases(
   adapter: LockAdapter,
-  leases: readonly LockLease[],
+  requests: readonly LockReleaseRequest[],
 ): Promise<readonly unknown[]> {
-  const results = await Promise.allSettled(leases.map((lease) =>
-    adapter.release({ key: lease.key, ownerId: lease.ownerId })));
+  const results = await Promise.allSettled(requests.map(async ({ key, ownerId }) =>
+    adapter.release({ key, ownerId })));
 
   return results.flatMap((result) =>
     result.status === "rejected" ? [result.reason] : []);
@@ -758,7 +810,7 @@ function validateExtensionBatch(
     const request = attempts[index]!.request;
     const lease = leases[index]!;
 
-    if (lease.key !== request.key || lease.ownerId !== request.ownerId) {
+    if (!sameLockOwner(request, lease)) {
       throw new Error("Lock adapter returned a mismatched extension batch.");
     }
   }
@@ -780,7 +832,8 @@ class LockHandleImpl implements LockHandle {
   ) {}
 
   public get expiresAt(): Date {
-    return this.lease.expiresAt;
+    // Date instances are mutable even when exposed through a readonly getter.
+    return new Date(this.lease.expiresAt);
   }
 
   public get fencingToken(): bigint {
@@ -794,6 +847,9 @@ class LockHandleImpl implements LockHandle {
 
     try {
       lease = await this.adapter.extend(attempt.request);
+      if (lease !== undefined && !sameLockOwner(attempt.request, lease)) {
+        throw new Error("Lock adapter returned a mismatched extension.");
+      }
     } catch (error) {
       this.failExtension(attempt);
       throw error;

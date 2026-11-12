@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pgSchema, pgTable, text } from "drizzle-orm/pg-core";
 
-import { getFrameworkDatabaseTableKeys } from "./framework_table.js";
+import { getFrameworkDatabaseTableKeys, markFrameworkDatabaseTable } from "./framework_table.js";
 import { createPostgresTokenTable } from "../tokens/adapters/postgres/schema.js";
 import { logs } from "../log/db/schema.js";
 import { defineDatabaseTableDescriptions } from "./schema_contributions/descriptions.js";
@@ -16,5 +16,17 @@ describe("framework table provenance", () => {
       JSON.stringify(["custom.namespace", "custom_token"]), JSON.stringify(["dev", "log"]),
     ]));
     expect(Object.keys(tokens)).not.toContain("origin");
+  });
+
+  it("marks an unqualified table once and discovers its public schema key", () => {
+    const entry = pgTable("entry", { value: text("value") });
+    const columns = Object.keys(entry);
+
+    // Factories can mark the same table again without changing its Drizzle shape.
+    expect(markFrameworkDatabaseTable(entry)).toBe(entry);
+    expect(markFrameworkDatabaseTable(entry)).toBe(entry);
+    expect(Object.keys(entry)).toEqual(columns);
+    expect(getFrameworkDatabaseTableKeys({ entry, alias: entry, ignored: "entry" }))
+      .toEqual(new Set([JSON.stringify(["public", "entry"])]));
   });
 });

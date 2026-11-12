@@ -30,6 +30,28 @@ function client(response: Response, options: Partial<OutboundHttpClientOptions> 
 afterEach(() => vi.useRealTimers());
 
 describe("outbound HTTP budgets", () => {
+  it("truncates when the next error chunk arrives after the budget was reached exactly", async () => {
+    const cancel = vi.fn();
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode("full"));
+        controller.enqueue(encoder.encode("extra"));
+      },
+      cancel,
+    });
+    const client = createOutboundHttpClient({
+      name: "partner", baseUrl: "https://partner.example", fetch: async () => new Response(stream, { status: 503 }),
+    });
+
+    // An exact-sized prefix is retained without emitting an empty final chunk.
+    await expect(client.get("/failure", { maxErrorBodyBytes: 4 })).rejects.toMatchObject({
+      status: 503, body: { truncated: true, text: "full" },
+    });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(stream.locked).toBe(false);
+  });
+
   it.each([200, 500])("keeps the deadline alive for a stalled %s body", async (status) => {
     vi.useFakeTimers();
     const body = source(status);

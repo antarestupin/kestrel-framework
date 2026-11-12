@@ -134,6 +134,21 @@ describe("repository configuration hooks", () => {
     expect(query.mock.calls[0]![1]).toEqual(["%match%", "selected", 3]);
   });
 
+  it("rejects inherited property names as caller-selected collection fields", async () => {
+    const { repository, query } = setup(true);
+
+    // Object prototype members are not columns declared by the repository.
+    for (const field of ["constructor", "__proto__", "toString"]) {
+      await expect(repository.findCollection({
+        pagination: page, filters: [{ field, operator: "equals", value: "selected" }],
+      })).rejects.toThrow(`Collection filter "${field}.equals" is not supported.`);
+      await expect(repository.findCollection({
+        pagination: page, sort: [{ field, direction: "asc" }],
+      })).rejects.toThrow(`This repository does not support sorting "${field}".`);
+    }
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it("lets explicit non-cursor ordering replace the default, including an empty order", async () => {
     const { repository, sql } = setup(true);
     await repository.findNamed(page, [desc(records.id)]);

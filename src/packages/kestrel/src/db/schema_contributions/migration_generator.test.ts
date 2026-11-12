@@ -17,6 +17,7 @@ import {
 
 import { defineDatabaseSchemaContribution, getDatabaseSchemaContributions, type DatabaseSchemaContribution } from "./definition.js";
 import { defineDatabaseSchemaDescription, defineDatabaseTableDescriptions } from "./descriptions.js";
+import { descriptionContributionsEqual } from "./description_diff.js";
 import { defineUnloggedTable } from "./unlogged_table.js";
 import {
   createMigrationSqlPlan,
@@ -94,6 +95,19 @@ describe("createMigrationSqlPlan", () => {
     expect(createMigrationSqlPlan([oldCustom], [newCustom])).toEqual({ before: [oldCustom.uninstallBeforeSql], after: [newCustom.updateSql] });
   });
 
+  it("compares historical description bundles only when their lifecycle matches", () => {
+    const [original] = describedTable({ description: "Entries." });
+    const spaced = `${original!.installSql}\n `;
+    expect(descriptionContributionsEqual(original!, { ...original!, installSql: spaced, updateSql: spaced })).toBe(true);
+
+    // A duplicate statement could carry a contradictory value; preserve the full custom SQL.
+    const duplicate = `${original!.installSql}\n${original!.installSql}`;
+    expect(descriptionContributionsEqual(original!, { ...original!, installSql: duplicate, updateSql: duplicate })).toBe(false);
+    const mismatchedCleanup = { ...original!, uninstallBeforeSql: "SELECT 1;" };
+    expect(descriptionContributionsEqual(original!, mismatchedCleanup)).toBe(false);
+    expect(descriptionContributionsEqual(original!, { ...original!, id: "postgres.table:content.other:descriptions" })).toBe(false);
+  });
+
   it("orders old cleanup around Drizzle before applying the new definition", () => {
     const plan = createMigrationSqlPlan([
       {
@@ -114,6 +128,12 @@ describe("createMigrationSqlPlan", () => {
       before: ["DROP OLD BEFORE;"],
       after: ["DROP OLD AFTER;", "UPDATE NEW;"],
     });
+  });
+
+  it("reinstalls changed custom SQL when no dedicated update is defined", () => {
+    const previous = { id: "test:object", installSql: "INSTALL OLD;", uninstallBeforeSql: "DROP OLD;" };
+    const current = { id: previous.id, installSql: "INSTALL NEW;" };
+    expect(createMigrationSqlPlan([previous], [current])).toEqual({ before: ["DROP OLD;"], after: ["INSTALL NEW;"] });
   });
 });
 
@@ -249,6 +269,113 @@ describe("generateDatabaseMigration", () => {
       runCommand: async (_executable, arguments_) => { invocations.push([...arguments_]); },
     })).rejects.toThrow(SyntaxError);
     expect(invocations).toEqual([]);
+  });
+
+  it.each(["embedded", "sidecar"] as const)("rejects invalid %s metadata before Drizzle can write a migration", async (storage) => {
+    const root = await createMigrationFixture();
+    await writeGeneratedMigration(root, "0000_initial", "-- Historical migration");
+    const invalidSnapshot = JSON.stringify({ version: 2, contributions: [] });
+    const migrationsFolder = join(root, "migrations");
+    if (storage === "embedded") {
+      await writeFile(join(migrationsFolder, "0000_initial.sql"), `-- database-schema-contributions: ${Buffer.from(invalidSnapshot).toString("base64url")}\n`);
+    } else {
+      await mkdir(join(migrationsFolder, "custom-meta"));
+      await writeFile(join(migrationsFolder, "custom-meta", "0000_initial.json"), invalidSnapshot);
+    }
+    const originalJournal = await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8");
+    const commands: string[][] = [];
+
+    // A generated DDL migration cannot be repaired on a simple retry once the journal advances.
+    await expect(generateDatabaseMigration({
+      cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder, schema: {},
+      runCommand: async (_executable, args) => {
+        commands.push([...args]);
+        await writeGeneratedMigration(root, "0001_change", "-- New DDL");
+      },
+    })).rejects.toThrow(/Invalid (?:embedded )?custom schema snapshot for 0000_initial/u);
+    expect(commands).toEqual([]);
+    expect(await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8")).toBe(originalJournal);
+    await expect(readMigration(root, "0001_change")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it.each(["--custom", "--custom=true"])("delegates %s without rewriting SQL or custom metadata", async (flag) => {
+    const root = await createMigrationFixture();
+    await writeGeneratedMigration(root, "0000_initial", "-- database-schema-contributions: invalid");
+    const arguments_ = [flag, "--name=manual"];
+    const manualSql = "SELECT 'manual';";
+
+    const result = await generateDatabaseMigration({
+      cwd: root, drizzleKitExecutable: "drizzle-kit", drizzleKitExecutableArguments: ["shim.mjs"],
+      drizzleArguments: arguments_, migrationsFolder: join(root, "migrations"),
+      schema: { target: defineDatabaseSchemaContribution({}, { id: "custom:managed", installSql: "SELECT 1;" }) },
+      runCommand: async (executable, args, cwd) => {
+        expect([executable, args, cwd]).toEqual(["drizzle-kit", ["shim.mjs", "generate", ...arguments_], root]);
+        await writeGeneratedMigration(root, "0001_manual", manualSql);
+      },
+    });
+    expect(result).toEqual({ customContributionsChanged: false, migrationTag: "0001_manual", source: "delegated" });
+    expect(await readMigration(root, "0001_manual")).toBe(`${manualSql}\n`);
+    await expect(readFile(join(root, "migrations", "custom-meta", "0001_manual.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("reports a schema-only migration without creating custom metadata", async () => {
+    const root = await createMigrationFixture();
+    const sql = "CREATE TABLE entry (id integer);";
+    const result = await generateDatabaseMigration({
+      cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations"), schema: {},
+      runCommand: async () => writeGeneratedMigration(root, "0000_initial", sql),
+    });
+
+    expect(result).toEqual({ customContributionsChanged: false, migrationTag: "0000_initial", source: "drizzle" });
+    expect(await readMigration(root, "0000_initial")).toBe(`${sql}\n`);
+  });
+
+  it.each([["--config=settings.ts"], ["--config", "settings.ts"]])("preserves the config flag for the generated custom migration (%j)", async (...config) => {
+    const root = await createMigrationFixture();
+    const commands: string[][] = [];
+    const contribution = defineDatabaseSchemaContribution({}, { id: "custom:managed", installSql: "SELECT 1;" });
+    await expect(generateDatabaseMigration({
+      cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations"),
+      schema: { contribution }, drizzleArguments: [...config, "--name=table-change"],
+      runCommand: async (_executable, args) => { commands.push([...args]); },
+    })).rejects.toThrow("Drizzle Kit did not create the expected migration");
+
+    // The generated migration receives configuration and its own managed name.
+    expect(commands).toEqual([
+      ["generate", ...config, "--name=table-change"],
+      ["generate", ...config, "--custom", "--name=database_schema_contributions"],
+    ]);
+  });
+
+  it("rejects ambiguous Drizzle output without selecting or rewriting a migration", async () => {
+    const root = await createMigrationFixture();
+    const contribution = defineDatabaseSchemaContribution({}, { id: "custom:managed", installSql: "SELECT 1;" });
+    const first = "-- First migration";
+    const second = "-- Second migration";
+
+    await expect(generateDatabaseMigration({
+      cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations"), schema: { contribution },
+      runCommand: async () => {
+        await writeGeneratedMigration(root, "0000_initial", first);
+        await writeGeneratedMigration(root, "0001_change", second);
+      },
+    })).rejects.toThrow("Drizzle Kit generated more than one migration unexpectedly");
+    expect(await readMigration(root, "0000_initial")).toBe(`${first}\n`);
+    expect(await readMigration(root, "0001_change")).toBe(`${second}\n`);
+  });
+
+  it("reports subprocess failures and accepts normal exits", async () => {
+    const root = await createMigrationFixture();
+    const options = { cwd: root, migrationsFolder: join(root, "migrations"), schema: {} };
+    const child = (source: string) => generateDatabaseMigration({
+      ...options, drizzleKitExecutable: process.execPath, drizzleKitExecutableArguments: ["-e", source, "--"],
+    });
+
+    await expect(child("process.exit(0)")).resolves.toEqual({ customContributionsChanged: false, source: "none" });
+    await expect(child("process.exit(7)")).rejects.toThrow("Drizzle Kit exited with code 7");
+    await expect(child("process.kill(process.pid, 'SIGTERM')")).rejects.toThrow("Drizzle Kit exited after signal SIGTERM");
+    await expect(generateDatabaseMigration({ ...options, drizzleKitExecutable: join(root, "missing-executable") }))
+      .rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("does not create or rewrite migrations on repeated unchanged generations", async () => {

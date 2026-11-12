@@ -48,6 +48,13 @@ describe("createHistoryBaselineSql", () => {
 const articleHistory = defineHistoryTable(articles);
 
 describe("createHistoryTriggerSql", () => {
+  it("rejects stale source-column metadata before rendering SQL", () => {
+    const [definition] = getHistoryTableDefinitions({ articleHistory });
+    const stale = { ...definition!, baseline: "existing_rows" as const, sourceColumnKeys: ["oldColumn"] };
+    expect(() => createHistoryTriggerSql(stale)).toThrow('Missing history source column "oldColumn"');
+    expect(() => createHistoryBaselineSql(stale)).toThrow('Missing history source column "oldColumn"');
+  });
+
   it("omits untracked columns from baseline, deltas, and update comparisons", () => {
     for (const selection of [{ include: [articles.title] }, { exclude: [articles.content] }]) {
       const filtered = defineHistoryTable(articles, { ...selection, baseline: "existing_rows" });

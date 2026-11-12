@@ -127,6 +127,8 @@ await locks.runExclusiveMany(
 
 The option timeout and abort signal cover acquisition of the complete batch rather than each key independently. `LockBatchAcquisitionTimeoutError` and `LockBatchAcquisitionAbortedError` expose the requested keys when the operation cannot complete. Once acquired, the handler context provides a separate signal dedicated to heartbeat failure.
 
+A positive timeout stops new attempts at the deadline, and a zero timeout allows one immediate attempt. An in-flight storage operation can finish after the deadline or cancellation. The manager releases any leases it acquired using their requested owner identities before reporting failure. If release also fails, an `AggregateError` retains both errors.
+
 Manual ownership remains available when work cannot be expressed as one callback:
 
 ```ts
@@ -210,6 +212,8 @@ export interface LockAdapter {
 `tryAcquire()` succeeds only when no live lease exists. The optional `tryAcquireMany()` must acquire every unique request atomically and return leases in request order, or return `undefined` without retaining any acquisition. `extend()` succeeds only for the live current owner. The optional `extendMany()` applies the same ordered, atomic all-or-nothing contract to batch renewal. `release()` deletes only the current owner's lease and reports whether it did so. Adapter methods remain asynchronous so consumers can switch between memory, PostgreSQL and future stores without API changes.
 
 When an adapter does not implement `tryAcquireMany()`, the manager sorts storage keys to give concurrent callers a stable acquisition order, calls `tryAcquire()` sequentially, and releases every partial acquisition before retrying. Cleanup failures are propagated rather than treated as contention. When `extendMany()` is unavailable, the heartbeat calls every handle extension through `Promise.allSettled()`. Any failed extension loses the logical batch, aborts the handler signal and eventually releases all handles, even though successful fallback extensions are not rolled back.
+
+The manager checks the key and owner of successful acquisition and renewal replies. If an acquisition reply is incomplete or reports a different identity, cleanup uses the original acquisition requests. The memory adapter keeps its internal leases private and returns detached snapshots. `runExclusiveMany()` gives the callback a separate array so the heartbeat and release retain all acquired handles.
 
 ```mermaid
 sequenceDiagram

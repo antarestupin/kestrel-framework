@@ -1,10 +1,13 @@
+import { EventEmitter } from "node:events";
+
 import { describe, expect, it, vi } from "vitest";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { pgTable, text } from "drizzle-orm/pg-core";
 import type { Pool } from "pg";
 
 import { App } from "../app/index.js";
 import { dep } from "../di/index.js";
+import { AsyncLocalObserverContext, type Observer } from "../observability/index.js";
 import type { PostgresDrizzleConfig } from "./configuration.js";
 import { postgresDrizzleConfigBase } from "./configuration.js";
 import { PostgresDrizzleManager } from "./database_manager.js";
@@ -32,6 +35,46 @@ class ExtendedDatabaseProvider extends PostgresDrizzleProvider<{ name: string }>
 }
 
 describe("PostgresDrizzleProvider", () => {
+  it("instruments connections with only the observer active for the query", async () => {
+    const sample = pgTable("sample", { id: text("id").primaryKey() });
+    const context = new AsyncLocalObserverContext();
+    const record = vi.fn<Observer["record"]>();
+    const app = new App({});
+    app.container.registerValue("observerContext", context);
+    app.register(new PostgresDrizzleProvider(databaseConfig, { schema: { sample } }));
+
+    try {
+      const { database, pool } = app.container.resolve(
+        dep<PostgresDrizzleClient<NodePgDatabase<{ sample: typeof sample }>>>("databaseClient"),
+      );
+      expect(database.query.sample).toBeDefined();
+      expect(pool.totalCount).toBe(0);
+
+      // Exercise the provider's pool connection hook with a controlled driver query.
+      const result = { command: "SELECT", rowCount: 1, rows: [{ value: "secret" }] };
+      const query = vi.fn(async (_text: string, _params: string[]) => result);
+      const connection = Object.assign(new EventEmitter(), { query });
+      pool.emit("connect", connection);
+
+      await expect(connection.query("SELECT $1::text AS value", ["secret"])).resolves.toBe(result);
+      expect(record).not.toHaveBeenCalled();
+      await expect(context.run({ record }, () => connection.query("SELECT $1::text AS value", ["secret"])))
+        .resolves.toBe(result);
+      expect(record).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ name: "database.query", category: "database" }),
+        expect.objectContaining({ sql: "SELECT $1::text AS value", command: "SELECT", rowCount: 1 }),
+        expect.objectContaining({ outcome: "success" }),
+      );
+      expect(record.mock.calls[0]?.[1]).not.toHaveProperty("parameters");
+      await connection.query("SELECT $1::text AS value", ["secret"]);
+      expect(record).toHaveBeenCalledOnce();
+      expect(query).toHaveBeenCalledTimes(3);
+      connection.emit("end");
+    } finally {
+      await app.dispose();
+    }
+  });
+
   it("constructs a schema-aware facade lazily without an application subclass", async () => {
     const sample = pgTable("sample", { id: text("id").primaryKey() });
     const createDatabase = vi.fn((pool: Pool) => drizzle(pool, { schema: { sample } }));

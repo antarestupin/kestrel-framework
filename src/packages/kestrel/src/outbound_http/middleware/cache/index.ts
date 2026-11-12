@@ -53,6 +53,7 @@ interface CachedHttpResponse {
   readonly statusText: string;
   readonly headers: Readonly<Record<string, string>>;
   readonly bodyBase64: string;
+  readonly bodyAbsent?: true;
 }
 
 class UncacheableResponse extends Error {
@@ -170,7 +171,9 @@ async function serializeResponse(
     status: response.status,
     statusText: response.statusText,
     headers,
-    bodyBase64: Buffer.from(await response.arrayBuffer()).toString("base64"),
+    ...(response.body === null
+      ? { bodyAbsent: true, bodyBase64: "" }
+      : { bodyBase64: Buffer.from(await response.arrayBuffer()).toString("base64") }),
   };
 }
 
@@ -194,7 +197,14 @@ function restoreResponse(
     throw new TypeError("Invalid cached outbound HTTP response body.");
   }
 
-  return new Response(Buffer.from(encoded, "base64"), {
+  // Existing entries lack bodyAbsent. The request method and status still forbid a body.
+  const body = cached.bodyAbsent === true
+    || context.request.method === "HEAD"
+    || cached.status === 204
+    || cached.status === 205
+    ? null
+    : Buffer.from(encoded, "base64");
+  return new Response(body, {
     status: cached.status,
     statusText: cached.statusText,
     headers: cached.headers,

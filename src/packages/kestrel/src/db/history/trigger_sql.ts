@@ -4,6 +4,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { getTableColumns } from "drizzle-orm";
 
+import { quoteSqlBody } from "../sql_dollar_quote.js";
 import type { HistoryTableDefinition } from "./definition.js";
 
 /** Generates the complete PostgreSQL function and trigger DDL for one history table. */
@@ -82,17 +83,15 @@ export function createHistoryTriggerSql(
     .map(([, column]) => distinctComparison(column))
     .join(" OR ");
 
-  return `CREATE OR REPLACE FUNCTION ${functionIdentifier}()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $history$
-BEGIN
+  // A percent in an identifier must stay literal in the RAISE format string.
+  const immutableMessage = escapeLiteral(sourceConfig.name).replaceAll("%", "%%");
+  const body = `BEGIN
   IF TG_OP = 'INSERT' THEN
     INSERT INTO ${historyIdentifier} (${insertColumns}) VALUES (${insertValues});
     RETURN NEW;
   ELSIF TG_OP = 'UPDATE' THEN
     IF ${identityMutationCondition} THEN
-      RAISE EXCEPTION 'History identity columns of ${escapeLiteral(sourceConfig.name)} are immutable';
+      RAISE EXCEPTION 'History identity columns of ${immutableMessage} are immutable';
     END IF;
     IF NOT (${anyColumnChanged}) THEN
       RETURN NEW;
@@ -105,8 +104,12 @@ BEGIN
   END IF;
 
   RAISE EXCEPTION 'Unsupported history operation %', TG_OP;
-END
-$history$;
+END`;
+
+  return `CREATE OR REPLACE FUNCTION ${functionIdentifier}()
+RETURNS trigger
+LANGUAGE plpgsql
+AS ${quoteSqlBody(body, "history")};
 
 DROP TRIGGER IF EXISTS ${quoteIdentifier("__history_insert")} ON ${sourceIdentifier};
 CREATE TRIGGER ${quoteIdentifier("__history_insert")}

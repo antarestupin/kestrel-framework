@@ -69,7 +69,7 @@ export async function generateDatabaseMigration(
   const runCommand = options.runCommand ?? runDrizzleKit;
   const beforeJournal = await readJournal(options.migrationsFolder, true);
 
-  await runCommand(
+  const generate = () => runCommand(
     options.drizzleKitExecutable,
     [...executableArguments, "generate", ...arguments_],
     options.cwd,
@@ -77,6 +77,7 @@ export async function generateDatabaseMigration(
 
   // Explicit one-off custom migrations remain fully owned by their author.
   if (hasCustomFlag(arguments_)) {
+    await generate();
     const afterJournal = await readJournal(options.migrationsFolder);
     const migrationTag = findNewEntry(beforeJournal, afterJournal)?.tag;
     return {
@@ -86,6 +87,7 @@ export async function generateDatabaseMigration(
     };
   }
 
+  // Validate both snapshots before Drizzle can change the journal or emit DDL.
   const current = getDatabaseSchemaContributions(options.schema);
   const previous = await readLatestContributionSnapshot(
     options.migrationsFolder,
@@ -95,6 +97,7 @@ export async function generateDatabaseMigration(
   const customContributionsChanged = plan.before.length > 0
     || plan.after.length > 0
     || !contributionCollectionsEqual(previous, current);
+  await generate();
   let afterJournal = await readJournal(options.migrationsFolder);
   let migration = findNewEntry(beforeJournal, afterJournal);
   let source: DatabaseMigrationGenerationResult["source"] = migration === undefined

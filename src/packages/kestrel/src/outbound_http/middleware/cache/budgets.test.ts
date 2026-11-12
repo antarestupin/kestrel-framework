@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CachePool } from "../../../cache/cache_pool.js";
+import { CachePool, TagAwareCachePool } from "../../../cache/cache_pool.js";
 import { MemoryCacheAdapter } from "../../../cache/adapters/memory/index.js";
 import {
-  cacheResponse, createOutboundHttpClient, text,
+  cacheResponse, cacheResponses, createOutboundHttpClient, text,
   OutboundHttpAbortedError, OutboundHttpResponseTooLargeError, OutboundHttpTimeoutError,
 } from "../../index.js";
 
@@ -21,6 +21,128 @@ function setup(fetch: typeof globalThis.fetch) {
 afterEach(() => vi.useRealTimers());
 
 describe("outbound response cache budgets", () => {
+  it("skips unselected requests and forwards lock, expiry, and tag policy to a tagged cache", async () => {
+    const adapter = new MemoryCacheAdapter({ maxEntries: 10, maxSizeBytes: 1_000_000, maxEntrySizeBytes: 1_000_000 });
+    const cache = new TagAwareCachePool(adapter, {
+      namespace: "test", defaultTtlSeconds: 60, maxTtlSeconds: 60, maxEntrySizeBytes: 1_000_000,
+    });
+    const remember = vi.spyOn(cache, "remember");
+    const select = vi.fn((route: string) => {
+      if (route === "/tagged") return { key: " selected ", tags: ["group"], ttlSeconds: 10, lock: false, headers: ["etag"] };
+      return route === "/untagged" ? { key: "untagged" } : undefined;
+    });
+    const fetch = vi.fn(async () => new Response("payload", { headers: { etag: '"revision"', "set-cookie": "private=value" } }));
+    const client = createOutboundHttpClient({
+      name: "partner", baseUrl: "https://partner.example", fetch,
+      middleware: [cacheResponses({ cache, policy: ({ route }) => select(route) })],
+    });
+
+    await expect(client.post("/tagged", { response: text() })).resolves.toBe("payload");
+    expect(select).not.toHaveBeenCalled();
+    await expect(client.get("/uncached", { response: text() })).resolves.toBe("payload");
+    expect(select).toHaveBeenCalledExactlyOnceWith("/uncached");
+    expect(remember).not.toHaveBeenCalled();
+
+    for (let request = 0; request < 2; request += 1) {
+      const response = await client.get("/tagged");
+      expect(response.headers.get("etag")).toBe('"revision"');
+      expect(response.headers.has("set-cookie")).toBe(false);
+      await expect(response.text()).resolves.toBe("payload");
+    }
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(remember).toHaveBeenLastCalledWith("outbound-http:partner:selected", expect.any(Function), {
+      ttlSeconds: 10, lock: false, tags: ["group"],
+    });
+    await expect(cache.invalidateAllTags(["group"])).resolves.toBe(1);
+    await expect(client.get("/tagged", { response: text() })).resolves.toBe("payload");
+    expect(fetch).toHaveBeenCalledTimes(4);
+
+    // A tag-aware backend also accepts ordinary policies without tag metadata.
+    await expect(client.get("/untagged", { response: text() })).resolves.toBe("payload");
+    expect(remember).toHaveBeenLastCalledWith("outbound-http:partner:untagged", expect.any(Function), {});
+  });
+
+  it("normalizes explicit fixed methods and honors a custom cache priority", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => new Response((input as Request).method === "HEAD" ? null : "payload"));
+    const { cache } = setup(fetch);
+    const middleware = cacheResponse({ cache, key: "fixed", methods: [" head "], priority: 250 });
+    const client = createOutboundHttpClient({ name: "partner", baseUrl: "https://partner.example", fetch, middleware: [middleware] });
+
+    expect(middleware.priority).toBe(250);
+    await expect(client.get("/resource", { response: text() })).resolves.toBe("payload");
+    expect(await cache.get("outbound-http:partner:fixed")).toBeUndefined();
+    await expect(client.head("/resource")).resolves.toMatchObject({ body: null });
+    await expect(client.head("/resource")).resolves.toMatchObject({ body: null });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a blank cache key and an unsupported entry version before fetching", async () => {
+    const fetch = vi.fn(async () => new Response("unused"));
+    const { cache, http } = setup(fetch);
+    const blank = createOutboundHttpClient({
+      name: "blank", baseUrl: "https://api.example", fetch,
+      middleware: [cacheResponse({ cache, key: "  " })],
+    });
+    await expect(blank.get("/resource")).rejects.toThrow("cache key cannot be empty");
+
+    await cache.set("outbound-http:cached:body", {
+      schemaVersion: 2, status: 200, statusText: "OK", headers: {}, bodyBase64: "",
+    });
+    await expect(http.get("/body")).rejects.toThrow("Unsupported cached outbound HTTP response schema");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each([204, 205])("caches successful %s responses without constructing a body", async (status) => {
+    const fetch = vi.fn(async () => new Response(null, { status, headers: { "content-type": "text/plain" } }));
+    const { http } = setup(fetch);
+
+    // A successful cache miss and its hit both preserve the bodyless status.
+    for (let request = 0; request < 2; request += 1) {
+      const response = await http.get("/empty");
+      expect(response.status).toBe(status);
+      expect(response.headers.get("content-type")).toBe("text/plain");
+      expect(response.body).toBeNull();
+    }
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the lack of a body on cached HEAD responses", async () => {
+    const fetch = vi.fn(async () => new Response(null, { headers: { "content-type": "text/plain" } }));
+    const { http } = setup(fetch);
+
+    for (let request = 0; request < 2; request += 1) {
+      const response = await http.head("/metadata");
+      expect(response.status).toBe(200);
+      expect(response.body).toBeNull();
+    }
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([204, 205])("loads existing bodyless %s entries without the presence marker", async (status) => {
+    const fetch = vi.fn(async () => new Response("unexpected"));
+    const { cache, http } = setup(fetch);
+    await cache.set("outbound-http:cached:body", {
+      schemaVersion: 1, status, statusText: "", headers: {}, bodyBase64: "",
+    });
+
+    const response = await http.get("/empty");
+    expect(response.status).toBe(status);
+    expect(response.body).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("restores legacy HEAD entries without creating a response stream", async () => {
+    const fetch = vi.fn(async () => new Response("unexpected"));
+    const { cache, http } = setup(fetch);
+    await cache.set("outbound-http:cached:body", {
+      schemaVersion: 1, status: 200, statusText: "OK", headers: { etag: '"revision"' }, bodyBase64: "",
+    });
+
+    const response = await http.head("/metadata");
+    expect(response.body).toBeNull();
+    expect(response.headers.get("etag")).toBe('"revision"');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("rejects oversized misses before admission and cancels the body", async () => {
     const cancel = vi.fn();
     const body = new ReadableStream({ start: (controller) => controller.enqueue(new Uint8Array(5)), cancel });

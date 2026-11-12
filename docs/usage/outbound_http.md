@@ -30,7 +30,7 @@ async function forecast(city: string) {
 }
 ```
 
-Path values are encoded and query arrays become repeated parameters. Use `post(path, { json: payload, response: json(schema) })` for JSON requests. `text`, `bytes` and `nativeResponse` select other decoders. Structured methods throw `OutboundHttpResponseError` for unsuccessful responses; low-level `fetch` retains native response semantics.
+Structured routes must resolve to the configured base URL's origin. Path values are encoded as individual segments, and `.` and `..` are rejected as path values. Query arrays become repeated parameters. Use `post(path, { json: payload, response: json(schema) })` for JSON requests. `text`, `bytes` and `nativeResponse` select other decoders. Structured methods throw `OutboundHttpResponseError` for unsuccessful responses; low-level `fetch` accepts explicit absolute destinations and retains native response semantics.
 
 ## Bound time, memory and cancellation
 
@@ -116,7 +116,7 @@ function cachedForecast(cache: Cache, city: string) {
 
 Include every value affecting the response in the cache key, including any account-specific context. Only successful responses are cached. Cache misses are bounded before base64 serialization; hits are checked against the current call's byte limit before decoding base64. A cache backend may have a smaller entry limit, including serialization overhead. Tags require a `TagAwareCache`.
 
-`throttleRequests` integrates [throttling](./throttling.md) per attempt. Middleware orders cache before retry before throttling, so cache hits avoid both admission and network work. The total timeout includes waits and retries. Unsafe methods are not retried by default; enabling retries requires an application idempotency policy. Inject `fetch` in tests to avoid network calls.
+`throttleRequests` integrates [throttling](./throttling.md) per attempt. Middleware orders cache before retry before throttling, so cache hits avoid both admission and network work. The total timeout includes waits and retries. An admission signal supplied through `acquire` adds a cancellation boundary to the request signal. Unsafe methods are not retried by default; enabling retries requires an application idempotency policy. Inject `fetch` in tests to avoid network calls.
 
 ## Use cases still to document
 

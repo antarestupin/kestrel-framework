@@ -1,5 +1,5 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
-import { integer, pgSchema, pgTable, text } from "drizzle-orm/pg-core";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { boolean, integer, pgSchema, pgTable, primaryKey, text } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { getDatabaseSchemaContributions } from "../schema_contributions/definition.js";
@@ -76,6 +76,29 @@ describe("reference counter definitions", () => {
     expect(() => defineReferenceCounter(validChild, { id: "count", reference: validChild.parentId, target: parent.id, counter: parent.nullable })).toThrow("NOT NULL");
     expect(() => defineReferenceCounter(validChild, { id: "count", reference: validChild.parentId, target: parent.id, counter: parent.nonzero })).toThrow("zero");
     expect(() => defineReferenceCounter(child, { id: "count", reference: child.parentId, target: parent.id, counter: parent.nullable })).toThrow("foreign key");
+  });
+
+  it("accepts a table-level single primary key and SQL zero default", () => {
+    const parent = pgTable("parent", {
+      id: integer("id").notNull(), count: integer("count").notNull().default(sql`0`),
+    }, (row) => [primaryKey({ columns: [row.id] })]);
+    const child = pgTable("child", { parentId: integer("parent_id").references(() => parent.id), status: text("status") });
+    const options = { reference: child.parentId, target: parent.id, counter: parent.count };
+    expect(() => defineReferenceCounter(child, { ...options, id: " " })).toThrow("requires a stable id");
+    expect(() => defineReferenceCounter(child, { ...options, id: "invalid", where: () => inArray(child.status, ["ready"]) }))
+      .toThrow("supplied source columns");
+
+    // The supported predicate reads only supplied columns and embeds its constant list.
+    const definition = defineReferenceCounter(child, { ...options, id: "parent.count", where: (row) => inArray(row.status, ["ready", "done"]) });
+    expect(definition.predicates.source).toBe(`"source"."status" in ('ready', 'done')`);
+  });
+
+  it("rejects foreign-key types that cannot drive an ordered rebuild cursor", () => {
+    const parent = pgTable("parent", { id: boolean("id").primaryKey(), count: integer("count").notNull().default(0) });
+    const child = pgTable("child", { parentId: boolean("parent_id").references(() => parent.id) });
+    expect(() => defineReferenceCounter(child, {
+      id: "parent.count", reference: child.parentId, target: parent.id, counter: parent.count,
+    })).toThrow("must have matching UUID, text or integer SQL types");
   });
 
   it("quotes physical identifiers including schemas and table names containing dots", () => {

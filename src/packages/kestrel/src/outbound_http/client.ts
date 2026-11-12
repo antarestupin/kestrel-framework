@@ -223,6 +223,10 @@ export class OutboundHttpClient {
     validatePathTemplate(pathTemplate);
     const path = interpolatePath(pathTemplate, pathParameters);
     const url = appendQuery(this.resolveUrl(path), query);
+    // WHATWG URL resolution can normalize separators into a network path.
+    if (url.origin !== this.baseUrl?.origin) {
+      throw new TypeError("A structured outbound HTTP path template must be relative to its client baseUrl.");
+    }
     const operation = normalizeOperation(
       configuredOperation
         ?? `${this.name}.${normalizeMethod(method)}.${normalizeRoute(pathTemplate)}`,
@@ -496,14 +500,22 @@ function interpolatePath(
     if (!segment.startsWith(":")) return segment;
 
     const name = segment.slice(1);
-    const value = parameters?.[name];
+    const value = parameters !== undefined && Object.hasOwn(parameters, name)
+      ? parameters[name]
+      : undefined;
 
     if (value === undefined) {
       throw new TypeError(`Outbound HTTP path parameter "${name}" is required.`);
     }
 
+    const segmentValue = serializeScalar(value);
+    // URL parsing treats even percent-encoded dots as navigation segments.
+    if (segmentValue === "." || segmentValue === "..") {
+      throw new TypeError(`Outbound HTTP path parameter "${name}" cannot be a dot segment.`);
+    }
+
     used.add(name);
-    return encodeURIComponent(serializeScalar(value));
+    return encodeURIComponent(segmentValue);
   }).join("/");
 
   for (const name of Object.keys(parameters ?? {})) {

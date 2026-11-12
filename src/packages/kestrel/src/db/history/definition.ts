@@ -358,7 +358,9 @@ function resolveIdentityKeys<Source extends AnyPgTable>(
   }
 
   const keys = identity.map((identityColumn) => {
-    const entry = sourceEntries.find(([, column]) => column === identityColumn);
+    // Drizzle's table-level primary keys expose extra-config wrappers for the same columns.
+    const entry = sourceEntries.find(([, column]) => column === identityColumn
+      || (configuredIdentity === undefined && identityColumn.table === source && column.name === identityColumn.name));
     if (entry === undefined) {
       throw new TypeError("Every history identity column must belong to the source table.");
     }

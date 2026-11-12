@@ -1,11 +1,15 @@
 import { sql, getTableColumns } from "drizzle-orm";
 import {
+  bigserial,
   customType,
   getTableConfig,
   integer,
+  pgEnum,
   pgSchema,
   pgTable,
+  primaryKey,
   serial,
+  smallserial,
   text,
   timestamp,
   uuid,
@@ -110,6 +114,12 @@ describe("defineHistoryTable", () => {
     })).toThrow("must belong to the source table");
     expect(() => defineHistoryTable(source, { exclude: [source.id] }))
       .toThrow("identity columns cannot be excluded");
+    expect(() => defineHistoryTable(source, { include: source.title } as never))
+      .toThrow("column selection must be an array");
+    expect(() => defineHistoryTable(source, { identity: [other.id] as unknown as [typeof source.id] }))
+      .toThrow("identity column must belong to the source table");
+    expect(() => defineHistoryTable(source, { identity: [source.id, source.id] }))
+      .toThrow("identity columns must be unique");
   });
 
   it("discovers definitions without adding enumerable schema properties", () => {
@@ -144,6 +154,18 @@ describe("defineHistoryTable", () => {
     expect(definition?.identityKeys).toEqual(["tenantId", "recordId"]);
   });
 
+  it("infers table-level composite identities in declared primary-key order", () => {
+    const composite = pgTable("history_composite_source", {
+      tenantId: integer("tenant_id").notNull(), recordId: integer("record_id").notNull(),
+    }, (row) => [primaryKey({ columns: [row.recordId, row.tenantId] })]);
+
+    const derived = defineHistoryTable(composite);
+    const [definition] = getHistoryTableDefinitions({ derived });
+    expect(definition?.identityKeys).toEqual(["recordId", "tenantId"]);
+    expect(getTableConfig(derived).indexes[0]?.config.columns.map((column) =>
+      "name" in column ? column.name : undefined)).toEqual(["record_id", "tenant_id", "__sequence"]);
+  });
+
   it("rejects missing identities and reserved source columns", () => {
     const noIdentity = pgTable("history_without_identity", {
       value: text("value"),
@@ -152,6 +174,9 @@ describe("defineHistoryTable", () => {
       id: integer("id").primaryKey(),
       metadata: text("__metadata"),
     });
+    const reservedProperty = pgTable("history_reserved_property", {
+      id: integer("id").primaryKey(), __metadata: text("metadata"),
+    });
 
     expect(() => defineHistoryTable(noIdentity)).toThrow(
       "requires at least one identity column",
@@ -159,6 +184,34 @@ describe("defineHistoryTable", () => {
     expect(() => defineHistoryTable(reserved)).toThrow(
       'reserved history prefix "__"',
     );
+    expect(() => defineHistoryTable(reservedProperty)).toThrow('Source property "__metadata"');
+  });
+
+  it("preserves enum names and serial widths without copying identity defaults", () => {
+    const status = pgEnum('default"status', ["ready", "done"]);
+    const namedStatus = testSchema.enum('qualified"status', ["ready", "done"]);
+    const source = pgTable("history_enum_source", {
+      id: smallserial("id").primaryKey(),
+      revision: bigserial("revision", { mode: "bigint" }).notNull(),
+      state: status("state"),
+      namedState: namedStatus("named_state"),
+    });
+    const columns = getTableColumns(defineHistoryTable(source));
+
+    expect(columns.id.getSQLType()).toBe("smallint");
+    expect(columns.revision.getSQLType()).toBe("bigint");
+    expect(columns.id.hasDefault).toBe(false);
+    expect(columns.revision.hasDefault).toBe(false);
+    expect(columns.state.getSQLType()).toBe('"default""status"');
+    expect(columns.namedState.getSQLType()).toBe('"history_definition_test"."qualified""status"');
+  });
+
+  it("preserves the compact operation encoding and rejects corrupt event codes", () => {
+    const operation = getTableColumns(history).__operation;
+    // Old history rows depend on these codes remaining stable across migrations.
+    expect(operation.mapToDriverValue("update")).toBe(2);
+    expect(operation.mapToDriverValue("delete")).toBe(3);
+    expect(() => operation.mapFromDriverValue(9)).toThrow('Unknown database history operation code "9"');
   });
 
   it("rejects PostgreSQL types outside the supported matrix", () => {

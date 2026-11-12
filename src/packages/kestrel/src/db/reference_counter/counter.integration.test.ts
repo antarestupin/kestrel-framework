@@ -167,6 +167,25 @@ describe("synchronous reference counters", () => {
     expect((await counts()).map((row) => row.count)).toEqual([0, 99, 99]);
   });
 
+  it("interrupts the inter-batch pause without starting another batch", async () => {
+    await database.update(topic).set({ count: 99 });
+    const controller = new AbortController();
+    let cancellation: ReturnType<typeof setImmediate> | undefined;
+    try {
+      const result = await maintenance.rebuild(filtered.id, {
+        batchSize: 1, pauseMs: 60_000, signal: controller.signal,
+        // Cancel on the next event-loop turn, once the committed cursor has been delivered.
+        onProgress: () => { cancellation = setImmediate(() => controller.abort()); },
+      });
+      expect(result).toEqual({ id: filtered.id, cursor: "1", completed: false, processed: 1, updated: 1 });
+      expect((await counts()).map(({ count }) => count)).toEqual([0, 99, 99]);
+    } finally {
+      if (cancellation !== undefined) clearImmediate(cancellation);
+    }
+    expect(await maintenance.rebuild(filtered.id, { after: "1", batchSize: 1, pauseMs: 1 }))
+      .toMatchObject({ completed: true, updated: 2, cursor: "3" });
+  });
+
   it("initializes pre-existing references without counting them during schema installation", async () => {
     // Model rows that predate counter installation, then restore ordinary execution.
     await pool.query("ALTER TABLE kestrel_counter_test.item DISABLE TRIGGER USER");

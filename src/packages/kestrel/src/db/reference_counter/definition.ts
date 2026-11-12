@@ -28,9 +28,11 @@ export function defineReferenceCounter<Source extends AnyPgTable>(
   if (!foreignKey) throw new TypeError("The reference must declare a single-column foreign key to the target.");
   const target = getTableConfig(options.target.table);
   const primaryKeys = target.primaryKeys.flatMap((key) => key.columns);
+  // Drizzle wraps table-level primary-key columns in extra-config column objects.
   const singlePrimary = options.target.primary
     ? target.columns.filter((column) => column.primary).length === 1 && primaryKeys.length === 0
-    : primaryKeys.length === 1 && primaryKeys[0] === options.target;
+    : primaryKeys.length === 1 && primaryKeys[0]?.table === options.target.table
+      && primaryKeys[0].name === options.target.name;
   if (!singlePrimary || !options.target.notNull) {
     throw new TypeError("The counter target must be a single-column primary key.");
   }

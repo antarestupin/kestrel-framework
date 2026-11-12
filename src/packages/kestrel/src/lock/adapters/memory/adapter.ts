@@ -37,7 +37,7 @@ export class MemoryLockAdapter implements LockAdapter, PrunableLockAdapter {
     const lease = this.createLease(request, now);
     this.leases.set(request.key, lease);
 
-    return lease;
+    return snapshotLease(lease);
   }
 
   /** Acquires a complete batch without exposing partial ownership. */
@@ -58,7 +58,7 @@ export class MemoryLockAdapter implements LockAdapter, PrunableLockAdapter {
     return requests.map((request) => {
       const lease = this.createLease(request, now);
       this.leases.set(request.key, lease);
-      return lease;
+      return snapshotLease(lease);
     });
   }
 
@@ -82,7 +82,7 @@ export class MemoryLockAdapter implements LockAdapter, PrunableLockAdapter {
     };
     this.leases.set(request.key, lease);
 
-    return lease;
+    return snapshotLease(lease);
   }
 
   /** Extends a complete batch without exposing partial lease updates. */
@@ -111,7 +111,7 @@ export class MemoryLockAdapter implements LockAdapter, PrunableLockAdapter {
         expiresAt: new Date(now.getTime() + request.ttlMs),
       };
       this.leases.set(request.key, lease);
-      return lease;
+      return snapshotLease(lease);
     });
   }
 
@@ -158,6 +158,11 @@ export class MemoryLockAdapter implements LockAdapter, PrunableLockAdapter {
       fencingToken: this.fencingToken,
     };
   }
+}
+
+/** Keep mutable lease data and dates private to the in-memory store. */
+function snapshotLease(lease: LockLease): LockLease {
+  return { ...lease, expiresAt: new Date(lease.expiresAt) };
 }
 
 function validateLimit(limit: number): number {

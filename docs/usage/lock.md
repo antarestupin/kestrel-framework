@@ -54,7 +54,7 @@ async function updatePair(locks: Locks, update: (signal: AbortSignal) => Promise
 }
 ```
 
-Keys must be unique. The wait deadline covers the complete batch, and failed acquisition does not expose partial ownership. Callback completion attempts every release, including on failure.
+Keys must be unique. A positive wait deadline covers the complete batch. Cancellation or timeout during a storage call triggers owner-checked cleanup of leases returned by that call. A zero wait timeout allows one immediate attempt. Callback completion attempts every release, including on failure.
 
 ## Skip work if a lock is already held
 

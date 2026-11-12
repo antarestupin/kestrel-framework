@@ -134,6 +134,34 @@ afterAll(async () => {
 });
 
 describe("database history", () => {
+  it.each(["record$history$", "record%"])("installs triggers for quoted source name %s", async (name) => {
+    const source = historySchema.table(name, { id: integer("id").primaryKey(), value: text("value") });
+    const history = defineHistoryTable(source, { name: "quoted_record_history" });
+    const [definition] = getHistoryTableDefinitions({ history });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // These fixed test names are valid identifiers but special inside a PL/pgSQL body.
+      await client.query(`CREATE TABLE kestrel_history_test."${name}" (id integer PRIMARY KEY, value text)`);
+      await client.query(`CREATE TABLE kestrel_history_test.quoted_record_history (
+        id integer, value text, __sequence bigint GENERATED ALWAYS AS IDENTITY,
+        __operation smallint, __changed_columns text[], __changed_at timestamptz, __actor text, __reason text
+      )`);
+      await client.query(createHistoryTriggerSql(definition!));
+
+      const database = drizzle(client);
+      await database.insert(source).values({ id: 1, value: "recorded" });
+      expect(await database.select().from(history)).toEqual([
+        expect.objectContaining({ id: 1, value: "recorded", __operation: "insert" }),
+      ]);
+      await expect(database.update(source).set({ id: 2 }).where(eq(source.id, 1)))
+        .rejects.toMatchObject({ cause: { message: `History identity columns of ${name} are immutable` } });
+    } finally {
+      try { await client.query("ROLLBACK"); }
+      finally { client.release(); }
+    }
+  });
+
   it("reads real sparse events across stable cursor pages with explicit null and deletion", async () => {
     const database = drizzle(pool);
     const id = crypto.randomUUID();

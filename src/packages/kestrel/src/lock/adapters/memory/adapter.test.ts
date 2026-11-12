@@ -3,6 +3,28 @@ import { describe, expect, it } from "vitest";
 import { MemoryLockAdapter } from "./adapter.js";
 
 describe("MemoryLockAdapter", () => {
+  it("keeps persisted ownership and expiry separate from returned lease snapshots", async () => {
+    let now = new Date(0);
+    const adapter = createAdapter(() => now);
+    const first = { key: "test:first", ownerId: "owner", ttlMs: 1_000 };
+    const second = { ...first, key: "test:second" };
+    const acquired = (await adapter.tryAcquire(first))!;
+    const [batchLease] = (await adapter.tryAcquireMany([second]))!;
+    acquired.ownerId = "foreign";
+    acquired.fencingToken = 999n;
+    batchLease!.ownerId = "foreign";
+    await expect(adapter.release({ ...first, ownerId: "foreign" })).resolves.toBe(false);
+    await expect(adapter.release({ ...second, ownerId: "foreign" })).resolves.toBe(false);
+
+    const renewed = (await adapter.extend(first))!;
+    const [renewedBatch] = (await adapter.extendMany([second]))!;
+    expect(renewed.fencingToken).toBe(1n);
+    renewed.expiresAt.setTime(100_000);
+    renewedBatch!.expiresAt.setTime(100_000);
+    now = new Date(1_000);
+    await expect(adapter.tryAcquireMany([first, second])).resolves.toHaveLength(2);
+  });
+
   it("allows only one owner before expiration", async () => {
     const adapter = createAdapter();
     const first = await adapter.tryAcquire({
@@ -177,6 +199,7 @@ describe("MemoryLockAdapter", () => {
   it("prunes expired leases in bounded batches", async () => {
     let now = new Date("2026-01-01T00:00:00.000Z");
     const adapter = createAdapter(() => now);
+    await adapter.tryAcquire({ key: "test:live", ownerId: "live", ttlMs: 10_000 });
     await adapter.tryAcquire({
       key: "test:first",
       ownerId: "first",
@@ -191,7 +214,9 @@ describe("MemoryLockAdapter", () => {
 
     await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
     await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
-    await expect(adapter.prune({ limit: 1 })).resolves.toBe(0);
+    await expect(adapter.prune({})).resolves.toBe(0);
+    await expect(adapter.prune({ limit: -1 })).rejects.toThrow("Lock prune limit must be a positive integer");
+    await expect(adapter.release({ key: "test:live", ownerId: "live" })).resolves.toBe(true);
   });
 });
 

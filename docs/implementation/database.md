@@ -227,9 +227,9 @@ sequenceDiagram
     participant Migration
 
     Developer->>Generator: db:generate
-    Generator->>Drizzle: Generate normal schema diff
     Generator->>Schema: Collect SQL contributions
-    Generator->>Generator: Compare latest custom snapshot
+    Generator->>Generator: Validate and compare latest custom snapshot
+    Generator->>Drizzle: Generate normal schema diff
     alt Drizzle created a migration
         Generator->>Migration: Prepend cleanup and append installation
     else Only custom state changed
@@ -244,7 +244,7 @@ The contribution snapshot stores the complete lifecycle SQL rather than only a h
 
 ### Generation lifecycle and verification
 
-An absent journal is treated as empty only before invoking Drizzle Kit, allowing a new application to generate its first migration without precreating the migrations directory. Drizzle owns journal creation; subsequent reads require the journal to exist. Invalid JSON and filesystem errors other than a missing initial journal propagate.
+An absent journal is treated as empty only before invoking Drizzle Kit, allowing a new application to generate its first migration without precreating the migrations directory. Drizzle owns journal creation; subsequent reads require the journal to exist. Invalid JSON and filesystem errors other than a missing initial journal propagate. Managed generation validates existing contribution metadata and computes the SQL plan before Drizzle Kit can write a new migration.
 
 Repeated unchanged generations preserve existing SQL, snapshots and journal entries. Removing the last contribution records an empty snapshot so its cleanup is not generated again. Removed descriptions are cleared before a rename or drop, while `UNLOGGED` cleanup runs afterward and checks whether the old relation still exists. A renamed table then receives contributions derived from its new physical name. Updating a retained table's descriptions clears only removed targets and sets only added/changed ones, with no preliminary removal for a text edit.
 
@@ -514,7 +514,7 @@ The local database can be dropped, recreated and migrated from scratch, with opt
 ./do database reset-seed
 ```
 
-All three maintenance commands are implemented by the generic `kestrel/database/seeder` module, contributed to `app.catalog` by `PostgresDrizzleProvider` and restricted to the `local` environment. Feature modules can declare generated steps for interchangeable volume or explicit record steps for curated scenarios. Explicit records have a stable key, exact references to records from earlier steps and access to one shared reference time. Local maintenance supplies the current time so activity remains recent; integration tests inject a fixed time for reproducibility. The complete seed runs in one transaction and rolls back when any record or reference fails.
+All three maintenance commands are implemented by the generic `kestrel/database/seeder` module, contributed to `app.catalog` by `PostgresDrizzleProvider` and restricted to the `local` environment. Feature modules can declare generated steps for interchangeable volume or explicit record steps for curated scenarios. Explicit records have a stable key, exact references to records from earlier steps and access to one shared reference time. A reference resolves its step and record keys separately, and the empty-table preflight identifies each target by its schema and table name. Local maintenance supplies the current time so activity remains recent; integration tests inject a fixed time for reproducibility. The complete seed runs in one transaction and rolls back when any record or reference fails.
 
 The application seed composes feature steps in cross-module dependency order and declares the migration folder, local push schema and owned schemas. The current scenario creates 20 local members, 6 editorial spaces, 18 debates and 47 topic-specific comments, including empty, short and active discussions. Only the administrator has a local password credential; the other members are editorial personas rather than authentication fixtures.
 

@@ -64,6 +64,36 @@ describe("OutboundHttpProvider", () => {
     await expect(client.get("/health")).resolves.toBeInstanceOf(Response);
     await app.dispose();
   });
+
+  it("records through both sinks and isolates their failures from the request", async () => {
+    const app = new App({});
+    const observerContext = new AsyncLocalObserverContext();
+    const ambient = vi.fn<Observer["record"]>(() => { throw new Error("ambient sink failed"); });
+    const explicit = vi.fn(() => { throw new Error("explicit sink failed"); });
+    app.container.registerValue("observerContext", observerContext);
+    app.register(new OutboundHttpProvider());
+    try {
+      const client = app.container.resolve(outboundHttpClientFactoryDependency).create({
+        name: "partner", baseUrl: "https://partner.example",
+        fetch: async () => new Response(null, { status: 204 }),
+        instrumentation: { record: explicit },
+        monotonicNow: () => { throw new Error("diagnostic clock failed"); },
+      });
+
+      await expect(client.get("/health")).resolves.toMatchObject({ status: 204 });
+      expect(ambient).not.toHaveBeenCalled();
+      expect(explicit).toHaveBeenCalledTimes(2);
+
+      // The active observer can fail without preventing explicit zero-duration diagnostics.
+      await expect(observerContext.run({ record: ambient }, () => client.get("/health")))
+        .resolves.toMatchObject({ status: 204 });
+      expect(ambient).toHaveBeenCalledTimes(2);
+      expect(explicit).toHaveBeenCalledTimes(4);
+      expect(explicit).toHaveBeenLastCalledWith(expect.objectContaining({ type: "request", durationMs: 0 }));
+    } finally {
+      await app.dispose();
+    }
+  });
   it("applies resolved configuration with call > client > provider precedence", async () => {
     const configuration = createConfigurationApi({
       environments: ["test"], defaultEnvironment: "test", environmentOverrides: { prefix: "TEST_CONFIG" },
