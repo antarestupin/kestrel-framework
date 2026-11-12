@@ -156,114 +156,133 @@ export class HttpControllerManager<Config> {
       parsedExecutionId.success ? parsedExecutionId.data : undefined,
     );
 
-    if (
-      this.options.executionLog !== undefined
-      && execution.container.hasRegistration(
-        setExecutionLogEnabledDependency.id,
-      )
-    ) {
-      execution.container.resolve(setExecutionLogEnabledDependency)(
-        this.options.executionLog,
-      );
-    }
+    try {
+      // Correlation is available even if optional per-request setup fails.
+      if (this.options.executionIdHeader !== undefined) {
+        reply.header(this.options.executionIdHeader, execution.id);
+      }
 
-    if (this.options.executionIdHeader !== undefined) {
-      reply.header(this.options.executionIdHeader, execution.id);
-    }
+      if (
+        this.options.executionLog !== undefined
+        && execution.container.hasRegistration(
+          setExecutionLogEnabledDependency.id,
+        )
+      ) {
+        execution.container.resolve(setExecutionLogEnabledDependency)(
+          this.options.executionLog,
+        );
+      }
 
-    const observer = this.resolveObserver(execution.container);
-    const operation = `${controller.route.method} ${controller.route.url}`;
-    setExecutionLogContext(execution.context, {
-      operation,
-      transport: "http",
-      workload: "http",
-    });
-    const startedAt = performance.now();
-    let outcome: "failure" | "success" = "success";
-    let executionError: unknown;
-
-    return this.app.runInObservationContext(observer, async () => {
-      observer?.record(executionStartedObservation, {
+      const observer = this.resolveObserver(execution.container);
+      const operation = `${controller.route.method} ${controller.route.url}`;
+      setExecutionLogContext(execution.context, {
         operation,
         transport: "http",
+        workload: "http",
       });
+      const startedAt = performance.now();
+      let outcome: "failure" | "success" = "success";
+      let executionError: unknown;
 
-      try {
-        const rawInput = this.readInput(controller, request);
-        let parsedInput: output<ControllerInputSchema>;
-
+      return await this.app.runInObservationContext(observer, async () => {
         try {
-          parsedInput = await parseSchema(
-            controller.inputSchema,
-            rawInput,
-            controller.validation.input,
+          observer?.record(executionStartedObservation, {
+            operation,
+            transport: "http",
+          });
+
+          const rawInput = this.readInput(controller, request);
+          let parsedInput: output<ControllerInputSchema>;
+
+          try {
+            parsedInput = await parseSchema(
+              controller.inputSchema,
+              rawInput,
+              controller.validation.input,
+            );
+          } catch (error: unknown) {
+            if (error instanceof ZodError) {
+              return this.sendError(reply, {
+                statusCode: 400,
+                error: "Bad Request",
+                message: "The request input is invalid.",
+                issues: error.issues,
+              });
+            }
+
+            throw error;
+          }
+
+          const parsedResult = await executeHttpController(
+            controller,
+            parsedInput,
+            { request, reply, execution, defaultAccess: this.defaultAccess },
           );
-        } catch (error: unknown) {
-          if (error instanceof ZodError) {
+
+          // A custom handler can take full ownership by sending a reply itself.
+          if (reply.sent) {
+            return reply;
+          }
+
+          if (parsedResult === null) {
             return this.sendError(reply, {
-              statusCode: 400,
-              error: "Bad Request",
-              message: "The request input is invalid.",
-              issues: error.issues,
+              statusCode: 404,
+              error: "Not Found",
+              message: "The requested resource was not found.",
             });
           }
 
-          throw error;
-        }
-
-        const parsedResult = await executeHttpController(
-          controller,
-          parsedInput,
-          { request, reply, execution, defaultAccess: this.defaultAccess },
-        );
-
-        // A custom handler can take full ownership by sending a reply itself.
-        if (reply.sent) {
-          return reply;
-        }
-
-        if (parsedResult === null) {
-          return this.sendError(reply, {
-            statusCode: 404,
-            error: "Not Found",
-            message: "The requested resource was not found.",
+          return reply
+            .code(controller.successStatusCode)
+            .send(parsedResult);
+        } catch (error: unknown) {
+          outcome = "failure";
+          executionError = error;
+          const representation = execution.errorHandler.handleHttp(error, {
+            executionId: execution.id,
           });
+
+          // A failing custom handler may already have taken ownership of the reply.
+          return reply.sent
+            ? reply
+            : this.sendHandledError(reply, representation);
+        } finally {
+          try {
+            observer?.record(
+              executionCompletedObservation,
+              {
+                operation,
+                transport: "http",
+                statusCode: reply.statusCode,
+                ...getExecutionObservationContext(execution.context),
+                ...(outcome === "failure"
+                  ? getExecutionObservationError(executionError)
+                  : {}),
+              },
+              {
+                outcome,
+                durationMs: performance.now() - startedAt,
+              },
+            );
+          } finally {
+            // Keep completion listeners inside the observer context even if recording fails.
+            await execution.dispose(outcome);
+          }
         }
+      });
+    } catch (error: unknown) {
+      try {
+        if (reply.sent) throw error;
 
-        return reply
-          .code(controller.successStatusCode)
-          .send(parsedResult);
-      } catch (error: unknown) {
-        outcome = "failure";
-        executionError = error;
-        const representation = execution.errorHandler.handleHttp(error, {
+        // Setup failures use the same safe error boundary as controller failures.
+        return this.sendHandledError(reply, execution.errorHandler.handleHttp(error, {
           executionId: execution.id,
-        });
-
-        // A failing custom handler may already have taken ownership of the reply.
-        return reply.sent
-          ? reply
-          : this.sendHandledError(reply, representation);
+        }));
       } finally {
-        observer?.record(
-          executionCompletedObservation,
-          {
-            operation,
-            transport: "http",
-            statusCode: reply.statusCode,
-            ...getExecutionObservationContext(execution.context),
-            ...(executionError === undefined
-              ? {}
-              : getExecutionObservationError(executionError)),
-          },
-          {
-            outcome,
-            durationMs: performance.now() - startedAt,
-          },
-        );
-        await execution.dispose(outcome);
+        // Setup can fail before the observer context is established. Disposal is idempotent.
+        await execution.dispose("failure").catch(() => undefined);
       }
-    });
+    }
   }
 
   private resolveObserver(

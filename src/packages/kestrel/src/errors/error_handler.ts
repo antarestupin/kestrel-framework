@@ -5,8 +5,7 @@ import {
   type CliErrorRepresentation,
   type ErrorRepresentationContext,
   type HttpErrorRepresentation,
-  isCliRepresentableError,
-  isHttpRepresentableError,
+  readRepresentationMethod,
 } from "./representations.js";
 
 export interface ErrorHandlerOptions {
@@ -114,9 +113,8 @@ export class DefaultErrorHandler implements ErrorHandler {
     error: unknown,
     context: ErrorRepresentationContext,
   ): HttpErrorRepresentation | undefined {
-    return isHttpRepresentableError(error)
-      ? error.toHttpError(context)
-      : undefined;
+    const method = readRepresentationMethod(error, "toHttpError");
+    return method === undefined ? undefined : Reflect.apply(method, error, [context]);
   }
 
   /** Allows application handlers to map errors before the default contract. */
@@ -124,9 +122,8 @@ export class DefaultErrorHandler implements ErrorHandler {
     error: unknown,
     context: ErrorRepresentationContext,
   ): CliErrorRepresentation | undefined {
-    return isCliRepresentableError(error)
-      ? error.toCliError(context)
-      : undefined;
+    const method = readRepresentationMethod(error, "toCliError");
+    return method === undefined ? undefined : Reflect.apply(method, error, [context]);
   }
 
   /** Application handlers can report unexpected failures to their logger. */

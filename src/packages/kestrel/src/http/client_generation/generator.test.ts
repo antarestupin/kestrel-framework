@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { stripTypeScriptTypes } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -87,11 +88,14 @@ describe("HTTP client generator", () => {
   it("preserves the filtered hierarchy and controller wire bindings", () => {
     const source = generate("app");
 
+    // Check that multi-operation catalogs and multiple wire bindings form valid TypeScript.
+    expect(() => stripTypeScriptTypes(source)).not.toThrow();
     expect(source).toContain("export function createAppClient");
     expect(source).toContain('"debate": {');
     expect(source).toContain('"space": {');
     expect(source).toContain('"get": (input: AppDebateSpaceGetInput)');
     expect(source).toContain('operationId: "space.get"');
+    expect(source).toContain('export type AppDebateSpaceGetOperationId = "space.get";');
     expect(source).toContain(
       '{"field":"id","kind":"path","name":"spaceId"}',
     );
@@ -99,6 +103,8 @@ describe("HTTP client generator", () => {
       '{"field":"projection","kind":"query","name":"fields"}',
     );
     expect(source).not.toContain("space.adminList");
+    // Generated operations with bindings pass the input through to the transport.
+    expect(source).toMatch(/operationId: "space\.get",[\s\S]*?\}, input\)/);
   });
 
   it("generates type-only server links and void undocumented outputs", () => {
@@ -116,6 +122,7 @@ describe("HTTP client generator", () => {
     expect(source).toContain(
       '"empty": (): Promise<AppEmptyOutput>',
     );
+    expect(source).toMatch(/operationId: "empty\.read",\s*method: "GET",\s*url: "\/empty",\s*bindings: \[\],\s*\}\)/);
   });
 
   it("selects administration controllers for a separate client", () => {
@@ -211,6 +218,28 @@ describe("HTTP client generator", () => {
     expect(source).toContain('{"field":"id","kind":"path","name":"id"}');
     expect(source).toContain('{"field":"constructor","kind":"query","name":"constructor"}');
     expect(() => generateHttpClientSource({ ...generatorOptions("app"), name: "---" })).toThrow("cannot form a TypeScript identifier");
+    expect(generateHttpClientSource({ ...generatorOptions("app"), name: "App 2" }))
+      .toContain("export type App2Client");
+  });
+
+  it("keeps comment terminators in catalog metadata from breaking generated TypeScript", () => {
+    const controller = defineHttpController({
+      access: testHttpAccess,
+      route: get("/record"),
+      operationId: "record*/read",
+      handler: () => undefined,
+    });
+    const source = generateHttpClientSource({
+      ...generatorOptions("app"),
+      name: "App */ Client",
+      catalog: { "record*/read": controller },
+    });
+
+    // The generated documentation escapes the terminator while the wire identifier stays intact.
+    expect(() => stripTypeScriptTypes(source)).not.toThrow();
+    expect(source).toContain(String.raw`/** Creates the App *\/ Client HTTP client`);
+    expect(source).toContain(String.raw`["record*\/read"]} (record*\/read). */`);
+    expect(source).toContain('operationId: "record*/read"');
   });
 
   it("writes missing and changed clients, skips identical contents and propagates read failures", async () => {
@@ -228,7 +257,8 @@ describe("HTTP client generator", () => {
       const directory = join(folder, "directory.ts");
       await mkdir(directory);
       // A filesystem error other than a missing output must stop regeneration.
-      await expect(writeHttpClient({ ...options, outputFile: directory })).rejects.toMatchObject({ code: "EISDIR" });
+      await expect(writeHttpClient({ ...options, outputFile: directory }))
+        .rejects.toMatchObject({ code: "EISDIR", syscall: "read" });
     } finally {
       await rm(folder, { recursive: true, force: true });
     }

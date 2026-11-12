@@ -63,7 +63,7 @@ If a middleware throws before `next()`, later layers and the terminal do not run
 | `defineMiddleware()` | Creates a named, inspectable middleware definition. |
 | `runMiddlewarePipeline()` | Resolves dependencies and executes a middleware chain around a terminal callback. |
 | `Middleware` | Describes the definition, dependencies and generic handler contract. |
-| `MiddlewareNext` | Describes the one-shot continuation and preserves the pipeline result type. |
+| `MiddlewareNext` | Describes the replayable continuation and preserves the pipeline result type. |
 | `MiddlewareOptions` | Configures dependencies and the handler accepted by `defineMiddleware()`. |
 
 The generic middleware library has no adapter API. Transport libraries specialize its context and expose their own middleware factories while reusing the same pipeline semantics.

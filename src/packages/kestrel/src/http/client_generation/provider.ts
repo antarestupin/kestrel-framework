@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { z } from "zod";
 
 import type { Provider, ProviderCompositionApp } from "../../app/index.js";
@@ -122,12 +123,14 @@ function validateUniqueOutputFiles(
   const outputFiles = new Set<string>();
 
   for (const client of clients) {
-    if (outputFiles.has(client.outputFile)) {
+    // Relative and absolute aliases can name the same output before the file exists.
+    const outputFile = resolve(client.outputFile);
+    if (outputFiles.has(outputFile)) {
       throw new TypeError(
-        `Duplicate generated HTTP client output file: ${client.outputFile}.`,
+        `Duplicate generated HTTP client output file: ${outputFile}.`,
       );
     }
 
-    outputFiles.add(client.outputFile);
+    outputFiles.add(outputFile);
   }
 }

@@ -66,6 +66,21 @@ describe("HTTP controller audiences", () => {
     })).toThrow("Duplicate HTTP controller selection audience: app");
   });
 
+  it("allows opting out of default or generated audiences with an empty selection", () => {
+    const definition = defineHttpControllerAudiences({ audiences: ["app"], defaultAudiences: [] });
+    const controller = defineHttpController({
+      route: get("/internal"), audiences: [], handler: () => undefined,
+    });
+    expect(resolveHttpControllerAudiences(undefined, definition)).toEqual([]);
+    expect(resolveHttpControllerAudiences(controller.audiences, controllerAudiences)).toEqual([]);
+
+    // Empty vocabularies and malformed defaults still fail with the appropriate boundary.
+    expect(() => defineHttpControllerAudiences({ audiences: [], defaultAudiences: [] }))
+      .toThrow("available audience list cannot be empty");
+    expect(() => defineHttpControllerAudiences({ audiences: ["app"], defaultAudiences: ["app", "app"] }))
+      .toThrow("Duplicate HTTP controller default audience: app");
+  });
+
   it("rejects empty operation identifiers", () => {
     expect(() => defineHttpController({
       access: testHttpAccess,

@@ -145,15 +145,13 @@ function isAllowedHost(
   request: FastifyRequest,
   allowedHosts: ReadonlySet<string>,
 ): boolean {
-  try {
-    const candidate = new URL(`http://${request.host}`);
+  const host = request.host;
+  // A Host field carries an authority alone. URL parsing would normalize delimiters and whitespace.
+  if (/[/\\?#@%\u0000-\u0020\u007f]/u.test(host)) return false;
 
-    return candidate.username === ""
-      && candidate.password === ""
-      && candidate.pathname === "/"
-      && candidate.search === ""
-      && candidate.hash === ""
-      && allowedHosts.has(candidate.host);
+  try {
+    // Public origins use HTTPS even when a trusted proxy terminates TLS.
+    return allowedHosts.has(new URL(`https://${host}`).host);
   } catch {
     return false;
   }

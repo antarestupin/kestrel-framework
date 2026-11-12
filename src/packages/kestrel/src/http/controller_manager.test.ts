@@ -9,9 +9,10 @@ import {
 import { z } from "zod";
 
 import { defineAction } from "../actions/index.js";
-import { App } from "../app/index.js";
+import { App, executionCompletedEvent } from "../app/index.js";
+import { executionCompletedObservation, executionStartedObservation } from "../app/observations.js";
 import { dep } from "../di/index.js";
-import type { HttpRepresentableError } from "../errors/index.js";
+import { errorHandlerDependency, type HttpRepresentableError } from "../errors/index.js";
 import { setExecutionLogEnabledDependency } from "../log/index.js";
 import {
   AsyncLocalObserverContext,
@@ -104,11 +105,18 @@ describe("HttpControllerManager", () => {
       input: z.object({ id: z.string() }), bindings: { id: path() },
       handler: ({ input }) => input.id,
     }));
+    manager.register(defineHttpController({
+      access: testHttpAccess, route: get("/inferred/:id"),
+      // JavaScript callers can supply an undefined override, which keeps inference.
+      input: z.object({ id: z.string() }), bindings: { id: undefined as never },
+      handler: ({ input }) => input.id,
+    }));
 
     const response = await server.inject("/records/42?constructor=provided");
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe("42:provided");
     expect((await server.inject("/unnamed/42")).body).toBe("42");
+    expect((await server.inject("/inferred/42")).body).toBe("42");
   });
 
   it("leaves an already-sent response intact when a controller later throws", async () => {
@@ -124,6 +132,29 @@ describe("HttpControllerManager", () => {
     const response = await server.inject({ method: "POST", url: "/accepted" });
     expect(response.statusCode).toBe(202);
     expect(response.json()).toEqual({ accepted: true });
+  });
+
+  it("does not attempt a second send after a handler takes ownership of the reply", async () => {
+    const { manager, server } = createTestHttp();
+    const onSend = vi.fn();
+    const onParse = vi.fn((value: string) => value);
+    manager.register(defineHttpController({
+      route: post("/owned"),
+      output: z.string().transform(onParse),
+      handler: ({ reply }) => {
+        const send = reply.send.bind(reply);
+        reply.send = (payload) => { onSend(payload); return send(payload); };
+        reply.code(202).send("owned");
+        // Manual replies bypass output parsing and the manager's automatic send.
+        return "ignored";
+      },
+    }));
+
+    const response = await server.inject({ method: "POST", url: "/owned" });
+    expect(response.statusCode).toBe(202);
+    expect(response.body).toBe("owned");
+    expect(onParse).not.toHaveBeenCalled();
+    expect(onSend).toHaveBeenCalledExactlyOnceWith("owned");
   });
 
   it("supplies anonymous access to direct standalone and action-backed executions", async () => {
@@ -169,6 +200,46 @@ describe("HttpControllerManager", () => {
         route: get("/invalid"), successStatusCode, handler: () => undefined,
       })).toThrow("success status code must be a 2xx integer");
     }
+  });
+
+  it("retains the body binding kind and the highest valid success status", () => {
+    // Generated clients consume the public binding descriptor, including its discriminator.
+    expect(body("wireName")).toEqual({ kind: "body", name: "wireName" });
+    const controller = defineHttpController({
+      route: post("/custom-success"),
+      successStatusCode: 299,
+      handler: () => undefined,
+    });
+    expect(controller.successStatusCode).toBe(299);
+  });
+
+  it("passes explicit Fastify options to a standalone route", async () => {
+    const { manager, server } = createTestHttp();
+    manager.register(defineHttpController({
+      route: post("/small"),
+      fastify: { bodyLimit: 20 },
+      handler: () => "accepted",
+    }));
+
+    // A route's tighter limit must reject the body before executing the handler.
+    expect((await server.inject({ method: "POST", url: "/small", payload: { value: "ok" } })).statusCode).toBe(201);
+    expect((await server.inject({ method: "POST", url: "/small", payload: { value: "a".repeat(30) } })).statusCode).toBe(413);
+  });
+
+  it("uses the controller description before falling back to the action description", () => {
+    const action = defineAction({
+      name: "metadata.default", description: "Action description",
+      input: z.object({}), output: z.string(), handler: () => "ok",
+    });
+    const undescribed = defineAction({
+      name: "metadata.bare",
+      input: z.object({}), output: z.string(), handler: () => "ok",
+    });
+    expect(defineActionHttpController(action, get("/default-description")).description).toBe("Action description");
+    expect(defineActionHttpController(action, get("/override-description"), { description: "HTTP description" }).description)
+      .toBe("HTTP description");
+    expect(defineActionHttpController(undescribed, get("/only-description"), { description: "HTTP only" }).description)
+      .toBe("HTTP only");
   });
 
   it("inherits action parsing policies and resets replaced controller boundaries", async () => {
@@ -240,13 +311,17 @@ describe("HttpControllerManager", () => {
     http.manager.register(defineHttpController({
       access: testHttpAccess,
       route: get("/observed"),
-      handler: () => {
+      handler: ({ execution }) => {
         expect(observerContext.get()).toBeDefined();
+        expect(execution.context.get("operation")).toBe("GET /observed");
+        expect(execution.context.get("transport")).toBe("http");
+        expect(execution.context.get("workload")).toBe("http");
 
         return { status: "ok" };
       },
     }));
 
+    const beforeRequest = performance.now();
     const response = await http.server.inject({
       method: "GET",
       url: "/observed",
@@ -278,6 +353,80 @@ describe("HttpControllerManager", () => {
         statusCode: 200,
       },
     });
+    expect(events[1]?.data).not.toHaveProperty("error");
+    expect(events[1]?.durationMs).toBeGreaterThanOrEqual(0);
+    expect(events[1]?.durationMs).toBeLessThanOrEqual(performance.now() - beforeRequest);
+  });
+
+  it.each([
+    { stage: "logging", status: 500, outcome: "failure" },
+    { stage: "setup", status: 500, outcome: "failure" },
+    { stage: "start", status: 500, outcome: "failure" },
+    { stage: "completion", status: 200, outcome: "success" },
+  ])("disposes a request scope when $stage fails", async ({ stage, status, outcome }) => {
+    const executionId = "00000000-0000-4000-8000-000000000042";
+    const { app, manager, server } = createTestHttp({ executionIdHeader: "x-execution-id", executionLog: false });
+    const onComplete = vi.fn();
+    const handler = vi.fn(() => "ok");
+    const failure = new Error("private observation failure");
+    const handleHttp = vi.spyOn(app.container.resolve(errorHandlerDependency), "handleHttp");
+    if (stage === "logging") {
+      app.container.registerValue(setExecutionLogEnabledDependency.id, () => { throw failure; });
+    }
+    const observer = {
+      record(definition: unknown) {
+        if ((stage === "start" && definition === executionStartedObservation)
+          || (stage === "completion" && definition === executionCompletedObservation)) throw failure;
+      },
+    };
+    app.eventBus.listen(executionCompletedEvent, onComplete, { scope: "descendants" });
+    app.container.registerFactory("observer", () => {
+      if (stage === "setup") throw failure;
+      return observer;
+    }, { lifetime: "scoped" });
+    manager.register(defineHttpController({ route: get("/observer-failure"), handler }));
+
+    // Capture the scope so a mutant that skips disposal cannot hang application teardown.
+    const createExecutionScope = app.createExecutionScope.bind(app);
+    let scope: Awaited<ReturnType<typeof createExecutionScope>> | undefined;
+    const capture = vi.spyOn(app, "createExecutionScope").mockImplementation(async (id) => {
+      scope = await createExecutionScope(id);
+      return scope;
+    });
+    try {
+      const response = await server.inject({ url: "/observer-failure", headers: { "x-execution-id": executionId } });
+      expect(response.statusCode).toBe(status);
+      expect(response.headers["x-execution-id"]).toBe(executionId);
+      expect(response.body).not.toContain(failure.message);
+      if (stage === "completion") {
+        expect(handler).toHaveBeenCalledOnce();
+        expect(response.body).toBe("ok");
+        expect(handleHttp).not.toHaveBeenCalled();
+      } else {
+        expect(handler).not.toHaveBeenCalled();
+        expect(response.json()).toMatchObject({ message: "An unexpected error occurred.", executionId });
+      }
+      expect(onComplete).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ outcome }), expect.anything());
+    } finally {
+      capture.mockRestore();
+      await scope?.dispose().catch(() => undefined);
+    }
+  });
+
+  it("records the failure reason when a handler rejects with undefined", async () => {
+    const { app, manager, server } = createTestHttp();
+    const record = vi.fn();
+    app.container.registerValue("observer", { record });
+    manager.register(defineHttpController({
+      route: get("/undefined-failure"),
+      handler: () => Promise.reject(undefined),
+    }));
+
+    // A missing error value is still a rejected execution.
+    expect((await server.inject("/undefined-failure")).statusCode).toBe(500);
+    expect(record).toHaveBeenCalledWith(executionCompletedObservation, expect.objectContaining({
+      error: { name: "UnknownError", message: "undefined" },
+    }), expect.objectContaining({ outcome: "failure" }));
   });
 
   it("generates a UUID when the requested execution id is invalid", async () => {
@@ -332,6 +481,23 @@ describe("HttpControllerManager", () => {
     expect(response.statusCode).toBe(200);
     expect(setExecutionLogEnabled).toHaveBeenCalledOnce();
     expect(setExecutionLogEnabled).toHaveBeenCalledWith(false);
+  });
+
+  it("serves requests with a configured log policy when execution logging is not registered", async () => {
+    const { manager, server } = createTestHttp({ executionLog: false });
+    manager.register(defineHttpController({ route: get("/bare"), handler: () => "ok" }));
+
+    expect((await server.inject("/bare")).body).toBe("ok");
+  });
+
+  it("preserves the scoped logging default when the manager has no configured policy", async () => {
+    const { app, manager, server } = createTestHttp();
+    const setExecutionLogEnabled = vi.fn();
+    app.container.registerValue(setExecutionLogEnabledDependency.id, setExecutionLogEnabled);
+    manager.register(defineHttpController({ route: get("/default-log"), handler: () => "ok" }));
+
+    expect((await server.inject("/default-log")).body).toBe("ok");
+    expect(setExecutionLogEnabled).not.toHaveBeenCalled();
   });
 
   it("runs a standalone controller with optional input and output", async () => {
@@ -411,6 +577,22 @@ describe("HttpControllerManager", () => {
 
     expect(controller.outputSchema).toBe(output);
     expect(response.body).toBe("ADA");
+  });
+
+  it("applies controller output validation to a custom handler and to a replaced output schema", async () => {
+    const { manager, server } = createTestHttp();
+    const action = defineAction({
+      name: "output.validation", input: z.object({}),
+      output: z.string().transform((value) => value.toUpperCase()),
+      handler: () => "action",
+    });
+    manager.register(defineActionHttpController(action, get("/custom"), { handler: () => "custom" }));
+    manager.register(defineActionHttpController(action, get("/replacement"), {
+      output: z.string().transform((value) => `${value}!`),
+    }));
+
+    expect((await server.inject("/custom")).body).toBe("CUSTOM");
+    expect((await server.inject("/replacement")).body).toBe("ACTION!");
   });
 
   it("retains reusable request examples on the controller contract", () => {

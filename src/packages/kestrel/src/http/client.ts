@@ -160,18 +160,40 @@ function replacePathParameter(
   name: string,
   value: string,
 ): string {
-  const marker = `:${name}`;
-  const segments = url.split("/");
+  const queryStart = url.indexOf("?");
+  const path = queryStart === -1 ? url : url.slice(0, queryStart);
+  const query = queryStart === -1 ? "" : url.slice(queryStart);
+  const encoded = encodeURIComponent(value);
+  let matched = false;
+  const rendered = path.split("/").map((segment) => {
+    if (segment === `:${name}`) {
+      matched = true;
+      return encoded;
+    }
 
-  if (!segments.includes(marker)) {
+    // An affixed parameter is unambiguous only when it is the segment's sole parameter.
+    const parameters = [...segment.matchAll(/::|:([A-Za-z_][A-Za-z0-9_]*)/g)]
+      .filter((match) => match[1] !== undefined);
+    const parameter = parameters.find((candidate) => candidate[1] === name);
+    if (parameter === undefined) return segment;
+
+    const start = parameter.index;
+    const suffix = segment.slice(start + parameter[0].length);
+    if (parameters.length !== 1 || suffix.startsWith("(")) {
+      throw new TypeError(`HTTP path parameter ${name} uses an unsupported route pattern.`);
+    }
+
+    matched = true;
+    return segment.slice(0, start) + encoded + suffix;
+  }).join("/");
+
+  if (!matched) {
     throw new TypeError(
       `HTTP path parameter ${name} does not exist in route ${url}.`,
     );
   }
 
-  // Match whole segments so repeated parameters and longer names stay independent.
-  const encoded = encodeURIComponent(value);
-  return segments.map((segment) => segment === marker ? encoded : segment).join("/");
+  return rendered + query;
 }
 
 function appendQueryValue(

@@ -196,8 +196,38 @@ describe("HTTP maintenance admission", () => {
 
     expect((await runtime.server.inject({ url: "/apiary", headers: { accept: "text/html" } }))
       .headers["content-type"]).toContain("text/html");
+    expect((await runtime.server.inject({ url: "/api/items", headers: { accept: "text/html" } }))
+      .headers["content-type"]).toContain("application/json");
     expect((await apiOnly.server.inject({ url: "/business", headers: { accept: "text/html" } }))
       .headers["content-type"]).toContain("application/json");
+  });
+
+  it("normalizes repeated trailing slashes from an API prefix", async () => {
+    const { runtime } = createRuntime({ enabled: true, apiPathPrefixes: ["/data///"] });
+    const response = await runtime.server.inject({ url: "/data/items", headers: { accept: "text/html" } });
+    expect(response.headers["content-type"]).toBe("application/json; charset=utf-8");
+    expect(response.json()).toMatchObject({ statusCode: 503 });
+  });
+
+  it("honors weighted media ranges, specificity and HEAD without a body", async () => {
+    const { runtime } = createRuntime({ enabled: true });
+    const scenarios = [
+      ["TEXT/HTML ; charset=utf-8 ; q=0.125 , application/json;q=0.124", "text/html"],
+      ["text/html ; q=0.2 , application/json;q=0.9", "application/json"],
+      ["text/html;q=1.000, application/json;q=0.999", "text/html"],
+      ["text/html;q=0, */*;q=0", "application/json"],
+      ["text/html;q=0.5, */*;q=0.9", "application/json"],
+      ["text/html;q=0.5, application/*;q=0, */*;q=0.9", "text/html"],
+      ["text/html;q=x0.5, application/json;q=0.1", "application/json"],
+      ["text/html;q=1.001, application/json;q=0.1", "application/json"],
+    ];
+    for (const [accept, mediaType] of scenarios) {
+      const response = await runtime.server.inject({ url: "/business", headers: { accept } });
+      expect(response.headers["content-type"], accept).toBe(`${mediaType}; charset=utf-8`);
+    }
+    const head = await runtime.server.inject({ method: "HEAD", url: "/business", headers: { accept: "text/html" } });
+    expect(head.headers["content-type"]).toBe("text/html; charset=utf-8");
+    expect(head.body).toBe("");
   });
 
   it.each(["POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const)(
@@ -350,5 +380,20 @@ describe("HTTP maintenance configuration", () => {
     }).http.maintenance).toEqual({
       enabled: true, retryAfterSeconds: 60, apiPathPrefixes: ["/api"], exceptions: [],
     });
+  });
+
+  it("validates request methods, maintenance paths and HTTP header-name boundaries", () => {
+    const methods = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT"] as const;
+    expect(httpMaintenanceConfigSchema.parse({ exceptions: [{ path: "/ready", methods }] }).exceptions)
+      .toEqual([{ path: "/ready", methods }]);
+    expect(() => httpMaintenanceConfigSchema.parse({ exceptions: [{ path: "/ready?mode=all" }] }))
+      .toThrow("A maintenance path must start with /");
+    expect(() => httpMaintenanceConfigSchema.parse({ html: "  " }))
+      .toThrow("The maintenance HTML cannot be empty.");
+    const { config } = createRuntime();
+    expect(httpConfigBase.schema.parse({ ...config, executionIdHeader: "X-Trace-ID" }).executionIdHeader).toBe("X-Trace-ID");
+    for (const executionIdHeader of [" invalid", "invalid ", "bad:name"]) {
+      expect(() => httpConfigBase.schema.parse({ ...config, executionIdHeader })).toThrow();
+    }
   });
 });

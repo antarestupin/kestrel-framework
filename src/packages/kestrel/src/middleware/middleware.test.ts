@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { createDependencyContainer } from "../di/index.js";
+import { createDependencyContainer, dep } from "../di/index.js";
 import {
   defineMiddleware,
   runMiddlewarePipeline,
@@ -79,5 +79,44 @@ describe("middleware pipeline", () => {
     );
 
     expect(result).toBe("1");
+  });
+
+  it("propagates an entry failure without resolving downstream dependencies", async () => {
+    const container = createDependencyContainer({});
+    const failure = new Error("Middleware denied execution");
+    const stop = defineMiddleware("stop", {
+      handler: async () => { throw failure; },
+    });
+    const downstream = defineMiddleware("downstream", {
+      dependencies: { service: dep<unknown>("unregistered") },
+      handler: (_context, next) => next(),
+    });
+    const terminal = vi.fn(async () => "terminal");
+    try {
+      // The deliberately absent dependency would replace the denial if resolved eagerly.
+      await expect(runMiddlewarePipeline([stop, downstream], {}, container, terminal)).rejects.toBe(failure);
+      expect(terminal).not.toHaveBeenCalled();
+    } finally {
+      await container.dispose();
+    }
+  });
+
+  it("propagates an unwind failure after the terminal completes", async () => {
+    const container = createDependencyContainer({});
+    const failure = new Error("Middleware cleanup failed");
+    const cleanup = defineMiddleware("cleanup", {
+      handler: async (_context, next) => {
+        await next();
+        throw failure;
+      },
+    });
+    const terminal = vi.fn(async () => "success");
+    try {
+      // An unwind failure is visible even when the terminal returns successfully.
+      await expect(runMiddlewarePipeline([cleanup], {}, container, terminal)).rejects.toBe(failure);
+      expect(terminal).toHaveBeenCalledOnce();
+    } finally {
+      await container.dispose();
+    }
   });
 });

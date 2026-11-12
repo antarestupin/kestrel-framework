@@ -66,6 +66,93 @@ describe("HTTP hardening profile", () => {
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
   });
 
+  it.each([
+    ["app.example:443", 200],
+    ["app.example:80", 421],
+    ["alternate.example:80", 200],
+    ["alternate.example", 421],
+    ["app.example/", 421],
+    ["app.example/path/..", 421],
+    ["app.example\\", 421],
+    ["app.example?", 421],
+    ["app.example#", 421],
+    ["user@app.example", 421],
+    ["app%2eexample", 421],
+  ] as const)("validates authority %s against HTTPS public origins", async (host, status) => {
+    const server = createHardenedServer({
+      publicOrigins: ["https://app.example", "https://alternate.example:80"],
+    });
+    server.get("/", () => "ok");
+
+    // HTTP on the local listener must still normalize the authority as public HTTPS.
+    expect((await server.inject({ url: "/", headers: { host } })).statusCode).toBe(status);
+  });
+
+  it("applies the complete security response policy to accepted and rejected hosts", async () => {
+    const server = createHardenedServer();
+    server.get("/", () => "ok");
+    for (const [host, status] of [["app.example", 200], ["other.example", 421]] as const) {
+      const response = await server.inject({ url: "/", headers: { host } });
+      expect(response.statusCode).toBe(status);
+      expect(response.headers).toMatchObject({
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "DENY",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+      });
+      expect(response.headers["cross-origin-embedder-policy"]).toBeUndefined();
+      const policy = String(response.headers["content-security-policy"] ?? "");
+      const directives = Object.fromEntries(policy.split(";").map((entry) => {
+        const [name, ...values] = entry.trim().split(/\s+/u);
+        return [name, values];
+      }));
+      expect(directives).toEqual({
+        "base-uri": ["'none'"],
+        "connect-src": ["'self'"],
+        "default-src": ["'none'"],
+        "font-src": ["'self'"],
+        "form-action": ["'self'"],
+        "frame-ancestors": ["'none'"],
+        "img-src": ["'self'", "data:"],
+        "manifest-src": ["'self'"],
+        "object-src": ["'none'"],
+        "script-src": ["'self'"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "upgrade-insecure-requests": [],
+      });
+    }
+  });
+
+  it("ignores forwarded authority in direct mode and sets explicit poisoning and shutdown policy", async () => {
+    const profile = createHttpHardeningProfile(parseConfig());
+    expect(profile.server).toMatchObject({
+      onConstructorPoisoning: "error",
+      onProtoPoisoning: "error",
+      return503OnClosing: true,
+      trustProxy: false,
+    });
+    const server = createHardenedServer();
+    server.get("/", (request) => ({ host: request.host, protocol: request.protocol, ip: request.ip }));
+    const response = await server.inject({
+      url: "/", remoteAddress: "192.0.2.1",
+      headers: {
+        host: "app.example",
+        "x-forwarded-host": "wrong.example",
+        "x-forwarded-proto": "https",
+        "x-forwarded-for": "203.0.113.1",
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ host: "app.example", protocol: "http", ip: "192.0.2.1" });
+  });
+
   it("retains the configured HSTS policy for a rejected malformed host", async () => {
     const server = createHardenedServer({
       hsts: { maxAgeSeconds: 3_600, includeSubDomains: true, preload: true },
@@ -172,6 +259,39 @@ describe("HTTP hardening profile", () => {
         keepAliveBufferMs: 1_000,
       },
     })).toThrow("header timeout cannot exceed");
+  });
+
+  it("enforces proxy family limits and accepts host addresses and zero-length prefixes", () => {
+    const cidrs = ["192.0.2.1", "192.0.2.0/0", "192.0.2.1/32", "::1", "::/0", "::1/128"];
+    expect(parseConfig({ proxy: { mode: "trusted", cidrs } }).proxy).toEqual({ mode: "trusted", cidrs });
+    for (const invalid of ["192.0.2.1/33", "::1/129", "hostname/32", "192.0.2.1/-1", "::1/+1", "::1/1a", "::1/0x10", "::1/128/1"]) {
+      expect(() => parseConfig({ proxy: { mode: "trusted", cidrs: [invalid] } })).toThrow("IP address or CIDR");
+    }
+  });
+
+  it("validates canonical public origins and retains nested defaults and timeout boundaries", () => {
+    const valid = httpHardeningConfigBase.schema.parse({
+      publicOrigins: ["https://app.example", "http://local.example"],
+      proxy: { mode: "direct" }, timeouts: { headersMs: 30_000 }, limits: {}, hsts: {},
+    });
+    expect(valid.enabled).toBe(false);
+    expect(valid.timeouts.headersMs).toBe(valid.timeouts.requestMs);
+    expect(valid.limits.bodyBytes).toBe(256 * 1_024);
+    expect(valid.hsts).toEqual({ maxAgeSeconds: 31_536_000, includeSubDomains: false, preload: false });
+    // Configuration diagnostics identify the field an application needs to change.
+    const invalidOrigin = httpHardeningConfigBase.schema.safeParse({ ...valid, enabled: true });
+    expect(invalidOrigin.error?.issues).toMatchObject([{
+      code: "custom", path: ["publicOrigins"], message: expect.stringContaining("requires HTTPS public origins"),
+    }]);
+    const invalidTimeout = httpHardeningConfigBase.schema.safeParse({
+      ...valid, timeouts: { ...valid.timeouts, headersMs: valid.timeouts.requestMs + 1 },
+    });
+    expect(invalidTimeout.error?.issues).toMatchObject([{
+      code: "custom", path: ["timeouts", "headersMs"], message: expect.stringContaining("header timeout cannot exceed"),
+    }]);
+    for (const origin of ["ftp://app.example", "https://app.example/path", "https://user@app.example", "https://app.example:443"]) {
+      expect(() => parseConfig({ publicOrigins: [origin] })).toThrow("scheme, host, and optional port");
+    }
   });
 
   it("refuses to build a disabled profile", () => {

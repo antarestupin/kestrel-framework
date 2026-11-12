@@ -107,4 +107,21 @@ describe("PostgresSubjectRoleStorageAdapter", () => {
     await adapter.revokeRole("subject-1", admin.key);
     await expect(resolver.resolvePermissions("subject-1")).resolves.toEqual(new Set());
   });
+
+  it("reports first and duplicate grants separately and scopes stale revocation to the exact pair", async () => {
+    // Assert each outcome in order. A sorted pair would also accept inverted booleans.
+    await expect(adapter.grantRole("subject-1", "editor")).resolves.toBe(true);
+    await expect(adapter.grantRole("subject-1", "editor", "operator")).resolves.toBe(false);
+    await expect(adapter.grantRole("subject-2", "admin", "operator")).resolves.toBe(true);
+
+    // A matching role on another subject and a different role on this subject are both irrelevant.
+    await expect(adapter.revokeRole("subject-1", "admin")).resolves.toBe(false);
+    await expect(adapter.listRoleKeys("subject-1")).resolves.toEqual(new Set(["editor"]));
+    await expect(adapter.listRoleKeys("subject-2")).resolves.toEqual(new Set(["admin"]));
+    const metadata = await client.query<{ granted_by_subject_id: string | null }>(
+      "SELECT granted_by_subject_id FROM authorization_subject_role_test WHERE subject_id = $1 AND role_key = $2",
+      ["subject-1", "editor"],
+    );
+    expect(metadata.rows).toEqual([{ granted_by_subject_id: null }]);
+  });
 });

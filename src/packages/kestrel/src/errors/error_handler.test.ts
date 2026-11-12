@@ -8,6 +8,8 @@ import {
 import {
   DefaultErrorHandler,
   getHttpErrorName,
+  isCliRepresentableError,
+  isHttpRepresentableError,
   type ErrorRepresentationContext,
   type HttpRepresentableError,
   type CliRepresentableError,
@@ -83,6 +85,66 @@ describe("DefaultErrorHandler", () => {
       "http",
       context,
     );
+  });
+
+  it("reports the original CLI failure while keeping its public message opaque", () => {
+    const handler = new ReportingErrorHandler({ debug: false });
+    const error = new Error("Private database connection details");
+
+    expect(handler.handleCli(error, context)).toEqual({
+      exitCode: 1,
+      message: "An unexpected error occurred. Execution: execution-123",
+    });
+    expect(handler.report).toHaveBeenCalledExactlyOnceWith(error, "cli", context);
+  });
+
+  it("reports the original failure when representation property lookup throws", () => {
+    const handler = new ReportingErrorHandler({ debug: false });
+    const lookupFailure = new Error("Private property lookup details");
+    const original = Object.defineProperties({}, {
+      toHttpError: { get() { throw lookupFailure; } },
+      toCliError: { get() { throw lookupFailure; } },
+    });
+
+    expect(isHttpRepresentableError(original)).toBe(false);
+    expect(isCliRepresentableError(original)).toBe(false);
+    expect(handler.handleHttp(original, context)).toEqual({
+      statusCode: 500,
+      error: "Internal Server Error",
+      message: "An unexpected error occurred.",
+      extensions: { executionId: "execution-123" },
+    });
+    expect(handler.handleCli(original, context)).toEqual({
+      exitCode: 1,
+      message: "An unexpected error occurred. Execution: execution-123",
+    });
+    expect(handler.report.mock.calls).toEqual([
+      [original, "http", context],
+      [original, "cli", context],
+    ]);
+  });
+
+  it("reads each representation once and calls it with the original receiver and context", () => {
+    const handler = new ReportingErrorHandler({ debug: true });
+    const toHttpError = vi.fn((_context: ErrorRepresentationContext) => ({ statusCode: 409, message: "Conflict" }));
+    const toCliError = vi.fn((_context: ErrorRepresentationContext) => ({ exitCode: 3, message: "Conflict" }));
+    const readHttp = vi.fn(() => toHttpError);
+    const readCli = vi.fn(() => toCliError);
+    const original = Object.defineProperties({}, {
+      toHttpError: { get: readHttp },
+      toCliError: { get: readCli },
+    });
+
+    // Accessors may be stateful, so discovery and invocation must use the same method.
+    expect(handler.handleHttp(original, context)).toEqual({ statusCode: 409, message: "Conflict" });
+    expect(handler.handleCli(original, context)).toEqual({ exitCode: 3, message: "Conflict" });
+    expect(readHttp).toHaveBeenCalledOnce();
+    expect(readCli).toHaveBeenCalledOnce();
+    expect(toHttpError).toHaveBeenCalledExactlyOnceWith(context);
+    expect(toCliError).toHaveBeenCalledExactlyOnceWith(context);
+    expect(toHttpError.mock.contexts).toEqual([original]);
+    expect(toCliError.mock.contexts).toEqual([original]);
+    expect(handler.report).not.toHaveBeenCalled();
   });
 
   it("includes the stack and cause chain in HTTP debug responses", () => {
@@ -161,6 +223,18 @@ describe("DefaultErrorHandler", () => {
       .toMatchObject({ causes: [{ error: "UnknownError", message }] });
   });
 
+  it("renders null and primitive causes without treating them as errors with children", () => {
+    const handler = new DefaultErrorHandler({ debug: true });
+    const error = new AggregateError([null, undefined, 0], "Operation failed", { cause: false });
+
+    // Primitive failures are leaves, including explicitly supplied falsy values.
+    expect(handler.handleHttp(error, context).extensions).toStrictEqual({
+      executionId: "execution-123",
+      stack: error.stack,
+      causes: ["false", "null", "undefined", "0"].map((message) => ({ error: "UnknownError", message })),
+    });
+  });
+
   it("retains nested polling failures and avoids duplicate or cyclic diagnostics", () => {
     const handler = new DefaultErrorHandler({ debug: true });
     const databaseError = new Error('relation "workflows.task" does not exist');
@@ -187,6 +261,43 @@ describe("DefaultErrorHandler", () => {
     const production = new DefaultErrorHandler({ debug: false });
     expect(production.handleCli(error, context).message).not.toContain(databaseError.message);
     expect(production.handleHttp(error, context).extensions).not.toHaveProperty("causes");
+  });
+});
+
+describe("transport representation checks", () => {
+  it.each([
+    undefined,
+    null,
+    "failure",
+    { toHttpError: true, toCliError: "invalid" },
+  ])("rejects thrown values without callable representations (%#)", (error) => {
+    expect(isHttpRepresentableError(error)).toBe(false);
+    expect(isCliRepresentableError(error)).toBe(false);
+  });
+
+  it("recognizes the HTTP and CLI contracts independently", () => {
+    const http = { toHttpError: () => ({ statusCode: 409, message: "Conflict" }) };
+    const cli = { toCliError: () => ({ exitCode: 2, message: "Conflict" }) };
+
+    expect(isHttpRepresentableError(http)).toBe(true);
+    expect(isCliRepresentableError(http)).toBe(false);
+    expect(isHttpRepresentableError(cli)).toBe(false);
+    expect(isCliRepresentableError(cli)).toBe(true);
+  });
+
+  it("requires a thrown object with visible representation methods", () => {
+    const methods = {
+      toHttpError: vi.fn(() => ({ statusCode: 409, message: "Conflict" })),
+      toCliError: vi.fn(() => ({ exitCode: 2, message: "Conflict" })),
+    };
+    const callable = Object.assign(() => {}, methods);
+    const hidden = new Proxy(methods, { has: () => false });
+
+    // A callable thrown value or hidden proxy property does not opt into a public response.
+    for (const value of [callable, hidden]) {
+      expect(isHttpRepresentableError(value)).toBe(false);
+      expect(isCliRepresentableError(value)).toBe(false);
+    }
   });
 });
 

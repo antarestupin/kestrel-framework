@@ -36,19 +36,31 @@ export interface CliRepresentableError {
 export function isHttpRepresentableError(
   error: unknown,
 ): error is HttpRepresentableError {
-  return hasMethod(error, "toHttpError");
+  return readRepresentationMethod(error, "toHttpError") !== undefined;
 }
 
 /** Checks an unknown thrown value for the CLI representation contract. */
 export function isCliRepresentableError(
   error: unknown,
 ): error is CliRepresentableError {
-  return hasMethod(error, "toCliError");
+  return readRepresentationMethod(error, "toCliError") !== undefined;
 }
 
-function hasMethod(value: unknown, name: string): boolean {
-  return typeof value === "object"
-    && value !== null
-    && name in value
-    && typeof (value as Record<string, unknown>)[name] === "function";
+type RepresentationMethods = HttpRepresentableError & CliRepresentableError;
+
+/** Reads an optional transport method without letting accessors mask the original failure. */
+export function readRepresentationMethod<Name extends keyof RepresentationMethods>(
+  value: unknown,
+  name: Name,
+): RepresentationMethods[Name] | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+
+  try {
+    if (!(name in value)) return undefined;
+    const method = (value as Partial<RepresentationMethods>)[name];
+    return typeof method === "function" ? method : undefined;
+  } catch {
+    // A throwing property accessor or proxy trap is not an available representation.
+    return undefined;
+  }
 }

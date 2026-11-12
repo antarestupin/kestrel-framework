@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { App } from "../../../app/index.js";
+import { dep } from "../../../di/index.js";
 import { defineSubjectRoleStorageAdapter } from "../../adapter_definition.js";
 import { MemorySubjectRoleStorageAdapter } from "../../adapters/memory/index.js";
 import { definePermission, defineRole } from "../../definition.js";
+import { permissionResolverDependency, subjectRoleStoreDependency } from "../../dependencies.js";
 import { rolePermissions } from "./definition.js";
 import { RolePermissionResolver } from "./resolver.js";
 import { RolePermissionResolverProvider } from "./provider.js";
@@ -30,7 +33,8 @@ describe("RolePermissionResolver", () => {
 
   it("rejects duplicate role keys and invalid definitions before resolution", () => {
     const subjectRoleStore = new MemorySubjectRoleStorageAdapter();
-    expect(() => new RolePermissionResolver({ roles: [reader, reader], subjectRoleStore })).toThrow(TypeError);
+    expect(() => new RolePermissionResolver({ roles: [reader, reader], subjectRoleStore }))
+      .toThrow('Authorization role "reader" is declared more than once.');
     expect(() => new RolePermissionResolverProvider([reader, reader], defineSubjectRoleStorageAdapter({ dependencies: {}, capabilities: {}, create: () => ({ listRoleKeys: async () => new Set<string>(), grantRole: async () => true, revokeRole: async () => true }) }))).toThrow(TypeError);
     expect(() => new RolePermissionResolver({
       roles: [{ ...reader, permissions: [{ id: "Invalid Permission" }] }], subjectRoleStore,
@@ -92,6 +96,58 @@ describe("RolePermissionResolver", () => {
     } finally {
       await definition.dispose(first);
       await definition.dispose(second);
+    }
+  });
+
+  it("rejects asynchronous child storage before composing the scoped resolver", () => {
+    const create = vi.fn(() => new MemorySubjectRoleStorageAdapter());
+    const initialize = vi.fn(async () => {});
+    const storage = defineSubjectRoleStorageAdapter({ dependencies: {}, capabilities: {}, create });
+
+    // A JavaScript adapter can supply an initialize hook despite the scoped TypeScript contract.
+    expect(() => Reflect.apply(rolePermissions, undefined, [[reader], { ...storage, initialize }]))
+      .toThrow("Scoped authorization assignment stores must be synchronously ready.");
+    expect(create).not.toHaveBeenCalled();
+    expect(initialize).not.toHaveBeenCalled();
+  });
+
+  it("resolves the registered role catalog and store once per execution", async () => {
+    const app = new App({});
+    const source = dep<MemorySubjectRoleStorageAdapter>("executionRoleSource");
+    const create = vi.fn(({ source }: { source: MemorySubjectRoleStorageAdapter }) => source);
+    const dispose = vi.fn();
+    const permissions = [{ id: read.id }];
+    const role = { key: reader.key, name: reader.name, permissions };
+
+    try {
+      app.container.registerFactory(source.id, () => new MemorySubjectRoleStorageAdapter(), { lifetime: "scoped" });
+      app.register(new RolePermissionResolverProvider([role], defineSubjectRoleStorageAdapter({
+        dependencies: { source }, capabilities: {}, create, dispose,
+      })));
+      // The provider owns a catalog snapshot even before the first execution is opened.
+      permissions[0]!.id = write.id;
+      await app.start();
+      expect(create).not.toHaveBeenCalled();
+      for (let index = 0; index < 2; index++) {
+        const execution = await app.createExecutionScope();
+        try {
+          const store = execution.container.resolve(subjectRoleStoreDependency);
+          const resolver = execution.container.resolve(permissionResolverDependency);
+          expect(execution.container.resolve(subjectRoleStoreDependency)).toBe(store);
+          expect(execution.container.resolve(permissionResolverDependency)).toBe(resolver);
+          expect(store).toBe(execution.container.resolve(source));
+          await expect(resolver.resolvePermissions("subject-1")).resolves.toEqual(new Set());
+          await store.grantRole("subject-1", reader.key);
+          await expect(resolver.resolvePermissions("subject-1")).resolves.toEqual(new Set([read.id]));
+        } finally {
+          await execution.dispose();
+        }
+      }
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(create.mock.results[0]?.value).not.toBe(create.mock.results[1]?.value);
+      expect(dispose.mock.calls).toEqual(create.mock.results.map(({ value }) => [value]));
+    } finally {
+      await app.dispose();
     }
   });
 });

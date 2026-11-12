@@ -6,12 +6,34 @@ import { AuthorizationDeniedError } from "./errors.js";
 import { AuthorizationManager } from "./manager.js";
 import { allOf, anyOf, permission } from "./requirements.js";
 import { definePermission } from "./definition.js";
+import type { AuthorizationRequirement } from "./types.js";
 
 const read = definePermission({ id: "records.read" });
 const write = definePermission({ id: "records.write" });
 const archive = definePermission({ id: "records.archive" });
 
 describe("AuthorizationManager", () => {
+  it("fails closed on empty, sparse and unknown groups supplied outside the builders", async () => {
+    const manager = new AuthorizationManager({
+      authenticationContext: authenticatedContext("subject-1"),
+      permissionResolver: { resolvePermissions: async () => new Set([read.id]) },
+    });
+    const empty = { type: "all", requirements: [] } as const;
+    const sparse = Array<AuthorizationRequirement>(2);
+    sparse[1] = permission(read);
+    const unknown = { type: "unsupported", requirements: [permission(read)] };
+
+    // Public requirements are structural, so callers can bypass the builder's input validation.
+    await expect(manager.require(empty)).rejects.toBeInstanceOf(AuthorizationDeniedError);
+    await expect(manager.require(anyOf(empty, permission(write))))
+      .rejects.toBeInstanceOf(AuthorizationDeniedError);
+    await expect(manager.require({ type: "all", requirements: sparse }))
+      .rejects.toBeInstanceOf(AuthorizationDeniedError);
+    // A JavaScript caller can also supply an unsupported discriminator.
+    await expect(Reflect.apply(manager.require, manager, [unknown]))
+      .rejects.toBeInstanceOf(AuthorizationDeniedError);
+  });
+
   it("keeps the declared permission when its caller mutates the source object", async () => {
     const source = { id: write.id };
     const requirement = permission(source);

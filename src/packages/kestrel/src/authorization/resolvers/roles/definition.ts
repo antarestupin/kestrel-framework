@@ -7,6 +7,11 @@ export function rolePermissions(
   roles: readonly RoleDefinition[],
   storage: SubjectRoleStorageAdapterDefinition,
 ) {
+  // Apply the scoped lifecycle contract to the child recipe as well as the resolver.
+  if (storage.initialize !== undefined) {
+    throw new TypeError("Scoped authorization assignment stores must be synchronously ready.");
+  }
+
   const snapshot = snapshotRoles(roles);
   // The composed value owns its child storage and closes it with its scope.
   const owned = new WeakMap<RolePermissionResolver, ReturnType<typeof storage.create>>();

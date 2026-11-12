@@ -209,6 +209,34 @@ const focusedProfiles = {
     ["tokens/stored_strategy.ts"],
     ["tokens/types.ts"],
   ],
+  // Assess HTTP route contracts, access checks, runtime policies and client tooling independently.
+  "http-routing": [
+    ["http/bindings.ts"],
+    ["http/controller.ts"],
+    ["http/model_list_controller.ts"],
+    ["http/route.ts"],
+  ],
+  "http-access": [
+    ["http/access.ts"],
+    ["http/audiences/**/*.ts"],
+    ["http/controller_executor.ts"],
+    ["http/controller_manager.ts"],
+    ["http/middleware.ts"],
+  ],
+  "http-runtime": [
+    ["http/configuration.ts"],
+    ["http/dependencies.ts"],
+    ["http/extension.ts"],
+    ["http/hardening/**/*.ts"],
+    ["http/index.ts"],
+    ["http/maintenance/**/*.ts"],
+    ["http/provider.ts"],
+    ["http/runtime.ts"],
+  ],
+  "http-clients": [
+    ["http/client.ts"],
+    ["http/client_generation/**/*.ts"],
+  ],
   "outbound-resilience": [["outbound_http/deadline.ts"], ["outbound_http/body.ts"], ["outbound_http/middleware/retry/index.ts"]],
   "outbound-client": [["outbound_http/client.ts"], ["outbound_http/response.ts"]],
   "outbound-contracts": [

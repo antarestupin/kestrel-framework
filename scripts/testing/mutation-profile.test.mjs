@@ -61,6 +61,7 @@ const componentPartitions = {
     "authentication-sessions", "password-verification", "authentication-adapters",
     "authentication-http", "authentication-contracts",
   ],
+  http: ["http-routing", "http-access", "http-runtime", "http-clients"],
   outbound_http: ["outbound-resilience", "outbound-client", "outbound-contracts"],
 };
 

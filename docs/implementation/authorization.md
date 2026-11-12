@@ -96,6 +96,8 @@ Custom integrations register `permissionResolver` directly and omit `RolePermiss
 
 `permission` snapshots the validated permission definition when the requirement is declared. Later mutations to a caller-owned definition cannot change the permission checked at execution.
 
+When callers supply requirement objects directly, the manager denies empty or sparse conjunctions and treats unrecognized requirement kinds as denied.
+
 `AuthorizationManager.check` returns an explicit decision; `require` throws on denial. Missing authentication produces `AuthenticationRequiredError` with HTTP 401 semantics. An authenticated subject lacking a required permission produces `AuthorizationDeniedError` with HTTP 403 semantics. External denial responses do not expose role names, permission identifiers, or resolver details. Backend failures propagate and never permit the protected operation.
 
 The manager shares one in-flight resolution per execution and copies returned sets into private state. It has no cross-execution cache. Assignment changes affect subsequent executions without requiring session revocation; checks already performed in an execution retain their coherent snapshot.
@@ -129,6 +131,6 @@ Database-defined policies and runtime role editing are intentionally not supplie
 
 ## Explicit provider adapters
 
-`AuthorizationProvider(resolver)` accepts an execution-scoped permission resolver recipe. `rolePermissions(roles, storage)` composes code-defined roles with `postgresSubjectRoles(manager, tables?)` or an external assignment adapter. `RolePermissionResolverProvider(roles, storage)` remains available when registering the resolver separately. Standalone assignment operations can register the storage definition with `registerScopedAdapter` and inject `subjectRoleStoreDependency`.
+`AuthorizationProvider(resolver)` accepts an execution-scoped permission resolver recipe. `rolePermissions(roles, storage)` composes code-defined roles with `postgresSubjectRoles(manager, tables?)` or an external assignment adapter. Its storage recipe must be synchronously ready, so composition rejects an `initialize` hook. `RolePermissionResolverProvider(roles, storage)` remains available when registering the resolver separately. Standalone assignment operations can register the storage definition with `registerScopedAdapter` and inject `subjectRoleStoreDependency`.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).

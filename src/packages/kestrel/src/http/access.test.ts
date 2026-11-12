@@ -26,7 +26,14 @@ describe("HTTP access policies", () => {
     });
   });
 
-  it.each([null, {}, { name: "", middleware: [] }, { name: "invalid", middleware: null }])("rejects malformed explicit access (%s)", (access) => {
+  it.each([
+    null,
+    {},
+    { name: "", middleware: [] },
+    { name: "  ", middleware: [] },
+    { name: "invalid", middleware: null },
+    Object.assign(function callablePolicy() {}, { middleware: [] }),
+  ])("rejects malformed explicit access (%s)", (access) => {
     expect(() => defineHttpController({
       access,
       route: get("/invalid-access"),

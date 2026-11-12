@@ -2,7 +2,7 @@
 
 [Testing reference](./testing.md#framework-mutation-testing) · [Running assessments](../contributing/mutation-testing.md#run-framework-mutation-testing) · [Results and classifications](./mutation_testing_framework.md) · [Machine-readable inventory](./mutation_testing_inventory.json)
 
-Updated November 12, 2026. The 35 primary lots partition all 634 TS/TSX candidate sources currently selected by the full Stryker configuration. The inventory tracks mutation assessment progress. Source candidates include type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly and may be absent in a fresh Git checkout.
+Updated November 12, 2026. The 35 primary lots partition all 639 TS/TSX candidate sources currently selected by the full Stryker configuration. The inventory tracks mutation assessment progress. Source candidates include type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly and may be absent in a fresh Git checkout.
 
 ## Scope and states
 
@@ -22,9 +22,9 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | --- | ---: | --- | --- | --- |
 | `actions` | 9 | Reviewed | All nine current source candidates assessed; 12 diagnostic/optional-metadata residuals classified; re-review after contract changes | `actions-crud-pagination`, `actions-component` |
 | `app` | 11 | Partial / selected evidence | Shutdown, diagnostic budgets/destinations and CLI/worker identity wiring reviewed; startup, ownership and other catalog paths pending | `app-shutdown`, `execution-diagnostics`, `catalog-identities` |
-| `atlas` | 51 | Partial / selected evidence | Portable collection URL helper reviewed; other client/server, routing, rendering and adapter scopes pending | `atlas-collection-query` |
+| `atlas` | 53 | Partial / selected evidence | Portable collection URL helper reviewed; other client/server, routing, rendering and adapter scopes pending | `atlas-collection-query` |
 | `authentication` | 44 | Assessment complete; review pending | Review remaining survivors, including production PostgreSQL provider and migration wiring | [Coverage reassessment](mutation_testing_coverage_reassessment.md#authentication) · [Follow-up](mutation_testing_gap_followup.md#authentication) |
-| `authorization` | 23 | Partial / selected evidence | Decision manager reviewed; requirement builders, scoped stores and other authorization sources pending | `authorization-decisions` |
+| `authorization` | 23 | Reviewed | Requirement evaluation, scoped composition, denial semantics and role stores reviewed | [Boundary review](mutation_testing_http_boundaries.md#authorization) |
 | `background` | 4 | Assessment complete; review pending | All four candidate files assessed; synchronous stop-drain bug fixed; controlled steady-state completion assertions and residual policy follow-up pending | `component-background` |
 | `cache` | 24 | Partial / selected evidence | Memory/PostgreSQL pruning reviewed; other adapter methods, Redis and broader concurrency contracts pending | `cache-pruning` |
 | `cli` | 8 | Not assessed | Parsing, dispatch and exit/signals; subprocess observation limit | — |
@@ -37,17 +37,17 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `definitions` | 5 | Not assessed | Definition validation and composition | — |
 | `di` | 5 | Partial / selected evidence | Container/scopes; historical adapter-lifecycle pilot | `adapter-circuit-pilot` |
 | `email` | 34 | Not assessed | Composition, rendering, transport failures and adapter ownership | — |
-| `errors` | 4 | Not assessed | Public errors and error handling | — |
+| `errors` | 5 | Reviewed | Transport representation lookup, opaque fallback and cyclic diagnostics reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
 | `events` | 4 | Not assessed | Dispatch, asynchronous failures, scopes and close semantics | — |
-| `http` | 28 | Not assessed | Routing, validation, access and lifecycle through injection | — |
+| `http` | 28 | Reviewed | Routing, access and lifecycle, Host admission, client transport and generation reviewed | [Boundary review](mutation_testing_http_boundaries.md#http) |
 | `lock` | 22 | Partial / selected evidence | Batch renewal and extension validation reviewed with handle-composition limit; acquisition, handle and adapter sources pending | `lock-renewal` |
 | `log` | 13 | Not assessed | Redaction, formatting, filtering and transport ownership | — |
-| `middleware` | 2 | Not assessed | Composition and error propagation | — |
+| `middleware` | 2 | Reviewed | Entry, replay, dependency resolution and unwind failure behavior reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
 | `observability` | 15 | Not assessed | Context, buffering, redaction and flush/disposal | — |
 | `outbound_http` | 17 | Assessment complete; review pending | Review remaining survivors and define caller-cancellation circuit feedback | [Coverage reassessment](mutation_testing_coverage_reassessment.md#outbound-http) · [Follow-up](mutation_testing_gap_followup.md#outbound-http) |
 | `scheduled_tasks` | 19 | Reviewed | Scheduler ownership and shutdown, adapter parity and operator contracts | [Component review](mutation_testing_scheduled_tasks.md#november-11-review) |
 | `scheduling` | 4 | Reviewed | Timer limits, abort handling, lease extensions and polling budgets | [Component review](mutation_testing_scheduling_review.md) |
-| `studio` | 97 | Not assessed | Server/extensions, client state, routing and rendering | — |
+| `studio` | 99 | Not assessed | Server/extensions, client state, routing and rendering | — |
 | `testing` | 1 | Assessment complete; review pending | Public HTTP policy helper; PostgreSQL/Redis fixtures excluded | `testing-component` |
 | `throttling` | 34 | Assessment complete; review pending | Review residual queue and lease progress detections, storage wiring, and schema contracts | [Coverage reassessment](mutation_testing_coverage_reassessment.md#throttling) · [Follow-up](mutation_testing_gap_followup.md#throttling) |
 | `tokens` | 31 | Assessment complete; review pending | Review remaining survivors and PostgreSQL provider wiring | [Coverage reassessment](mutation_testing_coverage_reassessment.md#tokens) · [Follow-up](mutation_testing_gap_followup.md#tokens) |
@@ -56,7 +56,7 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `workers` | 23 | Reviewed | Scheduler admission and ownership, delivery, publication, adapters and contracts | [Component review](mutation_testing_workers_complete_review.md) |
 | `workflows` | 38 | Reviewed | Runtime, replay, operator commands and adapter contracts | [Component review](mutation_testing_workflows_complete_review.md) |
 
-The current total is 16 not-assessed lots, 7 partially assessed lots, 5 reviewed lots, 6 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
+The current total is 13 not-assessed lots, 6 partially assessed lots, 9 reviewed lots, 6 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
 
 ## Evidence ledger
 
@@ -203,6 +203,19 @@ The follow-up reassessed 18 named profiles against their exact branch-coverage b
 | `outbound_http` | Complete | 3 | 1129 | 956 → 973 / 166 → 149 / 6 → 6 | 1 → 1 / 0 → 0 |
 
 The [follow-up analysis](mutation_testing_gap_followup.md) records the behavior tested, deadline detections, and remaining material limits. The local comparison and input manifest are under `artifacts/mutation/nov12-gap-followup/`. The component review states remain pending.
+
+## November 12 HTTP and authorization boundary review
+
+All seven profiles completed with static and hybrid mutants retained. The scope audit matches the entire mutation set in the 58 candidate sources. The [boundary review](mutation_testing_http_boundaries.md) describes the confirmed defects, remaining mutants, and how unchanged source spans were paired.
+
+| Component | Matched mutants | Killed / Survived / NoCoverage | Timeout / RuntimeError | Stryker score |
+| --- | ---: | --- | --- | --- |
+| `http` | 1236 | 1062 / 254 / 9 → 1322 / 48 / 1 | 11 / 6 → 4 / 6 | 80.31% → 96.44% |
+| `authorization` | 212 | 172 / 38 / 9 → 236 / 4 / 0 | 0 / 9 → 0 / 9 | 78.54% → 98.33% |
+| `errors` | 87 | 95 / 11 / 0 → 121 / 3 / 0 | 3 / 0 → 3 / 0 | 89.91% → 97.64% |
+| `middleware` | 18 | 18 / 0 / 0 → 18 / 0 / 0 | 0 / 0 → 0 / 0 | 100.00% → 100.00% |
+
+Local reports, exact comparisons and input hashes are archived under `artifacts/mutation/nov12-http-boundaries/`.
 
 ## Historical global campaign
 

@@ -106,7 +106,7 @@ type ControllerOutput<Controller extends { readonly outputSchema?: ZodType }> =
 
 ${typeDeclarations}
 
-/** Creates the ${options.name} HTTP client from its generated controller catalog. */
+/** Creates the ${escapeJsDoc(options.name)} HTTP client from its generated controller catalog. */
 export function ${options.factoryName}(options: HttpClientOptions) {
   const transport = createHttpClientTransport(options);
 
@@ -204,7 +204,7 @@ function renderClientBranch(
       path,
     );
 
-    return `${childIndentation}/** Calls {@link ${serverSymbol}} (${value.operationId}). */
+    return `${childIndentation}/** Calls {@link ${escapeJsDoc(serverSymbol)}} (${escapeJsDoc(value.operationId)}). */
 ${childIndentation}${property}: (${inputParameter}): Promise<${typeName}Output> =>
 ${childIndentation}  transport.request<${typeName}Output>(${renderOperation(value, bindings, depth + 2)}${inputArgument})`;
   });
@@ -274,6 +274,11 @@ function toPascalCase(value: string): string {
 
 function isIdentifier(value: string): boolean {
   return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value);
+}
+
+/** Keep catalog text inside the generated comment without changing wire identifiers. */
+function escapeJsDoc(value: string): string {
+  return value.replaceAll("*/", "*\\/");
 }
 
 function isMissingFileError(error: unknown): boolean {

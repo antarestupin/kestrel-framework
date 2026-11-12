@@ -45,7 +45,7 @@
     {
       "id": "atlas",
       "scope": "atlas/**/*",
-      "sourceFiles": 51,
+      "sourceFiles": 53,
       "state": "partial",
       "focus": "Portable collection URL helper reviewed; other client/server, routing, rendering and adapter scopes pending",
       "evidence": [
@@ -70,10 +70,11 @@
       "id": "authorization",
       "scope": "authorization/**/*",
       "sourceFiles": 23,
-      "state": "partial",
-      "focus": "Decision manager reviewed; requirement builders, scoped stores and other authorization sources pending",
+      "state": "reviewed",
+      "focus": "Requirement evaluation, scoped composition, denial semantics and role stores reviewed",
       "evidence": [
-        "authorization-decisions"
+        "authorization-decisions",
+        "authorization-boundary-review"
       ]
     },
     {
@@ -183,10 +184,12 @@
     {
       "id": "errors",
       "scope": "errors/**/*",
-      "sourceFiles": 4,
-      "state": "not-assessed",
-      "focus": "Public errors and error handling",
-      "evidence": []
+      "sourceFiles": 5,
+      "state": "reviewed",
+      "focus": "Transport representation lookup, opaque fallback and cyclic diagnostics reviewed",
+      "evidence": [
+        "errors-boundary-review"
+      ]
     },
     {
       "id": "events",
@@ -200,9 +203,11 @@
       "id": "http",
       "scope": "http/**/*",
       "sourceFiles": 28,
-      "state": "not-assessed",
-      "focus": "Routing, validation, access and lifecycle through injection",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Routing, access and lifecycle, Host admission, client transport and generation reviewed",
+      "evidence": [
+        "http-boundary-review"
+      ]
     },
     {
       "id": "lock",
@@ -226,9 +231,11 @@
       "id": "middleware",
       "scope": "middleware/**/*",
       "sourceFiles": 2,
-      "state": "not-assessed",
-      "focus": "Composition and error propagation",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Entry, replay, dependency resolution and unwind failure behavior reviewed",
+      "evidence": [
+        "middleware-boundary-review"
+      ]
     },
     {
       "id": "observability",
@@ -280,7 +287,7 @@
     {
       "id": "studio",
       "scope": "studio/**/*",
-      "sourceFiles": 97,
+      "sourceFiles": 99,
       "state": "not-assessed",
       "focus": "Server/extensions, client state, routing and rendering",
       "evidence": []
@@ -1500,6 +1507,153 @@
       ],
       "analysis": "mutation_testing_gap_followup.md",
       "limits": "Complete component scope. Caller-cancellation circuit feedback remains a contract question. Vitest deadlines are counted separately in the comparison."
+    },
+    {
+      "id": "http-boundary-review",
+      "date": "2026-11-12",
+      "components": [
+        "http"
+      ],
+      "extent": "All 28 candidate sources in http/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1322,
+        "Survived": 48,
+        "RuntimeError": 6,
+        "Timeout": 4,
+        "NoCoverage": 1
+      },
+      "baselineCounts": {
+        "Survived": 254,
+        "Killed": 1062,
+        "RuntimeError": 6,
+        "Timeout": 11,
+        "NoCoverage": 9
+      },
+      "matchedMutants": 1236,
+      "unmatchedBefore": 106,
+      "unmatchedAfter": 145,
+      "baselineRevision": "32df64e5895f21be9a56efb3e81921d0fe15d90d",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-http-boundaries/",
+      "profiles": [
+        "http-routing",
+        "http-access",
+        "http-runtime",
+        "http-clients"
+      ],
+      "afterSeconds": {
+        "http-routing": 175,
+        "http-access": 182,
+        "http-runtime": 153,
+        "http-clients": 119
+      },
+      "analysis": "mutation_testing_http_boundaries.md",
+      "limits": "Four disjoint profiles. Review distinguishes optional shapes, diagnostics, generated formatting and runtime or timeout detections. Compound and regex-constrained route patterns remain a generated-client boundary."
+    },
+    {
+      "id": "authorization-boundary-review",
+      "date": "2026-11-12",
+      "components": [
+        "authorization"
+      ],
+      "extent": "All 23 candidate sources in authorization/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 236,
+        "Survived": 4,
+        "RuntimeError": 9
+      },
+      "baselineCounts": {
+        "Killed": 172,
+        "Survived": 38,
+        "RuntimeError": 9,
+        "NoCoverage": 9
+      },
+      "matchedMutants": 212,
+      "unmatchedBefore": 16,
+      "unmatchedAfter": 37,
+      "baselineRevision": "32df64e5895f21be9a56efb3e81921d0fe15d90d",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-http-boundaries/",
+      "profiles": [
+        "component-authorization"
+      ],
+      "afterSeconds": {
+        "component-authorization": 138
+      },
+      "analysis": "mutation_testing_http_boundaries.md",
+      "limits": "PostgreSQL schema-load failures are counted separately. Retention-only and equivalent SQL/column-type variants remain."
+    },
+    {
+      "id": "errors-boundary-review",
+      "date": "2026-11-12",
+      "components": [
+        "errors"
+      ],
+      "extent": "All 5 candidate sources in errors/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 121,
+        "Survived": 3,
+        "Timeout": 3
+      },
+      "baselineCounts": {
+        "Killed": 95,
+        "Survived": 11,
+        "Timeout": 3
+      },
+      "matchedMutants": 87,
+      "unmatchedBefore": 22,
+      "unmatchedAfter": 40,
+      "baselineRevision": "32df64e5895f21be9a56efb3e81921d0fe15d90d",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-http-boundaries/",
+      "profiles": [
+        "component-errors"
+      ],
+      "afterSeconds": {
+        "component-errors": 96
+      },
+      "analysis": "mutation_testing_http_boundaries.md",
+      "limits": "Three equivalent survivors and three Stryker traversal hit-limit detections."
+    },
+    {
+      "id": "middleware-boundary-review",
+      "date": "2026-11-12",
+      "components": [
+        "middleware"
+      ],
+      "extent": "All 2 candidate sources in middleware/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 18
+      },
+      "baselineCounts": {
+        "Killed": 18
+      },
+      "matchedMutants": 18,
+      "unmatchedBefore": 0,
+      "unmatchedAfter": 0,
+      "baselineRevision": "32df64e5895f21be9a56efb3e81921d0fe15d90d",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-http-boundaries/",
+      "profiles": [
+        "component-middleware"
+      ],
+      "afterSeconds": {
+        "component-middleware": 48
+      },
+      "analysis": "mutation_testing_http_boundaries.md",
+      "limits": "All 18 mutants killed, including static variants."
     }
   ]
 }

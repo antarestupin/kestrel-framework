@@ -1,3 +1,4 @@
+import Fastify from "fastify";
 import {
   describe,
   expect,
@@ -44,16 +45,17 @@ describe("HTTP client transport", () => {
     expect(result).toEqual({ id: "space/one", page: 2 });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.example.test/spaces/space%2Fone/overview?page=2&tag=open&tag=recent",
-      expect.objectContaining({
+      {
         method: "GET",
         headers: expect.any(Headers),
-      }),
+      },
     );
     const request = fetchMock.mock.calls[0]?.[1];
 
     expect(request?.headers).toBeInstanceOf(Headers);
     expect((request?.headers as Headers).get("authorization"))
       .toBe("Bearer token");
+    expect((request?.headers as Headers).has("content-type")).toBe(false);
   });
 
   it("sends body bindings as JSON and returns text payloads", async () => {
@@ -90,9 +92,11 @@ describe("HTTP client transport", () => {
   });
 
   it("returns void for empty responses and exposes HTTP error payloads", async () => {
+    const empty = new Response(null, { status: 204 });
+    const readEmptyBody = vi.spyOn(empty, "text");
     const fetchMock = vi
       .fn<typeof globalThis.fetch>()
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(empty)
       .mockResolvedValueOnce(new Response(
         JSON.stringify({ message: "Missing" }),
         {
@@ -114,16 +118,18 @@ describe("HTTP client transport", () => {
 
     await expect(transport.request<void>(operation, { id: "known" }))
       .resolves.toBeUndefined();
+    expect(readEmptyBody).not.toHaveBeenCalled();
     await expect(transport.request(operation, { id: "missing" }))
       .rejects.toMatchObject({
         name: "HttpClientError",
+        message: "HTTP operation space.delete failed with status 404.",
         operationId: "space.delete",
         status: 404,
         body: { message: "Missing" },
       });
   });
 
-  it("rejects missing values required by path bindings", async () => {
+  it.each([undefined, null])("rejects missing values required by path bindings (%s)", async (id) => {
     const transport = createHttpClientTransport({
       baseUrl: "https://api.example.test",
       fetch: vi.fn() as typeof globalThis.fetch,
@@ -134,7 +140,7 @@ describe("HTTP client transport", () => {
       method: "GET",
       url: "/spaces/:id",
       bindings: [{ field: "id", kind: "path", name: "id" }],
-    }, {})).rejects.toThrow(
+    }, { id })).rejects.toThrow(
       "HTTP path input id is required for space.get.",
     );
   });
@@ -191,6 +197,17 @@ describe("HTTP client transport", () => {
 
     await expect(transport.request({ operationId: "record.read", method: "GET", url: "/records", bindings: [] }))
       .rejects.toMatchObject({ name: "HttpClientError", status: 502, statusText: "Bad Gateway", body: "{invalid" });
+  });
+
+  it("decodes a structured JSON media type even with surrounding whitespace and parameters", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response('{"reason":"conflict"}', {
+      status: 409, headers: { "content-type": "Application/Problem+JSON ; charset=utf-8" },
+    }));
+    const transport = createHttpClientTransport({ baseUrl: "/api", fetch });
+
+    // Error responses retain the decoded payload and its original HTTP status.
+    await expect(transport.request({ operationId: "record.read", method: "GET", url: "/records", bindings: [] }))
+      .rejects.toMatchObject({ status: 409, body: { reason: "conflict" } });
   });
 
   it("appends dates and structured query values and preserves asynchronous header overrides", async () => {
@@ -259,4 +276,42 @@ describe("HTTP client transport", () => {
     }, { id: "a/b", idSuffix: "edition" });
     expect(fetch).toHaveBeenCalledWith("/compare/a%2Fb/with/a%2Fb/edition", expect.any(Object));
   });
+
+  it("binds a named parameter surrounded by literal route text and preserves existing query text", async () => {
+    const server = Fastify();
+    const route = "/prefix-:file.json";
+    server.get(route, (request) => ({ params: request.params, query: request.query }));
+    const fetch = vi.fn<typeof globalThis.fetch>(async (url) => {
+      const response = await server.inject(String(url));
+      return new Response(response.body, { status: response.statusCode, headers: { "content-type": "application/json" } });
+    });
+    const transport = createHttpClientTransport({ baseUrl: "", fetch });
+    try {
+      // The suffix can occur inside the bound value as well as in the route.
+      await expect(transport.request({
+        operationId: "record.read", method: "GET", url: `${route}?scope=:file`,
+        bindings: [
+          { field: "file", name: "file", kind: "path" },
+        ],
+      }, { file: "sample-file.json" })).resolves.toEqual({
+        params: { file: "sample-file.json" },
+        query: { scope: ":file" },
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it.each(["/:first-:second", "/:first([a-z]+).json"])(
+    "rejects route patterns the generated client cannot interpolate (%s)", async (url) => {
+      const fetch = vi.fn<typeof globalThis.fetch>();
+      const transport = createHttpClientTransport({ baseUrl: "", fetch });
+      // Fastify can decode encoded delimiters before it separates adjacent parameters.
+      await expect(transport.request({
+        operationId: "record.read", method: "GET", url,
+        bindings: [{ field: "first", name: "first", kind: "path" }],
+      }, { first: "one" })).rejects.toThrow("HTTP path parameter first uses an unsupported route pattern.");
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
 });

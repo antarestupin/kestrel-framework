@@ -354,7 +354,7 @@ The supported deployment must enforce all of these assumptions:
 - `PUBLIC_ORIGIN` is the exact external HTTPS origin, including a non-default port when applicable;
 - health checks use an accepted host and, when they cross the trusted proxy, consistent forwarding metadata.
 
-The runtime derives an exact Host allowlist from the configured public origins and rejects other hosts before authentication origin checks run. The application reuses `PUBLIC_ORIGIN` for authentication's trusted origins so Host admission and cookie-session CSRF protection cannot drift independently.
+The runtime derives an exact Host allowlist from the configured public origins and rejects other hosts before authentication origin checks run. It checks the incoming Host as an HTTPS authority, normalizing the default port 443 and retaining every other port. A Host containing path, query, fragment or user information delimiters is rejected before URL normalization. The application reuses `PUBLIC_ORIGIN` for authentication's trusted origins so Host admission and cookie-session CSRF protection cannot drift independently.
 
 CORS remains absent by default. A browser on another origin therefore receives no cross-origin permission. Cookie-authenticated unsafe routes additionally require an exact `Origin` through authentication middleware; the Host allowlist makes the request-derived same-origin comparison trustworthy. A future cross-origin API should add an explicit CORS adapter with an allowlist rather than broaden this profile.
 
@@ -399,13 +399,13 @@ const source = generateHttpClientSource({
 
 `writeHttpClient()` accepts the same options plus `outputFile` and writes only when the generated source changes. `filterHttpControllerCatalog(catalog, controllerAudiences, audiences)` can also be used independently: it validates the nonempty selection, resolves controller defaults, preserves the selected hierarchy and removes empty branches. `validateHttpControllerAudienceFilter()` rejects empty, duplicate or unknown audience names; `validateHttpControllerCatalog()` rejects duplicate operation identifiers and ambiguous catalog paths. Generation additionally rejects colliding TypeScript type names.
 
-The provider validates all generator configurations and audience selections, then rejects duplicate output files before starting concurrent writes. For migration, move each former target's audiences onto its generator and replace the generator's `target` reference with `name`, retaining the former name to preserve exported types. The target registry and `HttpControllerTarget` API are removed.
+The provider validates all generator configurations and audience selections, then rejects duplicate normalized output paths before starting concurrent writes. For migration, move each former target's audiences onto its generator and replace the generator's `target` reference with `name`, retaining the former name to preserve exported types. The target registry and `HttpControllerTarget` API are removed.
 
 ### Generated operations and transport
 
 Each generated operation embeds its HTTP method, route, operation identifier and resolved path, query or body bindings. Input and response types are derived from the effective controller schemas through type-only imports of the server catalog. Generated JSDoc links point back to the corresponding catalog symbol for IDE navigation, while the imports disappear from client bundles. Output inference excludes a missing optional schema before resolving the payload, so documented controllers retain their concrete JSON type while undocumented outputs resolve to `void`. Response types convert server-side `Date` values to their JSON string representation.
 
-The transport validates the route path after parameter substitution and before preparing headers. Protocol-relative paths, URL control characters and parameter values that are dot segments are rejected. Bindings use own input properties and preserve explicitly declared JSON field names.
+The transport validates the route path after parameter substitution and before preparing headers. Protocol-relative paths, URL control characters and parameter values that are dot segments are rejected. The transport accepts one named parameter per path segment, with optional literal prefixes and suffixes such as `/prefix-:name.json`. Routes with multiple parameters in a segment or regular-expression constraints require a custom transport. Existing query text is preserved. Bindings use own input properties and preserve explicitly declared JSON field names.
 
 Successful calls return the decoded response payload. Empty responses resolve to `undefined`. Non-successful responses throw `HttpClientError`, which retains the operation identifier, status, status text and decoded error body. If the server sends malformed JSON for an error status, the error retains the raw response text. The generated layer deliberately has no React, router or cache dependency.
 

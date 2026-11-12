@@ -58,18 +58,25 @@ export class AuthorizationManager {
 }
 
 function evaluate(
-  requirement: AuthorizationRequirement,
+  requirement: AuthorizationRequirement | undefined,
   permissions: ReadonlySet<string>,
 ): boolean {
-  if (requirement.type === "permission") {
+  if (requirement?.type === "permission") {
     return permissions.has(requirement.permission.id);
   }
 
-  if (requirement.type === "all") {
-    return requirement.requirements.every((nested) =>
+  if (requirement?.type === "all") {
+    // Structural callers can bypass the builders. Empty groups and holes must fail closed.
+    for (const nested of requirement.requirements) {
+      if (!evaluate(nested, permissions)) return false;
+    }
+    return requirement.requirements.length > 0;
+  }
+
+  if (requirement?.type === "any") {
+    return requirement.requirements.some((nested) =>
       evaluate(nested, permissions));
   }
 
-  return requirement.requirements.some((nested) =>
-    evaluate(nested, permissions));
+  return false;
 }
