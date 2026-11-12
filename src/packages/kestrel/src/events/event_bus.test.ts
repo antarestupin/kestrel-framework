@@ -150,6 +150,33 @@ describe("EventBus", () => {
     expect(failures).toEqual([synchronousFailure, asynchronousFailure]);
   });
 
+  it("reports a listener failure once when the asynchronous diagnostic listener also fails", async () => {
+    const eventBus = new EventBus();
+    const originalFailure = new Error("message listener failed");
+    const diagnosticListener = vi.fn(async () => {
+      throw new Error("diagnostic listener failed");
+    });
+
+    try {
+      eventBus.listenAsync(eventListenerFailed, diagnosticListener);
+      eventBus.listenAsync(messagePublished, async () => {
+        throw originalFailure;
+      });
+
+      eventBus.dispatch(messagePublished, { id: 1 });
+
+      // The diagnostic failure must neither recur nor replace the original rejection.
+      await expect(eventBus.wait()).rejects.toBe(originalFailure);
+      expect(diagnosticListener).toHaveBeenCalledExactlyOnceWith(
+        { eventName: messagePublished.name, error: originalFailure },
+        expect.anything(),
+      );
+      await expect(eventBus.wait()).resolves.toBeUndefined();
+    } finally {
+      eventBus.close();
+    }
+  });
+
   it("supports removal, one-time variants and waiting for a payload", async () => {
     const eventBus = new EventBus();
     const removedListener = vi.fn();

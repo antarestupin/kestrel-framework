@@ -7,6 +7,12 @@ import {
 } from "./index.js";
 
 describe("middleware pipeline", () => {
+  it("rejects a name that is empty after trimming whitespace", () => {
+    expect(() => defineMiddleware(" \t\n ", {
+      handler: (_context, next) => next(),
+    })).toThrow(new TypeError("A middleware name cannot be empty."));
+  });
+
   it("replays the complete downstream suffix for every next call", async () => {
     const calls: string[] = [];
     const retry = defineMiddleware("retry", {
