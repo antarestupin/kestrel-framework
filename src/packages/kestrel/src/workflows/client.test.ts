@@ -42,13 +42,48 @@ const orderWorkflow = defineWorkflow({
 
 describe("WorkflowClient", () => {
   it.each([0, -1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1])("rejects invalid atomic batch limit %s", (maxStartBatchSize) => {
-    expect(() => new WorkflowClient(new MemoryWorkflowAdapter(), { maxStartBatchSize })).toThrow(TypeError);
+    expect(() => new WorkflowClient(new MemoryWorkflowAdapter(), { maxStartBatchSize })).toThrow(
+      "Workflow start batch size must be a positive integer.",
+    );
   });
 
   it("rejects incomplete adapter replies instead of producing a partial batch of handles", async () => {
     const adapter = new MemoryWorkflowAdapter();
     vi.spyOn(adapter, "startMany").mockResolvedValue([]);
-    await expect(new WorkflowClient(adapter).start(orderWorkflow, { count: 1 })).rejects.toThrow();
+    await expect(new WorkflowClient(adapter).start(orderWorkflow, { count: 1 })).rejects.toThrow(
+      "Workflow adapter returned an incomplete start batch.",
+    );
+  });
+
+  it("rejects a start reply for a different workflow before exposing its handle", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const unrelated = await adapter.start({
+      executionId: "unrelated-run", workflowName: "other.workflow", workflowVersion: 1, input: null,
+    });
+    vi.spyOn(adapter, "startMany").mockResolvedValueOnce([unrelated]);
+
+    await expect(new WorkflowClient(adapter).start(orderWorkflow, { count: 1 })).rejects.toThrow(
+      'Workflow execution "unrelated-run" belongs to "other.workflow", not "order.fulfill".',
+    );
+  });
+
+  it("passes resolved concurrency to the adapter only when the workflow defines it", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const startMany = vi.spyOn(adapter, "startMany");
+    const keyed = defineWorkflow({
+      name: "keyed.invoices", input: z.object({ invoiceId: z.string() }),
+      concurrency: { keyed: { key: ({ invoiceId }) => invoiceId } },
+      handler: () => undefined,
+    });
+    const client = new WorkflowClient(adapter);
+    await client.start(orderWorkflow, { count: 1 });
+    await client.start(keyed, { invoiceId: "same-invoice" });
+
+    // An external adapter receives optional metadata only when it has a value.
+    expect(startMany.mock.calls[0]?.[0][0]).not.toHaveProperty("concurrency");
+    expect(startMany.mock.calls[1]?.[0][0]).toMatchObject({
+      concurrency: { keyed: { key: "same-invoice" } },
+    });
   });
 
   it("returns the created handle even when recording start fails, and observes only the creation", async () => {
@@ -73,7 +108,9 @@ describe("WorkflowClient", () => {
     const active = await handle.status();
     expect(active.cancellationRequested).toBe(true);
     const wait = vi.spyOn(adapter, "waitForTerminal").mockResolvedValueOnce(active);
-    await expect(handle.result()).rejects.toThrow();
+    await expect(handle.result()).rejects.toThrow(
+      `Workflow adapter returned non-terminal status "${active.status}" while waiting for "${handle.executionId}".`,
+    );
     wait.mockResolvedValueOnce({ ...active, status: "cancelled" });
     await expect(handle.result()).rejects.toBeInstanceOf(WorkflowExecutionCancelledError);
   });
@@ -142,10 +179,39 @@ describe("WorkflowClient", () => {
     const active = await handle.status();
     const wait = vi.spyOn(adapter, "waitForTerminal").mockResolvedValueOnce({ ...active, status: "failed" });
     await expect(handle.result()).rejects.toMatchObject({
-      name: "WorkflowExecutionFailedError", executionError: { name: "Error", message: expect.any(String) },
+      name: "WorkflowExecutionFailedError",
+      executionError: { name: "Error", message: "Workflow failed without durable error metadata." },
     });
     wait.mockResolvedValueOnce({ ...active, status: "terminated" });
-    await expect(handle.result()).rejects.toBeInstanceOf(WorkflowExecutionTerminatedError);
+    await expect(handle.result()).rejects.toEqual(
+      new WorkflowExecutionTerminatedError(handle.executionId, "Terminated by an operator."),
+    );
+  });
+
+  it("rejects a terminal reply for a different workflow before decoding output", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const decode = vi.fn(() => "unexpected output");
+    const client = new WorkflowClient(adapter, { payloadCodec: { encode: () => null, decode } });
+    const handle = await client.start(orderWorkflow, { count: 1 }, { executionId: "matching-run" });
+    const execution = await handle.status();
+    vi.spyOn(adapter, "waitForTerminal").mockResolvedValueOnce({
+      ...execution, status: "completed", workflowName: "other.workflow", output: null,
+    });
+    await expect(handle.result()).rejects.toThrow(
+      'Workflow execution "matching-run" belongs to "other.workflow", not "order.fulfill".',
+    );
+    expect(decode).not.toHaveBeenCalled();
+  });
+
+  it("does not decode an absent output when the declared output schema accepts it", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const decode = vi.fn();
+    const client = new WorkflowClient(adapter, { payloadCodec: { encode: () => null, decode } });
+    const workflow = defineWorkflow({ name: "optional.output", output: z.string().optional(), handler: () => undefined });
+    const handle = await client.start(workflow, null, { executionId: "missing-output" });
+    adapter.completeExecution(handle.executionId);
+    await expect(handle.result()).resolves.toBeUndefined();
+    expect(decode).not.toHaveBeenCalled();
   });
 
   it("validates input and starts with a generated execution ID", async () => {
@@ -287,7 +353,8 @@ describe("WorkflowClient", () => {
     const client = new WorkflowClient(adapter);
     const handle = await client.start(orderWorkflow, { count: 2 });
 
-    await expect(handle.signal(approvalSignal, { approved: "yes" }, { idempotencyKey: "" })).rejects.toBeInstanceOf(TypeError);
+    await expect(handle.signal(approvalSignal, { approved: "yes" }, { idempotencyKey: "" }))
+      .rejects.toThrow("Workflow signal idempotency keys cannot be empty.");
     expect(adapter.inspectSignals()).toEqual([]);
 
     await expect(handle.signal(

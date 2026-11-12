@@ -20,7 +20,7 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 
 | Lot | Candidate files | Assessment state | Next focus / subdivision | Evidence |
 | --- | ---: | --- | --- | --- |
-| `actions` | 9 | Reviewed | All nine current source candidates assessed; 12 diagnostic/optional-metadata residuals classified; re-review after contract changes | `actions-crud-pagination`, `actions-component` |
+| `actions` | 9 | Reviewed | Numbered pagination diagnostics, cursor validation and action composition | [95% follow-up](mutation_testing_95_followup.md#actions) |
 | `app` | 11 | Reviewed | Composition, startup, scope teardown, transport draining, catalog and diagnostic contracts reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#application) |
 | `atlas` | 53 | Reviewed | Resources, gateway effects, relation ownership, forms, routing and browser cache boundaries | [Atlas review](mutation_testing_studio_atlas.md#atlas) |
 | `authentication` | 44 | Reviewed | Accounts, password proofs, session lifecycle, HTTP cookies and adapter contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#authentication) |
@@ -32,8 +32,8 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `concurrency` | 4 | Reviewed | Deferred admission, batch timing and outcome ownership, and generator protocol reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#concurrency) |
 | `configuration` | 1 | Reviewed | Environment resolution, override precedence, supported paths and diagnostics reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#configuration) |
 | `controllers` | 2 | Reviewed | Shared empty input schema and type exports with zero generated mutants | [Component review](mutation_testing_final_wave.md#controllers) |
-| `database` | 8 | Reviewed | Maintenance commands, caller-owned transactions and generated identity isolation reviewed | [Storage review](mutation_testing_storage_boundaries.md#maintenance-and-seeding) |
-| `db` | 34 | Reviewed | Pool and query diagnostics, pagination, history, counters and schema contributions reviewed | [Storage review](mutation_testing_storage_boundaries.md#database-runtime-and-repositories) |
+| `database` | 8 | Reviewed | Seed preflight, caller-owned transactions and generated identity ownership | [95% follow-up](mutation_testing_95_followup.md#database-maintenance) |
+| `db` | 34 | Reviewed | Query instrumentation, pool recovery, migration validation, history and reference counters | [95% follow-up](mutation_testing_95_followup.md#postgresql-database-runtime) |
 | `definitions` | 5 | Reviewed | Path and identity validation, immutable registration metadata and schema parsing reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#definition-registries) |
 | `di` | 5 | Reviewed | Adapter ownership, dependency resolution, graph validation and disposal reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#dependency-injection) |
 | `email` | 34 | Reviewed | Composition, delivery, capture, adapter contracts and durable storage | [Component review](mutation_testing_final_wave.md#email) |
@@ -53,8 +53,8 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `tokens` | 31 | Reviewed | Token lifecycle, signing, key resolution, batch atomicity and adapter contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#tokens) |
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
 | `utils` | 5 | Reviewed | Cursor serialization, identifiers, catalog ownership and definition guards | [Component review](mutation_testing_final_wave.md#utilities) |
-| `workers` | 23 | Reviewed | Scheduler admission and ownership, delivery, publication, adapters and contracts | [Component review](mutation_testing_workers_complete_review.md) |
-| `workflows` | 38 | Reviewed | Runtime, replay, operator commands and adapter contracts | [Component review](mutation_testing_workflows_complete_review.md) |
+| `workers` | 23 | Reviewed | Lease ownership, shutdown, adapter batches, scheduler and publication | [95% follow-up](mutation_testing_95_followup.md#workers) |
+| `workflows` | 38 | Reviewed | Replay, continuation, execution and child ownership, and durable adapters | [95% follow-up](mutation_testing_95_followup.md#workflows) |
 
 The current total is 0 not-assessed lots, 0 partially assessed lots, 34 reviewed lots, 0 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
 
@@ -287,6 +287,20 @@ The named scopes cover all current candidate sources in the last eight component
 The supplemental `app-contracts` comparison stayed at 100% after the shared adapter shutdown fix. [Evidence](mutation_testing_final_wave.md#evidence).
 
 Local reports and source audits are archived under `artifacts/mutation/wave-six/`.
+
+## Follow-up on the 95% component target
+
+The [follow-up review](mutation_testing_95_followup.md) records the latest verified before and after results for these components.
+
+| Component | Profiles | Score before → after |
+| --- | ---: | ---: |
+| `actions` | 1/1 | 94.96% → 97.90% |
+| `database` | 1/1 | 91.49% → 96.57% |
+| `db` | 13/13 | 92.23% → 95.38% |
+| `workers` | 7/7 | 88.76% → 96.11% |
+| `workflows` | 26/26 | 86.11% → 95.74% |
+
+Reports and execution records are archived under `artifacts/mutation/close95/`.
 
 ## Updating the inventory
 

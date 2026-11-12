@@ -33,7 +33,7 @@ describe("worker provider contracts", () => {
     app.register(new WorkerProvider(config, defineWorkerAdapter({ dependencies: {}, capabilities: {}, create: () => new MemoryWorkerAdapter() })));
     try {
       const controller = app.catalog.cliControllers.definitions[0]!;
-      expect(controller).toMatchObject({ command: "run workers", runtime: "worker", workloads: ["workers"], observe: false, dependencies: { runtime: workerRuntimeDependency } });
+      expect(controller).toMatchObject({ command: "run workers", description: "Run queue workers.", runtime: "worker", workloads: ["workers"], observe: false, dependencies: { runtime: workerRuntimeDependency } });
       expect(app.catalog.cliControllers.registrations[0]!.source).toMatchObject({ kind: "provider", provider: "WorkerProvider" });
       const runtime = app.container.resolve(workerRuntimeDependency);
       expect(app.container.resolve(workerRuntimeDependency)).toBe(runtime);

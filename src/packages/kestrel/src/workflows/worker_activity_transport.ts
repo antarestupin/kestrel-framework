@@ -198,10 +198,18 @@ export class WorkflowActivityOutboxDispatcher {
         throw new Error("The workflow activity outbox lease is stale.");
       }
     } catch (error) {
-      await this.adapter.retryActivityDispatches([{
-        ...reservation,
-        retryAt: new Date(Date.now() + this.retryDelayMs),
-      }]);
+      try {
+        await this.adapter.retryActivityDispatches([{
+          ...reservation,
+          retryAt: new Date(Date.now() + this.retryDelayMs),
+        }]);
+      } catch (retryError) {
+        // The queue failure is still actionable when durable retry scheduling also fails.
+        throw new AggregateError(
+          [error, retryError],
+          `Could not publish or reschedule workflow activity ${dispatch.executionId}:${dispatch.sequence}.`,
+        );
+      }
       throw new Error(
         `Could not publish workflow activity ${dispatch.executionId}:${dispatch.sequence}.`,
         { cause: error },

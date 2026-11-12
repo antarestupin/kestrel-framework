@@ -345,24 +345,23 @@ function readQueryDetails(arguments_: readonly unknown[]): QueryDetails | undefi
     };
   }
 
-  if (!isQueryConfig(query)) {
+  if (typeof query !== "object" || query === null) return undefined;
+
+  try {
+    const config = query as Partial<QueryConfig>;
+    const text = config.text;
+    if (typeof text !== "string") return undefined;
+    const parameters = Array.isArray(values) ? values : config.values;
+    const name = config.name;
+    return {
+      sql: text,
+      parameters: Array.isArray(parameters) ? parameters : [],
+      ...(name === undefined ? {} : { statementName: name }),
+    };
+  } catch {
+    // A user-supplied getter or proxy may reject inspection. Let pg handle the original query.
     return undefined;
   }
-
-  return {
-    sql: query.text,
-    parameters: Array.isArray(values)
-      ? values
-      : Array.isArray(query.values) ? query.values : [],
-    ...(query.name === undefined ? {} : { statementName: query.name }),
-  };
-}
-
-function isQueryConfig(value: unknown): value is QueryConfig {
-  return typeof value === "object"
-    && value !== null
-    && "text" in value
-    && typeof value.text === "string";
 }
 
 function findCallbackIndex(arguments_: readonly unknown[]): number | undefined {
@@ -431,33 +430,26 @@ function recordQuery(
 }
 
 function readPostgresErrorCode(error: unknown): string | undefined {
-  return typeof error === "object"
-      && error !== null
-      && "code" in error
-      && typeof error.code === "string"
-    ? error.code
-    : undefined;
+  try {
+    if (typeof error !== "object" || error === null) return undefined;
+    const { code } = error as { code?: unknown };
+    return typeof code === "string" ? code : undefined;
+  } catch {
+    // A diagnostic accessor must not hide the original failed query.
+    return undefined;
+  }
 }
 
 /** Converts arbitrary driver values to the storage-neutral JSON data contract. */
 function toObservationValue(value: unknown): ObservationValue {
-  if (value === null || typeof value === "string" || typeof value === "boolean") {
-    return value;
-  }
-
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : String(value);
   }
-
-  if (typeof value === "bigint") {
-    return value.toString();
-  }
-
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
+  if (typeof value === "bigint") return String(value);
 
   try {
+    // Keep canonical date encoding and let an invalid date use the same text fallback as other values.
+    if (value instanceof Date) return value.toISOString();
     const serialized = JSON.stringify(value, (_key, nestedValue: unknown) =>
       typeof nestedValue === "bigint" ? nestedValue.toString() : nestedValue);
 
@@ -465,10 +457,14 @@ function toObservationValue(value: unknown): ObservationValue {
       return JSON.parse(serialized) as ObservationValue;
     }
   } catch {
-    // Fall back to a bounded representation for cyclic or custom values.
+    // Try a textual representation for cyclic or custom values.
   }
 
-  return String(value);
+  try {
+    return String(value);
+  } catch {
+    return "[unserializable]";
+  }
 }
 
 interface StackFrame {
@@ -524,26 +520,19 @@ function captureQueryOrigin(
 
 function parseStackFrame(line: string): StackFrame | undefined {
   const trimmed = line.trim();
-  const match = /^at (?:(.*?) \()?(.+):(\d+):(\d+)\)?$/.exec(trimmed);
+  const match = /^at (?:async )?(?:(.*?) \()?(.+):(\d+):(\d+)\)?$/.exec(trimmed);
 
   if (match === null) {
     return undefined;
   }
 
   const functionName = match[1];
-  const file = match[2];
-  const lineNumber = match[3];
-  const columnNumber = match[4];
-
-  if (file === undefined || lineNumber === undefined || columnNumber === undefined) {
-    return undefined;
-  }
-
+  // A matched frame always contains a file and both numeric coordinates.
   return {
     ...(functionName === undefined ? {} : { function: functionName }),
-    file,
-    line: Number(lineNumber),
-    column: Number(columnNumber),
+    file: match[2]!,
+    line: Number(match[3]!),
+    column: Number(match[4]!),
     rendered: trimmed,
   };
 }

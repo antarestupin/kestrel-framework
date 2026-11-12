@@ -151,7 +151,7 @@ Filters compile against aliased Drizzle source columns for OLD, NEW and maintena
 
 Maintenance owns a fresh READ COMMITTED transaction for every batch, independent of the manager's ambient transaction context. It selects and locks an ordered page of target keys strictly after the supplied cursor. Only after that command completes does a second SQL command count the filtered source rows and replace differing destination values. The second command's new snapshot includes writers that committed while lock acquisition was waiting. Writers still blocked on the target remain invisible to the count and apply their deltas after the batch commits. `FOR NO KEY UPDATE` permits foreign-key key-share checks while blocking counter writers. Counting does not acquire source-row locks.
 
-Cursor values use PostgreSQL text output, retaining bigint precision; comparisons and ordering remain in PostgreSQL. The cursor advances only after a successful COMMIT, before invoking the awaited progress callback. Reporting failures leave the committed batch intact, so an older cursor can safely replay it. There is no automatic retry or checkpoint persistence. Cancellation during a batch waits for that batch; cancellation during the pause releases the timer promptly. Errors leave the current transaction to Drizzle's rollback semantics and preserve previous batches. Deadlocks, statement timeouts and unknown commit outcomes remain ordinary PostgreSQL/driver failures: resume or repeat maintenance after resolving the cause.
+Cursor values use PostgreSQL text output, retaining bigint precision; comparisons and ordering remain in PostgreSQL. The cursor advances only after a successful COMMIT, before invoking the awaited progress callback with a detached snapshot. Reporting failures leave the committed batch intact, so an older cursor can safely replay it. There is no automatic retry or checkpoint persistence. Cancellation during a batch waits for that batch; cancellation during the pause releases the timer promptly. Errors leave the current transaction to Drizzle's rollback semantics and preserve previous batches. Deadlocks, statement timeouts and unknown commit outcomes remain ordinary PostgreSQL/driver failures: resume or repeat maintenance after resolving the cause.
 
 Integration tests use independent pools without HTTP servers and cover predicates, nulls, reference transfers, upserts, rollback, cascades, no-op destination writes, concurrent increments, both sides of the lock/snapshot protocol, committed progress, resume, bigint precision and App-owned CLI discovery. Definition tests cover validation, quoting and contribution update/removal plans. CLI unit tests cover lazy help, argument validation, safe unknown-id errors and signal-listener disposal.
 
@@ -244,7 +244,7 @@ The contribution snapshot stores the complete lifecycle SQL rather than only a h
 
 ### Generation lifecycle and verification
 
-An absent journal is treated as empty only before invoking Drizzle Kit, allowing a new application to generate its first migration without precreating the migrations directory. Drizzle owns journal creation; subsequent reads require the journal to exist. Invalid JSON and filesystem errors other than a missing initial journal propagate. Managed generation validates existing contribution metadata and computes the SQL plan before Drizzle Kit can write a new migration.
+An absent journal is treated as empty only before invoking Drizzle Kit, allowing a new application to generate its first migration without precreating the migrations directory. Drizzle owns journal creation; subsequent reads require the journal to exist. Invalid JSON and filesystem errors other than a missing initial journal propagate. Managed generation validates contribution identifiers, uniqueness and SQL field types in existing embedded and sidecar snapshots before Drizzle Kit can write a new migration.
 
 Repeated unchanged generations preserve existing SQL, snapshots and journal entries. Removing the last contribution records an empty snapshot so its cleanup is not generated again. Removed descriptions are cleared before a rename or drop, while `UNLOGGED` cleanup runs afterward and checks whether the old relation still exists. A renamed table then receives contributions derived from its new physical name. Updating a retained table's descriptions clears only removed targets and sets only added/changed ones, with no preliminary removal for a text edit.
 
@@ -333,6 +333,8 @@ Sparse rows use PostgreSQL's null bitmap, avoiding repeated storage for unchange
 
 The trigger function is generated from the current Drizzle declarations and uses explicit quoted column lists. `AFTER INSERT`, `AFTER UPDATE`, and `AFTER DELETE` row triggers keep the source mutation and event atomic. The update function compares every tracked column with `IS DISTINCT FROM` to ignore no-op updates while preserving correct null semantics. PostgreSQL `json` columns are compared through `to_jsonb()` because the original `json` type has no equality operator. A trigger failure rolls back the source mutation.
 
+Each history writer is named from its physical destination table within the schema. Generated identifiers longer than 63 UTF-8 bytes include a digest of the complete name. This prevents distinct source and destination pairs from replacing the same function and keeps shortened identifiers stable.
+
 Drizzle Kit does not model functions and triggers. `defineHistoryTable()` therefore registers their generated PL/pgSQL as a custom schema contribution. The application only exports the derived table. `db:generate` places the trigger lifecycle in the same ordered, reviewable migration as the related Drizzle diff, and both deployment migration and local reset replay that file without a history-specific runtime reconciliation step.
 
 ### Execution scenarios
@@ -390,6 +392,8 @@ Application types are inferred directly from Drizzle schemas using
 types when needed. Persistence remains handled by repositories and actions.
 
 The database seeder supports both generated volume and curated application scenarios. Explicit records use stable aliases and exact references so related content remains coherent without hard-coded database identifiers.
+
+The seeder validates the identity declaration of every step before it writes rows. Steps targeting the same physical table share a single emptiness check. These checks also run when seeding inside a caller-owned transaction.
 
 There should be some tooling to ease filling and testing DB queries at scale. For example to fill a table with a million lines with index update disabled, and recreate the index afterwards. These tools will be to create manually.
 

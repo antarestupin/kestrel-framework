@@ -52,6 +52,7 @@ import {
 import type {
   AnyWorker,
   WorkerBatchFailureData,
+  WorkerThrottling,
   WorkerThrottlingRequirement,
 } from "./worker.js";
 
@@ -185,9 +186,9 @@ export class WorkerScheduler<Config> {
     decision: WorkerThrottlingDecision,
   ) => void;
 
-  private readonly completeCorrelatedJob: (
+  private readonly completeCorrelatedJob: ((
     completion: WorkerCorrelatedCompletion,
-  ) => Promise<void>;
+  ) => Promise<void>) | undefined;
 
   private loopAbortController: AbortController | undefined;
 
@@ -225,8 +226,7 @@ export class WorkerScheduler<Config> {
     this.reservationPressure = options.reservationPressure;
     this.recordThrottlingDecision = options.recordThrottlingDecision
       ?? (() => undefined);
-    this.completeCorrelatedJob = options.completeCorrelatedJob
-      ?? (() => Promise.resolve());
+    this.completeCorrelatedJob = options.completeCorrelatedJob;
     this.handlerSlots = new HandlerSlotGate(options.slots);
     this.reservationLimit = options.reservationLimit
       ?? options.slots * Math.max(
@@ -268,9 +268,7 @@ export class WorkerScheduler<Config> {
   }
 
   private get executionSignal(): AbortSignal {
-    const applicationSignal = this.app.shutdown?.signal;
-    return applicationSignal === undefined ? this.handlerAbortController.signal
-      : AbortSignal.any([this.handlerAbortController.signal, applicationSignal]);
+    return AbortSignal.any([this.handlerAbortController.signal, this.app.shutdown.signal]);
   }
 
   /** Current polling lifetime; ordinary cycle failures retain existing recovery. */
@@ -282,7 +280,8 @@ export class WorkerScheduler<Config> {
       throw new Error("The worker scheduler is already running.");
     }
 
-    this.handlerAbortController = new AbortController();
+    // A one-shot cycle may already own the current handler cancellation signal.
+    if (this.handlerAbortController.signal.aborted) this.handlerAbortController = new AbortController();
     this.loopAbortController = new AbortController();
     this.loopPromise = this.runLoop(this.loopAbortController.signal)
       .finally(() => {
@@ -467,13 +466,8 @@ export class WorkerScheduler<Config> {
   private async canReserveUnderPressure(): Promise<boolean> {
     if (this.reservationPressure === undefined) return true;
 
-    if (this.throttling === undefined) {
-      throw new Error(
-        "Worker reservation pressure requires a throttling facade.",
-      );
-    }
-
-    const availability = await this.throttling.inspect(
+    // Construction validates that a reservation policy has a throttling facade.
+    const availability = await this.throttling!.inspect(
       this.reservationPressure,
     );
     return availability.state === "available"
@@ -631,11 +625,13 @@ export class WorkerScheduler<Config> {
     let parsedJobs: readonly ReservedJob[];
 
     try {
-      parsedJobs = await Promise.all(invocation.jobs.map(async (job) => ({
-        ...job,
+      // Handlers own their input copies. Delivery must retain the original
+      // reservation token, identity and nested correlation metadata.
+      parsedJobs = await Promise.all(invocation.jobs.map(async ({ payload, ...reservation }) => ({
+        ...structuredClone(reservation),
         payload: await parseSchema(
           invocation.worker.inputSchema,
-          job.payload,
+          payload,
           invocation.worker.validation.input,
         ),
       })));
@@ -668,7 +664,8 @@ export class WorkerScheduler<Config> {
 
     try {
       requirement = combineRequirements(
-        invocation.worker,
+        invocation.worker.name,
+        invocation.worker.throttling,
         parsedJobs,
       );
     } catch (error) {
@@ -694,7 +691,8 @@ export class WorkerScheduler<Config> {
         );
       }
 
-      actualCost = cost;
+      // Reconcile what the handler reported, even if it reuses its input object.
+      actualCost = { ...cost };
     };
     const reportFeedback = (reported: ThrottlingFeedback) => {
       if (feedback !== undefined) {
@@ -703,7 +701,7 @@ export class WorkerScheduler<Config> {
         );
       }
 
-      feedback = reported;
+      feedback = structuredClone(reported);
     };
 
     let outcomes: readonly JobOutcome[];
@@ -765,17 +763,7 @@ export class WorkerScheduler<Config> {
       return undefined;
     }
 
-    if (buffering.strategy === "defer") {
-      await this.deferInvocation(
-        invocation,
-        getAdmissionRetryAt(firstError)
-          ?? this.fallbackRetryAt(buffering.fallbackDelayMs),
-        "deferred",
-      );
-      return undefined;
-    }
-
-    if (!this.enterBlockedBuffer(invocation)) {
+    if (buffering.strategy !== "hold" || !this.enterBlockedBuffer(invocation, buffering.maxBlockedJobs)) {
       await this.deferInvocation(
         invocation,
         getAdmissionRetryAt(firstError)
@@ -812,11 +800,9 @@ export class WorkerScheduler<Config> {
     }
   }
 
-  private enterBlockedBuffer(invocation: WorkerInvocation): boolean {
-    const buffering = invocation.worker.throttling!.buffering;
-    if (buffering.strategy !== "hold") return false;
+  private enterBlockedBuffer(invocation: WorkerInvocation, configuredLimit: number | undefined): boolean {
     const current = this.blockedJobs.get(invocation.worker.name) ?? 0;
-    const maxBlockedJobs = buffering.maxBlockedJobs
+    const maxBlockedJobs = configuredLimit
       ?? (invocation.worker.batch === false
         ? this.options.slots
         : invocation.worker.batch.size);
@@ -888,6 +874,7 @@ export class WorkerScheduler<Config> {
       () => invocation.worker.batch === false
         ? this.runIndividual(
             invocation.worker,
+            invocation.jobs[0]!,
             parsedJobs[0]!,
             invocation.executionId,
             signal,
@@ -896,6 +883,7 @@ export class WorkerScheduler<Config> {
           )
         : this.runBatch(
             invocation.worker,
+            invocation.jobs,
             parsedJobs,
             invocation.executionId,
             signal,
@@ -977,6 +965,7 @@ export class WorkerScheduler<Config> {
   private async runIndividual(
     worker: AnyWorker,
     job: ReservedJob,
+    parsedJob: ReservedJob,
     executionId: string | undefined,
     signal: AbortSignal,
     reportActualCost: (cost: ThrottlingCost) => void,
@@ -995,7 +984,7 @@ export class WorkerScheduler<Config> {
           );
           signal.throwIfAborted();
           await worker.handler(
-            job,
+            parsedJob,
             dependencies,
             {
               signal,
@@ -1046,6 +1035,7 @@ export class WorkerScheduler<Config> {
   private async runBatch(
     worker: AnyWorker,
     jobs: readonly ReservedJob[],
+    parsedJobs: readonly ReservedJob[],
     executionId: string | undefined,
     signal: AbortSignal,
     reportActualCost: (cost: ThrottlingCost) => void,
@@ -1074,7 +1064,7 @@ export class WorkerScheduler<Config> {
             unknown
           >(
             () => worker.handler(
-              jobs,
+              parsedJobs,
               dependencies,
               {
                 signal,
@@ -1342,7 +1332,7 @@ export class WorkerScheduler<Config> {
     // as well, so every selected handoff participates in the same drain.
     const handoffs = await Promise.allSettled(completions.map((completion) =>
       Promise.resolve().then(() => this.leasedJobs.has(completion.jobId)
-        ? this.completeCorrelatedJob(completion)
+        ? this.completeCorrelatedJob?.(completion)
         : undefined)));
     const handoffErrors = handoffs.flatMap((handoff) =>
       handoff.status === "rejected" ? [handoff.reason as unknown] : []);
@@ -1426,70 +1416,64 @@ function failureOutcome(
 }
 
 function combineRequirements(
-  worker: AnyWorker,
+  workerName: string,
+  throttling: WorkerThrottling<unknown>,
   jobs: readonly ReservedJob[],
 ): CombinedRequirement {
-  const throttling = worker.throttling;
-
-  if (throttling === undefined || jobs.length === 0) {
-    throw new TypeError("A throttled worker invocation requires jobs.");
-  }
-
-  const requirements = jobs.map((job) => throttling.requirements(job));
-  const first = requirements[0];
-
-  if (first === undefined || !isThrottlingRequirement(first)) {
-    throw new TypeError(
-      `Worker "${worker.name}" returned an invalid throttling requirement.`,
-    );
-  }
-
-  const definitionSignature = JSON.stringify(first.admission);
-  const costs = requirements.map((requirement) => {
+  const requirements = jobs.map((job) => {
+    const requirement = throttling.requirements(job);
     if (!isThrottlingRequirement(requirement)) {
-      throw new TypeError(
-        `Worker "${worker.name}" returned an invalid throttling requirement.`,
-      );
+      throw new TypeError(`Worker "${workerName}" returned an invalid throttling requirement.`);
     }
+    return requirement;
+  });
+  // Invocations are created only for nonempty reservations.
+  const { admission } = requirements[0]!;
+  const definitionSignature = JSON.stringify(admission);
+  const costs = requirements.map((requirement) => {
 
     if (JSON.stringify(requirement.admission) !== definitionSignature) {
       throw new TypeError(
-        `Every job in one "${worker.name}" invocation must use the same admission policy.`,
+        `Every job in one "${workerName}" invocation must use the same admission policy.`,
       );
     }
 
     return requirement.estimatedCost
-      ?? defaultWorkerEstimatedCost(requirement.admission, worker.name);
+      ?? defaultWorkerEstimatedCost(requirement.admission, workerName);
   });
-  const dimensions = Object.keys(costs[0] ?? {}).sort();
+  const dimensions = new Set(Object.keys(costs[0]!));
   const combined: Record<string, number> = Object.fromEntries(
-    dimensions.map((dimension) => [dimension, 0]),
+    [...dimensions].map((dimension) => [dimension, 0]),
   );
 
   for (const cost of costs) {
-    const keys = Object.keys(cost).sort();
+    const entries = Object.entries(cost);
 
     if (
-      keys.length !== dimensions.length
-      || keys.some((key, index) => key !== dimensions[index])
+      entries.length !== dimensions.size
+      || entries.some(([key]) => !dimensions.has(key))
     ) {
       throw new TypeError(
-        `Every job in one "${worker.name}" invocation must use the same cost dimensions.`,
+        `Every job in one "${workerName}" invocation must use the same cost dimensions.`,
       );
     }
 
-    for (const [dimension, value] of Object.entries(cost)) {
+    for (const [dimension, value] of entries) {
       if (!Number.isFinite(value) || value < 0) {
         throw new TypeError(
           `Worker throttling cost "${dimension}" must be non-negative and finite.`,
         );
       }
 
-      combined[dimension] = (combined[dimension] ?? 0) + value;
+      const total = combined[dimension]! + value;
+      if (!Number.isFinite(total)) {
+        throw new TypeError(`Combined worker throttling cost "${dimension}" must be finite.`);
+      }
+      combined[dimension] = total;
     }
   }
 
-  return { admission: first.admission, estimatedCost: combined };
+  return { admission, estimatedCost: combined };
 }
 
 function isThrottlingRequirement(
@@ -1497,10 +1481,9 @@ function isThrottlingRequirement(
 ): value is WorkerThrottlingRequirement {
   if (typeof value !== "object" || value === null) return false;
   const admission = (value as { admission?: unknown }).admission;
-
-  return typeof admission === "object"
-    && admission !== null
-    && (admission as { kind?: unknown }).kind !== undefined;
+  if (typeof admission !== "object" || admission === null) return false;
+  const { kind } = admission as { kind?: unknown };
+  return kind === "rate-limit" || kind === "admission-policy";
 }
 
 function defaultWorkerEstimatedCost(

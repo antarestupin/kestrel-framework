@@ -27,11 +27,12 @@ describe("worker public metadata contracts", () => {
   it("rejects empty, duplicate and unknown namespaces without replacing an owner", async () => {
     const sink = { complete: vi.fn(async () => undefined) };
     const router = new WorkerCorrelatedCompletionRouter();
-    expect(() => router.register("", sink)).toThrow(TypeError);
-    expect(() => new WorkerCorrelatedCompletionRouter({ "": sink })).toThrow(TypeError);
+    expect(() => router.register("", sink)).toThrow("Worker correlation namespaces cannot be empty.");
+    expect(() => new WorkerCorrelatedCompletionRouter({ "": sink })).toThrow("Worker correlation namespaces cannot be empty.");
     router.register("known", sink);
-    expect(() => router.register("known", { complete: vi.fn() })).toThrow(TypeError);
-    expect(() => router.complete({ jobId: "job", correlation: { namespace: "missing", id: "id" }, status: "completed" })).toThrow(Error);
+    expect(() => router.register("known", { complete: vi.fn() })).toThrow('Worker correlation namespace "known" is already registered.');
+    expect(() => router.complete({ jobId: "job", correlation: { namespace: "missing", id: "id" }, status: "completed" }))
+      .toThrow('No Worker completion sink handles namespace "missing".');
     const known: WorkerCorrelatedCompletion = { jobId: "job", correlation: { namespace: "known", id: "id" }, status: "completed" };
     await router.complete(known);
     expect(sink.complete).toHaveBeenCalledExactlyOnceWith(known);
@@ -47,18 +48,26 @@ describe("worker public metadata contracts", () => {
     const cause = new Error("dependency failure");
     expect(new WorkerRetryError("retry requested", 0, { cause, maxAttempts: 1 })).toMatchObject({ name: "WorkerRetryError", message: "retry requested", retryDelayMs: 0, maxAttempts: 1, cause });
     expect(new WorkerRetryError("default", 0.5).maxAttempts).toBeUndefined();
-    expect(new WorkerPayloadSerializationError({ cause })).toMatchObject({ name: "WorkerPayloadSerializationError", cause });
+    expect(new WorkerPayloadSerializationError({ cause })).toMatchObject({
+      name: "WorkerPayloadSerializationError", message: "Worker payload and correlation must have a JSON representation.", cause,
+    });
     expect(new WorkerBatchResultError("invalid batch")).toMatchObject({ name: "WorkerBatchResultError", message: "invalid batch" });
-    expect(new WorkerJobIdentityConflictError("identity")).toMatchObject({ name: "WorkerJobIdentityConflictError", identity: "identity" });
-    expect(new WorkerPublicationBudgetError("maxJobBytes", 2, 3, 0)).toMatchObject({ name: "WorkerPublicationBudgetError", budget: "maxJobBytes", limit: 2, actual: 3, jobIndex: 0 });
+    expect(new WorkerJobIdentityConflictError("identity")).toMatchObject({
+      name: "WorkerJobIdentityConflictError", identity: "identity",
+      message: 'Worker job identity "identity" already belongs to another job.',
+    });
+    expect(new WorkerPublicationBudgetError("maxJobBytes", 2, 3, 0)).toMatchObject({
+      name: "WorkerPublicationBudgetError", budget: "maxJobBytes", limit: 2, actual: 3, jobIndex: 0,
+      message: "Worker publication maxJobBytes exceeded: 3 > 2.",
+    });
   });
 
   it.each([-1, NaN, Infinity])("rejects invalid native retry delays %s", (delay) => {
-    expect(() => new WorkerRetryError("retry", delay)).toThrow(TypeError);
+    expect(() => new WorkerRetryError("retry", delay)).toThrow("Worker retry delays must be non-negative finite numbers.");
   });
 
   it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])("rejects invalid native attempt limits %s", (maxAttempts) => {
-    expect(() => new WorkerRetryError("retry", 0, { maxAttempts })).toThrow(TypeError);
+    expect(() => new WorkerRetryError("retry", 0, { maxAttempts })).toThrow("Worker retry maxAttempts must be a positive integer.");
   });
 
   it("bounds native error stacks and supports stackless and non-error throws", () => {

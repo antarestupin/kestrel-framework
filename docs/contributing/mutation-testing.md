@@ -73,6 +73,10 @@ The `studio-server-*`, `studio-client-*` and `atlas-*` profiles partition Studio
 
 The [final component review](../implementation/mutation_testing_final_wave.md) lists the named profiles for `cli`, `client`, `email`, `log`, `observability`, `utils`, `testing` and `controllers`. The profiles retain static mutants and share the same ten-minute limit per execution. The controller contract profile also verifies the scope when its sources generate no mutations.
 
+The [95% follow-up](../implementation/mutation_testing_95_followup.md) records the subsequent comparisons for actions, database maintenance, PostgreSQL database runtime, workers and workflows. The workflow partitions assess memory commands, projections and validation separately from memory task internals. The PostgreSQL history, admission internals, row mapping and history decoding profiles also have independent budgets. Workers can replace the combined adapter profile with disjoint memory, PostgreSQL operations and PostgreSQL schema profiles.
+
+To bound the dependent suites for a static-heavy named profile, configure its Vitest includes in `vitest.mutation.config.ts`. Stryker's `--testFiles` option switches the activation to runtime after test module collection. Named profiles that retain static mutants reject that option and its `-t` alias.
+
 From the repository root, prepare the dedicated PostgreSQL and Redis test infrastructure, then validate the instrumented test run before starting a complete mutation assessment:
 
 ```sh

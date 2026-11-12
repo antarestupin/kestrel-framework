@@ -419,6 +419,40 @@ describe("generateDatabaseMigration", () => {
     await expect(readMigration(root, "0001_change")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it.each(["embedded", "sidecar"] as const)("validates the contribution lifecycle read from a %s snapshot", async (storage) => {
+    const valid = { id: "application:custom", installSql: "SELECT 1;" };
+    const cases = [
+      [[{ ...valid, uninstallBeforeSql: 42 }], 'Database schema contribution "application:custom" requires SQL text for "uninstallBeforeSql".'],
+      [[{ ...valid, uninstallAfterSql: null }], 'Database schema contribution "application:custom" requires SQL text for "uninstallAfterSql".'],
+      [[{ ...valid, updateSql: [] }], 'Database schema contribution "application:custom" requires SQL text for "updateSql".'],
+      [[{ ...valid, installSql: " " }], 'Database schema contribution "application:custom" requires install SQL.'],
+      [[{ ...valid, id: "" }], "A database schema contribution requires a stable id."],
+      [[null], "A database schema contribution must be an object."],
+      [[valid, valid], 'Duplicate contribution "application:custom".'],
+    ] as const;
+    for (const [contributions, reason] of cases) {
+      const root = await createMigrationFixture();
+      const tag = "0000_initial";
+      const snapshot = JSON.stringify({ version: 1, contributions });
+      await writeGeneratedMigration(root, tag, storage === "embedded"
+        ? `-- database-schema-contributions: ${Buffer.from(snapshot).toString("base64url")}\n`
+        : "SELECT 1;");
+      if (storage === "sidecar") {
+        await mkdir(join(root, "migrations", "custom-meta"));
+        await writeFile(join(root, "migrations", "custom-meta", `${tag}.json`), snapshot);
+      }
+      let invocations = 0;
+      await expect(generateDatabaseMigration({
+        cwd: root, drizzleKitExecutable: "drizzle-kit", migrationsFolder: join(root, "migrations"),
+        schema: {}, runCommand: async () => { invocations++; },
+      })).rejects.toMatchObject({
+        message: expect.stringMatching(/Invalid (?:embedded )?custom schema snapshot for 0000_initial/),
+        cause: expect.objectContaining({ message: reason }),
+      });
+      expect(invocations).toBe(0);
+    }
+  });
+
   it.each(["--custom", "--custom=true"])("delegates %s without rewriting SQL or custom metadata", async (flag) => {
     const root = await createMigrationFixture();
     await writeGeneratedMigration(root, "0000_initial", "-- database-schema-contributions: invalid");

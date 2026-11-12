@@ -134,6 +134,8 @@ describe("database pagination helpers", () => {
       limit: 11,
       offset: 20,
     });
+    expect(getPaginationQueryWindow({ type: "page", page: 1, pageSize: 1 }))
+      .toStrictEqual({ limit: 2, offset: 0 });
   });
 
   it("builds a numbered result and removes the extra record", () => {
@@ -161,7 +163,7 @@ describe("database pagination helpers", () => {
 
   it.each([
     { page: 0, pageSize: 2 }, { page: 1.5, pageSize: 2 },
-    { page: 1, pageSize: NaN }, { page: 1, pageSize: Number.MAX_SAFE_INTEGER },
+    { page: 1, pageSize: NaN }, { page: 1, pageSize: 1.5 }, { page: 1, pageSize: Number.MAX_SAFE_INTEGER },
     { page: Number.MAX_SAFE_INTEGER, pageSize: 2 },
   ])("rejects invalid numbered window dimensions: %j", (dimensions) => {
     const pagination = { type: "page", ...dimensions } as const;
@@ -172,6 +174,16 @@ describe("database pagination helpers", () => {
   it("has no next numbered page when a full page contains no lookahead", () => {
     expect(createPaginatedResult([1, 2], { type: "page", page: 3, pageSize: 2 }).pageInfo)
       .toEqual({ type: "page", page: 3, pageSize: 2, hasNextPage: false });
+  });
+
+  it("does not call the offset method on a cursor-limited builder", () => {
+    const offset = vi.fn();
+    const limited = { offset };
+    const limit = vi.fn(() => limited);
+    const query = { limit } as unknown as PgSelect;
+    expect(paginateQuery(query, { type: "cursor", pageSize: 1 })).toBe(limited);
+    expect(limit).toHaveBeenCalledExactlyOnceWith(2);
+    expect(offset).not.toHaveBeenCalled();
   });
 
   it("applies pagination to arbitrary ordered queries without executing them", async () => {

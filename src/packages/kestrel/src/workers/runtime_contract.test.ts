@@ -24,6 +24,32 @@ async function setup() {
 }
 
 describe("worker runtime contracts", () => {
+  it("does not register a drain for a scheduler that failed construction", async () => {
+    const { app, adapter, logger } = await setup();
+    expect(() => new WorkerRuntime(app, adapter, { ...config, slots: 0 }, logger as unknown as Logger))
+      .toThrow("slots must be a positive integer.");
+    await expect(app.dispose()).resolves.toBeUndefined();
+  });
+
+  it("identifies a stalled scheduler drain in the shared shutdown error", async () => {
+    vi.useFakeTimers();
+    const app = new App({}, { shutdown: { timeoutMs: 25 } });
+    const adapter = new MemoryWorkerAdapter();
+    const runtime = new WorkerRuntime(app, adapter, config, { error: vi.fn() } as unknown as Logger);
+    const release = Promise.withResolvers<void>();
+    vi.spyOn(runtime.scheduler, "stop").mockReturnValue(release.promise);
+    try {
+      const stopping = runtime.stop();
+      const failure = expect(stopping).rejects.toMatchObject({ phase: "worker drain", timeoutMs: 25 });
+      await vi.advanceTimersByTimeAsync(25);
+      await failure;
+    } finally {
+      release.resolve();
+      await app.dispose().catch(() => undefined);
+      vi.useRealTimers();
+    }
+  });
+
   it("coalesces drain ownership and prevents starting after stop", async () => {
     const { app, adapter, logger } = await setup();
     const runtime = new WorkerRuntime(app, adapter, config, logger as unknown as Logger);
@@ -38,7 +64,7 @@ describe("worker runtime contracts", () => {
       await first;
       expect(stop).toHaveBeenCalledOnce();
       await runtime.completion;
-      expect(() => runtime.start()).toThrow(Error);
+      expect(() => runtime.start()).toThrow("Worker runtime has stopped.");
     } finally {
       // Fixture cleanup owns the scheduler independently of the runtime drain
       // under test, including when a broken drain never requests polling stop.
@@ -67,7 +93,7 @@ describe("worker runtime contracts", () => {
       runtime.start();
       await setImmediate();
       await runtime.stop();
-      expect(logger.error).toHaveBeenCalledExactlyOnceWith({ err: failure }, expect.any(String));
+      expect(logger.error).toHaveBeenCalledExactlyOnceWith({ err: failure }, "Worker scheduler cycle failed");
     } finally { await app.dispose(); }
 
     // A second application gives the completion owner a fresh admission lifetime.
@@ -102,7 +128,9 @@ describe("worker runtime contracts", () => {
     void completion.catch(() => undefined);
     vi.spyOn(runtime.scheduler, "completion", "get").mockReturnValue(completion);
     try {
-      await expect(runtime.stop()).rejects.toMatchObject({ errors: [stopFailure, pollingFailure] });
+      await expect(runtime.stop()).rejects.toMatchObject({
+        message: "Worker drain failed.", errors: [stopFailure, pollingFailure],
+      });
       expect(runtime.stop()).toBe(runtime.stop());
     } finally {
       // Disposal still closes the application; its registered drain reports the

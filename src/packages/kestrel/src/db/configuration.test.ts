@@ -46,8 +46,16 @@ describe("PostgreSQL resource configuration", () => {
     { maxLifetimeSeconds: 2_147_484 }, { idleTimeoutMillis: 2 ** 32 }, { resourcePolicy: { shutdownTimeoutMs: 0 } },
     { resourcePolicy: { maxWaitingRequests: -1 } }, { port: 65_536 },
     { idleTimeoutMillis: "invalid20" }, { idleTimeoutMillis: "20invalid" },
+    { idleTimeoutMillis: "+20" }, { idleTimeoutMillis: "2e1" },
   ])("rejects invalid budgets: %j", (override) => {
     expect(() => postgresDrizzleConfigBase.schema.parse({ ...connection, ...override })).toThrow();
+  });
+
+  it("identifies a zero value that violates a positive budget", () => {
+    const result = postgresDrizzleConfigBase.schema.safeParse({ ...connection, connectionTimeoutMillis: 0 });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({ path: ["connectionTimeoutMillis"], message: "Must be positive" }),
+    ]);
   });
 
   it.each(["none", "stack"])("accepts the explicit query origin policy %s", (origin) => {

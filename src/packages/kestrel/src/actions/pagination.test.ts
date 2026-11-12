@@ -171,7 +171,8 @@ describe("numbered pagination boundary contracts", () => {
 
   for (const field of ["defaultPageSize", "maxPageSize"] as const) {
     it.each([0, -1, 1.5, NaN, Infinity])(`rejects invalid ${field} %s`, (value) => {
-      expect(() => createPaginationInputSchema({ [field]: value })).toThrow(TypeError);
+      expect(() => createPaginationInputSchema({ [field]: value }))
+        .toThrow(new TypeError(`The pagination ${field} must be a positive safe integer.`));
     });
   }
 
@@ -184,7 +185,8 @@ describe("numbered pagination boundary contracts", () => {
   });
 
   it("rejects a configured default larger than its maximum", () => {
-    expect(() => createPaginationInputSchema({ defaultPageSize: 11, maxPageSize: 10 })).toThrow(TypeError);
+    expect(() => createPaginationInputSchema({ defaultPageSize: 11, maxPageSize: 10 }))
+      .toThrow(new TypeError("The default pagination page size cannot exceed the maximum page size."));
   });
 
   it("accepts the inclusive maximum and rejects invalid explicit page values", () => {

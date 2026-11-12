@@ -17,7 +17,10 @@ describe("worker definition contracts", () => {
     const examples = [{ name: "example", payload: "input" }];
     const worker = defineWorker({ ...base, description: "public worker", examples, dependencies: { dependency }, validation: { input: "async" } });
     expect(worker).toMatchObject({ name: base.name, queue: base.queue, description: "public worker", inputSchema: input, examples, dependencies: { dependency }, validation: { input: "async", output: "sync" }, weight: 1, maxAttempts: 3, retryDelayMs: 1_000, maxRetryDelayMs: 60_000, batch: false, handler });
-    expect(defineWorker(base).dependencies).toEqual({});
+    const defaults = defineWorker(base);
+    expect(defaults.dependencies).toEqual({});
+    expect(Object.hasOwn(defaults, "description")).toBe(false);
+    expect(Object.hasOwn(defaults, "examples")).toBe(false);
     expect(defineWorker({ ...base, batch: false }).batch).toBe(false);
   });
 
@@ -29,26 +32,30 @@ describe("worker definition contracts", () => {
   });
 
   it.each(["name", "queue"] as const)("rejects an empty %s", (key) => {
-    expect(() => defineWorker({ ...base, [key]: "" })).toThrow(TypeError);
+    expect(() => defineWorker({ ...base, [key]: "" })).toThrow(
+      key === "name" ? "Worker names cannot be empty." : "Worker queue names cannot be empty.",
+    );
   });
 
   it.each(["weight", "retryDelayMs", "maxRetryDelayMs"] as const)("rejects invalid positive %s values", (key) => {
-    for (const value of [0, -1, NaN, Infinity, -Infinity]) expect(() => defineWorker({ ...base, [key]: value })).toThrow(TypeError);
+    for (const value of [0, -1, NaN, Infinity, -Infinity]) {
+      expect(() => defineWorker({ ...base, [key]: value })).toThrow(`${key} must be a positive finite number.`);
+    }
   });
 
   it.each([0, -1, 1.5, NaN, Infinity])("rejects invalid maximum attempts %s", (maxAttempts) => {
-    expect(() => defineWorker({ ...base, maxAttempts })).toThrow(TypeError);
+    expect(() => defineWorker({ ...base, maxAttempts })).toThrow("maxAttempts must be a positive integer.");
   });
 
   it.each([0, -1, 1.5, NaN, Infinity])("rejects invalid batch size %s", (size) => {
-    expect(() => defineWorker({ ...base, batch: { size } })).toThrow(TypeError);
+    expect(() => defineWorker({ ...base, batch: { size } })).toThrow("Worker batch size must be a positive integer.");
   });
 
   it("retains the release strategy and explicit defer/hold tuning", () => {
     const buffering = { strategy: "release" } as const;
     expect(defineWorker({ ...base, throttling: { requirements, buffering } }).throttling).toEqual({ requirements, buffering });
     expect(defineWorker({ ...base, throttling: { requirements, buffering: { strategy: "defer", fallbackDelayMs: 12 } } }).throttling).toEqual({ requirements, buffering: { strategy: "defer", fallbackDelayMs: 12 } });
-    expect(defineWorker({ ...base, throttling: { requirements, buffering: { strategy: "hold", maxHoldMs: 13, fallbackDelayMs: 14 } } }).throttling).toEqual({ requirements, buffering: { strategy: "hold", maxHoldMs: 13, fallbackDelayMs: 14 } });
+    expect(defineWorker({ ...base, throttling: { requirements, buffering: { strategy: "hold", maxHoldMs: 13, fallbackDelayMs: 14 } } }).throttling).toStrictEqual({ requirements, buffering: { strategy: "hold", maxHoldMs: 13, fallbackDelayMs: 14 } });
   });
 
   it.each([0, -1, NaN, Infinity])("rejects non-positive or non-finite buffering tuning %s", (value) => {
@@ -62,7 +69,8 @@ describe("worker definition contracts", () => {
   });
 
   it("rejects a malformed requirements callback at the untyped boundary", () => {
-    expect(() => defineWorker({ ...base, throttling: { requirements: undefined as never } })).toThrow(TypeError);
+    expect(() => defineWorker({ ...base, throttling: { requirements: undefined as never } }))
+      .toThrow("Worker throttling requirements must be a function.");
   });
 
   it("creates successful and failed job outcomes without losing caller data", () => {
@@ -79,6 +87,6 @@ describe("worker definition contracts", () => {
   });
 
   it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])("rejects invalid per-job attempt limits %s", (maxAttempts) => {
-    expect(() => jobFail("job", { cause: "failure", maxAttempts })).toThrow(TypeError);
+    expect(() => jobFail("job", { cause: "failure", maxAttempts })).toThrow("Worker batch maxAttempts must be a positive integer.");
   });
 });

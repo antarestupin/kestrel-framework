@@ -11,12 +11,14 @@ import { MemoryWorkflowAdapter } from "./adapters/memory/index.js";
 import { EmbeddedWorkflowActivityTransport, type WorkflowActivityHandler } from "./activity_transport.js";
 import type {
   CommitWorkflowActivationRequest,
+  ReservedWorkflowTask,
   WorkflowTaskReservationRef,
 } from "./adapter.js";
 import { WorkflowClient } from "./client.js";
 import { WorkflowScheduler, type WorkflowSchedulerOptions } from "./scheduler.js";
 import { defineWorkflow } from "./workflow.js";
-import { WorkflowActivityInfrastructureError } from "./errors.js";
+import { WorkflowActivityInfrastructureError, WorkflowInvalidSuspensionError } from "./errors.js";
+import { WorkflowReplayer } from "./replayer.js";
 
 describe("WorkflowScheduler", () => {
   it.each<[keyof WorkflowSchedulerOptions, number]>([
@@ -25,7 +27,10 @@ describe("WorkflowScheduler", () => {
   ])("rejects an invalid %s", (name, value) => {
     const create = () => new WorkflowScheduler([], new MemoryWorkflowAdapter(),
       new EmbeddedWorkflowActivityTransport(() => undefined), { [name]: value });
-    expect(create).toThrow(TypeError);
+    const message = name === "completionBatchSize"
+      ? "Batch buffer size must be a positive integer."
+      : `Workflow scheduler ${name} must be a positive integer.`;
+    expect(create).toThrow(new TypeError(message));
   });
 
   it("returns a task reserved while shutdown was beginning and prevents another reservation", async () => {
@@ -40,19 +45,108 @@ describe("WorkflowScheduler", () => {
       return reserved;
     });
     const release = vi.spyOn(adapter, "releaseTasks");
+    const load = vi.spyOn(adapter, "loadActivations");
     const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
       executionSignal: shutdown.signal, runInExecutionScope: scope,
     });
-    await new WorkflowClient(adapter).start(workflow, null);
+    const client = new WorkflowClient(adapter);
+    await client.start(workflow, null);
+    await client.start(workflow, null);
 
-    await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 1, stale: 1, completed: 0 });
+    await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 2, stale: 2, completed: 0 });
     expect(scope).not.toHaveBeenCalled();
-    expect(release).toHaveBeenCalledExactlyOnceWith([{ taskId: expect.any(String), reservationToken: expect.any(String) }]);
+    expect(load).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledExactlyOnceWith([
+      { taskId: expect.any(String), reservationToken: expect.any(String) },
+      { taskId: expect.any(String), reservationToken: expect.any(String) },
+    ]);
     await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 0, stale: 0, completed: 0 });
     expect(observed).toHaveBeenCalledOnce();
   });
 
-  it("records the schedule-to-close deadline without entering the activity handler", async () => {
+  it("does not call the adapter release path for an empty reservation during shutdown", async () => {
+    const shutdown = new AbortController();
+    const adapter = new MemoryWorkflowAdapter();
+    vi.spyOn(adapter, "reserveTasks").mockImplementationOnce(async () => {
+      shutdown.abort();
+      return [];
+    });
+    const release = vi.spyOn(adapter, "releaseTasks");
+    const scheduler = new WorkflowScheduler([], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
+      executionSignal: shutdown.signal,
+    });
+    await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 0, completed: 0, stale: 0 });
+    expect(release).not.toHaveBeenCalled();
+  });
+
+  it("retries an adapter-classified transient polling error", async () => {
+    vi.useFakeTimers();
+    const adapter = new MemoryWorkflowAdapter();
+    const failure = new Error("Reservation temporarily unavailable");
+    const classify = vi.fn((error: unknown) => error === failure);
+    Object.assign(adapter, { isRecoverablePollingError: classify });
+    const reserve = vi.spyOn(adapter, "reserveTasks").mockRejectedValueOnce(failure).mockResolvedValue([]);
+    const stop = new AbortController();
+    const scheduler = new WorkflowScheduler([], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
+      polling: { initialBackoffMs: 10, maxBackoffMs: 10 },
+    });
+    const poll = scheduler.polling.run.bind(scheduler.polling);
+    let cycles = 0;
+    vi.spyOn(scheduler.polling, "run").mockImplementation((signal, cycle, idleMs, report) =>
+      poll(signal, () => {
+        // A mistaken busy-poll callback must reach the assertion without spinning indefinitely.
+        if (++cycles > 2) stop.abort();
+        return cycle();
+      }, idleMs, report));
+    const run = scheduler.run(stop.signal);
+    void run.catch(() => undefined);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(classify).toHaveBeenCalledExactlyOnceWith(failure);
+      expect(scheduler.polling.state.status).toBe("backoff");
+      await vi.advanceTimersByTimeAsync(10);
+      expect(reserve).toHaveBeenCalledTimes(2);
+    } finally {
+      stop.abort();
+      await run.catch(() => undefined);
+      vi.useRealTimers();
+    }
+  });
+
+  it("tells the polling supervisor to wait only after an empty reservation", async () => {
+    const stop = new AbortController();
+    const scheduler = new WorkflowScheduler([], new MemoryWorkflowAdapter(),
+      new EmbeddedWorkflowActivityTransport(() => undefined), { idlePollMs: 25 });
+    vi.spyOn(scheduler, "runOnce")
+      .mockResolvedValueOnce({ reserved: 0, completed: 0, stale: 0 })
+      .mockResolvedValueOnce({ reserved: 1, completed: 0, stale: 1 });
+    const poll = vi.spyOn(scheduler.polling, "run").mockImplementation(async (signal, cycle, idleMs) => {
+      expect(signal).toBe(stop.signal);
+      expect(idleMs).toBe(25);
+      // Reserved work keeps polling active even if its lease became stale before commit.
+      await expect(cycle()).resolves.toBe(false);
+      await expect(cycle()).resolves.toBe(true);
+    });
+
+    await scheduler.run(stop.signal);
+    expect(poll).toHaveBeenCalledOnce();
+  });
+
+  it("captures the configured UUID source in workflow history", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const workflow = defineWorkflow({ name: "scheduler.uuid", output: z.string(), handler: (_input, context) => context.uuid() });
+    const createUuid = vi.fn(() => "custom-durable-id");
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), { createUuid });
+    const handle = await new WorkflowClient(adapter).start(workflow, null);
+    await scheduler.runOnce();
+    await scheduler.runOnce();
+
+    expect(await handle.status()).toMatchObject({ status: "completed", output: "custom-durable-id" });
+    await expect(handle.result()).resolves.toBe("custom-durable-id");
+    expect(createUuid).toHaveBeenCalledOnce();
+  });
+
+  it.each([49, 50])("checks the schedule-to-close boundary after %sms", async (elapsed) => {
     let now = 5_000;
     const adapter = new MemoryWorkflowAdapter({ now: () => new Date(now) });
     const action = defineAction({ name: "deadline.schedule", handler: () => null });
@@ -64,13 +158,15 @@ describe("WorkflowScheduler", () => {
     });
     const handle = await new WorkflowClient(adapter).start(workflow, null);
     await scheduler.runOnce();
-    now += 50;
+    now += elapsed;
 
     await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 1, completed: 1, stale: 0 });
-    expect(handler).not.toHaveBeenCalled();
+    expect(handler).toHaveBeenCalledTimes(elapsed < 50 ? 1 : 0);
     expect(await adapter.getHistory(handle.executionId)).toMatchObject([
       { type: "command-scheduled" },
-      { type: "command-completed", error: { name: "WorkflowActivityTimeoutError", message: expect.stringContaining("schedule-to-close") } },
+      elapsed < 50
+        ? { type: "command-completed", result: null }
+        : { type: "command-completed", error: { name: "WorkflowActivityTimeoutError", message: expect.stringContaining("schedule-to-close") } },
     ]);
   });
 
@@ -83,8 +179,12 @@ describe("WorkflowScheduler", () => {
         maxAttempts: 3, initialDelay: { milliseconds: 20 }, backoffCoefficient: 3, maxDelay: { milliseconds: 35 },
       } }) });
     const handler = vi.fn<WorkflowActivityHandler>(() => { throw new WorkflowActivityInfrastructureError("transport offline"); });
+    const persistCompletion = vi.spyOn(adapter, "completeActivities");
+    const record = vi.fn();
+    const scope = vi.fn();
     const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => handler), {
-      now: () => now, completionBatchSize: 1,
+      now: () => now, completionBatchSize: 1, instrumentation: { record },
+      runInExecutionScope: (id, operation, run, task) => { scope(id, operation, run, task); return run(); },
     });
     const handle = await new WorkflowClient(adapter).start(workflow, null);
     await scheduler.runOnce();
@@ -96,12 +196,29 @@ describe("WorkflowScheduler", () => {
     }
     await expect(scheduler.runOnce()).resolves.toMatchObject({ completed: 1 });
     expect(handler.mock.calls.map(([, attempt]) => attempt.attempt)).toEqual([1, 2, 3]);
+    expect(persistCompletion).toHaveBeenCalledExactlyOnceWith([expect.objectContaining({
+      executionId: handle.executionId, sequence: 0, status: "failed",
+      error: expect.objectContaining({ message: "transport offline" }),
+    })]);
+    expect(scope.mock.calls.map(([, operation]) => operation)).toEqual([
+      "workflow.activate", "workflow.activity", "workflow.activity", "workflow.activity",
+    ]);
+    expect(record.mock.calls.map(([event]) => event).filter((event) => event.data.retryDelayMs !== undefined)).toEqual(
+      [20, 35].map((retryDelayMs, index) => ({
+        type: "task", outcome: "success", durationMs: 0, data: {
+          executionId: handle.executionId, workflowName: workflow.name, workflowVersion: 1, historyGeneration: 1,
+          taskKind: "activity", result: "retried", attempt: index + 1, queueAgeMs: index === 0 ? 0 : 20,
+          commandSequence: 0, target: action.name, retryDelayMs,
+        },
+      })),
+    );
     expect(await adapter.getHistory(handle.executionId)).toMatchObject([
       { type: "command-scheduled" }, { type: "command-completed", error: { name: "WorkflowActivityInfrastructureError" } },
     ]);
   });
 
-  it.each(["missing", "wrong-task", "wrong-token", "owned"] as const)("checks a %s lease during execution-scope setup", async (ownership) => {
+  it.each(["missing", "wrong-task", "wrong-token", "storage-error", "storage-error-and-scope",
+    "storage-error-propagated", "owned"] as const)("checks a %s lease during execution-scope setup", async (ownership) => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
     const adapter = new MemoryWorkflowAdapter();
     const action = defineAction({ name: "lease.protected", handler: () => null });
@@ -109,6 +226,8 @@ describe("WorkflowScheduler", () => {
     const handler = vi.fn(() => null);
     const releaseScope = Promise.withResolvers<void>();
     const enteredScope = vi.fn();
+    const storageError = new Error("Lease storage unavailable");
+    const scopeError = new Error("Execution scope also failed");
     const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => handler), {
       leaseMs: 100,
       completionBatchSize: 1,
@@ -116,17 +235,21 @@ describe("WorkflowScheduler", () => {
         if (task.kind === "activity") {
           enteredScope();
           await releaseScope.promise;
+          if (ownership === "storage-error-and-scope") throw scopeError;
+          if (ownership === "storage-error-propagated") throw storageError;
         }
         return run();
       },
     });
     const extend = vi.spyOn(adapter, "extendTaskLeases").mockImplementationOnce(async ([request]) => {
+      if (ownership.startsWith("storage-error")) throw storageError;
       if (request === undefined || ownership === "missing") return [];
       return [{
         taskId: ownership === "wrong-task" ? "another-task" : request.taskId,
         reservationToken: ownership === "wrong-token" ? "another-token" : request.reservationToken,
       }];
     });
+    const release = vi.spyOn(adapter, "releaseTasks");
     const finished = vi.fn();
     const failed = vi.fn();
     try {
@@ -141,10 +264,143 @@ describe("WorkflowScheduler", () => {
       await vi.advanceTimersByTimeAsync(0);
       const owned = ownership === "owned";
       expect(handler).toHaveBeenCalledTimes(owned ? 1 : 0);
-      expect(finished).toHaveBeenCalledExactlyOnceWith({ reserved: 1, completed: owned ? 1 : 0, stale: owned ? 0 : 1 });
-      expect(failed).not.toHaveBeenCalled();
+      if (ownership.startsWith("storage-error")) {
+        expect(finished).not.toHaveBeenCalled();
+        expect(failed).toHaveBeenCalledExactlyOnceWith(ownership === "storage-error-and-scope"
+          ? expect.objectContaining({ name: "AggregateError", message: "Workflow task and lease renewal failed.", errors: [scopeError, storageError] })
+          : storageError);
+      } else {
+        expect(finished).toHaveBeenCalledExactlyOnceWith({ reserved: 1, completed: owned ? 1 : 0, stale: owned ? 0 : 1 });
+        expect(failed).not.toHaveBeenCalled();
+      }
+      if (owned) expect(release).not.toHaveBeenCalled();
+      else expect(release).toHaveBeenCalledExactlyOnceWith([{
+        taskId: expect.any(String), reservationToken: expect.any(String),
+      }]);
       expect(vi.getTimerCount()).toBe(0);
     } finally { releaseScope.resolve(); vi.useRealTimers(); }
+  });
+
+  it.each([false, true])("ignores an activity settlement after shutdown (failed=%s)", async (fails) => {
+    const adapter = new MemoryWorkflowAdapter();
+    const shutdown = new AbortController();
+    const outcome = Promise.withResolvers<null>();
+    const handler = vi.fn(() => outcome.promise);
+    const action = defineAction({ name: "late.activity", handler: () => null });
+    const workflow = defineWorkflow({ name: "late.workflow", handler: async (_input, context) => {
+      await context.run(action, null);
+    } });
+    const complete = vi.spyOn(adapter, "completeActivities");
+    const release = vi.spyOn(adapter, "releaseTasks");
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => handler), {
+      executionSignal: shutdown.signal, completionBatchSize: 1,
+    });
+    const handle = await new WorkflowClient(adapter).start(workflow, null);
+    await scheduler.runOnce();
+    const cycle = scheduler.runOnce();
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(handler).toHaveBeenCalledOnce();
+      shutdown.abort();
+      if (fails) outcome.reject(new Error("Activity failed after shutdown"));
+      else outcome.resolve(null);
+      await expect(cycle).resolves.toEqual({ reserved: 1, completed: 0, stale: 1 });
+      expect(complete).not.toHaveBeenCalled();
+      expect(release).toHaveBeenCalledOnce();
+      expect(await adapter.getHistory(handle.executionId)).toHaveLength(1);
+    } finally {
+      outcome.resolve(null);
+      await cycle.catch(() => undefined);
+    }
+  });
+
+  it.each(["blocked", "failed", "waiting", "completed"] as const)("records the replay lifecycle result for %s", async (status) => {
+    const adapter = new MemoryWorkflowAdapter();
+    const workflow = defineWorkflow({ name: "replay.lifecycle", handler: () => undefined });
+    const handle = await new WorkflowClient(adapter).start(workflow, null, { executionId: "lifecycle" });
+    const replayer = new WorkflowReplayer();
+    const error = new WorkflowInvalidSuspensionError("lifecycle");
+    // A custom replay implementation may settle without asking the scheduler to construct a context.
+    vi.spyOn(replayer, "replay").mockResolvedValue(
+      status === "blocked" || status === "failed" ? { status, error, commands: [] }
+        : status === "waiting" ? { status, commands: [] }
+          : { status, output: undefined, commands: [] },
+    );
+    const record = vi.fn();
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
+      replayer, instrumentation: { record },
+    });
+
+    await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 1, completed: 1, stale: 0 });
+    await expect(handle.status()).resolves.toMatchObject({ status });
+    expect(record).toHaveBeenCalledTimes(2);
+    expect(record).toHaveBeenLastCalledWith({
+      type: "lifecycle", outcome: status === "blocked" || status === "failed" ? "failure" : "success",
+      data: {
+        executionId: "lifecycle", workflowName: workflow.name, workflowVersion: 1, historyGeneration: 1,
+        operation: status === "waiting" ? "wait" : status, status,
+      },
+    });
+  });
+
+  it.each(["waiting", "completed"] as const)("handles pending cancellation when replay is %s without opening a context", async (status) => {
+    const adapter = new MemoryWorkflowAdapter();
+    const workflow = defineWorkflow({ name: "cancelled.replay", handler: () => undefined });
+    const handle = await new WorkflowClient(adapter).start(workflow, null);
+    await adapter.requestCancellation(handle.executionId);
+    const replayer = new WorkflowReplayer();
+    vi.spyOn(replayer, "replay").mockResolvedValue(status === "completed"
+      ? { status, commands: [], output: undefined }
+      : { status, commands: [] });
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), { replayer });
+    await expect(scheduler.runOnce()).resolves.toMatchObject({ completed: 1 });
+    await expect(handle.status()).resolves.toMatchObject({
+      status: status === "completed" ? "cancelled" : "waiting", cancellationRequested: true,
+    });
+  });
+
+  it("releases a timer when shutdown begins during scope setup", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const shutdown = new AbortController();
+    const timer = createReservedTimer({});
+    vi.spyOn(adapter, "reserveTasks").mockResolvedValueOnce([timer]);
+    const release = vi.spyOn(adapter, "releaseTasks");
+    const complete = vi.spyOn(adapter, "completeActivities");
+    const record = vi.fn();
+    const scheduler = new WorkflowScheduler([], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
+      executionSignal: shutdown.signal, completionBatchSize: 1, instrumentation: { record },
+      runInExecutionScope: async (_id, _operation, run) => {
+        shutdown.abort();
+        return run();
+      },
+    });
+    await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 1, completed: 0, stale: 1 });
+    expect(complete).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledExactlyOnceWith([{ taskId: timer.id, reservationToken: timer.reservationToken }]);
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({
+      type: "task", outcome: "success", data: expect.objectContaining({ result: "stale" }),
+    }));
+  });
+
+  it("fails a continuation that tries to create an already completed explicit child", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const child = defineWorkflow({ name: "explicit.child", handler: () => undefined });
+    const parent = defineWorkflow({
+      name: "explicit.parent",
+      handler: async (_input, context) => {
+        await context.runChild(child, null, { executionId: "fixed-child" });
+        if (context.generation === 1) return context.continueAsNew(null);
+      },
+    });
+    const scheduler = new WorkflowScheduler([parent, child], adapter, new EmbeddedWorkflowActivityTransport(() => undefined));
+    const handle = await new WorkflowClient(adapter).start(parent, null, { executionId: "parent" });
+    for (let activation = 0; activation < 4; activation += 1) await scheduler.runOnce();
+
+    await expect(adapter.get("fixed-child")).resolves.toMatchObject({ status: "completed" });
+    await expect(handle.status()).resolves.toMatchObject({
+      status: "failed", historyGeneration: 2, error: { name: "WorkflowExecutionConflictError" },
+    });
+    await expect(adapter.getHistory(handle.executionId)).resolves.toEqual([]);
   });
 
   it("blocks a missing deployment definition and reports the lifecycle result", async () => {
@@ -163,6 +419,7 @@ describe("WorkflowScheduler", () => {
     const workflow = defineWorkflow({ name: "snapshot.stale", handler: () => undefined });
     await new WorkflowClient(adapter).start(workflow, null);
     const load = vi.spyOn(adapter, "loadActivations").mockResolvedValue([]);
+    const release = vi.spyOn(adapter, "releaseTasks");
     const openScope = vi.fn();
     const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
       runInExecutionScope: openScope,
@@ -171,6 +428,7 @@ describe("WorkflowScheduler", () => {
     await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 1, completed: 0, stale: 1 });
     expect(load).toHaveBeenCalledExactlyOnceWith([{ taskId: expect.any(String), reservationToken: expect.any(String) }]);
     expect(openScope).not.toHaveBeenCalled();
+    expect(release).not.toHaveBeenCalled();
   });
 
   it.each(["input", "output", "continued-input"] as const)("persists a %s validation failure as a terminal result", async (failure) => {
@@ -200,10 +458,100 @@ describe("WorkflowScheduler", () => {
     const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
       runInExecutionScope: async (executionId) => { throw failures[executionId as keyof typeof failures]; },
     });
-    await expect(scheduler.runOnce()).rejects.toMatchObject({ name: "AggregateError", errors: expect.arrayContaining(Object.values(failures)) });
+    await expect(scheduler.runOnce()).rejects.toMatchObject({
+      name: "AggregateError", message: "Workflow reservation batch failed.", errors: expect.arrayContaining(Object.values(failures)),
+    });
     expect(release).toHaveBeenCalledTimes(2);
     expect(adapter.inspectTasks()).toHaveLength(2);
     expect(adapter.inspectTasks().map(({ reservationToken }) => reservationToken)).toEqual([undefined, undefined]);
+  });
+
+  it("preserves a scope failure when the reservation release also fails", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const workflow = defineWorkflow({ name: "release.failure", handler: () => undefined });
+    const scopeFailure = new Error("Execution scope unavailable");
+    const releaseFailure = new Error("Storage unavailable during release");
+    const record = vi.fn();
+    const release = vi.spyOn(adapter, "releaseTasks").mockRejectedValueOnce(releaseFailure);
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
+      runInExecutionScope: async () => { throw scopeFailure; },
+      instrumentation: { record },
+    });
+    await new WorkflowClient(adapter).start(workflow, null, { executionId: "release-failure" });
+
+    const startedAt = performance.now();
+    await expect(scheduler.runOnce()).rejects.toMatchObject({
+      name: "AggregateError", message: "Workflow task execution and release failed.", errors: [scopeFailure, releaseFailure],
+    });
+    expect(release).toHaveBeenCalledExactlyOnceWith([{ taskId: expect.any(String), reservationToken: expect.any(String) }]);
+    expect(record.mock.calls).toStrictEqual([[{
+      type: "task", outcome: "failure", durationMs: expect.any(Number),
+      data: {
+        executionId: "release-failure", workflowName: workflow.name, workflowVersion: 1,
+        historyGeneration: 1, taskKind: "workflow", result: "failed", attempt: 1, queueAgeMs: expect.any(Number),
+      },
+    }]]);
+    expect(record.mock.calls[0]?.[0].durationMs).toBeLessThanOrEqual(performance.now() - startedAt);
+  });
+
+  it.each([
+    { payload: { durationMs: 4 }, target: "sleep", sequence: 0, lag: 16 },
+    { payload: { timeoutMs: 7 }, target: "signal:workflow.ready", sequence: 2, lag: 13 },
+    { payload: null, target: "sleep", sequence: 0, lag: 20 },
+    { payload: [7], target: "sleep", sequence: 0, lag: 20 },
+    { payload: "legacy", target: "sleep", sequence: 0, lag: 20 },
+    { payload: { durationMs: "unknown" }, target: "sleep", sequence: 0, lag: 20 },
+    { payload: { durationMs: Infinity }, target: "sleep", sequence: 0, lag: 20 },
+  ] as const)("records a timer scope and observation for $payload", async ({ payload, target, sequence, lag }) => {
+    const adapter = new MemoryWorkflowAdapter();
+    const timer = createReservedTimer({ payload, target, commandSequence: sequence });
+    vi.spyOn(adapter, "reserveTasks").mockResolvedValueOnce([timer]);
+    const load = vi.spyOn(adapter, "loadActivations");
+    const complete = vi.spyOn(adapter, "completeActivities").mockResolvedValueOnce([{
+      taskId: timer.id, reservationToken: timer.reservationToken,
+    }]);
+    const scope = vi.fn();
+    const record = vi.fn();
+    const scheduler = new WorkflowScheduler([], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
+      completionBatchSize: 1, instrumentation: { record },
+      runInExecutionScope: (id, operation, run, task) => { scope(id, operation, run, task); return run(); },
+    });
+
+    const startedAt = performance.now();
+    await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 1, completed: 1, stale: 0 });
+    expect(load).not.toHaveBeenCalled();
+    expect(scope).toHaveBeenCalledExactlyOnceWith(timer.executionId, "workflow.timer", expect.any(Function), timer);
+    const completion = target.startsWith("signal:")
+      ? { status: "failed", error: expect.objectContaining({
+          name: "WorkflowSignalTimeoutError", details: { executionId: timer.executionId, signalName: "workflow.ready" },
+        }) }
+      : { status: "completed", result: null };
+    expect(complete).toHaveBeenCalledExactlyOnceWith([{
+      taskId: timer.id, reservationToken: timer.reservationToken, executionId: timer.executionId, sequence, ...completion,
+    }]);
+    expect(record.mock.calls).toStrictEqual([[{
+      type: "task", outcome: "success", durationMs: expect.any(Number),
+      data: {
+        executionId: timer.executionId, workflowName: timer.workflowName, workflowVersion: timer.workflowVersion,
+        historyGeneration: timer.historyGeneration, taskKind: "timer", result: "committed", attempt: 1,
+        queueAgeMs: 20, timerLagMs: lag, commandSequence: sequence, target,
+      },
+    }]]);
+    expect(record.mock.calls[0]?.[0].durationMs).toBeLessThanOrEqual(performance.now() - startedAt);
+  });
+
+  it.each(["target", "commandSequence"] as const)("returns an invalid timer reservation missing %s", async (missing) => {
+    const adapter = new MemoryWorkflowAdapter();
+    const timer = createReservedTimer({});
+    delete timer[missing];
+    vi.spyOn(adapter, "reserveTasks").mockResolvedValueOnce([timer]);
+    const release = vi.spyOn(adapter, "releaseTasks");
+    const complete = vi.spyOn(adapter, "completeActivities");
+    const scheduler = new WorkflowScheduler([], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), { completionBatchSize: 1 });
+
+    await expect(scheduler.runOnce()).rejects.toThrow(new TypeError(`Workflow task "${timer.id}" is not a valid timer.`));
+    expect(release).toHaveBeenCalledExactlyOnceWith([{ taskId: timer.id, reservationToken: timer.reservationToken }]);
+    expect(complete).not.toHaveBeenCalled();
   });
 
   it("executes replay activations and embedded activities to completion", async () => {
@@ -354,6 +702,7 @@ describe("WorkflowScheduler", () => {
 
   it("runs every task inside the injected execution boundary", async () => {
     const adapter = new MemoryWorkflowAdapter();
+    const commit = vi.spyOn(adapter, "commitActivation");
     const workflow = defineWorkflow({
       name: "scope.run",
       handler: () => undefined,
@@ -375,6 +724,26 @@ describe("WorkflowScheduler", () => {
     await scheduler.runOnce();
 
     expect(calls).toEqual([`${handle.executionId}:workflow.activate`]);
+    expect(commit.mock.calls[0]?.[0].outcome).toStrictEqual({ status: "completed" });
+  });
+
+  it("commits an embedded activity without a result as an absent durable value", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const action = defineAction({ name: "no-result.activity", output: z.undefined(), handler: () => undefined });
+    const workflow = defineWorkflow({ name: "no-result.workflow", handler: async (_input, context) => {
+      await context.run(action, null);
+    } });
+    const complete = vi.spyOn(adapter, "completeActivities");
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => () => undefined), {
+      completionBatchSize: 1,
+    });
+    const handle = await new WorkflowClient(adapter).start(workflow, null);
+    await scheduler.runOnce();
+    await scheduler.runOnce();
+    expect(complete.mock.calls).toStrictEqual([[[{
+      taskId: expect.any(String), reservationToken: expect.any(String), executionId: handle.executionId,
+      sequence: 0, status: "completed",
+    }]]]);
   });
 
   it("loads reserved workflow snapshots in one batch before opening scopes", async () => {
@@ -448,6 +817,8 @@ describe("WorkflowScheduler", () => {
     }
 
     const adapter = new RacingSignalAdapter();
+    const record = vi.fn();
+    const get = vi.spyOn(adapter, "get");
     const workflow = defineWorkflow({
       name: "race.run",
       handler: () => undefined,
@@ -456,6 +827,7 @@ describe("WorkflowScheduler", () => {
       [workflow],
       adapter,
       new EmbeddedWorkflowActivityTransport(() => undefined),
+      { instrumentation: { record } },
     );
     const handle = await new WorkflowClient(adapter).start(workflow, null);
 
@@ -464,6 +836,10 @@ describe("WorkflowScheduler", () => {
       completed: 0,
       stale: 1,
     });
+    expect(record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      type: "task", outcome: "success", data: expect.objectContaining({ executionId: handle.executionId, result: "stale" }),
+    }));
+    expect(get).not.toHaveBeenCalled();
     await scheduler.runOnce();
 
     await expect(handle.status()).resolves.toMatchObject({ status: "completed" });
@@ -522,7 +898,7 @@ describe("WorkflowScheduler", () => {
     await expect(handle.status()).resolves.toMatchObject({ status: "completed" });
   });
 
-  it("blocks replay before an oversized history can continue growing", async () => {
+  it.each([1, 2])("blocks replay only after exceeding the configured %s-event history limit", async (maxHistoryEvents) => {
     const adapter = new MemoryWorkflowAdapter();
     const action = defineAction({
       name: "history.activity",
@@ -539,7 +915,7 @@ describe("WorkflowScheduler", () => {
       [workflow],
       adapter,
       new EmbeddedWorkflowActivityTransport(() => () => null),
-      { maxHistoryEvents: 1 },
+      { maxHistoryEvents },
     );
     const handle = await new WorkflowClient(adapter).start(workflow, null);
 
@@ -547,14 +923,35 @@ describe("WorkflowScheduler", () => {
     await scheduler.runOnce();
     await scheduler.runOnce();
 
-    await expect(handle.status()).resolves.toMatchObject({
-      status: "blocked",
-      error: { name: "WorkflowHistoryLimitExceededError" },
+    await expect(handle.status()).resolves.toMatchObject(maxHistoryEvents === 1
+      ? { status: "blocked", error: { name: "WorkflowHistoryLimitExceededError" } }
+      : { status: "completed" });
+  });
+
+  it.each([false, true])("settles a caught continuation interrupt (subsequent failure=%s)", async (fails) => {
+    const adapter = new MemoryWorkflowAdapter();
+    const workflow = defineWorkflow({ name: "generation.failure",
+      handler: async (_input, context) => {
+        try {
+          await context.continueAsNew(null);
+        } catch {
+          if (fails) throw new Error("Cleanup after continuation failed");
+        }
+      },
     });
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined));
+    const handle = await new WorkflowClient(adapter).start(workflow, null);
+
+    await expect(scheduler.runOnce()).resolves.toMatchObject({ completed: 1 });
+    await expect(handle.status()).resolves.toMatchObject(fails
+      ? { status: "failed", historyGeneration: 1, error: { message: "Cleanup after continuation failed" } }
+      : { status: "queued", historyGeneration: 2 });
+    await expect(adapter.getHistoryArchives(handle.executionId)).resolves.toHaveLength(fails ? 0 : 1);
   });
 
   it("continues as new under the same identity with a fresh archived generation", async () => {
     const adapter = new MemoryWorkflowAdapter();
+    const record = vi.fn();
     const workflow = defineWorkflow({
       name: "generation.loop",
       version: { current: 2, supportedFrom: 1 },
@@ -571,6 +968,7 @@ describe("WorkflowScheduler", () => {
       [workflow],
       adapter,
       new EmbeddedWorkflowActivityTransport(() => undefined),
+      { instrumentation: { record } },
     );
     const handle = await new WorkflowClient(adapter).start(
       workflow,
@@ -579,6 +977,10 @@ describe("WorkflowScheduler", () => {
     );
 
     await scheduler.runOnce();
+    // A queued successor has no completed or waiting lifecycle result yet.
+    expect(record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      type: "task", data: expect.objectContaining({ result: "committed" }),
+    }));
     await expect(handle.status()).resolves.toMatchObject({
       executionId: "generation-loop",
       workflowVersion: 2,
@@ -605,3 +1007,24 @@ describe("WorkflowScheduler", () => {
     )).resolves.toMatchObject({ executionId: "generation-loop" });
   });
 });
+
+/** A custom adapter can return a timer even when its historical payload is incomplete. */
+function createReservedTimer(overrides: Partial<ReservedWorkflowTask>): ReservedWorkflowTask {
+  return {
+    id: "timer-task",
+    executionId: "timer-run",
+    workflowName: "timers.example",
+    workflowVersion: 2,
+    historyGeneration: 3,
+    rootExecutionId: "timer-run",
+    kind: "timer",
+    commandSequence: 0,
+    target: "sleep",
+    attempt: 1,
+    availableAt: new Date(100),
+    reservedAt: new Date(120),
+    reservationToken: "owned-timer",
+    createdAt: new Date(100),
+    ...overrides,
+  };
+}

@@ -8,6 +8,7 @@ import {
 
 import type { AnyWorkflow } from "./workflow.js";
 import type {
+  CommitWorkflowActivationRequest,
   ReservedWorkflowTask,
   WorkflowAdapter,
   WorkflowActivationOutcome,
@@ -21,6 +22,7 @@ import {
   WorkflowActivityInfrastructureError,
   WorkflowActivityTimeoutError,
   WorkflowCancellationError,
+  WorkflowExecutionConflictError,
   WorkflowHistoryLimitExceededError,
   WorkflowSignalTimeoutError,
 } from "./errors.js";
@@ -30,7 +32,7 @@ import {
   type WorkflowPayloadCodec,
 } from "./serialization.js";
 import { WorkflowReplayer } from "./replayer.js";
-import { DurableWorkflowExecutionContext } from "./context.js";
+import { DurableWorkflowExecutionContext, WorkflowContinueAsNewInterrupt } from "./context.js";
 import { WorkflowCompletionBuffer } from "./completion_buffer.js";
 import {
   executeWorkflowActivityWithTimeout,
@@ -140,10 +142,6 @@ export class WorkflowScheduler {
     validatePositiveInteger("leaseMs", this.leaseMs);
     validatePositiveInteger("maxHistoryEvents", this.maxHistoryEvents);
     validatePositiveInteger(
-      "completionBatchSize",
-      options.completionBatchSize ?? 100,
-    );
-    validatePositiveInteger(
       "completionFlushIntervalMs",
       options.completionFlushIntervalMs ?? 100,
     );
@@ -207,7 +205,6 @@ export class WorkflowScheduler {
           );
         }
 
-        if (signal.aborted) return false;
         return this.runInExecutionScope(
           task.executionId,
           task.kind === "activity" ? "workflow.activity" : "workflow.timer",
@@ -229,7 +226,12 @@ export class WorkflowScheduler {
         error instanceof WorkflowJournalConflictError ? "stale" : "failed",
         performance.now() - startedAt,
       );
-      await this.adapter.releaseTasks([toReservation(task)]);
+      try {
+        await this.adapter.releaseTasks([toReservation(task)]);
+      } catch (releaseError) {
+        // A failed release must not replace the error that caused the task to be abandoned.
+        throw new AggregateError([error, releaseError], "Workflow task execution and release failed.");
+      }
 
       if (error instanceof WorkflowJournalConflictError) {
         return false;
@@ -360,7 +362,9 @@ export class WorkflowScheduler {
       });
     }
 
-    if (executionContext?.continueAsNewInput !== undefined) {
+    if (executionContext?.continueAsNewInput !== undefined
+      && (result.status === "completed"
+        || (result.status === "failed" && result.error instanceof WorkflowContinueAsNewInterrupt))) {
       let input: WorkflowPayload;
 
       try {
@@ -393,7 +397,7 @@ export class WorkflowScheduler {
     }
 
     if (result.status === "waiting") {
-      return this.adapter.commitActivation({
+      return this.commitReplayOutcome({
         ...reservation,
         executionId: snapshot.executionId,
         expectedRevision: snapshot.revision,
@@ -457,7 +461,7 @@ export class WorkflowScheduler {
       });
     }
 
-    return this.adapter.commitActivation({
+    return this.commitReplayOutcome({
       ...reservation,
       executionId: snapshot.executionId,
       expectedRevision: snapshot.revision,
@@ -467,6 +471,21 @@ export class WorkflowScheduler {
         ...(output === undefined ? {} : { output }),
       },
     });
+  }
+
+  private async commitReplayOutcome(request: CommitWorkflowActivationRequest): Promise<boolean> {
+    try {
+      return await this.adapter.commitActivation(request);
+    } catch (error) {
+      if (!(error instanceof WorkflowExecutionConflictError)) throw error;
+      // A deterministic command identity conflict cannot be fixed by retrying
+      // this activation. The adapter's failed commit published no commands.
+      return this.adapter.commitActivation({
+        ...request,
+        commands: [],
+        outcome: { status: "failed", error: serializeWorkflowError(error) },
+      });
+    }
   }
 
   private async executeActivity(task: ReservedWorkflowTask, signal: AbortSignal): Promise<boolean> {
@@ -641,15 +660,23 @@ export class WorkflowScheduler {
       onFailure: (error) => ownership.abort(error),
     });
 
+    let committed: boolean;
     try {
-      const committed = !signal.aborted && await run(signal);
-      // A process cancellation must leave the task available for redelivery.
-      // The token fence keeps the release harmless if a new owner exists.
-      if (!committed && signal.aborted) await this.adapter.releaseTasks([reservation]);
-      return committed;
-    } finally {
-      await heartbeat.close();
+      committed = !signal.aborted && await run(signal);
+    } catch (error) {
+      await heartbeat.close().catch((heartbeatError: unknown) => {
+        // A handler can propagate the abort reason from this same heartbeat.
+        if (heartbeatError !== error) {
+          throw new AggregateError([error, heartbeatError], "Workflow task and lease renewal failed.");
+        }
+      });
+      throw error;
     }
+    // Stop renewal before releasing so a failed heartbeat is handled by the
+    // task's error path, which also owns release.
+    await heartbeat.close();
+    if (!committed && signal.aborted) await this.adapter.releaseTasks([reservation]);
+    return committed;
   }
 }
 

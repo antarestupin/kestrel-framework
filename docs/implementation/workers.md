@@ -163,6 +163,8 @@ For batch workers, `batch.size` is the maximum number of jobs passed to one hand
 
 The individual handler receives `(job, dependencies, context)`. The job exposes its validated `payload`, identifier, queue, attempt, lease timestamps and reservation token. `context.signal` is aborted during non-waiting shutdown and should be forwarded to cancellable dependencies. `context.reportActualCost(cost)` may be called once to report the invocation-wide actual cost; the policy decides whether that value is diagnostic only, synchronously reconciled or reconciled asynchronously. `context.reportFeedback(feedback)` may be called once to classify a dependency timeout, transient failure, permanent response or explicit throttling response for declared circuit constraints.
 
+The scheduler retains the original reservation for delivery and passes independent metadata to each individual or batch handler. Starting polling while a one-shot cycle is active keeps that cycle's handler cancellation signal under the scheduler's shutdown ownership. Throttling reconciliation captures cost, feedback and any reported retry timestamp at the time of the report.
+
 Each individual handler invocation emits the application `execution.started` and `execution.completed` observations with the worker name as its operation and `worker` as its transport. The execution outcome follows the job result, including retries and dead-letter failures. The scoped observation context remains active inside the handler so instrumented dependencies contribute to the same Studio timeline.
 
 ## Batch workers
@@ -449,6 +451,8 @@ export const synchronizeAccountWorker = defineWorker({
 The default buffering strategy is `defer` with a one-second fallback when an authoritative `retryAt` is unavailable. A simple one-request rate limit may omit `estimatedCost`; the scheduler uses `{ requests: 1 }`. Advanced rate policies require an explicit estimate for every declared rate dimension.
 
 The scheduler parses each reserved payload before evaluating `requirements`. A batch must resolve to the same admission definition for every job; its per-job estimated costs are summed into one atomic invocation requirement. This avoids partially admitting a batch. Different definitions or cost dimensions fail the invocation before its handler starts and follow the ordinary retry or dead-letter policy.
+
+Unsupported admission kinds and non-finite combined costs fail at that same preparation boundary before the scheduler calls the throttling facade.
 
 Circuit feedback is invocation-wide like actual cost. An unclassified failed handler is conservatively treated as a transient dependency failure by any declared circuit. Explicit feedback can distinguish timeouts, permanent provider responses and throttling with a safe `retryAt`. A circuit rejection uses the ordinary buffering strategy, so `defer` and expired `hold` naturally schedule the job at the circuit deadline without consuming a worker attempt.
 

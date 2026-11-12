@@ -159,6 +159,51 @@ describe("PostgreSQL query instrumentation", () => {
     }));
   });
 
+  it("only wraps builder objects while observing and preserves native promises", async () => {
+    const builder = { execute: vi.fn(async () => successfulResult) };
+    const pending = Promise.resolve(successfulResult);
+    const raw = {
+      select: vi.fn(() => builder),
+      execute: vi.fn(() => pending),
+      query: { users: { findMany: vi.fn(() => builder) } },
+    };
+    let observing = false;
+    const database = instrumentDrizzleDatabase(raw, { parameters: "omit", origin: "none" },
+      () => observing ? { record() {} } : undefined);
+
+    // Disabled observation leaves builder identity and any custom behavior alone.
+    expect(database.select()).toBe(builder);
+    expect(database.query.users.findMany()).toBe(builder);
+    observing = true;
+    expect(database.select()).not.toBe(builder);
+    expect(database.query.users.findMany()).not.toBe(builder);
+    expect(database.execute()).toBe(pending);
+    await expect(database.select().execute()).resolves.toBe(successfulResult);
+  });
+
+  it("preserves transaction callback validation and reuses the proxy for one transaction object", async () => {
+    const tx = { select: () => 42 };
+    const invalid = new Error("A transaction callback must be callable.");
+    const raw = {
+      transaction: vi.fn(async (callback: unknown, options: { readOnly: boolean }) => {
+        if (typeof callback !== "function") throw invalid;
+        return callback(tx, options);
+      }),
+    };
+    const database = instrumentDrizzleDatabase(raw, { parameters: "omit", origin: "none" },
+      () => ({ record() {} }));
+    const options = { readOnly: true };
+    await expect(database.transaction(null, options)).rejects.toBe(invalid);
+    expect(raw.transaction).toHaveBeenNthCalledWith(1, null, options);
+
+    const callback = vi.fn((current: typeof tx) => current);
+    const first = await database.transaction(callback, options);
+    const second = await database.transaction(callback, options);
+    expect(first).not.toBe(tx);
+    expect(second).toBe(first);
+    expect(first.select()).toBe(42);
+  });
+
   it("attributes a queued pool query to the requesting execution, even when another execution releases the connection", async () => {
     const config = { ...createPostgresTestConfig(), max: 1 };
     const pool = new Pool(config);
@@ -243,6 +288,45 @@ describe("PostgreSQL query instrumentation", () => {
     }
   });
 
+  it("does not let an unreadable query configuration prevent the driver from executing", async () => {
+    const inspectionFailure = new Error("configuration inspection failed");
+    const readText = vi.fn().mockImplementationOnce(() => { throw inspectionFailure; })
+      .mockReturnValue("select 42");
+    const config = { get text(): string { return readText(); } };
+    const query = vi.fn((driverConfig: typeof config) => {
+      expect(driverConfig.text).toBe("select 42");
+      return Promise.resolve(successfulResult);
+    });
+    const client = createClient(query as (...args: unknown[]) => unknown);
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresClient(client, { parameters: "include", origin: "none" }, () => ({ record }));
+
+    // A failed diagnostic inspection must still delegate the original configuration object.
+    await expect(Promise.resolve().then(() => client.query(config))).resolves.toBe(successfulResult);
+    expect(query).toHaveBeenCalledExactlyOnceWith(config);
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("retains query observations when one parameter or error code cannot be serialized", async () => {
+    const unreadableCode = new Error("driver rejected the query");
+    Object.defineProperty(unreadableCode, "code", {
+      get() { throw new Error("error code is unavailable"); },
+    });
+    const query = vi.fn(async () => { throw unreadableCode; });
+    const client = createClient(query);
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresClient(client, { parameters: "include", origin: "none" }, () => ({ record }));
+
+    const unprintable: Record<string, unknown> = Object.create(null);
+    unprintable.cycle = unprintable;
+    await expect(client.query("select $1, $2, $3", [new Date(NaN), unprintable, 3])).rejects.toBe(unreadableCode);
+    expect(record).toHaveBeenCalledExactlyOnceWith({
+      outcome: "failure",
+      durationMs: expect.any(Number),
+      data: { sql: "select $1, $2, $3", parameters: ["Invalid Date", "[unserializable]", 3] },
+    });
+  });
+
   it("keeps pg parameter precedence and converts observations without changing driver values", async () => {
     const query = vi.fn(async () => ({ ...successfulResult, rowCount: null }));
     const client = createClient(query);
@@ -265,7 +349,7 @@ describe("PostgreSQL query instrumentation", () => {
       durationMs: expect.any(Number), outcome: "success",
     });
     await client.query({ text: "select 42" });
-    expect(record.mock.calls[1]?.[0].data).toEqual({ sql: "select 42", command: "SELECT" });
+    expect(record.mock.calls[1]?.[0].data).toStrictEqual({ sql: "select 42", command: "SELECT" });
   });
 
   it("wraps each pool and client once and preserves non-promise driver return values", async () => {
@@ -461,6 +545,22 @@ describe("PostgreSQL query instrumentation", () => {
         },
       }),
     }));
+  });
+
+  it("keeps bare async caller paths usable and omits async Node frames", async () => {
+    const client = createClient(vi.fn(async () => successfulResult));
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresClient(client, { parameters: "omit", origin: "caller" }, () => ({ record }));
+    const result = withStackFormatter(() => [
+      "Error",
+      "    at async node:internal/process/task_queues:99:5",
+      "    at async file:///app/src/read.ts:12:34",
+    ].join("\n"), () => client.query("select 42"));
+
+    await expect(result).resolves.toBe(successfulResult);
+    expect(record.mock.calls[0]?.[0].data.origin).toStrictEqual({
+      file: "file:///app/src/read.ts", line: 12, column: 34,
+    });
   });
 
   it.each([

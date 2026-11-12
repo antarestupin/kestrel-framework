@@ -6,6 +6,7 @@ import { App } from "../app/index.js";
 import { MemoryWorkerAdapter } from "./adapters/memory/index.js";
 import { WorkerScheduler } from "./scheduler.js";
 import { WorkerRetryError } from "./errors.js";
+import type { ReservedJob } from "./types.js";
 import { defineWorker, jobFail, jobSuccess, type AnyWorker } from "./worker.js";
 
 const epoch = new Date("2026-01-01T00:00:00.000Z");
@@ -99,7 +100,9 @@ describe("worker delivery contracts", () => {
       expect(extend.mock.calls[0]![0]).toHaveLength(2);
       expect(ack).not.toHaveBeenCalled();
     } finally { finish.resolve(); await cycle; }
-    expect(await cycle).toMatchObject({ errors: [first, second] });
+    expect(await cycle).toMatchObject({
+      message: "Several worker result handoffs failed.", errors: [first, second],
+    });
     expect(adapter.inspectJobs()).toHaveLength(2);
     expect(ack).not.toHaveBeenCalled();
   });
@@ -130,7 +133,9 @@ describe("worker delivery contracts", () => {
       expect(settled).toBe(false);
       expect(extend).toHaveBeenCalledOnce();
     } finally { finishRetry.resolve(); await cycle; }
-    expect(await cycle).toMatchObject({ errors: [first, last] });
+    expect(await cycle).toMatchObject({
+      message: "Several worker queue transitions failed.", errors: [first, last],
+    });
     const retried = adapter.inspectJobs().find((job) => job.payload === "retry");
     expect(retried?.availableAt).toEqual(new Date(epoch.getTime() + 250));
     expect(retried?.reservedAt).toBeUndefined();
@@ -227,6 +232,40 @@ describe("worker delivery contracts", () => {
     expect(adapter.inspectJobs()).toEqual([]);
   });
 
+  it.each([false, true])("preserves delivery ownership when a handler changes its job copy (batch=%s)", async (batch) => {
+    const complete = vi.fn(async () => undefined);
+    const definition = { name: "isolated-reservation", queue: "isolated-reservation", input: z.null() };
+    const changeJob = (job: ReservedJob) => {
+      job.id = "changed";
+      job.queue = "different";
+      job.reservationToken = "replacement";
+      job.correlation!.id = "changed-correlation";
+    };
+    const worker = batch
+      ? defineWorker({
+        ...definition, batch: { size: 1 },
+        *handler([job]) {
+          const key = job!.id;
+          changeJob(job!);
+          yield jobSuccess(key, "finished");
+        },
+      })
+      : defineWorker({
+        ...definition,
+        handler(job, _dependencies, context) {
+          changeJob(job);
+          context.setResult("finished");
+        },
+      });
+    const { adapter, scheduler } = await setup([worker], { completeCorrelatedJob: complete });
+    await adapter.enqueue([{ queue: worker.queue, payload: null, correlation: { namespace: "test", id: "original" } }]);
+    await expect(scheduler.runOnce()).resolves.toBe(1);
+    expect(complete.mock.calls).toStrictEqual([[{
+      jobId: "job-1", correlation: { namespace: "test", id: "original" }, status: "completed", result: "finished",
+    }]]);
+    expect(adapter.inspectJobs()).toEqual([]);
+  });
+
   it("backs off exponentially and respects the retry cap across real reservation attempts", async () => {
     const worker = defineWorker({ name: "backoff", queue: "backoff", input: z.null(), retryDelayMs: 100, maxRetryDelayMs: 250, maxAttempts: 5,
       handler: () => { throw new Error("retryable"); },
@@ -271,7 +310,9 @@ describe("worker delivery contracts", () => {
     const { adapter, scheduler } = await setup([worker]);
     await adapter.enqueue([{ queue: worker.queue, payload: null }]);
     await scheduler.runOnce();
-    expect(adapter.inspectDeadLetters()).toMatchObject([{ error: { name: "TypeError" } }]);
+    expect(adapter.inspectDeadLetters()).toMatchObject([{
+      error: { name: "TypeError", message: "A worker result can only be reported once per job." },
+    }]);
   });
 
   it("requires batch results to use per-job outcomes rather than the individual setter", async () => {
@@ -281,7 +322,8 @@ describe("worker delivery contracts", () => {
     const { adapter, scheduler } = await setup([worker]);
     await adapter.enqueue([{ queue: worker.queue, payload: null }, { queue: worker.queue, payload: null }]);
     await scheduler.runOnce();
-    expect(adapter.inspectDeadLetters()).toMatchObject([{ error: { name: "TypeError" } }, { error: { name: "TypeError" } }]);
+    const error = { name: "TypeError", message: "Batch workers must return results with jobSuccess()." };
+    expect(adapter.inspectDeadLetters()).toMatchObject([{ error }, { error }]);
   });
 
   it("isolates a successful job from a failed job in the same returned batch", async () => {
@@ -312,6 +354,30 @@ describe("worker delivery contracts", () => {
     }));
     expect(adapter.inspectJobs()).toEqual([]);
     expect(adapter.inspectDeadLetters()).toEqual([]);
+  });
+
+  it("reports a missing batch result to its correlation owner without adding absent identity", async () => {
+    const worker = defineWorker({
+      name: "missing-batch-result", queue: "missing-batch-result", input: z.null(), batch: { size: 2 }, maxAttempts: 1,
+      *handler([first]) { yield jobSuccess(first!.id, "finished"); },
+    });
+    const complete = vi.fn(async () => undefined);
+    const { adapter, scheduler } = await setup([worker], { completeCorrelatedJob: complete });
+    await adapter.enqueue(["first", "second"].map((id) => ({
+      queue: worker.queue, payload: null, correlation: { namespace: "test", id },
+    })));
+    await expect(scheduler.runOnce()).resolves.toBe(2);
+    expect(complete.mock.calls).toStrictEqual([
+      [{ jobId: "job-1", correlation: { namespace: "test", id: "first" }, status: "completed", result: "finished" }],
+      [{
+        jobId: "job-2", correlation: { namespace: "test", id: "second" }, status: "failed",
+        error: expect.objectContaining({
+          name: "WorkerBatchResultError", message: "Batch must yield exactly one result for every job.",
+        }),
+      }],
+    ]);
+    expect(adapter.inspectJobs()).toEqual([]);
+    expect(adapter.inspectDeadLetters()).toMatchObject([{ originalJobId: "job-2" }]);
   });
 
   it("keeps the first correlated result when a batch yields a duplicate job ID", async () => {
@@ -370,7 +436,14 @@ describe("worker delivery contracts", () => {
       const { adapter, scheduler } = await setup([worker]);
       await adapter.enqueue([{ queue: worker.queue, payload: null }]);
       expect(await scheduler.runOnce()).toBe(1);
-      expect(adapter.inspectDeadLetters()).toMatchObject([{ originalJobId: "job-1", error: { name: "WorkerBatchResultError" } }]);
+      expect(adapter.inspectDeadLetters()).toMatchObject([{
+        originalJobId: "job-1", error: {
+          name: "WorkerBatchResultError",
+          message: "retryDelayMs" in invalid
+            ? "Batch retry delays must be non-negative finite numbers."
+            : "Batch maxAttempts must be a positive integer.",
+        },
+      }]);
     },
   );
 
@@ -466,7 +539,12 @@ describe("worker delivery contracts", () => {
       expect(adapter.inspectJobs()).toEqual([]);
       const letters = adapter.inspectDeadLetters();
       expect(letters).toHaveLength(invalid === "unknown" ? 2 : 1);
-      expect(letters[0]!.error.name).toBe("WorkerBatchResultError");
+      expect(letters[0]!.error).toMatchObject({
+        name: "WorkerBatchResultError",
+        message: invalid === "unknown"
+          ? 'Batch result references unknown job "not-a-reserved-job".'
+          : 'Batch returned more than one result for job "job-1".',
+      });
     });
   }
 
@@ -565,7 +643,9 @@ describe("worker delivery contracts", () => {
     await adapter.enqueue([{ queue: worker.queue, payload: null }, { queue: worker.queue, payload: null }]);
     vi.spyOn(app, "createExecutionScope").mockRejectedValueOnce(invocationFailure);
     vi.spyOn(adapter, "ack").mockRejectedValueOnce(persistenceFailure);
-    await expect(scheduler.runOnce()).rejects.toMatchObject({ errors: [invocationFailure, persistenceFailure] });
+    await expect(scheduler.runOnce()).rejects.toMatchObject({
+      message: "Several worker transitions failed.", errors: [invocationFailure, persistenceFailure],
+    });
     expect(adapter.inspectJobs()).toHaveLength(2);
   });
 

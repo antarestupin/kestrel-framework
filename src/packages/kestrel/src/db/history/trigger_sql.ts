@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   getTableConfig,
   type AnyPgColumn,
@@ -22,13 +24,7 @@ export function createHistoryTriggerSql(
     return [key, column] as const;
   });
   const identityKeys = new Set(definition.identityKeys);
-  const functionName = managedIdentifier(
-    `__history_${sourceConfig.name}_${historyConfig.name}_write`,
-  );
-  const functionIdentifier = qualifiedIdentifier(
-    historyConfig.schema,
-    functionName,
-  );
+  const functionIdentifier = historyFunctionIdentifier(historyConfig.schema, historyConfig.name);
   const sourceIdentifier = qualifiedIdentifier(
     sourceConfig.schema,
     sourceConfig.name,
@@ -134,17 +130,11 @@ export function createHistoryTriggerRemovalSql(
 ): string {
   const sourceConfig = getTableConfig(definition.source);
   const historyConfig = getTableConfig(definition.table);
-  const functionName = managedIdentifier(
-    `__history_${sourceConfig.name}_${historyConfig.name}_write`,
-  );
   const sourceIdentifier = qualifiedIdentifier(
     sourceConfig.schema,
     sourceConfig.name,
   );
-  const functionIdentifier = qualifiedIdentifier(
-    historyConfig.schema,
-    functionName,
-  );
+  const functionIdentifier = historyFunctionIdentifier(historyConfig.schema, historyConfig.name);
 
   return `DROP TRIGGER IF EXISTS ${quoteIdentifier("__history_insert")} ON ${sourceIdentifier};
 DROP TRIGGER IF EXISTS ${quoteIdentifier("__history_update")} ON ${sourceIdentifier};
@@ -241,6 +231,11 @@ function qualifiedIdentifier(schema: string | undefined, name: string): string {
   return `${quoteIdentifier(schema ?? "public")}.${quoteIdentifier(name)}`;
 }
 
+/** The physical history table identifies its writer within the destination schema. */
+function historyFunctionIdentifier(schema: string | undefined, historyTable: string): string {
+  return qualifiedIdentifier(schema, managedIdentifier(`__history_${historyTable}_write`));
+}
+
 function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
@@ -251,18 +246,19 @@ function escapeLiteral(value: string): string {
 
 /** Keep generated identifiers within PostgreSQL's UTF-8 byte budget. */
 export function managedIdentifier(identifier: string): string {
-  if (Buffer.byteLength(identifier, "utf8") <= 63) {
+  if (Buffer.byteLength(identifier) <= 63) {
     return identifier;
   }
 
-  let hash = 0;
-  let prefixEnd = 0;
-  let bytesLeft = 54; // The underscore and hexadecimal suffix use nine ASCII bytes.
+  // Digest the full identifier so a shared or ambiguous visible prefix does not alias another object.
+  const suffix = `_${createHash("sha256").update(identifier).digest("hex").slice(0, 16)}`;
+  let prefix = "";
+  let bytesLeft = 63 - suffix.length;
   for (const character of identifier) {
-    hash = ((hash * 31) + character.codePointAt(0)!) >>> 0;
-    bytesLeft -= Buffer.byteLength(character, "utf8");
-    if (bytesLeft >= 0) prefixEnd += character.length;
+    const bytes = Buffer.byteLength(character);
+    if (bytes > bytesLeft) break;
+    prefix += character;
+    bytesLeft -= bytes;
   }
-  const suffix = hash.toString(16).padStart(8, "0");
-  return `${identifier.slice(0, prefixEnd)}_${suffix}`;
+  return prefix + suffix;
 }

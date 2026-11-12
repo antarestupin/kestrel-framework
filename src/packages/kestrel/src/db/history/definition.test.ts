@@ -1,4 +1,5 @@
 import { sql, getTableColumns } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import {
   bigserial,
   customType,
@@ -65,8 +66,14 @@ describe("defineHistoryTable", () => {
     ))
       .toEqual(["id", "__sequence"]);
     expect(columns.__sequence.generatedIdentity?.type).toBe("always");
+    expect(columns.__sequence.mapFromDriverValue("9007199254740993")).toBe(9_007_199_254_740_993n);
     expect(columns.__operation.notNull).toBe(true);
     expect(columns.__operation.getSQLType()).toBe("smallint");
+    for (const [operation, code] of [["insert", 1], ["update", 2], ["delete", 3]] as const) {
+      expect(columns.__operation.mapToDriverValue(operation)).toBe(code);
+      expect(columns.__operation.mapFromDriverValue(code)).toBe(operation);
+    }
+    expect(() => columns.__operation.mapFromDriverValue(4)).toThrow('Unknown database history operation code "4"');
     expect(columns.__changedColumns.notNull).toBe(true);
 
     type History = typeof history.$inferSelect;
@@ -136,6 +143,11 @@ describe("defineHistoryTable", () => {
     ]);
     // Spreading a Drizzle table must not also register the copy as a history definition.
     expect(getHistoryTableDefinitions({ copy: { ...history } })).toEqual([]);
+    const [definition] = getHistoryTableDefinitions({ history });
+    const descriptor = Object.getOwnPropertySymbols(history)
+      .map((key) => Object.getOwnPropertyDescriptor(history, key))
+      .find((value) => value?.value === definition);
+    expect(descriptor).toMatchObject({ configurable: false, enumerable: false, writable: false });
     const [contribution] = getDatabaseSchemaContributions({ history });
     expect(contribution).toMatchObject({
       id: "postgres.history:history_definition_test.article:article_history",
@@ -143,6 +155,23 @@ describe("defineHistoryTable", () => {
       uninstallBeforeSql: expect.stringContaining("DROP TRIGGER IF EXISTS"),
     });
     expect(contribution?.installSql).toBe(contribution?.updateSql);
+  });
+
+  it("copies existing rows only for the first installation of a public history table", () => {
+    const current = pgTable("baseline_history_source", { id: integer().primaryKey() });
+    const baseline = defineHistoryTable(current, { baseline: "existing_rows" });
+    expect(getTableConfig(baseline).schema).toBeUndefined();
+    const [contribution] = getDatabaseSchemaContributions({ baseline });
+    expect(contribution?.installSql).toMatch(/^LOCK TABLE "public"\."baseline_history_source" IN SHARE ROW EXCLUSIVE MODE;/u);
+    expect(contribution?.updateSql).toMatch(/^CREATE OR REPLACE FUNCTION/u);
+  });
+
+  it("keeps reserved history metadata names under Drizzle column casing", () => {
+    const query = drizzle.mock({ casing: "snake_case" }).select().from(history).toSQL();
+    // PostgreSQL triggers refer to the physical names, including the reserved prefix.
+    for (const column of ["__sequence", "__operation", "__changed_columns", "__changed_at", "__actor", "__reason"]) {
+      expect(query.sql).toContain(`"${column}"`);
+    }
   });
 
   it("supports an explicit composite identity", () => {

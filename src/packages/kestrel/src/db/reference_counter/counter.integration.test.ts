@@ -204,7 +204,11 @@ describe("synchronous reference counters", () => {
     const rest = await maintenance.rebuild(filtered.id, { after: first.cursor!, batchSize: 1, pauseMs: 0 });
     expect(rest).toMatchObject({ processed: 2, updated: 2, cursor: "3", completed: true });
     expect((await maintenance.rebuild(filtered.id, { pauseMs: 0 })).updated).toBe(0);
-    expect((await maintenance.rebuild(filtered.id, { after: "999", pauseMs: 0 })).processed).toBe(0);
+    const emptyProgress: ReferenceCounterProgress[] = [];
+    expect(await maintenance.rebuild(filtered.id, {
+      after: "999", pauseMs: 0, onProgress: (value) => { emptyProgress.push(value); },
+    })).toEqual({ id: filtered.id, processed: 0, updated: 0, cursor: "999", completed: true });
+    expect(emptyProgress).toEqual([]);
     await expect(maintenance.rebuild("missing")).rejects.toThrow("Unknown reference counter");
     await expect(maintenance.rebuild(filtered.id, { batchSize: 0 })).rejects.toThrow("batchSize");
   });
@@ -215,6 +219,23 @@ describe("synchronous reference counters", () => {
       batchSize: 1, pauseMs: 0, onProgress: () => { throw new Error("output failed"); },
     })).rejects.toThrow("output failed");
     expect((await counts()).map((row) => row.count)).toEqual([0, 99, 99]);
+  });
+
+  it("keeps the rebuild cursor independent of mutations to callback progress", async () => {
+    await database.update(topic).set({ count: 99 });
+    const reported: string[] = [];
+    const result = await maintenance.rebuild(filtered.id, {
+      batchSize: 1, pauseMs: 0,
+      onProgress(progress) {
+        reported.push(progress.cursor!);
+        // An untyped diagnostic consumer can retain or annotate the callback object.
+        Object.assign(progress, { cursor: "999", processed: -1, updated: -1 });
+      },
+    });
+
+    expect(reported).toEqual(["1", "2", "3"]);
+    expect(result).toStrictEqual({ id: filtered.id, cursor: "3", processed: 3, updated: 3, completed: true });
+    expect((await counts()).map(({ count }) => count)).toEqual([0, 0, 0]);
   });
 
   it("validates rebuild limits and preserves the resume cursor when cancelled before work", async () => {

@@ -1,5 +1,7 @@
 import {
   integer,
+  json,
+  jsonb,
   pgSchema,
   text,
   uuid,
@@ -16,7 +18,9 @@ import {
 } from "./definition.js";
 import {
   createHistoryBaselineSql,
+  createHistoryTriggerRemovalSql,
   createHistoryTriggerSql,
+  managedIdentifier,
 } from "./trigger_sql.js";
 
 const sqlSchema = pgSchema("history_sql_test");
@@ -74,7 +78,7 @@ describe("createHistoryTriggerSql", () => {
     const triggerSql = createHistoryTriggerSql(definition!);
 
     expect(triggerSql).toContain(
-      'CREATE OR REPLACE FUNCTION "history_sql_test"."__history_article_article_history_write"()',
+      'CREATE OR REPLACE FUNCTION "history_sql_test"."__history_article_history_write"()',
     );
     expect(triggerSql).toContain(
       "CASE WHEN OLD.\"content\" IS DISTINCT FROM NEW.\"content\" THEN NEW.\"content\" ELSE NULL END",
@@ -105,5 +109,60 @@ describe("createHistoryTriggerSql", () => {
     expect(createHistoryTriggerSql(definition!)).toContain(
       'IF OLD."tenant_id" IS DISTINCT FROM NEW."tenant_id" OR OLD."record_id" IS DISTINCT FROM NEW."record_id" THEN',
     );
+  });
+
+  it("keeps function ownership distinct when two source and history names concatenate identically", () => {
+    const first = sqlSchema.table("alpha_beta", { id: integer().primaryKey() });
+    const second = sqlSchema.table("alpha", { id: integer().primaryKey() });
+    const firstHistory = defineHistoryTable(first, { name: "events" });
+    const secondHistory = defineHistoryTable(second, { name: "beta_events" });
+    const definitions = getHistoryTableDefinitions({ firstHistory, secondHistory });
+    const installed = definitions.map((definition) =>
+      createHistoryTriggerSql(definition).match(/^CREATE OR REPLACE FUNCTION (.+)\(\)$/m)?.[1]);
+
+    expect(installed).toHaveLength(2);
+    expect(installed.every((name) => name !== undefined)).toBe(true);
+    expect(new Set(installed).size).toBe(2);
+    for (const [index, definition] of definitions.entries()) {
+      expect(createHistoryTriggerRemovalSql(definition)).toContain(`DROP FUNCTION IF EXISTS ${installed[index]}();`);
+    }
+  });
+
+  it("compares JSON arrays through jsonb and quotes source metadata in both SQL positions", () => {
+    const source = sqlSchema.table(`order'"%`, {
+      id: integer('id"').primaryKey(),
+      ["old'field"]: text('display"'),
+      plain: json(),
+      bounded: json().array(12),
+      binary: jsonb(),
+    });
+    const history = defineHistoryTable(source, { baseline: "existing_rows" });
+    const [definition] = getHistoryTableDefinitions({ history });
+    const trigger = createHistoryTriggerSql(definition!);
+
+    expect(trigger).toContain(`ON "history_sql_test"."order'""%"`);
+    expect(trigger).toContain('NEW."id"""');
+    expect(trigger).toContain('NEW."display"""');
+    expect(trigger).toContain("'old''field'");
+    expect(trigger).toContain("History identity columns of order''\"%% are immutable");
+    expect(trigger).toContain('to_jsonb(OLD."plain") IS DISTINCT FROM to_jsonb(NEW."plain")');
+    expect(trigger).toContain('to_jsonb(OLD."bounded") IS DISTINCT FROM to_jsonb(NEW."bounded")');
+    expect(trigger).not.toContain('to_jsonb(OLD."binary")');
+    expect(createHistoryBaselineSql(definition!)).toContain("'old''field'");
+  });
+});
+
+describe("managed PostgreSQL history identifiers", () => {
+  it("distinguishes old hash collisions beyond the shared visible prefix", () => {
+    const prefix = "a".repeat(62);
+    expect(managedIdentifier(prefix + "Aa")).not.toBe(managedIdentifier(prefix + "BB"));
+  });
+
+  it("preserves identifiers at the 63-byte limit and truncates only between Unicode characters", () => {
+    const exact = `${"é".repeat(31)}x`;
+    expect(managedIdentifier(exact)).toBe(exact);
+    const shortened = managedIdentifier("é".repeat(32));
+    expect(Buffer.byteLength(shortened)).toBeLessThanOrEqual(63);
+    expect(shortened).toMatch(/^é{23}_[0-9a-f]{16}$/u);
   });
 });

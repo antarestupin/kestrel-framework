@@ -107,6 +107,16 @@ interface ReservedTaskRow {
   created_at: string;
 }
 
+interface PendingAdmissionKey {
+  workflow_name: string;
+  concurrency_key: string;
+}
+
+type ReservationQueryRow = (ReservedTaskRow | { id: null }) & {
+  pending_admission_keys?: readonly PendingAdmissionKey[] | null;
+  pending_admission_cursor?: PendingAdmissionKey | null;
+};
+
 interface ReservedDispatchRow {
   id: string;
   execution_id: string;
@@ -191,6 +201,10 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
   public readonly activityDispatchMode: WorkflowActivityDispatchMode;
 
   private readonly terminalPollIntervalMs: number;
+
+  private nextPendingAdmissionCheck?: number;
+
+  private pendingAdmissionCursor: PendingAdmissionKey | undefined;
 
   public constructor(
     private readonly database: PostgresWorkflowDatabase,
@@ -686,6 +700,12 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
       request.kinds.map((kind) => sql`${kind}::text`),
       sql`, `,
     );
+    const now = performance.now();
+    const checkPendingAdmission = request.kinds.includes("workflow")
+      && (this.nextPendingAdmissionCheck === undefined || now >= this.nextPendingAdmissionCheck);
+    const pendingAdmissionPageSize = 8;
+    if (checkPendingAdmission) this.nextPendingAdmissionCheck = now + 1_000;
+
     const result = await this.database.execute(sql`
       WITH ranked AS MATERIALIZED (
         SELECT
@@ -789,13 +809,73 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         execution.history_generation,
         execution.root_execution_id,
         execution.parent_execution_id
+        ${checkPendingAdmission ? sql`,
+          pending_admission.keys AS pending_admission_keys,
+          pending_admission.cursor AS pending_admission_cursor
+        ` : sql``}
       FROM reserved
       INNER JOIN ${this.executionsTable} execution
         ON execution.id = reserved.execution_id
+      ${checkPendingAdmission ? this.pendingAdmissionDiscovery(pendingAdmissionPageSize) : sql``}
       ORDER BY reserved.available_at, reserved.created_at, reserved.id
     `);
 
-    return (result.rows as unknown as ReservedTaskRow[]).map(mapReservedTask);
+    const rows = result.rows as unknown as ReservationQueryRow[];
+    const tasks = rows.flatMap((row) => row.id === null ? [] : [mapReservedTask(row)]);
+    if (checkPendingAdmission) {
+      const keys = rows[0]?.pending_admission_keys ?? [];
+      // Advance past every examined group, including full groups or groups that remain locked.
+      this.pendingAdmissionCursor = rows[0]?.pending_admission_cursor ?? undefined;
+      let recoveryError: unknown;
+      for (const key of keys) {
+        try {
+          await this.recoverPendingAdmission(key);
+        } catch (error) {
+          recoveryError ??= error;
+        }
+      }
+      // A repair failure must not abandon leases acquired by the reservation statement.
+      if (tasks.length === 0 && recoveryError !== undefined) throw recoveryError;
+    }
+    return tasks;
+  }
+
+  /** Discovers capacity gaps in the reservation statement, including during empty polls. */
+  private pendingAdmissionDiscovery(limit: number): SQL {
+    const cursor = this.pendingAdmissionCursor;
+    const afterCursor = cursor === undefined ? sql`` : sql`
+      AND (waiting.workflow_name, waiting.concurrency_key)
+        > (${cursor.workflow_name}, ${cursor.concurrency_key})
+    `;
+    return sql`
+      FULL JOIN (
+        SELECT
+          jsonb_agg(to_jsonb(candidate) ORDER BY candidate.workflow_name, candidate.concurrency_key)
+            FILTER (WHERE (
+              SELECT count(*)
+              FROM ${this.executionsTable} admitted
+              WHERE admitted.workflow_name = candidate.workflow_name
+                AND admitted.concurrency_key = candidate.concurrency_key
+                AND admitted.concurrency_admitted
+                AND admitted.status NOT IN ('cancelled', 'completed', 'failed', 'terminated')
+            ) < candidate.concurrency_key_limit) AS keys,
+          CASE WHEN count(*) = ${limit} THEN
+            jsonb_agg(to_jsonb(candidate) ORDER BY candidate.workflow_name DESC, candidate.concurrency_key DESC) -> 0
+          END AS cursor
+        FROM (
+          SELECT DISTINCT ON (waiting.workflow_name, waiting.concurrency_key)
+            waiting.workflow_name, waiting.concurrency_key, waiting.concurrency_key_limit
+          FROM ${this.executionsTable} waiting
+          WHERE waiting.status = 'pending'
+            AND waiting.concurrency_scope = 'execution'
+            AND waiting.concurrency_key IS NOT NULL
+            AND waiting.concurrency_key_limit IS NOT NULL
+            ${afterCursor}
+          ORDER BY waiting.workflow_name, waiting.concurrency_key, waiting.created_at, waiting.id
+          LIMIT ${limit}
+        ) candidate
+      ) pending_admission ON true
+    `;
   }
 
   public async loadActivations(
@@ -1052,6 +1132,8 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
 
             if (
               existingChild === undefined
+              // Parent command sequences restart after continue-as-new, but a terminal child cannot run again.
+              || isTerminalWorkflowStatus(existingChild.status)
               || existingChild.workflowName !== command.target
               || existingChild.workflowVersion !== readNumber(command.payload, "version")
               || existingChild.parentExecutionId !== request.executionId
@@ -1063,6 +1145,8 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
             ) {
               throw new WorkflowExecutionConflictError(childId);
             }
+            // Reuse the stored admission decision when a compatible active child already owns the ID.
+            concurrencyAdmitted = existingChild.concurrencyAdmitted;
           }
 
           if (concurrencyAdmitted) {
@@ -1083,74 +1167,56 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
       const completedSequences = new Set(durableHistory
         .filter((event) => event.type === "command-completed")
         .map((event) => event.commandSequence));
-      const hasPendingSignal = durableHistory.some((event) =>
-        event.type === "command-scheduled"
-        && event.commandKind === "signal"
-        && event.commandSequence !== null
-        && !completedSequences.has(event.commandSequence));
-      // Most activations do not wait for signals, so avoid touching the signal
-      // table unless the durable history contains an unsettled signal command.
-      const bufferedSignals = hasPendingSignal
-        ? await transaction.select()
+      const pendingSignals = durableHistory.flatMap(({ type, commandKind, commandSequence, target }) =>
+        type === "command-scheduled" && commandKind === "signal" && commandSequence !== null
+        && target !== null && !completedSequences.has(commandSequence) ? [{ sequence: commandSequence, target }] : []);
+      // Match only unsettled signal commands, and skip the signal table on other activations.
+      if (pendingSignals.length > 0) {
+        const bufferedSignals = await transaction.select()
           .from(this.signalsTable)
           .where(and(
             eq(this.signalsTable.executionId, request.executionId),
             sql`${this.signalsTable.consumedAt} IS NULL`,
           ))
-          .orderBy(asc(this.signalsTable.receivedAt))
-        : [];
-      const usedSignalIds = new Set<string>();
+          .orderBy(asc(this.signalsTable.receivedAt));
+        const usedSignalIds = new Set<string>();
 
-      for (const pending of durableHistory) {
-        if (
-          pending.type !== "command-scheduled"
-          || pending.commandKind !== "signal"
-          || pending.commandSequence === null
-          || pending.target === null
-          || completedSequences.has(pending.commandSequence)
-        ) {
-          continue;
+        for (const { sequence, target } of pendingSignals) {
+          const signal = bufferedSignals.find((candidate) =>
+            candidate.name === target && !usedSignalIds.has(candidate.id));
+          if (signal === undefined) continue;
+
+          usedSignalIds.add(signal.id);
+          await transaction.update(this.signalsTable).set({
+            consumedAt: sql`statement_timestamp()`,
+          }).where(eq(this.signalsTable.id, signal.id));
+          await transaction.insert(this.historyTable).values({
+            executionId: request.executionId,
+            eventIndex: nextRevision,
+            type: "command-completed",
+            commandSequence: sequence,
+            completionOrder,
+            payload: signal.payload ?? null,
+            payloadPresent: true,
+            sourceId: signal.id,
+            occurredAt: now,
+          });
+          await transaction.delete(this.tasksTable).where(and(
+            eq(this.tasksTable.executionId, request.executionId),
+            eq(this.tasksTable.commandSequence, sequence),
+          ));
+          nextRevision += 1;
+          completionOrder += 1;
+          completedSynchronously = true;
         }
-
-        const signal = bufferedSignals.find((candidate) =>
-          candidate.name === pending.target && !usedSignalIds.has(candidate.id));
-
-        if (signal === undefined) {
-          continue;
-        }
-
-        usedSignalIds.add(signal.id);
-        await transaction.update(this.signalsTable).set({
-          consumedAt: sql`statement_timestamp()`,
-        }).where(eq(this.signalsTable.id, signal.id));
-        await transaction.insert(this.historyTable).values({
-          executionId: request.executionId,
-          eventIndex: nextRevision,
-          type: "command-completed",
-          commandSequence: pending.commandSequence,
-          completionOrder,
-          payload: signal.payload ?? null,
-          payloadPresent: true,
-          sourceId: signal.id,
-          occurredAt: now,
-        });
-        await transaction.delete(this.tasksTable).where(and(
-          eq(this.tasksTable.executionId, request.executionId),
-          eq(this.tasksTable.commandSequence, pending.commandSequence),
-        ));
-        nextRevision += 1;
-        completionOrder += 1;
-        completedSynchronously = true;
       }
 
       const terminal = request.outcome.status === "completed"
         || request.outcome.status === "failed"
         || request.outcome.status === "cancelled";
+      const shouldWake = completedSynchronously && request.outcome.status === "waiting";
       await transaction.update(this.executionsTable).set({
-        status: completedSynchronously && !terminal
-          && request.outcome.status !== "blocked"
-          ? "queued"
-          : request.outcome.status,
+        status: shouldWake ? "queued" : request.outcome.status,
         revision: nextRevision,
         ...(terminal ? { concurrencyAdmitted: false } : {}),
         updatedAt: sql`statement_timestamp()`,
@@ -1188,7 +1254,7 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         }
       }
 
-      if (completedSynchronously && !terminal && request.outcome.status !== "blocked") {
+      if (shouldWake) {
         await transaction.insert(this.tasksTable).values({
           executionId: request.executionId,
           kind: "workflow",
@@ -1263,10 +1329,11 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
     request: CommitWorkflowActivationRequest,
   ): Promise<boolean> {
     const [command] = request.commands;
+    const { outcome } = request;
 
     if (
       request.commands.length === 1
-      && request.outcome.status === "waiting"
+      && outcome.status === "waiting"
       && command !== undefined
       && (command.kind === "activity" || command.kind === "timer")
     ) {
@@ -1276,12 +1343,12 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
     if (
       request.commands.length === 0
       && (
-        request.outcome.status === "completed"
-        || request.outcome.status === "failed"
-        || request.outcome.status === "cancelled"
+        outcome.status === "completed"
+        || outcome.status === "failed"
+        || outcome.status === "cancelled"
       )
     ) {
-      return this.tryCommitSimpleTerminal(request);
+      return this.tryCommitSimpleTerminal(request, outcome);
     }
 
     return false;
@@ -1292,7 +1359,6 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
     request: CommitWorkflowActivationRequest,
     command: CommitWorkflowActivationRequest["commands"][number],
   ): Promise<boolean> {
-    if (command.kind !== "activity" && command.kind !== "timer") return false;
     const payload = sql.param(command.payload, this.historyTable.payload);
     const createdWork = command.kind === "activity"
       ? this.activityDispatchMode === "outbox"
@@ -1442,9 +1508,8 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
   /** Completes a root execution when no children or queued successors exist. */
   private async tryCommitSimpleTerminal(
     request: CommitWorkflowActivationRequest,
+    outcome: Extract<CommitWorkflowActivationRequest["outcome"], { status: "completed" | "failed" | "cancelled" }>,
   ): Promise<boolean> {
-    const outcome = request.outcome;
-    if (outcome.status === "blocked" || outcome.status === "waiting") return false;
     const completed = outcome.status === "completed";
     const hasOutput = completed && outcome.output !== undefined;
     const output = hasOutput
@@ -2471,22 +2536,60 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         )
       )
     `);
+    await this.promotePendingKeyedExecutions(
+      transaction, released.workflowName, released.concurrencyKey, released.concurrencyKeyLimit,
+    );
+  }
+
+  private async recoverPendingAdmission(key: PendingAdmissionKey): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      const lock = await transaction.execute(sql`
+        SELECT pg_try_advisory_xact_lock(
+          hashtextextended(${`workflow-key:${key.workflow_name}:${key.concurrency_key}`}, 0)
+        ) AS acquired
+      `);
+      if (lock.rows[0]?.acquired !== true) return;
+
+      // Discovery may be stale. Read the oldest pending row's policy after acquiring the key.
+      const [oldest] = await transaction.select({ limit: this.executionsTable.concurrencyKeyLimit })
+        .from(this.executionsTable)
+        .where(and(
+          eq(this.executionsTable.workflowName, key.workflow_name),
+          eq(this.executionsTable.concurrencyKey, key.concurrency_key),
+          eq(this.executionsTable.status, "pending"),
+          eq(this.executionsTable.concurrencyScope, "execution"),
+          isNotNull(this.executionsTable.concurrencyKeyLimit),
+        ))
+        .orderBy(asc(this.executionsTable.createdAt), asc(this.executionsTable.id))
+        .limit(1);
+      if (oldest?.limit == null) return;
+
+      await this.promotePendingKeyedExecutions(transaction, key.workflow_name, key.concurrency_key, oldest.limit);
+    }, { isolationLevel: "read committed" });
+  }
+
+  private async promotePendingKeyedExecutions(
+    transaction: PostgresWorkflowDatabase,
+    workflowName: string,
+    concurrencyKey: string,
+    limit: number,
+  ): Promise<void> {
     const [{ count: admitted = 0 } = {}] = await transaction.select({
       count: sql<number>`count(*)::integer`,
     }).from(this.executionsTable).where(and(
-      eq(this.executionsTable.workflowName, released.workflowName),
-      eq(this.executionsTable.concurrencyKey, released.concurrencyKey),
+      eq(this.executionsTable.workflowName, workflowName),
+      eq(this.executionsTable.concurrencyKey, concurrencyKey),
       eq(this.executionsTable.concurrencyAdmitted, true),
       sql`${this.executionsTable.status} NOT IN ('cancelled', 'completed', 'failed', 'terminated')`,
     ));
-    const available = Math.max(0, released.concurrencyKeyLimit - admitted);
+    const available = Math.max(0, limit - admitted);
 
     if (available === 0) return;
     const waiting = await transaction.select()
       .from(this.executionsTable)
       .where(and(
-        eq(this.executionsTable.workflowName, released.workflowName),
-        eq(this.executionsTable.concurrencyKey, released.concurrencyKey),
+        eq(this.executionsTable.workflowName, workflowName),
+        eq(this.executionsTable.concurrencyKey, concurrencyKey),
         eq(this.executionsTable.status, "pending"),
       ))
       .orderBy(
@@ -2612,61 +2715,38 @@ function startRequestValues(
 function mapSerializedExecution(
   row: SerializedWorkflowExecution,
 ): WorkflowExecution {
-  return {
-    executionId: row.id,
+  // Reuse the Drizzle row projection so reads and SQL batch results share the same metadata contract.
+  return mapExecution({
+    id: row.id,
     workflowName: row.workflow_name,
     workflowVersion: row.workflow_version,
     historyGeneration: row.history_generation,
-    input: row.input ?? null,
+    input: row.input,
     status: row.status,
+    output: row.output,
+    outputPresent: row.output_present,
+    error: row.error,
     cancellationRequested: row.cancellation_requested,
-    ...(row.paused_at === null ? {} : { pausedAt: new Date(row.paused_at) }),
+    pausedAt: row.paused_at === null ? null : new Date(row.paused_at),
+    parentExecutionId: row.parent_execution_id,
+    parentCommandSequence: row.parent_command_sequence,
     rootExecutionId: row.root_execution_id,
-    ...(row.retry_of_execution_id === null
-      ? {}
-      : { retryOfExecutionId: row.retry_of_execution_id }),
+    retryOfExecutionId: row.retry_of_execution_id,
+    definitionConcurrencyLimit: row.definition_concurrency_limit,
+    concurrencyKey: row.concurrency_key,
+    concurrencyKeyLimit: row.concurrency_key_limit,
+    concurrencyConflict: row.concurrency_conflict,
+    concurrencyScope: row.concurrency_scope,
     concurrencyAdmitted: row.concurrency_admitted,
-    ...(row.definition_concurrency_limit === null && row.concurrency_key === null
-      ? {}
-      : {
-          concurrency: {
-            ...(row.definition_concurrency_limit === null
-              ? {}
-              : { definitionLimit: row.definition_concurrency_limit }),
-            ...(row.concurrency_key === null
-              || row.concurrency_key_limit === null
-              || row.concurrency_conflict === null
-              || row.concurrency_scope === null
-              ? {}
-              : {
-                  keyed: {
-                    key: row.concurrency_key,
-                    limit: row.concurrency_key_limit,
-                    conflict: row.concurrency_conflict,
-                    scope: row.concurrency_scope,
-                  },
-                }),
-          },
-        }),
-    ...(row.parent_execution_id === null
-      ? {}
-      : { parentExecutionId: row.parent_execution_id }),
-    ...(row.parent_command_sequence === null
-      ? {}
-      : { parentCommandSequence: row.parent_command_sequence }),
-    ...(row.output_present ? { output: row.output ?? null } : {}),
-    ...(row.error === null ? {} : { error: row.error }),
     revision: row.revision,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
-    ...(row.completed_at === null
-      ? {}
-      : { completedAt: new Date(row.completed_at) }),
-  };
+    completedAt: row.completed_at === null ? null : new Date(row.completed_at),
+  });
 }
 
 function mapExecution(
-  row: typeof workflowExecutions.$inferSelect,
+  row: Omit<typeof workflowExecutions.$inferSelect, "initialInput">,
 ): WorkflowExecution {
   return {
     executionId: row.id,
@@ -2949,9 +3029,12 @@ function validatePositiveInteger(name: string, value: number): void {
   }
 }
 
-function readRecord(payload: WorkflowPayload): Readonly<Record<string, WorkflowPayload>> {
+function readRecord(
+  payload: WorkflowPayload,
+  message = "Workflow command payload must be an object.",
+): Readonly<Record<string, WorkflowPayload>> {
   if (payload === null || Array.isArray(payload) || typeof payload !== "object") {
-    throw new TypeError("Workflow command payload must be an object.");
+    throw new TypeError(message);
   }
 
   return payload as Readonly<Record<string, WorkflowPayload>>;
@@ -3004,11 +3087,8 @@ function readOptionalConcurrency(
   const value = readRecord(payload).concurrency;
 
   if (value === undefined) return undefined;
-  if (value === null || Array.isArray(value) || typeof value !== "object") {
-    throw new TypeError("Workflow child concurrency must be an object.");
-  }
 
-  const record = value as Readonly<Record<string, WorkflowPayload>>;
+  const record = readRecord(value, "Workflow child concurrency must be an object.");
   const definitionLimit = record.definitionLimit;
   const keyedValue = record.keyed;
 
@@ -3030,11 +3110,7 @@ function readOptionalConcurrency(
 function readResolvedKeyedConcurrency(
   value: WorkflowPayload,
 ): NonNullable<ResolvedWorkflowConcurrency["keyed"]> {
-  if (value === null || Array.isArray(value) || typeof value !== "object") {
-    throw new TypeError("Workflow keyed concurrency must be an object.");
-  }
-
-  const record = value as Readonly<Record<string, WorkflowPayload>>;
+  const record = readRecord(value, "Workflow keyed concurrency must be an object.");
   const { key, limit, scope } = record;
 
   if (typeof key !== "string" || key.length === 0

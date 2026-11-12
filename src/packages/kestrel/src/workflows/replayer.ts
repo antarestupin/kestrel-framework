@@ -117,6 +117,7 @@ export class WorkflowReplayer {
           continue;
         }
 
+        if (context.captureEncodingFailure !== undefined) break;
         if (outcome.status !== "running") {
           break;
         }
@@ -134,6 +135,16 @@ export class WorkflowReplayer {
         return { status: "waiting", commands: context.stagedCommands };
       }
 
+      const captureFailure = context.captureEncodingFailure;
+      if (captureFailure !== undefined) {
+        // A capture whose value cannot be persisted cannot safely occupy a
+        // command slot, even if the handler caught the codec failure.
+        return {
+          status: "failed",
+          error: captureFailure instanceof WorkflowCaptureEncodingError ? captureFailure.cause : captureFailure,
+          commands: [],
+        };
+      }
       const settled = outcome as SettledHandlerOutcome<Output>;
       context.assertExistingCommandsConsumed();
 
@@ -215,6 +226,8 @@ class ReplayContext implements WorkflowReplayContext {
   private readonly pendingPreparations = new Set<Promise<unknown>>();
 
   private consumedCommandCount = 0;
+
+  public captureEncodingFailure: WorkflowCaptureEncodingError | WorkflowPayloadSerializationError | undefined;
 
   public constructor(snapshot: WorkflowActivationSnapshot) {
     this.executionId = snapshot.executionId;
@@ -347,7 +360,10 @@ class ReplayContext implements WorkflowReplayContext {
           command.payload = await capture();
         } catch (error: unknown) {
           // Invalid values still fail before the adapter sees any staged work.
-          if (error instanceof WorkflowCaptureEncodingError || error instanceof WorkflowPayloadSerializationError) throw error;
+          if (error instanceof WorkflowCaptureEncodingError || error instanceof WorkflowPayloadSerializationError) {
+            this.captureEncodingFailure ??= error;
+            throw error;
+          }
           // A replay must take the same catch branch after the process restarts.
           command.captureError = serializeWorkflowError(error);
         }

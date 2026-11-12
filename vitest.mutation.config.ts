@@ -1,10 +1,43 @@
 import { configDefaults, defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
-// Include every framework unit and integration suite, without application or generator tests.
+const frameworkSource = "src/packages/kestrel/src";
+const historyTests = [
+  "db/history/*.test.ts",
+  "db/schema_contributions/migration_generator.test.ts",
+];
+const schemaTests = [
+  "db/schema_contributions/*.test.ts",
+  "db/framework_table.test.ts",
+  "db/history/definition.test.ts",
+  "db/reference_counter/definition.test.ts",
+  "database/seeder/*.test.ts",
+  "observability/db/*.test.ts",
+  "log/db/*.test.ts",
+  "email/adapters/postgres/schema.test.ts",
+  "studio/extensions/database/schema_source*.test.ts",
+];
+
+// Limit costly DB profiles at Vitest discovery so Stryker still activates static mutants
+// before imports. The explicit Stryker testFiles filter activates them after collection.
+const focusedIncludes = new Map<string, string[]>([
+  ["db-history-declarations", historyTests],
+  ["db-history-column-types", historyTests],
+  ["db-history-identities", historyTests],
+  ["db-history-events", historyTests],
+  ["db-reference-counter-declarations", [
+    "db/reference_counter/*.test.ts",
+    "db/provider.test.ts",
+    "db/schema_contributions/migration_generator.test.ts",
+  ]],
+  ["db-schema-table-metadata", schemaTests],
+  ["db-schema-descriptions", schemaTests],
+]);
+const includes = focusedIncludes.get(process.env.KESTREL_MUTATION_MODE ?? "") ?? ["**/*.test.{ts,tsx}"];
+
 export default defineConfig({
   test: {
-    include: ["src/packages/kestrel/src/**/*.test.{ts,tsx}"],
+    include: includes.map((pattern) => `${frameworkSource}/${pattern}`),
     // Snapshot coverage after each file instead of accumulating it in every file's metadata.
     runner: fileURLToPath(new URL("./scripts/testing/coverage-runner.mjs", import.meta.url)),
     isolate: false,

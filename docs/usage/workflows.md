@@ -111,7 +111,9 @@ Only classified activity infrastructure failures/timeouts follow this retry poli
 
 Apply these rules when a workflow uses generated values, grows a long history or changes across deployments. Persisted executions must replay the same durable decisions after resuming.
 
-Use `workflow.now()`, `workflow.uuid()` or `workflow.sideEffect()` for captured nondeterminism. Call external services from Actions and wait using durable workflow timers. If a capture callback throws, replay delivers the recorded error to the handler, where ordinary `try`/`catch` can run a durable fallback. Use `runChild` for another workflow and `continueAsNew` to rotate long histories. Durable values must round-trip through the configured payload codec, JSON by default.
+Use `workflow.now()`, `workflow.uuid()` or `workflow.sideEffect()` for captured nondeterminism. Call external services from Actions and wait using durable workflow timers. If a capture callback throws, replay delivers the recorded error to the handler, where ordinary `try`/`catch` can run a durable fallback. A capture that the configured payload codec cannot encode fails the activation. Use `runChild` for another workflow and `continueAsNew` to rotate long histories. Call `continueAsNew` once per activation and let it end the current generation. Durable values must round-trip through the configured payload codec, JSON by default.
+
+Generated child execution IDs are distinct across history generations. If you supply an explicit ID to `runChild`, use a fresh ID for each child execution. Reusing an ID owned by a terminal child fails the activation.
 
 Give each array index a value because the default codec rejects missing entries.
 

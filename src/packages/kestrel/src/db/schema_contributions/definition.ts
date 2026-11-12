@@ -93,13 +93,24 @@ export function contributionsEqual(
     && left.uninstallAfterSql === right.uninstallAfterSql;
 }
 
-function assertContribution(contribution: DatabaseSchemaContribution): void {
-  if (contribution.id.trim() === "") {
+/** Validates lifecycle data from schema declarations and historical snapshots. */
+export function assertContribution(value: unknown): asserts value is DatabaseSchemaContribution {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError("A database schema contribution must be an object.");
+  }
+  const contribution = value as Partial<DatabaseSchemaContribution>;
+  if (typeof contribution.id !== "string" || contribution.id.trim() === "") {
     throw new TypeError("A database schema contribution requires a stable id.");
   }
-  if (contribution.installSql.trim() === "") {
+  if (typeof contribution.installSql !== "string" || contribution.installSql.trim() === "") {
     throw new TypeError(
       `Database schema contribution "${contribution.id}" requires install SQL.`,
     );
+  }
+  for (const key of ["updateSql", "uninstallBeforeSql", "uninstallAfterSql"] as const) {
+    const sql = contribution[key];
+    if (sql !== undefined && typeof sql !== "string") {
+      throw new TypeError(`Database schema contribution "${contribution.id}" requires SQL text for "${key}".`);
+    }
   }
 }

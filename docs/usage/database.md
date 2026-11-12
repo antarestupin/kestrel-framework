@@ -297,6 +297,8 @@ For programmatic maintenance, the provider registers `ReferenceCounterMaintenanc
 
 Add a history table when an application needs to retain changes to a source record. Include it in migrations alongside the source table before recording audited writes. Use the [Kestrel migration generator](#install-library-schemas) so the history table's functions and triggers are installed along with its Drizzle table.
 
+Regenerate migrations to update an existing installation to destination-scoped history writer names. If two legacy triggers already reference the same function, review the generated migration so it drops both triggers before dropping that function. Events previously written to the wrong history table require separate repair.
+
 ```ts
 import { defineHistoryTable } from "@kestreljs/framework/db";
 

@@ -23,23 +23,284 @@ const startRequest = {
 } as const;
 
 describe("MemoryWorkflowAdapter", () => {
+  it.each(["workflow", "dispatch"] as const)("leaves the %s batch untouched when allocating a later reservation token fails", async (kind) => {
+    let failIn = Infinity;
+    let next = 0;
+    const failure = new Error("No reservation token available.");
+    const adapter = new MemoryWorkflowAdapter({
+      activityDispatchMode: "outbox",
+      createReservationToken: () => {
+        if (--failIn === 0) throw failure;
+        return `token-${++next}`;
+      },
+    });
+    await adapter.start(startRequest);
+    if (kind === "dispatch") {
+      const [activation] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 });
+      await adapter.commitActivation({
+        taskId: activation!.id, reservationToken: activation!.reservationToken,
+        executionId: startRequest.executionId, expectedRevision: 0,
+        commands: [0, 1].map((sequence) => ({
+          sequence, kind: "activity", target: "example.work", payload: null,
+        })),
+        outcome: { status: "waiting" },
+      });
+    } else {
+      await adapter.start({ ...startRequest, executionId: "second" });
+    }
+    const reserve = () => kind === "dispatch"
+      ? adapter.reserveActivityDispatches({ limit: 2, leaseMs: 1000 })
+      : adapter.reserveTasks({ kinds: ["workflow"], limit: 2, leaseMs: 1000 });
+    const inspect = () => kind === "dispatch" ? adapter.inspectActivityDispatches() : adapter.inspectTasks();
+    const initial = inspect();
+    expect(initial).toHaveLength(2);
+    failIn = 2;
+    await expect(reserve()).rejects.toBe(failure);
+    expect(inspect()).toEqual(initial);
+
+    failIn = Infinity;
+    const retried = await reserve();
+    expect(retried.map(({ attempt }) => attempt)).toEqual([1, 1]);
+  });
+
+  it("takes ownership of dates returned by the adapter clock", async () => {
+    const time = new Date("2026-01-01T00:00:00Z");
+    const original = new Date(time);
+    const adapter = new MemoryWorkflowAdapter({ now: () => time });
+    await adapter.start(startRequest);
+    time.setUTCFullYear(2030);
+
+    await expect(adapter.get(startRequest.executionId)).resolves.toMatchObject({
+      createdAt: original, updatedAt: original,
+    });
+    const stored = await adapter.get(startRequest.executionId);
+    for (const key of ["output", "error", "pausedAt", "completedAt", "concurrency"]) {
+      expect(stored).not.toHaveProperty(key);
+    }
+    expect(adapter.inspectTasks()).toMatchObject([{ createdAt: original, availableAt: original }]);
+  });
+
+  it("returns detached timestamps from the signal inspection seam", async () => {
+    const time = new Date("2026-01-01T00:00:00Z");
+    const adapter = new MemoryWorkflowAdapter({ now: () => time });
+    await adapter.start(startRequest);
+    await adapter.sendSignal({
+      executionId: startRequest.executionId, workflowName: startRequest.workflowName,
+      signalName: "ready", payload: null,
+    });
+    adapter.inspectSignals()[0]!.receivedAt.setUTCFullYear(2030);
+    expect(adapter.inspectSignals()).toMatchObject([{ receivedAt: new Date("2026-01-01T00:00:00Z") }]);
+  });
+
+  it("does not record a signal when scheduling its wake-up fails", async () => {
+    let next = 0;
+    let rejectWake = false;
+    const failure = new Error("No workflow task ID available.");
+    const adapter = new MemoryWorkflowAdapter({ createTaskId: () => {
+      if (rejectWake) throw failure;
+      return `task-${++next}`;
+    } });
+    await adapter.start(startRequest);
+    const [activation] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 });
+    await adapter.commitActivation({
+      taskId: activation!.id, reservationToken: activation!.reservationToken,
+      executionId: startRequest.executionId, expectedRevision: 0,
+      commands: [], outcome: { status: "waiting" },
+    });
+    const signal = {
+      executionId: startRequest.executionId, workflowName: startRequest.workflowName,
+      signalName: "ready", idempotencyKey: "one", payload: { delivered: true },
+    };
+    rejectWake = true;
+    await expect(adapter.sendSignal(signal)).rejects.toBe(failure);
+    expect(adapter.inspectSignals()).toEqual([]);
+    await expect(adapter.getHistory(startRequest.executionId)).resolves.toEqual([]);
+    await expect(adapter.get(startRequest.executionId)).resolves.toMatchObject({ revision: 0, status: "waiting" });
+
+    rejectWake = false;
+    await expect(adapter.sendSignal(signal)).resolves.toMatchObject({ accepted: true });
+    await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 }))
+      .resolves.toMatchObject([{ executionId: startRequest.executionId }]);
+  });
+
+  it("declines external activity results for missing executions", async () => {
+    const adapter = new MemoryWorkflowAdapter({ activityDispatchMode: "outbox" });
+    await expect(adapter.completeExternalActivity({
+      executionId: "missing", sequence: 0, sourceId: "worker", status: "completed",
+    })).resolves.toBe(false);
+  });
+
+  it("accepts only current activity results and appends them in delivery order", async () => {
+    let now = new Date("2026-01-01T00:00:00Z");
+    const adapter = new MemoryWorkflowAdapter({ now: () => now, activityDispatchMode: "outbox" });
+    const executionId = startRequest.executionId;
+    await adapter.start(startRequest);
+    const reserve = async () => (await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 }))[0]!;
+    const ref = (task: Awaited<ReturnType<typeof reserve>>) => ({ taskId: task.id, reservationToken: task.reservationToken });
+    const activation = await reserve();
+    const complete = (sequence: number, sourceId: string, result?: null) => adapter.completeExternalActivity({
+      executionId, sequence, sourceId, status: "completed", ...(result === undefined ? {} : { result }),
+    });
+    await expect(complete(0, "too-soon")).resolves.toBe(false);
+    await expect(adapter.commitActivation({
+      ...ref(activation), executionId, expectedRevision: 0, outcome: { status: "waiting" },
+      commands: [
+        { sequence: 0, kind: "activity", target: "first", payload: null },
+        { sequence: 1, kind: "timer", target: "sleep", payload: { durationMs: 20_000 } },
+        { sequence: 2, kind: "activity", target: "second", payload: null },
+      ],
+    })).resolves.toBe(true);
+    await expect(complete(1, "timer-is-not-an-activity")).resolves.toBe(false);
+    await expect(complete(3, "unknown-command")).resolves.toBe(false);
+
+    now = new Date(now.getTime() + 10);
+    await expect(complete(2, "second-finished-first", null)).resolves.toBe(true);
+    await expect(complete(0, "first-finished-second")).resolves.toBe(true);
+    await expect(complete(0, "duplicate-callback", null)).resolves.toBe(true);
+    const history = await adapter.getHistory(executionId);
+    expect(history).toHaveLength(5);
+    expect(history.slice(3)).toEqual([
+      { type: "command-completed", eventIndex: 3, sequence: 2, completionOrder: 0, sourceId: "second-finished-first", result: null, occurredAt: now },
+      { type: "command-completed", eventIndex: 4, sequence: 0, completionOrder: 1, sourceId: "first-finished-second", occurredAt: now },
+    ]);
+    await expect(adapter.get(executionId)).resolves.toMatchObject({ status: "queued", revision: 5, updatedAt: now });
+    await expect(adapter.commitActivation({
+      ...ref(await reserve()), executionId, expectedRevision: 5, commands: [], outcome: { status: "completed" },
+    })).resolves.toBe(true);
+    await expect(complete(3, "closed-execution")).resolves.toBe(true);
+    await expect(adapter.getHistory(executionId)).resolves.toEqual(history);
+  });
+
+  it.each(["capture", "signal"] as const)("keeps a synchronous %s activation retryable when allocating its successor fails", async (kind) => {
+    let rejectWake = false;
+    let nextTask = 0;
+    const failure = new Error("No successor task ID available.");
+    const adapter = new MemoryWorkflowAdapter({ createTaskId: () => {
+      if (rejectWake) throw failure;
+      return `task-${++nextTask}`;
+    } });
+    await adapter.start(startRequest);
+    const executionId = startRequest.executionId;
+    if (kind === "signal") {
+      await adapter.sendSignal({ executionId, workflowName: startRequest.workflowName, signalName: "ready", payload: 7 });
+    }
+    const [activation] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 });
+    const initialHistory = await adapter.getHistory(executionId);
+    const initialSignals = adapter.inspectSignals();
+    const initialTasks = adapter.inspectTasks();
+    const request = {
+      taskId: activation!.id, reservationToken: activation!.reservationToken, executionId,
+      expectedRevision: initialHistory.length,
+      commands: [{ sequence: 0, kind, target: "ready", payload: kind === "signal" ? {} : 7 }],
+      outcome: { status: "waiting" },
+    } as const;
+
+    rejectWake = true;
+    await expect(adapter.commitActivation(request)).rejects.toBe(failure);
+    await expect(adapter.getHistory(executionId)).resolves.toEqual(initialHistory);
+    await expect(adapter.get(executionId)).resolves.toMatchObject({ revision: initialHistory.length, status: "running" });
+    expect(adapter.inspectSignals()).toEqual(initialSignals);
+    expect(adapter.inspectTasks()).toEqual(initialTasks);
+
+    rejectWake = false;
+    await expect(adapter.commitActivation(request)).resolves.toBe(true);
+    expect((await adapter.getHistory(executionId)).at(-1)).toMatchObject({ type: "command-completed", sequence: 0, result: 7 });
+    await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 }))
+      .resolves.toMatchObject([{ executionId, attempt: 1 }]);
+  });
+
+  it.each(["embedded", "outbox"] as const)("keeps an activity retryable when the %s wake-up cannot be scheduled", async (activityDispatchMode) => {
+    let next = 0;
+    let rejectWake = false;
+    const failure = new Error("No workflow task ID available.");
+    const adapter = new MemoryWorkflowAdapter({ activityDispatchMode, createTaskId: () => {
+      if (rejectWake) throw failure;
+      return `task-${++next}`;
+    } });
+    await adapter.start(startRequest);
+    const [activation] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 });
+    await adapter.commitActivation({
+      taskId: activation!.id, reservationToken: activation!.reservationToken,
+      executionId: startRequest.executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "activity", target: "example.work", payload: null }],
+      outcome: { status: "waiting" },
+    });
+    const outcome = { executionId: startRequest.executionId, sequence: 0, status: "completed", result: null } as const;
+    const [activity] = activityDispatchMode === "embedded"
+      ? await adapter.reserveTasks({ kinds: ["activity"], limit: 1, leaseMs: 1000 }) : [];
+    const complete = async () => activity === undefined
+      ? adapter.completeExternalActivity({ ...outcome, sourceId: "worker" })
+      : (await adapter.completeActivities([{
+          ...outcome, taskId: activity.id, reservationToken: activity.reservationToken,
+        }])).length === 1;
+
+    rejectWake = true;
+    await expect(complete()).rejects.toBe(failure);
+    await expect(adapter.getHistory(startRequest.executionId)).resolves.toMatchObject([{ type: "command-scheduled" }]);
+    await expect(adapter.get(startRequest.executionId)).resolves.toMatchObject({ revision: 1, status: "waiting" });
+    rejectWake = false;
+    await expect(complete()).resolves.toBe(true);
+    await expect(adapter.getHistory(startRequest.executionId)).resolves.toMatchObject([
+      { type: "command-scheduled" }, { type: "command-completed", result: null },
+    ]);
+    await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 }))
+      .resolves.toMatchObject([{ executionId: startRequest.executionId }]);
+  });
+
   it("validates query limits and reservation bounds before selecting work", async () => {
     const adapter = new MemoryWorkflowAdapter();
     await adapter.start(startRequest);
-    for (const limit of [0, 201, 1.5]) {
+    for (const limit of [0, -1, 201, 1.5, Infinity, NaN]) {
       await expect(adapter.listExecutions({ limit })).rejects.toThrow("limit must be between 1 and 200");
     }
-    for (const invalid of [0, 1.5]) {
+    await expect(adapter.listExecutions({ limit: 200 })).resolves.toMatchObject({ items: [{ executionId: startRequest.executionId }] });
+    await expect(adapter.start({ ...startRequest, executionId: "" })).rejects.toThrow("Workflow execution IDs cannot be empty.");
+    for (const invalid of [0, -1, 1.5, Infinity]) {
       await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: invalid, leaseMs: 1_000 }))
-        .rejects.toThrow(TypeError);
+        .rejects.toThrow("Workflow task reservation limit must be positive.");
       await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: invalid }))
-        .rejects.toThrow(TypeError);
+        .rejects.toThrow("Workflow task leaseMs must be positive.");
       await expect(adapter.reserveActivityDispatches({ limit: 1, leaseMs: invalid }))
-        .rejects.toThrow(TypeError);
+        .rejects.toThrow("Workflow activity dispatch leaseMs must be positive.");
+      await expect(adapter.reserveActivityDispatches({ limit: invalid, leaseMs: 1 }))
+        .rejects.toThrow("Workflow activity dispatch limit must be positive.");
     }
+    await expect(adapter.reserveActivityDispatches({ limit: 1, leaseMs: 1 })).resolves.toEqual([]);
     // Validation failures leave the first delivery and its attempt unchanged.
-    await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 }))
+    await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1 }))
       .resolves.toMatchObject([{ executionId: startRequest.executionId, attempt: 1 }]);
+  });
+
+  it("detaches payloads and dates from journal reads and activation snapshots", async () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    const adapter = new MemoryWorkflowAdapter({ now: () => now, activityDispatchMode: "outbox" });
+    const executionId = startRequest.executionId;
+    await adapter.start(startRequest);
+    const [first] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 });
+    await adapter.commitActivation({
+      taskId: first!.id, reservationToken: first!.reservationToken,
+      executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "activity", target: "example.work", payload: { value: "command" } }],
+      outcome: { status: "waiting" },
+    });
+    await adapter.sendSignal({ executionId, workflowName: startRequest.workflowName, signalName: "ready", payload: { value: "signal" } });
+    await adapter.completeExternalActivity({ executionId, sequence: 0, sourceId: "worker", status: "completed", result: { value: "result" } });
+    const expected = [
+      { type: "command-scheduled", payload: { value: "command" }, occurredAt: now },
+      { type: "signal-received", payload: { value: "signal" }, occurredAt: now },
+      { type: "command-completed", result: { value: "result" }, occurredAt: now },
+    ];
+    const history = await adapter.getHistory(executionId);
+    expect(history).toMatchObject(expected);
+    for (const event of history) {
+      event.occurredAt.setUTCFullYear(2030);
+      if ("payload" in event) (event.payload as { value: string }).value = "changed";
+      if ("result" in event) (event.result as { value: string }).value = "changed";
+    }
+    const [second] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 });
+    const [loaded] = await adapter.loadActivations([{ taskId: second!.id, reservationToken: second!.reservationToken }]);
+    expect(loaded?.snapshot.history).toMatchObject(expected);
+    expect(loaded?.snapshot.history).toStrictEqual(await adapter.getHistory(executionId));
   });
 
   it("summarizes multiple executions by definition, version and status", async () => {
@@ -119,15 +380,76 @@ describe("MemoryWorkflowAdapter", () => {
     expect(unpaused.items.map(({ executionId }) => executionId)).toEqual(["unpaused"]);
   });
 
+  it("finds retry lineage and searches execution IDs, workflow names and keys independently", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const source = { ...startRequest, executionId: "source", workflowName: "catalog.invoice" };
+    await adapter.start(source);
+    adapter.failExecution(source.executionId, { name: "Failure", message: "Retryable." });
+    await adapter.retryExecution({ sourceExecutionId: source.executionId, executionId: "renewed-invoice", workflowVersion: 2 });
+    await adapter.start({
+      ...startRequest, executionId: "other", workflowName: "catalog.other",
+      concurrency: { keyed: { key: "customer-42", limit: 1, scope: "execution", conflict: "enqueue" } },
+    });
+
+    const ids = async (query: Parameters<typeof adapter.listExecutions>[0]) =>
+      (await adapter.listExecutions(query)).items.map(({ executionId }) => executionId);
+    expect(await ids({ limit: 10, retryOfExecutionId: "source" })).toEqual(["renewed-invoice"]);
+    expect(await ids({ limit: 10, retryOfExecutionId: "other" })).toEqual([]);
+    expect(await ids({ limit: 10, search: "RENEWED" })).toEqual(["renewed-invoice"]);
+    expect(await ids({ limit: 10, search: "CATALOG.INVOICE" })).toEqual(expect.arrayContaining(["source", "renewed-invoice"]));
+    expect(await ids({ limit: 10, search: "CUSTOMER-42" })).toEqual(["other"]);
+  });
+
+  it("buffers independent unkeyed signals for a pending execution without claiming its permit", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const concurrency = { keyed: { key: "permit", limit: 1, scope: "execution", conflict: "enqueue" } } as const;
+    await adapter.start({ ...startRequest, executionId: "holder", concurrency });
+    await adapter.start({ ...startRequest, executionId: "pending", concurrency });
+    const request = { executionId: "pending", workflowName: startRequest.workflowName, signalName: "ready", payload: null };
+    const first = await adapter.sendSignal(request);
+    const second = await adapter.sendSignal(request);
+    expect(first.accepted).toBe(true);
+    expect(second.accepted).toBe(true);
+    expect(second.id).not.toBe(first.id);
+    expect(adapter.inspectSignals("pending")).toHaveLength(2);
+    for (const signal of adapter.inspectSignals("pending")) expect(signal).not.toHaveProperty("idempotencyKey");
+    expect(adapter.inspectTasks().map(({ executionId }) => executionId)).toEqual(["holder"]);
+    await expect(adapter.get("pending")).resolves.toMatchObject({ status: "pending", revision: 2 });
+  });
+
+  it("keeps activity inspection data detached and rejects an activity lease as an activation", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const executionId = startRequest.executionId;
+    await adapter.start(startRequest);
+    const [workflow] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 });
+    await adapter.commitActivation({
+      taskId: workflow!.id, reservationToken: workflow!.reservationToken, executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "activity", target: "example.work", payload: { value: "stable" } }],
+      outcome: { status: "waiting" },
+    });
+    const [activity] = await adapter.reserveTasks({ kinds: ["activity"], limit: 1, leaseMs: 1000 });
+    const [view] = adapter.inspectTasks();
+    (view!.payload as { value: string }).value = "changed";
+    view!.reservedAt!.setTime(0);
+    expect(adapter.inspectTasks()).toMatchObject([{ payload: { value: "stable" }, reservedAt: activity!.reservedAt }]);
+    await expect(adapter.loadActivations([{ taskId: activity!.id, reservationToken: activity!.reservationToken }]))
+      .resolves.toEqual([]);
+    await expect(adapter.get(executionId)).resolves.toMatchObject({ status: "waiting" });
+  });
+
   it("orders equally eligible tasks by identity and preserves active lease capacity", async () => {
     let now = new Date("2026-01-01T00:00:00.000Z");
     const identities = ["task-c", "task-a", "task-b"];
     const adapter = new MemoryWorkflowAdapter({ now: () => now, createTaskId: () => identities.shift()! });
     const concurrency = { definitionLimit: 1 };
     await adapter.startMany(["c", "a", "b"].map((executionId) => ({ ...startRequest, executionId, concurrency })));
+    expect((await adapter.get("a"))?.concurrency).toStrictEqual({ definitionLimit: 1 });
     const reserve = () => adapter.reserveTasks({ kinds: ["workflow"], limit: 3, leaseMs: 10 });
     const [first] = await reserve();
     expect(first).toMatchObject({ id: "task-a", executionId: "a", attempt: 1, createdAt: now, reservedAt: now });
+    for (const key of ["parentExecutionId", "commandSequence", "target", "payload"]) {
+      expect(first).not.toHaveProperty(key);
+    }
     expect(first!.availableAt.getTime()).toBe(now.getTime() + 10);
     await expect(reserve()).resolves.toEqual([]);
     now = new Date(now.getTime() + 10);
@@ -153,6 +475,23 @@ describe("MemoryWorkflowAdapter", () => {
       { created: false, execution: { executionId: "batch-first" } },
     ]);
     await expect(adapter.get("batch-second")).resolves.toBeUndefined();
+  });
+
+  it("attaches return-existing to the admitted execution ahead of an older pending request", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const start = (executionId: string, limit = 1, conflict: "enqueue" | "return-existing" = "enqueue") =>
+      adapter.start({ ...startRequest, executionId, concurrency: { keyed: { key: "retained", scope: "execution", limit, conflict } } });
+    await expect(adapter.startMany([])).resolves.toEqual([]);
+    await expect(start("old-admitted")).resolves.toMatchObject({ execution: { status: "queued" } });
+    await expect(start("older-pending")).resolves.toMatchObject({ execution: { status: "pending" } });
+    await expect(start("new-admitted", 2)).resolves.toMatchObject({ execution: { status: "queued" } });
+    await expect(adapter.forceTerminate("old-admitted", "Released.")).resolves.toBe(true);
+
+    await expect(start("attaching", 1, "return-existing")).resolves.toMatchObject({
+      created: false, execution: { executionId: "new-admitted", concurrencyAdmitted: true },
+    });
+    await expect(adapter.get("older-pending")).resolves.toMatchObject({ status: "pending", concurrencyAdmitted: false });
+    await expect(adapter.get("attaching")).resolves.toBeUndefined();
   });
 
   it("rolls back the complete start batch on a concurrency rejection", async () => {
@@ -513,6 +852,35 @@ describe("MemoryWorkflowAdapter", () => {
     expect((await adapter.getHistory(startRequest.executionId)).at(-1)).toMatchObject({ type: "command-completed", sequence: 0, result: null });
   });
 
+  it("reschedules an owned activity at a detached retry time", async () => {
+    let now = new Date("2026-01-01T00:00:00Z");
+    const adapter = new MemoryWorkflowAdapter({ now: () => now });
+    const executionId = startRequest.executionId;
+    const reserve = (kind: "workflow" | "activity") => adapter.reserveTasks({ kinds: [kind], limit: 1, leaseMs: 100 });
+    await adapter.start(startRequest);
+    const [workflow] = await reserve("workflow");
+    await expect(adapter.commitActivation({
+      taskId: workflow!.id, reservationToken: workflow!.reservationToken, executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "activity", target: "work", payload: null }], outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    const [activity] = await reserve("activity");
+    const dueAt = new Date(now.getTime() + 1000);
+    const retryAt = new Date(dueAt);
+    const request = { taskId: activity!.id, reservationToken: activity!.reservationToken, retryAt, error: { name: "Retry", message: "Temporary." } };
+    await expect(adapter.retryTask(request)).resolves.toBe(true);
+    retryAt.setTime(0);
+    await expect(adapter.retryTask(request)).resolves.toBe(false);
+    const [stored] = adapter.inspectTasks();
+    expect(stored).toMatchObject({ id: activity!.id, availableAt: dueAt, attempt: 1 });
+    expect(stored).not.toHaveProperty("reservedAt");
+    expect(stored).not.toHaveProperty("reservationToken");
+    await expect(reserve("activity")).resolves.toEqual([]);
+    now = dueAt;
+    const [reclaimed] = await reserve("activity");
+    expect(reclaimed).toMatchObject({ id: activity!.id, attempt: 2, reservedAt: dueAt });
+    expect(reclaimed!.reservationToken).not.toBe(activity!.reservationToken);
+  });
+
   it("keeps the reservation and journal intact when a later child conflicts", async () => {
     const adapter = new MemoryWorkflowAdapter({ activityDispatchMode: "outbox" });
     await adapter.start(startRequest);
@@ -644,25 +1012,33 @@ describe("MemoryWorkflowAdapter", () => {
       taskId: task!.id, reservationToken: task!.reservationToken,
       executionId: startRequest.executionId, expectedRevision: 0, outcome: { status: "waiting" },
     } as const;
-    const invalid: [string, WorkflowPayload][] = [
-      ["unknown", null], ["timer", null], ["timer", []], ["timer", "duration"],
-      ["timer", { durationMs: -1 }], ["timer", { durationMs: 0.5 }],
-      ["signal", { timeoutMs: "soon" }],
-      ["child", { version: 1 }], ["child", { version: 1, input: null, executionId: "" }],
+    const keyed = { key: "account", limit: 1, conflict: "enqueue", scope: "execution" } as const;
+    const invalid: [string, WorkflowPayload, string?][] = [
+      ["unknown", null, 'Unsupported workflow command kind "unknown".'],
+      ["timer", null, "Workflow command payload must be an object."],
+      ["timer", []], ["timer", "duration", "Workflow command payload must be an object."],
+      ["timer", { durationMs: -1 }, 'Workflow command field "durationMs" must be non-negative.'],
+      ["timer", { durationMs: 0.5 }], ["signal", { timeoutMs: "soon" }],
+      ["child", { version: 1 }, 'Workflow command field "input" is required.'],
+      ["child", { input: null, version: 1, executionId: "" }, 'Workflow command field "executionId" must be non-empty.'],
       ["child", { version: 1, input: null, executionId: 5 }],
+      ["child", { input: null, version: 1, concurrency: null }, "Workflow child concurrency must be an object."],
       ["child", { version: 1, input: null, concurrency: [] }],
+      ["child", { input: null, version: 1, concurrency: { definitionLimit: "1" } }, "Workflow definition concurrency limit is invalid."],
       ["child", { version: 1, input: null, concurrency: { definitionLimit: 0 } }],
       ["child", { version: 1, input: null, concurrency: { definitionLimit: 1.5 } }],
       ["child", { version: 1, input: null, concurrency: { keyed: true } }],
+      ["child", { input: null, version: 1, concurrency: { keyed: null } }, "Workflow keyed concurrency must be an object."],
+      ["child", { input: null, version: 1, concurrency: { keyed: [] } }, "Workflow keyed concurrency must be an object."],
     ];
-    const keyed = { key: "account", limit: 1, conflict: "enqueue", scope: "execution" } as const;
-    for (const patch of [{ key: "" }, { key: 1 }, { limit: 0 }, { limit: 1.5 }, { conflict: "unknown" }, { scope: "unknown" }]) {
-      invalid.push(["child", { version: 1, input: null, concurrency: { keyed: { ...keyed, ...patch } } }]);
+    // The PostgreSQL adapter normalizes every child conflict policy to enqueue.
+    for (const patch of [{ key: "" }, { key: 1 }, { limit: "1" }, { limit: 0 }, { limit: 1.5 }, { conflict: "unknown" }, { scope: "unknown" }]) {
+      invalid.push(["child", { version: 1, input: null, concurrency: { keyed: { ...keyed, ...patch } } }, "Workflow keyed concurrency metadata is invalid."]);
     }
     const tasks = adapter.inspectTasks();
-    for (const [kind, payload] of invalid) {
+    for (const [kind, payload, diagnostic] of invalid) {
       await expect(adapter.commitActivation({ ...request, commands: [{ kind, payload, sequence: 0, target: "invalid" }] }))
-        .rejects.toBeInstanceOf(TypeError);
+        .rejects.toThrow(diagnostic ?? TypeError);
     }
     await expect(adapter.getHistory(startRequest.executionId)).resolves.toEqual([]);
     expect(adapter.inspectTasks()).toEqual(tasks);
@@ -1034,6 +1410,8 @@ describe("MemoryWorkflowAdapter", () => {
     await adapter.setPaused(startRequest.executionId, false);
     const [first] = await dispatches();
     const firstRef = { dispatchId: first!.id, reservationToken: first!.reservationToken };
+    adapter.inspectActivityDispatches()[0]!.reservedAt!.setUTCFullYear(2030);
+    expect(adapter.inspectActivityDispatches()[0]!.reservedAt).toEqual(now);
     await expect(dispatches()).resolves.toEqual([]);
 
     now = new Date(now.getTime() + 100);
@@ -1055,9 +1433,44 @@ describe("MemoryWorkflowAdapter", () => {
     const thirdRef = { dispatchId: third!.id, reservationToken: third!.reservationToken };
     await expect(adapter.markActivityDispatchesPublished([thirdRef])).resolves.toEqual([thirdRef]);
     expect(adapter.inspectActivityDispatches()[0]).toMatchObject({ attempt: 3, publishedAt: now });
+    adapter.inspectActivityDispatches()[0]!.publishedAt!.setUTCFullYear(2030);
+    expect(adapter.inspectActivityDispatches()[0]!.publishedAt).toEqual(now);
     expect(adapter.inspectActivityDispatches()[0]).not.toHaveProperty("reservedAt");
     now = new Date(now.getTime() + 100);
     await expect(dispatches()).resolves.toEqual([]);
+  });
+
+  it("keeps the original generation retryable when allocating a continuation task fails", async () => {
+    let rejectWake = false;
+    let nextTask = 0;
+    const failure = new Error("No continuation task ID available.");
+    const adapter = new MemoryWorkflowAdapter({ createTaskId: () => {
+      if (rejectWake) throw failure;
+      return `task-${++nextTask}`;
+    } });
+    await adapter.start(startRequest);
+    const executionId = startRequest.executionId;
+    const [task] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1000 });
+    const signalRequest = { executionId, workflowName: startRequest.workflowName, signalName: "ready", payload: 7, idempotencyKey: "ready" };
+    const signal = await adapter.sendSignal(signalRequest);
+    const request = { taskId: task!.id, reservationToken: task!.reservationToken, executionId, expectedRevision: 1, workflowVersion: 2, input: "new input" };
+    const initial = await adapter.get(executionId);
+    const history = await adapter.getHistory(executionId);
+    const tasks = adapter.inspectTasks();
+
+    rejectWake = true;
+    await expect(adapter.continueAsNew(request)).rejects.toBe(failure);
+    await expect(adapter.get(executionId)).resolves.toEqual(initial);
+    await expect(adapter.getHistory(executionId)).resolves.toEqual(history);
+    await expect(adapter.getHistoryArchives(executionId)).resolves.toEqual([]);
+    await expect(adapter.sendSignal(signalRequest)).resolves.toEqual({ ...signal, accepted: false });
+    expect(adapter.inspectTasks()).toEqual(tasks);
+
+    rejectWake = false;
+    await expect(adapter.continueAsNew(request)).resolves.toBe(true);
+    await expect(adapter.getHistoryArchives(executionId)).resolves.toMatchObject([{ historyGeneration: 1, history }]);
+    await expect(adapter.get(executionId)).resolves.toMatchObject({ historyGeneration: 2, workflowVersion: 2, revision: 0, input: "new input" });
+    expect(adapter.inspectTasks()).toMatchObject([{ executionId, attempt: 0 }]);
   });
 
   it("rejects rotation while work is pending and resets only the continued execution", async () => {
@@ -1082,6 +1495,7 @@ describe("MemoryWorkflowAdapter", () => {
       executionId: id, workflowName: startRequest.workflowName,
       signalName: "event.ready", idempotencyKey: "source", payload: { data: "before" },
     });
+    const receivedAt = new Date(now);
     const oldSignal = await signal(executionId);
     const otherSignal = await signal(peer);
     const continuation = await reserve();
@@ -1112,7 +1526,19 @@ describe("MemoryWorkflowAdapter", () => {
       ],
     });
     archive!.continuedAt.setTime(0);
-    await expect(adapter.getHistoryArchives(executionId)).resolves.toMatchObject([{ continuedAt: now }]);
+    (archive!.input as { value: string }).value = "changed";
+    const archivedSignal = archive!.history[1]!;
+    archivedSignal.occurredAt.setTime(0);
+    if (archivedSignal.type !== "signal-received") throw new Error("Expected an archived signal.");
+    (archivedSignal.payload as { data: string }).data = "changed";
+    await expect(adapter.getHistoryArchives(executionId)).resolves.toMatchObject([{
+      continuedAt: now, input: { value: "input" },
+      history: [
+        { type: "command-scheduled" },
+        { type: "signal-received", payload: { data: "before" }, occurredAt: receivedAt },
+        { type: "command-completed" },
+      ],
+    }]);
     await expect(adapter.get(executionId)).resolves.toMatchObject({ historyGeneration: 2, workflowVersion: 2, revision: 0, input: request.input });
     await expect(adapter.getHistory(executionId)).resolves.toEqual([]);
     expect(adapter.inspectSignals(executionId)).toEqual([]);

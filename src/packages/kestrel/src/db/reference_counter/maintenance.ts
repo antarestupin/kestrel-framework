@@ -49,8 +49,8 @@ export class ReferenceCounterMaintenance {
       const batch = await this.rebuildBatch(definition, batchSize, progress.cursor);
       if (batch.processed === 0) return { ...progress, completed: true };
       progress = { id, processed: progress.processed + batch.processed, updated: progress.updated + batch.updated, cursor: batch.cursor };
-      // Publish only committed progress, even if cancellation arrived mid-batch.
-      await options.onProgress?.(progress);
+      // Publish committed progress without sharing the cursor that drives the next batch.
+      await options.onProgress?.({ ...progress });
       if (options.signal?.aborted) break;
       if (batch.processed < batchSize) return { ...progress, completed: true };
       if (pauseMs > 0) {

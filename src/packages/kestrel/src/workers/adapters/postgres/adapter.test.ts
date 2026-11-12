@@ -654,7 +654,7 @@ describe("PostgresWorkerAdapter", () => {
     const counting = createCountingAdapter(queries);
     for (const value of [0, -1, 1.5, NaN, Infinity]) {
       const request = { queues: [{ queue: "valid", reservationLimit: key === "reservationLimit" ? value : 1, allowOverflow: true }], totalLimit: key === "totalLimit" ? value : 1, leaseMs: key === "leaseMs" ? value : 100 };
-      await expect(counting.reserve(request)).rejects.toBeInstanceOf(TypeError);
+      await expect(counting.reserve(request)).rejects.toThrow(`${key} must be a positive integer.`);
     }
     expect(queries).toEqual([]);
   });

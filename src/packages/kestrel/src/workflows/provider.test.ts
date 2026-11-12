@@ -110,15 +110,19 @@ it("rejects resolution of a Worker-backed runtime without the Worker client", as
   finally { await app.dispose(); }
 });
 
-it.each([false, true])("records in the active observer with configured instrumentation=%s", async (configured) => {
+it.each(["absent", "working", "failing", "observer-failing"] as const)("records workflow telemetry in %s mode", async (mode) => {
   const workflow = defineWorkflow({ name: "provider.observed", handler: () => { throw new Error("retryable execution"); } });
   const app = new App({}, { catalog: defineCatalog({ runtime: { workflows: { workflow } } }) });
   const observerContext = new AsyncLocalObserverContext();
-  const observer = { record: vi.fn() };
-  const instrumentation = { record: vi.fn() };
+  const observer = { record: vi.fn(() => {
+    if (mode === "observer-failing") throw new Error("Observer failed");
+  }) };
+  const instrumentation = { record: vi.fn(() => {
+    if (mode === "failing") throw new Error("Custom instrumentation failed");
+  }) };
   app.container.registerValue("observerContext", observerContext);
   app.container.registerValue("applicationLogger", pino({ enabled: false }));
-  app.register(new WorkflowProvider(memoryWorkflows(), configured ? { instrumentation } : {}));
+  app.register(new WorkflowProvider(memoryWorkflows(), mode === "absent" ? {} : { instrumentation }));
   try {
     await app.start();
     const client = app.container.resolve(workflowClientDependency);
@@ -127,11 +131,18 @@ it.each([false, true])("records in the active observer with configured instrumen
       expect.objectContaining({ executionId: "observed", operation: "start" }), { outcome: "success" });
     await client.start(workflow, null, { executionId: "outside-observer" });
     expect(observer.record).toHaveBeenCalledOnce();
-    expect(instrumentation.record).toHaveBeenCalledTimes(configured ? 2 : 0);
+    expect(instrumentation.record).toHaveBeenCalledTimes(mode === "absent" ? 0 : 2);
     const runtime = app.container.resolve(workflowRuntimeDependency);
     await observerContext.run(observer, () => runtime.scheduler.runOnce());
     expect(observer.record).toHaveBeenCalledWith(expect.objectContaining({ name: "workflow.task" }),
       expect.objectContaining({ executionId: "observed", taskKind: "workflow" }), expect.any(Object));
+    expect(observer.record).toHaveBeenCalledWith(expect.objectContaining({ name: "workflow.lifecycle" }),
+      expect.objectContaining({ executionId: "observed", operation: "failed" }), { outcome: "failure" });
+    if (mode !== "absent") {
+      expect(instrumentation.record).toHaveBeenCalledWith(expect.objectContaining({
+        type: "lifecycle", data: expect.objectContaining({ executionId: "observed", operation: "failed" }),
+      }));
+    }
     await expect(handle.status()).resolves.toMatchObject({ status: "failed" });
     const operations = app.container.resolve(workflowOperationsDependency);
     await observerContext.run(observer, () => operations.retry(handle.executionId, "observed-retry"));

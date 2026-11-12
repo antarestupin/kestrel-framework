@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { WorkerJobIdentityConflictError, WorkerPayloadSerializationError, WorkerPublicationBudgetError } from "../errors.js";
-import type { WorkerAdapter, WorkerPublicationBudgets } from "../types.js";
+import type { EnqueueJobRequest, WorkerAdapter, WorkerPublicationBudgets } from "../types.js";
 
 /** Shared storage fixtures; each adapter suite owns setup and cleanup. */
 export function workerPayloadConformance(createAdapter: (budgets?: WorkerPublicationBudgets) => WorkerAdapter): void {
@@ -12,6 +12,14 @@ export function workerPayloadConformance(createAdapter: (budgets?: WorkerPublica
   };
 
   describe("JSON payload contract", () => {
+    it("rejects a sparse request batch before writing any job", async () => {
+      const adapter = createAdapter();
+      const jobs = new Array<EnqueueJobRequest>(2);
+      jobs[0] = { queue: "json-contract", payload: "valid" };
+      await expect(adapter.enqueue(jobs)).rejects.toThrow("Missing worker publication request at index 1.");
+      await expect(adapter.reserve(reservation)).resolves.toEqual([]);
+    });
+
     it("enforces only the configured job byte limit using native JSON UTF-8 bytes", async () => {
       const adapter = createAdapter({ maxJobBytes: 4 });
       // Both roots use four JSON bytes; correlation-free jobs add no metadata bytes.

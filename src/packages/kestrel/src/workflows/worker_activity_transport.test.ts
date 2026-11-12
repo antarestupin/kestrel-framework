@@ -33,9 +33,12 @@ import { defineWorkflow } from "./workflow.js";
 import { WorkflowActivityInfrastructureError } from "./errors.js";
 
 describe("Worker-backed workflow activities", () => {
-  it.each(["schedule-to-close", "retry-limit"] as const)("preserves %s behavior through Worker delivery", async (scenario) => {
+  it.each(["schedule-to-close", "before-deadline", "retry-limit"] as const)("preserves %s behavior through Worker delivery", async (scenario) => {
     let now = 5_000;
-    const invoke = vi.fn(() => { throw new WorkflowActivityInfrastructureError("transient transport failure"); });
+    const invoke = vi.fn(() => {
+      if (scenario === "before-deadline") return null;
+      throw new WorkflowActivityInfrastructureError("transient transport failure");
+    });
     const action = defineAction({ name: "worker.deadline", input: z.null(), handler: invoke });
     const app = new App({}, { catalog: { actions: { action } } });
     const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
@@ -47,29 +50,34 @@ describe("Worker-backed workflow activities", () => {
     const scheduler = new WorkerScheduler(app, workers, [worker], {
       slots: 1, leaseMs: 1_000, now: () => new Date(now), completeCorrelatedJob: complete,
     });
-    const options = scenario === "schedule-to-close"
-      ? { scheduleToCloseTimeoutMs: 50 }
-      : { maxAttempts: 3, initialDelayMs: 20, backoffCoefficient: 3, maxDelayMs: 35 };
+    const options = scenario === "retry-limit"
+      ? { maxAttempts: 4, initialDelayMs: 20, backoffCoefficient: 3, maxDelayMs: 35 }
+      : { scheduleToCloseTimeoutMs: 50 };
     const job = await new WorkerClient(workers).enqueue(worker, {
       taskId: "outbox-row", executionId: "workflow", sequence: 0, target: action.name,
-      payload: { input: null, options }, scheduledAtMs: now - 50,
+      payload: { input: null, options }, scheduledAtMs: now - (scenario === "before-deadline" ? 49 : 50),
     }, { correlation: { namespace: workflowActivityCorrelationNamespace, id: "workflow:0", data: { executionId: "workflow", sequence: 0 } } });
 
     if (scenario === "retry-limit") {
-      for (const delay of [20, 35]) {
+      for (const delay of [20, 35, 35]) {
         await expect(scheduler.runOnce()).resolves.toBe(1);
         expect(complete).not.toHaveBeenCalled();
-        expect(workers.inspectJobs()).toMatchObject([{ id: job, availableAt: new Date(now + delay) }]);
+        expect(workers.inspectJobs()).toMatchObject([{
+          id: job, availableAt: new Date(now + delay),
+          lastError: { name: "WorkerRetryError", message: "Workflow activity workflow:0 failed." },
+        }]);
         now += delay;
       }
     }
     await expect(scheduler.runOnce()).resolves.toBe(1);
-    expect(invoke).toHaveBeenCalledTimes(scenario === "schedule-to-close" ? 0 : 3);
-    expect(complete).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ jobId: job, status: "completed", result: {
-      type: "workflow.activity.result", status: "failed", dispatchId: "outbox-row", error: expect.objectContaining({
-        name: scenario === "schedule-to-close" ? "WorkflowActivityTimeoutError" : "WorkflowActivityInfrastructureError",
-      }),
-    } }));
+    expect(invoke).toHaveBeenCalledTimes(scenario === "schedule-to-close" ? 0 : scenario === "before-deadline" ? 1 : 4);
+    const result = scenario === "before-deadline"
+      ? { type: "workflow.activity.result", status: "completed", dispatchId: "outbox-row", result: null }
+      : { type: "workflow.activity.result", status: "failed", dispatchId: "outbox-row", error: expect.objectContaining({
+          name: scenario === "schedule-to-close" ? "WorkflowActivityTimeoutError" : "WorkflowActivityInfrastructureError",
+          ...(scenario === "schedule-to-close" ? { details: { timeoutKind: "schedule-to-close", executionId: "workflow", sequence: 0 } } : {}),
+        }) };
+    expect(complete).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ jobId: job, status: "completed", result }));
     expect(workers.inspectJobs()).toHaveLength(0);
   });
 
@@ -111,11 +119,36 @@ describe("Worker-backed workflow activities", () => {
       expect(retry).toHaveBeenCalledTimes(2);
       expect(result).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: "AggregateError", errors: [
         expect.objectContaining({ cause: failure }), expect.objectContaining({ cause: secondFailure }),
-      ] }));
+      ], message: "Workflow activity publication batch failed." }));
     } else {
       expect(mark).toHaveBeenCalledExactlyOnceWith([{ dispatchId: "second", reservationToken: "second-token" }]);
-      expect(result).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ cause: failure }));
+      expect(result).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        cause: failure, message: "Could not publish workflow activity execution:0.",
+      }));
     }
+  });
+
+  it("preserves the queue failure when rescheduling its outbox row fails too", async () => {
+    const adapter = new MemoryWorkflowAdapter({ activityDispatchMode: "outbox" });
+    const now = new Date(1_000);
+    const publishError = new Error("Worker queue unavailable");
+    const retryError = new Error("Outbox store unavailable");
+    vi.spyOn(adapter, "reserveActivityDispatches").mockResolvedValueOnce([{
+      id: "outbox", executionId: "run", sequence: 0, target: "activity", payload: null,
+      attempt: 1, availableAt: now, reservedAt: now, reservationToken: "owned", createdAt: now,
+    }]);
+    const retry = vi.spyOn(adapter, "retryActivityDispatches").mockRejectedValueOnce(retryError);
+    const client = new WorkerClient(new MemoryWorkerAdapter());
+    vi.spyOn(client, "enqueue").mockRejectedValueOnce(publishError);
+    const dispatcher = new WorkflowActivityOutboxDispatcher(adapter, client, createWorkflowActivityWorker(new App({})));
+
+    await expect(dispatcher.runOnce()).rejects.toMatchObject({
+      name: "AggregateError", message: "Could not publish or reschedule workflow activity run:0.",
+      errors: [publishError, retryError],
+    });
+    expect(retry).toHaveBeenCalledExactlyOnceWith([{
+      dispatchId: "outbox", reservationToken: "owned", retryAt: expect.any(Date),
+    }]);
   });
 
   it("reports a stale outbox mark even if the Worker queue accepted the job", async () => {
@@ -166,7 +199,7 @@ describe("Worker-backed workflow activities", () => {
     expect(mark).toHaveBeenCalledTimes(2);
     const [first, next] = workers.inspectJobs();
     expect(first?.identity).toBe("same-execution:0");
-    expect(first?.correlation?.data).toEqual({ executionId: "same-execution", sequence: 0 });
+    expect(first?.correlation?.data).toStrictEqual({ executionId: "same-execution", sequence: 0 });
     expect(first?.payload).not.toHaveProperty("historyGeneration");
     expect(next?.identity).not.toBe(first?.identity);
     expect(next?.correlation?.id).toBe(next?.identity);
@@ -206,17 +239,22 @@ describe("Worker-backed workflow activities", () => {
     const worker = createWorkflowActivityWorker(new App({}));
     const valid = { taskId: "job", executionId: "run", sequence: 0, target: "action", payload: null, scheduledAtMs: 5 };
     expect((await worker.inputSchema.safeParseAsync(valid)).success).toBe(true);
-    for (const invalid of [null, { ...valid, taskId: 3 }, { ...valid, executionId: 3 },
+    for (const invalid of [null, "invalid", { ...valid, taskId: 3 }, { ...valid, executionId: 3 },
       { ...valid, sequence: 0.5 }, { ...valid, historyGeneration: 0 }, { ...valid, target: 3 },
-      { ...valid, scheduledAtMs: "5" }, { ...valid, payload: undefined },
+      { ...valid, scheduledAtMs: "5" }, { ...valid, historyGeneration: "2" }, { ...valid, payload: undefined },
     ]) {
       // JSON publication removes absent properties before the Worker receives the payload.
       expect((await worker.inputSchema.safeParseAsync(JSON.parse(JSON.stringify(invalid)))).success).toBe(false);
     }
   });
 
-  it.each([undefined, null, { type: "workflow.activity.result", status: "failed", error: null },
+  it.each([undefined, null, 17, { type: "workflow.activity.result", status: "failed", error: null },
+    { type: "workflow.activity.result", status: "failed", error: "invalid" },
     { type: "workflow.activity.result", status: "failed", error: { message: "missing name" } },
+    { type: "workflow.activity.result", status: "failed", error: { name: "Error" } },
+    { type: "workflow.activity.result", status: "failed", error: { name: "Error", message: "invalid", stack: 3 } },
+    { type: "workflow.activity.result", status: "queued", error: { name: "Error", message: "invalid" } },
+    { type: "ordinary.worker.result", status: "completed", result: "not an activity result" },
   ])("records a durable failure for a malformed Worker result %j", async (result) => {
     const adapter = new MemoryWorkflowAdapter();
     const complete = vi.spyOn(adapter, "completeExternalActivity").mockResolvedValue(true);
@@ -238,11 +276,29 @@ describe("Worker-backed workflow activities", () => {
     const job = { jobId: "job", status: "completed" as const, result: { type: "workflow.activity.result", status: "completed" } };
     await expect(sink.complete({ ...job, correlation: { namespace: "another.namespace", id: "run:0", data } }))
       .rejects.toThrow("Unsupported Worker correlation namespace");
-    for (const invalid of [null, { ...data, historyGeneration: 0 }, { ...data, historyGeneration: 1.5 }]) {
+    for (const invalid of [null, "invalid", { ...data, historyGeneration: 0 }, { ...data, historyGeneration: 1.5 },
+      { ...data, historyGeneration: "2" }, { ...data, executionId: 8 }, { ...data, sequence: 1.5 }]) {
       await expect(sink.complete({ ...job, correlation: { namespace: workflowActivityCorrelationNamespace, id: "run:0", data: invalid } }))
-        .rejects.toThrow(TypeError);
+        .rejects.toThrow(new TypeError(typeof invalid === "object" && invalid !== null
+          ? "Workflow activity correlation data is invalid."
+          : "Workflow activity correlation data is missing."));
     }
     expect(complete).not.toHaveBeenCalled();
+  });
+
+  it("uses a durable completion generation and ignores an obsolete dispatch id", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const complete = vi.spyOn(adapter, "completeExternalActivity").mockResolvedValue(true);
+    const sink = new WorkflowWorkerCompletionSink(adapter);
+    await sink.complete({
+      jobId: "job", status: "completed",
+      result: { type: "workflow.activity.result", status: "completed", dispatchId: "obsolete-row" },
+      correlation: { namespace: workflowActivityCorrelationNamespace, id: "run:0:generation-2",
+        data: { executionId: "run", sequence: 0, historyGeneration: 2 } },
+    });
+    expect(complete.mock.calls).toStrictEqual([[{
+      executionId: "run", sequence: 0, historyGeneration: 2, sourceId: "job", status: "completed",
+    }]]);
   });
 
   it("passes the original dispatch id when a queued Worker job has unversioned correlation", async () => {
@@ -254,7 +310,22 @@ describe("Worker-backed workflow activities", () => {
       result: { type: "workflow.activity.result", status: "completed", result: 6, dispatchId: "original-dispatch" },
       correlation: { namespace: workflowActivityCorrelationNamespace, id: "run:0", data: { executionId: "run", sequence: 0 } },
     });
-    expect(complete).toHaveBeenCalledExactlyOnceWith({ executionId: "run", sequence: 0, sourceId: "legacy-job", dispatchId: "original-dispatch", status: "completed", result: 6 });
+    expect(complete.mock.calls).toStrictEqual([[{
+      executionId: "run", sequence: 0, sourceId: "legacy-job", dispatchId: "original-dispatch", status: "completed", result: 6,
+    }]]);
+  });
+
+  it("records Worker and activity failures without manufacturing a missing stack", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const complete = vi.spyOn(adapter, "completeExternalActivity").mockResolvedValue(true);
+    const sink = new WorkflowWorkerCompletionSink(adapter);
+    const job = { jobId: "job", correlation: { namespace: workflowActivityCorrelationNamespace, id: "run:0",
+      data: { executionId: "run", sequence: 0 } } };
+    const error = { name: "ActivityError", message: "Recorded failure" };
+    await sink.complete({ ...job, status: "failed", error });
+    await sink.complete({ ...job, status: "completed", result: { type: "workflow.activity.result", status: "failed", error } });
+    const expected = { executionId: "run", sequence: 0, sourceId: "job", status: "failed", error };
+    expect(complete.mock.calls).toStrictEqual([[expected], [expected]]);
   });
 
   it.each(["default", "custom"] as const)("executes one Worker activity in each generation with the %s codec", async (mode) => {
@@ -286,8 +357,9 @@ describe("Worker-backed workflow activities", () => {
     const worker = createWorkflowActivityWorker(app, codec);
     const outbox = new WorkflowActivityOutboxDispatcher(adapter, new WorkerClient(workers), worker);
     const sink = new WorkflowWorkerCompletionSink(adapter);
+    const complete = vi.fn((completion: WorkerCorrelatedCompletion) => sink.complete(completion));
     const workerScheduler = new WorkerScheduler(app, workers, [worker], {
-      slots: 1, leaseMs: 1_000, completeCorrelatedJob: (completion) => sink.complete(completion),
+      slots: 1, leaseMs: 1_000, completeCorrelatedJob: complete,
     });
     const codecOptions = codec === undefined ? {} : { payloadCodec: codec };
     const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
@@ -308,6 +380,10 @@ describe("Worker-backed workflow activities", () => {
     await expect(handle.status()).resolves.toMatchObject({ status: "completed", historyGeneration: 2 });
     await expect(handle.result()).resolves.toBe(6);
     expect(invocations).toEqual([{ key: "continue-outbox:0", generation: 1 }, { key: "continue-outbox:0:generation-2", generation: 2 }]);
+    expect(complete).toHaveBeenCalledTimes(2);
+    const second = complete.mock.calls[1]?.[0];
+    expect(second).toMatchObject({ status: "completed", result: { type: "workflow.activity.result", status: "completed" } });
+    expect(second?.status === "completed" && second.result).not.toHaveProperty("dispatchId");
   });
 
   it("publishes an outbox command and records its correlated Action result", async () => {

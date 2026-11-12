@@ -7,6 +7,7 @@ import {
 import { join } from "node:path";
 
 import {
+  assertContribution,
   contributionsEqual,
   getDatabaseSchemaContributions,
   type DatabaseSchemaContribution,
@@ -94,10 +95,10 @@ export async function generateDatabaseMigration(
     options.migrationsFolder,
     beforeJournal,
   );
-  const plan = createMigrationSqlPlan(previous, current);
-  const customContributionsChanged = plan.before.length > 0
-    || plan.after.length > 0
-    || !contributionCollectionsEqual(previous, current);
+  // A matching snapshot has no custom DDL to plan, even if Drizzle emits its own migration.
+  const plan = contributionCollectionsEqual(previous, current)
+    ? undefined
+    : createMigrationSqlPlan(previous, current);
   await generate();
   let afterJournal = await readJournal(options.migrationsFolder);
   let migration = findNewEntry(beforeJournal, afterJournal);
@@ -105,7 +106,7 @@ export async function generateDatabaseMigration(
     ? "none"
     : "drizzle";
 
-  if (!customContributionsChanged) {
+  if (plan === undefined) {
     return {
       customContributionsChanged: false,
       ...(migration === undefined ? {} : { migrationTag: migration.tag }),
@@ -275,15 +276,11 @@ async function readLatestContributionSnapshot(
   for (const entry of [...journal.entries].reverse()) {
     const embedded = await readEmbeddedSnapshot(migrationsFolder, entry);
     if (embedded !== undefined) {
-      return embedded.contributions;
+      return embedded;
     }
     try {
       const contents = await readFile(snapshotPath(migrationsFolder, entry), "utf8");
-      const snapshot = JSON.parse(contents) as ContributionSnapshot;
-      if (snapshot.version !== 1 || !Array.isArray(snapshot.contributions)) {
-        throw new TypeError(`Invalid custom schema snapshot for ${entry.tag}.`);
-      }
-      return snapshot.contributions;
+      return parseContributionSnapshot(JSON.parse(contents), `Invalid custom schema snapshot for ${entry.tag}.`);
     } catch (error) {
       if (isMissingFileError(error)) {
         continue;
@@ -297,7 +294,7 @@ async function readLatestContributionSnapshot(
 async function readEmbeddedSnapshot(
   migrationsFolder: string,
   entry: DrizzleJournalEntry,
-): Promise<ContributionSnapshot | undefined> {
+): Promise<readonly DatabaseSchemaContribution[] | undefined> {
   const migrationSql = await readFile(
     join(migrationsFolder, `${entry.tag}.sql`),
     "utf8",
@@ -312,13 +309,30 @@ async function readEmbeddedSnapshot(
   }
 
   const encoded = marker.slice(embeddedSnapshotPrefix.length).trim();
-  const snapshot = JSON.parse(
+  const snapshot: unknown = JSON.parse(
     Buffer.from(encoded, "base64url").toString("utf8"),
-  ) as ContributionSnapshot;
-  if (snapshot.version !== 1 || !Array.isArray(snapshot.contributions)) {
-    throw new TypeError(`Invalid embedded custom schema snapshot for ${entry.tag}.`);
+  );
+  return parseContributionSnapshot(snapshot, `Invalid embedded custom schema snapshot for ${entry.tag}.`);
+}
+
+function parseContributionSnapshot(snapshot: unknown, message: string): readonly DatabaseSchemaContribution[] {
+  const candidate = snapshot as Partial<ContributionSnapshot> | null;
+  if (candidate?.version !== 1 || !Array.isArray(candidate.contributions)) {
+    throw new TypeError(message);
   }
-  return snapshot;
+
+  // Check the entire lifecycle before Drizzle can generate a journal entry or a SQL file.
+  const ids = new Set<string>();
+  try {
+    for (const contribution of candidate.contributions) {
+      assertContribution(contribution);
+      if (ids.has(contribution.id)) throw new TypeError(`Duplicate contribution "${contribution.id}".`);
+      ids.add(contribution.id);
+    }
+  } catch (error) {
+    throw new TypeError(message, { cause: error });
+  }
+  return candidate.contributions;
 }
 
 function createEmbeddedSnapshot(

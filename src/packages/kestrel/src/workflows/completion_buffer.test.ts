@@ -60,7 +60,9 @@ describe("WorkflowCompletionBuffer", () => {
       maxSize: 1, flushIntervalMs: 100,
     });
     const individual = Promise.allSettled([buffer.enqueue(completion("first")), buffer.enqueue(completion("second"))]);
-    await expect(buffer.flush()).rejects.toMatchObject({ name: "AggregateError", errors: [first, second] });
+    await expect(buffer.flush()).rejects.toMatchObject({
+      name: "AggregateError", message: "Several workflow completion batches failed.", errors: [first, second],
+    });
     await expect(individual).resolves.toEqual([
       { status: "rejected", reason: first }, { status: "rejected", reason: second },
     ]);

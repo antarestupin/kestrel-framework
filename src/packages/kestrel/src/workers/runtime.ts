@@ -26,7 +26,6 @@ export class WorkerRuntime<Config> {
     reservationPressure?: AdmissionPolicyDefinition,
     completionSink?: WorkerCorrelatedCompletionSink,
   ) {
-    app.shutdown.registerDrain(() => this.stop());
     this.scheduler = new WorkerScheduler(
       app,
       adapter,
@@ -48,6 +47,8 @@ export class WorkerRuntime<Config> {
             }),
       },
     );
+    // Publish the drain only after scheduler validation succeeds.
+    app.shutdown.registerDrain(() => this.stop());
   }
 
   /** Retains polling termination independently of successful startup. */

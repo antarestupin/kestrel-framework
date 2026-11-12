@@ -250,9 +250,11 @@ export class PostgresPoolRuntime {
   }
 
   private readonly onError = (error: Error): void => {
-    // pg forwards the same idle-client error through both client and pool events.
+    // pg forwards the same idle-client error synchronously through both emitters.
+    // A later failure can reuse the Error object after the pool has recovered.
     if (this.reportedErrors.has(error)) return;
     this.reportedErrors.add(error);
+    queueMicrotask(() => this.reportedErrors.delete(error));
     if (!this.isClosing()) this.state = "degraded";
     this.failureVersion++;
     this.report({ type: "pool_error", outcome: "failure", timestamp: Date.now(), failure: "pool_error", errorCode: safeErrorCode(error) });

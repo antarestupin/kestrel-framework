@@ -12,6 +12,8 @@ import {
 } from "./operations.js";
 import { defineWorkflowSignal } from "./signal.js";
 import { defineWorkflow } from "./workflow.js";
+import { WorkflowScheduler } from "./scheduler.js";
+import { EmbeddedWorkflowActivityTransport } from "./activity_transport.js";
 
 describe("WorkflowOperations", () => {
   it("validates the signal owner and rejects empty deduplication keys before persistence", async () => {
@@ -24,9 +26,9 @@ describe("WorkflowOperations", () => {
     const request = { executionId: "approval-1", signalName: signal.name, payload: "approved" };
 
     await expect(operations.signal({ ...request, executionId: "unknown" })).rejects.toBeInstanceOf(WorkflowExecutionNotFoundError);
-    await expect(new WorkflowOperations([], adapter).signal(request)).rejects.toBeInstanceOf(TypeError);
-    await expect(operations.signal({ ...request, signalName: "other" })).rejects.toBeInstanceOf(TypeError);
-    await expect(operations.signal({ ...request, idempotencyKey: "" })).rejects.toBeInstanceOf(TypeError);
+    await expect(new WorkflowOperations([], adapter).signal(request)).rejects.toThrow('Workflow definition "approval" is not deployed.');
+    await expect(operations.signal({ ...request, signalName: "other" })).rejects.toThrow('Signal "other" is not declared by workflow "approval".');
+    await expect(operations.signal({ ...request, idempotencyKey: "" })).rejects.toThrow("Workflow signal idempotency keys cannot be empty.");
     expect(send).not.toHaveBeenCalled();
     await expect(operations.signal({ ...request, idempotencyKey: "once" })).resolves.toEqual({ id: "approval-signal", accepted: true });
     await expect(operations.signal({ ...request, idempotencyKey: "once" })).resolves.toEqual({ id: "approval-signal", accepted: false });
@@ -80,7 +82,7 @@ describe("WorkflowOperations", () => {
     const adapter = new MemoryWorkflowAdapter();
     const client = new WorkflowClient(adapter);
     await client.start(last, null);
-    await expect(new WorkflowOperations([last, first], adapter).listDefinitions()).resolves.toEqual([
+    await expect(new WorkflowOperations([last, first], adapter).listDefinitions()).resolves.toStrictEqual([
       { name: "alpha", currentVersion: 1, supportedFrom: 1, signals: ["approval"], executions: [] },
       { name: "zeta", currentVersion: 1, supportedFrom: 1, signals: [], executions: [{ workflowName: "zeta", workflowVersion: 1, status: "queued", count: 1 }] },
     ]);
@@ -160,7 +162,7 @@ describe("WorkflowOperations", () => {
     });
     await expect(operations.retry("payment-v1")).resolves.toEqual(retried);
     expect(record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      type: "lifecycle",
+      type: "lifecycle", outcome: "success",
       data: expect.objectContaining({ operation: "retry" }),
     }));
   });
@@ -186,6 +188,23 @@ describe("WorkflowOperations", () => {
     })).resolves.toHaveLength(0);
   });
 
+  it("preserves the default termination reason when the operator omits it", async () => {
+    const workflow = defineWorkflow({ name: "default-termination", handler: () => undefined });
+    const adapter = new MemoryWorkflowAdapter();
+    const handle = await new WorkflowClient(adapter).start(workflow, null, { executionId: "default-reason" });
+    await new WorkflowOperations([workflow], adapter).terminate(handle.executionId);
+    await expect(handle.result()).rejects.toEqual(
+      new WorkflowExecutionTerminatedError(handle.executionId, "Terminated by an operator."),
+    );
+  });
+
+  it("reports an invalid cursor through the execution search contract", async () => {
+    const operations = new WorkflowOperations([], new MemoryWorkflowAdapter());
+    await expect(operations.listExecutions({ limit: 1, cursor: "invalid" })).rejects.toThrow(
+      "Workflow execution cursor is invalid.",
+    );
+  });
+
   it("requests cooperative cancellation through the operator surface", async () => {
     const workflow = defineWorkflow({ name: "cancel-operation", handler: () => undefined });
     const adapter = new MemoryWorkflowAdapter();
@@ -207,7 +226,9 @@ describe("getWorkflowExecutionWaits", () => {
     { kind: "activity", payload: { options: [] } },
     { kind: "activity", payload: { options: "historical" } },
     { kind: "activity", payload: { options: { scheduleToCloseTimeoutMs: "250" } } },
+    { kind: "activity", payload: { options: { scheduleToCloseTimeoutMs: Infinity } } },
     { kind: "timer", payload: { durationMs: "120" } },
+    { kind: "timer", payload: { durationMs: Infinity } },
     { kind: "signal", payload: {} },
     { kind: "child", payload: { durationMs: 120, timeoutMs: 200, options: { scheduleToCloseTimeoutMs: 250 } } },
     { kind: "timer", payload: null },
@@ -218,7 +239,7 @@ describe("getWorkflowExecutionWaits", () => {
     ({ kind, payload, delay }) => {
       const occurredAt = new Date("2026-01-01T00:00:00.000Z");
       const event: WorkflowCommandScheduledEvent = { type: "command-scheduled", kind, payload, eventIndex: 0, sequence: 0, target: "target", occurredAt };
-      expect(getWorkflowExecutionWaits([event], "waiting")).toEqual([{
+      expect(getWorkflowExecutionWaits([event], "waiting")).toStrictEqual([{
         sequence: 0, kind, target: "target", scheduledAt: occurredAt,
         ...(delay === undefined ? {} : { deadline: new Date(occurredAt.getTime() + delay) }),
       }]);
@@ -233,6 +254,7 @@ describe("getWorkflowExecutionWaits", () => {
       { type: "command-scheduled", eventIndex: 2, sequence: 1, kind: "activity", target: "refund", payload: {}, occurredAt },
       { type: "command-scheduled", eventIndex: 3, sequence: 2, kind: "timer", target: "sleep", payload: { durationMs: 8 }, occurredAt },
       { type: "command-completed", eventIndex: 4, sequence: 1, completionOrder: 0, occurredAt },
+      { type: "signal-received", eventIndex: 5, signalId: "notice", name: "other", payload: null, occurredAt },
     ];
     expect(getWorkflowExecutionWaits(history, "waiting")).toEqual([{
       sequence: 2, kind: "timer", target: "sleep", scheduledAt: occurredAt, deadline: new Date(occurredAt.getTime() + 8),
@@ -244,6 +266,80 @@ describe("getWorkflowExecutionWaits", () => {
 });
 
 describe("buildWorkflowExecutionGraph", () => {
+  it("separates cancelled work from later compensation and preserves completion timestamps", async () => {
+    const workflow = defineWorkflow({ name: "graph.cancelled", handler: () => undefined });
+    const adapter = new MemoryWorkflowAdapter();
+    const handle = await new WorkflowClient(adapter).start(workflow, null, { executionId: "graph-cancelled" });
+    const execution = await handle.status();
+    const occurredAt = execution.createdAt;
+    const completedAt = new Date(occurredAt.getTime() + 20);
+    const graph = buildWorkflowExecutionGraph({ ...execution, status: "terminated", completedAt }, [
+      { type: "command-scheduled", eventIndex: 0, sequence: 0, kind: "timer", target: "sleep", payload: null, occurredAt },
+      { type: "cancellation-requested", eventIndex: 1, occurredAt },
+      { type: "command-scheduled", eventIndex: 2, sequence: 1, kind: "activity", target: "compensate", payload: null, occurredAt },
+    ]);
+    expect(graph.nodes).toStrictEqual([
+      { id: "execution:graph-cancelled", kind: "execution", label: "graph.cancelled@1", status: "terminated",
+        occurredAt, completedAt, executionId: "graph-cancelled" },
+      { id: "command:0", kind: "command", label: "timer: sleep", status: "cancelled", occurredAt, sequence: 0 },
+      { id: "command:1", kind: "command", label: "activity: compensate", status: "terminated", occurredAt, sequence: 1 },
+    ]);
+  });
+
+  it("keeps a child from an archived generation attached to its execution rather than a reused command", async () => {
+    const now = new Date(1_000);
+    const adapter = new MemoryWorkflowAdapter({ now: () => now });
+    const child = defineWorkflow({ name: "graph.child", handler: () => undefined });
+    const parent = defineWorkflow({
+      name: "graph.parent",
+      handler: async (_input, context) => {
+        if (context.generation === 1) {
+          await context.runChild(child, null);
+          return context.continueAsNew(null);
+        }
+        await context.sleep({ seconds: 1 });
+      },
+    });
+    const client = new WorkflowClient(adapter);
+    const scheduler = new WorkflowScheduler([parent, child], adapter, new EmbeddedWorkflowActivityTransport(() => undefined));
+    const handle = await client.start(parent, null, { executionId: "root" });
+    const operations = new WorkflowOperations([parent, child], adapter);
+    await scheduler.runOnce();
+    expect((await operations.getExecution(handle.executionId)).graph.edges).toContainEqual({
+      from: "command:0", to: "execution:root:0", kind: "child",
+    });
+    for (let activation = 1; activation < 4; activation += 1) await scheduler.runOnce();
+
+    const details = await operations.getExecution(handle.executionId);
+    expect(details.execution.historyGeneration).toBe(2);
+    expect(details.children).toMatchObject([{ executionId: "root:0", completedAt: now, status: "completed" }]);
+    expect(details.graph.nodes).toContainEqual(expect.objectContaining({ id: "command:0", label: "timer: sleep" }));
+    expect(details.graph.edges).toEqual([
+      { from: "execution:root", to: "command:0", kind: "command" },
+      { from: "execution:root", to: "execution:root:0", kind: "child" },
+    ]);
+  });
+
+  it("links a generated child identity using the current history generation", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const child = defineWorkflow({ name: "graph.generated-child", handler: () => undefined });
+    const parent = defineWorkflow({
+      name: "graph.generated-parent",
+      handler: async (_input, context) => {
+        if (context.generation === 1) return context.continueAsNew(null);
+        await context.runChild(child, null);
+      },
+    });
+    const handle = await new WorkflowClient(adapter).start(parent, null, { executionId: "generated-parent" });
+    const scheduler = new WorkflowScheduler([parent, child], adapter, new EmbeddedWorkflowActivityTransport(() => undefined));
+    await scheduler.runOnce();
+    await scheduler.runOnce();
+    const { graph } = await new WorkflowOperations([parent, child], adapter).getExecution(handle.executionId);
+    expect(graph.edges).toContainEqual({
+      from: "command:0", to: "execution:generated-parent:0:generation-2", kind: "child",
+    });
+  });
+
   it("distinguishes unfinished commands from completed failures in the operator graph", async () => {
     const workflow = defineWorkflow({ name: "graph-statuses", handler: () => undefined });
     const adapter = new MemoryWorkflowAdapter();
@@ -280,9 +376,9 @@ describe("buildWorkflowExecutionGraph", () => {
         type: "command-scheduled",
         eventIndex: 0,
         sequence: 0,
-        kind: "activity",
-        target: "stock.reserve",
-        payload: null,
+        kind: "child",
+        target: "shipping.prepare",
+        payload: { input: null, version: 1, executionId: "child" },
         occurredAt,
       },
       {
@@ -320,7 +416,7 @@ describe("buildWorkflowExecutionGraph", () => {
 
     expect(graph.nodes).toEqual([
       { id: "execution:root", kind: "execution", label: "orders.fulfill@1", status: "waiting", occurredAt, executionId: "root" },
-      { id: "command:0", kind: "command", label: "activity: stock.reserve", status: "completed", occurredAt, completedAt: occurredAt, sequence: 0 },
+      { id: "command:0", kind: "command", label: "child: shipping.prepare", status: "completed", occurredAt, completedAt: occurredAt, sequence: 0 },
       { id: "signal:signal-1", kind: "signal", label: "approved", status: "completed", occurredAt },
       { id: "execution:child", kind: "execution", label: "shipping.prepare@1", status: "queued", occurredAt, executionId: "child" },
     ]);

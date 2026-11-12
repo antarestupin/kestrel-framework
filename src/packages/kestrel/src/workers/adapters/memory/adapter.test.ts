@@ -50,6 +50,77 @@ describe("MemoryWorkerAdapter", () => {
     expect(adapter.inspectDeadLetters()[0]!.payload).toEqual({ nested: { value: 1 } });
   });
 
+  it("owns transition timestamps and errors after the caller mutates them", async () => {
+    const time = new Date("2026-01-01T00:00:00Z");
+    const adapter = new MemoryWorkerAdapter({ now: () => time });
+    const reserve = () => adapter.reserve({
+      queues: [{ queue: "queue", reservationLimit: 1, allowOverflow: true }],
+      totalLimit: 1, leaseMs: 60_000,
+    });
+    await adapter.enqueue([{ queue: "queue", payload: 1 }]);
+    const [first] = await reserve();
+    const retryAt = new Date(time);
+    const error = { name: "Error", message: "first failure" };
+    await adapter.retry([{ jobId: first!.id, reservationToken: first!.reservationToken, retryAt, error }]);
+    retryAt.setUTCFullYear(2030);
+    error.message = "caller changed the error";
+    expect(adapter.inspectJobs()[0]).toMatchObject({
+      availableAt: new Date("2026-01-01T00:00:00Z"), lastError: { message: "first failure" },
+    });
+
+    const [second] = await reserve();
+    const availableAt = new Date(time);
+    await adapter.defer([{ jobId: second!.id, reservationToken: second!.reservationToken, availableAt }]);
+    availableAt.setUTCFullYear(2030);
+    expect(adapter.inspectJobs()[0]!.availableAt).toEqual(time);
+
+    const [third] = await reserve();
+    error.message = "terminal failure";
+    await adapter.deadLetter([{ jobId: third!.id, reservationToken: third!.reservationToken, error }]);
+    error.message = "caller changed the terminal error";
+    time.setUTCFullYear(2030);
+    expect(adapter.inspectDeadLetters()[0]).toMatchObject({
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      failedAt: new Date("2026-01-01T00:00:00Z"), error: { message: "terminal failure" },
+    });
+  });
+
+  it("retains the original reservation when preparing its dead letter fails", async () => {
+    const failure = new Error("Dead-letter ID unavailable.");
+    let created = false;
+    const adapter = new MemoryWorkerAdapter({ createId: () => {
+      if (created) throw failure;
+      created = true;
+      return "job";
+    } });
+    await adapter.enqueue([{ queue: "queue", payload: null }]);
+    const [job] = await adapter.reserve({
+      queues: [{ queue: "queue", reservationLimit: 1, allowOverflow: true }],
+      totalLimit: 1, leaseMs: 60_000,
+    });
+    const reservation = { jobId: job!.id, reservationToken: job!.reservationToken };
+    await expect(adapter.deadLetter([{ ...reservation, error: { name: "Error", message: "failed" } }])).rejects.toBe(failure);
+    expect(adapter.inspectJobs()).toMatchObject([{ id: job!.id, reservationToken: job!.reservationToken }]);
+    expect(adapter.inspectDeadLetters()).toEqual([]);
+    await expect(adapter.ack([reservation])).resolves.toEqual([reservation]);
+  });
+
+  it("keeps absent job metadata absent during storage, reservation and dead-letter delivery", async () => {
+    const adapter = new MemoryWorkerAdapter();
+    await adapter.enqueue([{ queue: "queue", payload: null }]);
+    const [job] = await adapter.reserve({
+      queues: [{ queue: "queue", reservationLimit: 1, allowOverflow: true }],
+      totalLimit: 1, leaseMs: 60_000,
+    });
+    const stored = adapter.inspectJobs()[0]!;
+    await adapter.deadLetter([{ jobId: job!.id, reservationToken: job!.reservationToken, error: { name: "Error", message: "failed" } }]);
+    for (const snapshot of [stored, job!, adapter.inspectDeadLetters()[0]!]) {
+      for (const key of ["identity", "correlation", "groupId", "executionId"]) {
+        expect(Object.hasOwn(snapshot, key), key).toBe(false);
+      }
+    }
+  });
+
   it("deduplicates matching stable identities and rejects conflicting reuse", async () => {
     const adapter = new MemoryWorkerAdapter({
       createId: createSequence("job"),
@@ -386,7 +457,7 @@ describe("MemoryWorkerAdapter", () => {
     await adapter.enqueue([{ queue: "valid", payload: null }]);
     for (const value of [0, -1, 1.5, NaN, Infinity]) {
       const request = { queues: [{ queue: "valid", reservationLimit: key === "reservationLimit" ? value : 1, allowOverflow: true }], totalLimit: key === "totalLimit" ? value : 1, leaseMs: key === "leaseMs" ? value : 100 };
-      await expect(adapter.reserve(request)).rejects.toBeInstanceOf(TypeError);
+      await expect(adapter.reserve(request)).rejects.toThrow(`${key} must be a positive integer.`);
     }
     expect(adapter.inspectJobs()[0]!.attempt).toBe(0);
   });

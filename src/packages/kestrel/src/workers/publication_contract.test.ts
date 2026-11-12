@@ -37,7 +37,8 @@ describe("worker publication contracts", () => {
     const parse = vi.fn((value: string) => value);
     const typed = defineWorker({ name: "identity-contract", queue: "identity-contract", input: z.string().transform(parse), handler: () => undefined });
     const client = new WorkerClient(adapter);
-    await expect(client.enqueueMany(typed, ["first", "second"], { identity: "shared" })).rejects.toBeInstanceOf(TypeError);
+    await expect(client.enqueueMany(typed, ["first", "second"], { identity: "shared" }))
+      .rejects.toThrow("A stable Worker identity can only describe one enqueued job.");
     expect(parse).not.toHaveBeenCalled();
     expect(enqueue).not.toHaveBeenCalled();
     expect(await client.enqueueMany(typed, ["first"], { identity: "single" })).toHaveLength(1);
@@ -46,7 +47,15 @@ describe("worker publication contracts", () => {
   it("rejects an adapter response without the requested single-job ID", async () => {
     const adapter = new MemoryWorkerAdapter();
     vi.spyOn(adapter, "enqueue").mockResolvedValue([]);
-    await expect(new WorkerClient(adapter).enqueue(worker, "value")).rejects.toBeInstanceOf(Error);
+    await expect(new WorkerClient(adapter).enqueue(worker, "value"))
+      .rejects.toThrow("The worker adapter did not return the enqueued job ID.");
+  });
+
+  it("leaves absent optional metadata out of the external adapter request", async () => {
+    const adapter = new MemoryWorkerAdapter();
+    const write = vi.spyOn(adapter, "enqueue").mockResolvedValue(["published-job"]);
+    await expect(new WorkerClient(adapter).enqueue(worker, "value")).resolves.toBe("published-job");
+    expect(write.mock.calls).toStrictEqual([[[{ queue: worker.queue, payload: "value" }]]]);
   });
 
   it("accepts an empty publication without fabricating jobs", async () => {
@@ -91,6 +100,15 @@ describe("worker publication contracts", () => {
     const outcome = new WorkerClient(adapter).enqueueMany(worker, ["first", value]);
     await expect(outcome).rejects.toBeInstanceOf(WorkerPayloadSerializationError);
     expect(await outcome.catch((error: unknown) => error instanceof Error ? error.cause : undefined)).toBe(failure);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("reports why an unrepresentable root was refused before publication", async () => {
+    const adapter = new MemoryWorkerAdapter();
+    const write = vi.spyOn(adapter, "enqueue");
+    await expect(new WorkerClient(adapter).enqueue(worker, undefined)).rejects.toMatchObject({
+      cause: { message: "The root value has no JSON representation." },
+    });
     expect(write).not.toHaveBeenCalled();
   });
 });

@@ -18,9 +18,11 @@ export function mutationArguments(args) {
         throw new Error("Specify an existing framework component, for example: test:mutation:component -- di");
       }
     }
+    // Stryker applies a CLI testFiles filter after module collection, so static activation needs Vitest includes.
     if (remaining.some((arg) => !arg.startsWith("-") && /\.(?:mjs|cjs|js|json|ts)$/u.test(arg)
-      || /^--(?:mutate|ignoreStatic|configFile)(?:=|$)/u.test(arg))) {
-      throw new Error("Profile scope and static policy cannot be overridden; use test:mutation for custom runs.");
+      || /^--(?:mutate|ignoreStatic|configFile)(?:=|$)/u.test(arg) || arg.startsWith("-m")
+      || (mode !== "fast" && (/^--testFiles(?:=|$)/u.test(arg) || arg.startsWith("-t"))))) {
+      throw new Error("Profile scope and static policy cannot be overridden. Use test:mutation for custom runs.");
     }
   }
   // Every named assessment profile is bounded; the explicit full/custom command stays opt-in.
@@ -72,9 +74,17 @@ const focusedProfiles = {
     ["workflows/adapters/memory/adapter.ts", "public async getHistory(", "private applyActivationOutcome("],
   ],
   "workflow-memory-internals": [
-    ["workflows/adapters/memory/adapter.ts", "private enqueueWorkflowTask(", "private cancelOpenChildren("],
+    ["workflows/adapters/memory/adapter.ts", "private enqueueWorkflowTask(", "private prepareCommand("],
     ["workflows/adapters/memory/adapter.ts", "private deleteCommandTasks(", "private getOwnedTask("],
-    ["workflows/adapters/memory/adapter.ts", "private getRequiredHistory("],
+  ],
+  "workflow-memory-commands": [
+    ["workflows/adapters/memory/adapter.ts", "private prepareCommand(", "private cancelOpenChildren("],
+  ],
+  "workflow-memory-projections": [
+    ["workflows/adapters/memory/adapter.ts", "private getRequiredHistory(", "function readRecord("],
+  ],
+  "workflow-memory-validation": [
+    ["workflows/adapters/memory/adapter.ts", "function readRecord("],
   ],
   "workflow-postgres-start": [
     ["workflows/adapters/postgres/adapter.ts", "", "public async get("],
@@ -88,7 +98,16 @@ const focusedProfiles = {
   ],
   "workflow-postgres-history": [
     ["workflows/adapters/postgres/adapter.ts", "public async getHistory(", "private async mutateReservations<"],
-    ["workflows/adapters/postgres/adapter.ts", "private async admitPendingKeyedExecutions("],
+  ],
+  // Bound the PostgreSQL history paths independently of admission and row decoding.
+  "workflow-postgres-admission-internals": [
+    ["workflows/adapters/postgres/adapter.ts", "private async admitPendingKeyedExecutions(", "function mapSerializedExecution("],
+  ],
+  "workflow-postgres-row-mapping": [
+    ["workflows/adapters/postgres/adapter.ts", "function mapSerializedExecution(", "function mapHistoryEvent("],
+  ],
+  "workflow-postgres-history-decoding": [
+    ["workflows/adapters/postgres/adapter.ts", "function mapHistoryEvent("],
   ],
   "workflow-runtime": [["workflows/runtime.ts"], ["workflows/provider.ts"], ["workflows/dependencies.ts"], ["workflows/completion_buffer.ts"]],
   "workflow-scheduler": [["workflows/scheduler.ts"]],
@@ -98,6 +117,10 @@ const focusedProfiles = {
   "workflow-contracts": [["workflows/adapter.ts"], ["workflows/adapter_definition.ts"], ["workflows/errors.ts"], ["workflows/history.ts"], ["workflows/index.ts"], ["workflows/observations.ts"], ["workflows/concurrency.ts"], ["workflows/serialization.ts"], ["workflows/signal.ts"], ["workflows/testing.ts"], ["workflows/workflow.ts"]],
   "workflow-adapter-contracts": [["workflows/adapters/index.ts"], ["workflows/adapters/memory/definition.ts"], ["workflows/adapters/memory/index.ts"], ["workflows/adapters/postgres/configuration.ts"], ["workflows/adapters/postgres/definition.ts"], ["workflows/adapters/postgres/index.ts"], ["workflows/adapters/postgres/polling_error.ts"], ["workflows/adapters/postgres/schema.ts"]],
   "workers-contracts": [["workers/adapter_definition.ts"], ["workers/configuration.ts"], ["workers/dependencies.ts"], ["workers/errors.ts"], ["workers/index.ts"], ["workers/provider.ts"], ["workers/runtime.ts"], ["workers/types.ts"], ["workers/worker.ts"]],
+  // Assess PostgreSQL schema initialization separately from adapter operations when needed.
+  "workers-adapter-memory": [["workers/adapters/index.ts"], ["workers/adapters/memory/**/*.ts"]],
+  "workers-adapter-postgres": [["workers/adapters/postgres/adapter.ts"], ["workers/adapters/postgres/definition.ts"], ["workers/adapters/postgres/index.ts"]],
+  "workers-adapter-schema": [["workers/adapters/postgres/schema.ts"]],
   "workflow-terminal-control": [["workflows/adapters/memory/adapter.ts", "public async requestCancellation(", "public async retryExecution("], ["workflows/adapters/memory/adapter.ts", "private cancelOpenChildren(", "private deleteCommandTasks("], ["workflows/adapters/postgres/adapter.ts", "public async requestCancellation(", "public async retryExecution("], ["workflows/adapters/postgres/adapter.ts", "private async terminateExecutionTree(", "private async admitPendingKeyedExecutions("]],
   "workflow-task-ownership": [["workflows/adapters/memory/adapter.ts", "public async releaseTasks(", "public async getHistory("], ["workflows/adapters/memory/adapter.ts", "private getOwnedTask(", "private getRequiredHistory("], ["workflows/adapters/postgres/adapter.ts", "public async releaseTasks(", "public async getHistory("], ["workflows/adapters/postgres/adapter.ts", "private async mutateReservations<", "private async terminateExecutionTree("]],
   "workflow-execution-retry": [["workflows/adapters/memory/adapter.ts", "public async retryExecution(", "public async releaseTasks("], ["workflows/adapters/postgres/adapter.ts", "public async retryExecution(", "public async releaseTasks("]],

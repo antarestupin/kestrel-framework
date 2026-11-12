@@ -483,6 +483,45 @@ describe("seedDatabase", () => {
     await expect(database.select().from(seedGroups)).resolves.toEqual([]);
   });
 
+  it("validates every step identity before writing when steps share a physical table", async () => {
+    const database = drizzle(client);
+    await database.transaction(async (transaction) => {
+      await expect(seedDatabase(transaction, defineDatabaseSeed({
+        steps: [
+          { type: "records", key: "first", table: seedGroups, records: () => [
+            { key: "group", values: { name: "Should not be inserted" } },
+          ] },
+          { type: "records", key: "missingIdentity", table: groupInsertion, records: () => [] },
+        ],
+      }), { transaction: false })).rejects.toThrow("Seed step 'missingIdentity' must declare an identity column.");
+
+      // The caller's transaction is still usable and has no partial seed writes.
+      await expect(transaction.select().from(seedGroups)).resolves.toEqual([]);
+    });
+  });
+
+  it("checks a physical table for existing rows only once across seed steps", async () => {
+    const database = drizzle(client);
+    const query = vi.spyOn(client, "query");
+    try {
+      await seedDatabase(database, defineDatabaseSeed({
+        steps: [
+          { type: "records", key: "first", table: seedGroups, records: () => [] },
+          { type: "records", key: "second", table: seedGroups, records: () => [] },
+        ],
+      }));
+
+      // Both declarations share the same preflight read.
+      const selects = query.mock.calls.filter(([statement]) => {
+        const text = typeof statement === "string" ? statement : (statement as { text?: string }).text;
+        return text?.startsWith("select ") && text.includes('from "seeder_group"');
+      });
+      expect(selects).toHaveLength(1);
+    } finally {
+      query.mockRestore();
+    }
+  });
+
   it("still rejects duplicate aliases in one step and rolls back the earlier insert", async () => {
     const database = drizzle(client);
     await expect(seedDatabase(database, defineDatabaseSeed({

@@ -160,6 +160,49 @@ describe("PostgreSQL pool lifecycle", () => {
     }
   });
 
+  it("reports a reused Error object when a later failure invalidates a successful health check", async () => {
+    const pool = new Pool();
+    pool.query = vi.fn(async () => ({})) as unknown as Pool["query"];
+    const onEvent = vi.fn();
+    const runtime = new PostgresPoolRuntime(pool, policy, onEvent);
+    const failure = new Error("connection lost");
+
+    try {
+      pool.emit("error", failure);
+      expect((await runtime.checkHealth()).state).toBe("healthy");
+      pool.emit("error", failure);
+      expect(runtime.snapshot().state).toBe("degraded");
+      expect(onEvent).toHaveBeenCalledTimes(2);
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("reports the exact elapsed acquisition time and omits failure fields on success", async () => {
+    const pool = new Pool();
+    const client = new EventEmitter() as PoolClient;
+    let finish!: Parameters<Pool["connect"]>[0];
+    pool.connect = vi.fn((callback) => { finish = callback; }) as unknown as Pool["connect"];
+    const onEvent = vi.fn();
+    const runtime = new PostgresPoolRuntime(pool, policy, onEvent);
+    const clock = vi.spyOn(performance, "now").mockReturnValue(50);
+
+    try {
+      const checkout = pool.connect();
+      clock.mockReturnValue(68);
+      finish(undefined, client, vi.fn());
+      await expect(checkout).resolves.toBe(client);
+      expect(runtime.snapshot().lastAcquisitionDurationMs).toBe(18);
+      expect(onEvent.mock.calls[0]?.[0]).toStrictEqual({
+        type: "acquisition", outcome: "success", timestamp: expect.any(Number), durationMs: 18,
+      });
+    } finally {
+      clock.mockRestore();
+      client.release?.();
+      await runtime.close();
+    }
+  });
+
   it("publishes successful shutdown, clears its timer and retains the last failure", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {

@@ -120,6 +120,8 @@ const importContacts = defineWorker({
 
 Yield one outcome per job, or return nothing to acknowledge the entire batch. Successful yields stay successful if later jobs fail. Handlers must tolerate replay: confirmed failures retry with backoff, exhausted failures enter dead-letter storage, and lease loss can cause redelivery.
 
+Each handler receives a copy of its reservation metadata. The scheduler uses the original job identity, lease token and correlation when persisting results. When yielding batch results, use the original IDs supplied by the scheduler.
+
 ## Run and limit consumption
 
 Start a worker workload when published jobs should be consumed, then size its concurrency for the available resources. These commands use the application's configured launcher.

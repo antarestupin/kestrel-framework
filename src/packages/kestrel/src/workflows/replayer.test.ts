@@ -39,6 +39,23 @@ const baseSnapshot: WorkflowActivationSnapshot = {
 };
 
 describe("WorkflowReplayer", () => {
+  it("settles after the handler's completed preparation is removed from the pending set", async () => {
+    let replayTurns = 0;
+    const replayer = new WorkflowReplayer({ yieldExecution: () => {
+      // Settled preparation must not make an otherwise completed activation keep yielding.
+      expect(++replayTurns).toBeLessThan(8);
+      return Promise.resolve();
+    } });
+    const preparation = Promise.withResolvers<string>();
+    const result = replayer.replay(baseSnapshot, (_input, context) => {
+      const prepared = context.prepare!(() => preparation.promise);
+      preparation.resolve("ready");
+      return prepared;
+    });
+
+    await expect(result).resolves.toEqual({ status: "completed", output: "ready", commands: [] });
+  });
+
   it("replays a failed capture once and resumes the handler's durable fallback", async () => {
     const capture = vi.fn(() => { throw new WorkflowActivityInfrastructureError("capture failed"); });
     const workflow = defineWorkflow({ name: "captured-failure", output: z.string(),
@@ -54,7 +71,13 @@ describe("WorkflowReplayer", () => {
       },
     });
     const adapter = new MemoryWorkflowAdapter();
-    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined));
+    let replayTurns = 0;
+    const replayer = new WorkflowReplayer({ yieldExecution: () => {
+      // Replay must settle after the recorded capture and timer are delivered.
+      expect(++replayTurns).toBeLessThan(25);
+      return setImmediate();
+    } });
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), { replayer });
     const handle = await new WorkflowClient(adapter).start(workflow, null);
     await scheduler.runOnce();
     expect(await adapter.getHistory(handle.executionId)).toContainEqual(expect.objectContaining({
@@ -82,6 +105,135 @@ describe("WorkflowReplayer", () => {
     await scheduler.runOnce();
     await expect(handle.status()).resolves.toMatchObject({ status: "failed", error: { message: failure.message } });
     await expect(adapter.getHistory(handle.executionId)).resolves.toEqual([]);
+  });
+
+  it("does not commit an invalid capture placeholder when the handler catches its encoding failure", async () => {
+    const failure = new Error("custom codec rejected the capture");
+    const caught = vi.fn();
+    const workflow = defineWorkflow({ name: "caught-capture-encoding",
+      handler: async (_input, context) => {
+        try {
+          await context.sideEffect(() => "unencodable");
+        } catch (error) {
+          caught(error);
+          if (error !== failure) throw error;
+          await context.sleep({ milliseconds: 0 });
+        }
+      },
+    });
+    const adapter = new MemoryWorkflowAdapter();
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
+      payloadCodec: {
+        encode: () => { throw failure; },
+        decode: (value) => jsonWorkflowPayloadCodec.decode(value),
+      },
+    });
+    const handle = await new WorkflowClient(adapter).start(workflow, null);
+    await scheduler.runOnce();
+    await expect(handle.status()).resolves.toMatchObject({ status: "failed", error: { message: failure.message } });
+    await expect(adapter.getHistory(handle.executionId)).resolves.toEqual([]);
+    expect(caught).toHaveBeenCalledExactlyOnceWith(failure);
+  });
+
+  it("reserves the first continuation while its asynchronous encoding is pending", async () => {
+    const encoded = Promise.withResolvers<number>();
+    const encode = vi.fn((value: unknown) => value === 1 ? encoded.promise : jsonWorkflowPayloadCodec.encode(value));
+    const replayer = new WorkflowReplayer();
+    const replaying = replayer.replay(baseSnapshot, async (_input, replay) => {
+      const context = new DurableWorkflowExecutionContext(replay, {
+        codec: { encode, decode: jsonWorkflowPayloadCodec.decode },
+        cancellationRequested: false, createUuid: () => "unused", now: () => 0, signals: [],
+      });
+      const first = context.continueAsNew(1);
+      const second = context.continueAsNew(2);
+      const outcomes = await Promise.allSettled([first, second]);
+      return { outcomes, input: context.continueAsNewInput };
+    });
+    try {
+      await setImmediate();
+    } finally {
+      encoded.resolve(1);
+    }
+    expect(await replaying).toMatchObject({
+      status: "completed",
+      output: { input: 1, outcomes: [
+        { status: "rejected", reason: { name: "WorkflowContinueAsNewInterrupt" } },
+        { status: "rejected", reason: new TypeError("A workflow activation can continue as new only once.") },
+      ] },
+    });
+    expect(encode).toHaveBeenCalledExactlyOnceWith(1);
+  });
+
+  it("rejects an empty explicit child identity before staging an adapter command", async () => {
+    const child = defineWorkflow({ name: "invalid.identity-child", handler: () => undefined });
+    const result = await new WorkflowReplayer().replay(baseSnapshot, (_input, replay) =>
+      new DurableWorkflowExecutionContext(replay, {
+        codec: jsonWorkflowPayloadCodec, cancellationRequested: false,
+        createUuid: () => "unused", now: () => 0, signals: [],
+      }).runChild(child, null, { executionId: "" }));
+    expect(result).toEqual({
+      status: "failed", error: new TypeError("Workflow execution IDs cannot be empty."), commands: [],
+    });
+  });
+
+  it("lets the handler recover from a continuation input that could not be encoded", async () => {
+    const encodeFailure = new Error("Continuation input rejected");
+    const result = await new WorkflowReplayer().replay(baseSnapshot, async (_input, replay) => {
+      const context = new DurableWorkflowExecutionContext(replay, {
+        codec: {
+          encode: (value) => { if (value === 1) throw encodeFailure; return jsonWorkflowPayloadCodec.encode(value); },
+          decode: jsonWorkflowPayloadCodec.decode,
+        },
+        cancellationRequested: false, createUuid: () => "unused", now: () => 0, signals: [],
+      });
+      await expect(context.continueAsNew(1)).rejects.toBe(encodeFailure);
+      await expect(context.continueAsNew(2)).rejects.toMatchObject({
+        name: "WorkflowContinueAsNewInterrupt", message: "Workflow requested continue-as-new.",
+      });
+      return context.continueAsNewInput;
+    });
+    expect(result).toEqual({ status: "completed", output: 2, commands: [] });
+  });
+
+  it.each([
+    ["", "target"], ["activity", ""],
+  ])("rejects an empty durable command identity %s/%s", async (kind, target) => {
+    const result = await new WorkflowReplayer().replay(baseSnapshot, (_input, context) =>
+      context.command(kind, target, null));
+    expect(result).toEqual({
+      status: "failed", error: new TypeError("Workflow command kind and target must not be empty."), commands: [],
+    });
+  });
+
+  it.each([
+    { name: "WorkflowActivityTimeoutError", type: WorkflowActivityTimeoutError,
+      fallback: { executionId: "unknown", sequence: -1, timeoutKind: "start-to-close" } },
+    { name: "WorkflowCancellationError", type: WorkflowCancellationError, fallback: { executionId: "unknown" } },
+    { name: "WorkflowSignalTimeoutError", type: WorkflowSignalTimeoutError,
+      fallback: { executionId: "unknown", signalName: "unknown" } },
+  ])("restores the typed legacy $name even without detail metadata", async ({ name, type, fallback }) => {
+    const error = { name, message: "Original durable failure", stack: "Original durable stack" };
+    const result = await new WorkflowReplayer().replay({
+      ...baseSnapshot, revision: 2, history: [scheduled(0, "recorded"), {
+        type: "command-completed", eventIndex: 1, sequence: 0, completionOrder: 0,
+        error, occurredAt: new Date(1),
+      }],
+    }, (_input, context) => context.command("activity", "recorded", null));
+    expect(result).toMatchObject({ status: "failed", error: { ...error, ...fallback }, commands: [] });
+    expect(result.status === "failed" && result.error).toBeInstanceOf(type);
+  });
+
+  it("keeps the native stack when a historical error has no saved stack", async () => {
+    const result = await new WorkflowReplayer().replay({
+      ...baseSnapshot, revision: 2, history: [scheduled(0, "recorded"), {
+        type: "command-completed", eventIndex: 1, sequence: 0, completionOrder: 0,
+        error: { name: "HistoricalError", message: "Recorded failure" }, occurredAt: new Date(1),
+      }],
+    }, (_input, context) => context.command("activity", "recorded", null));
+    expect(result).toMatchObject({
+      status: "failed", error: { name: "HistoricalError", message: "Recorded failure", stack: expect.any(String) },
+    });
+    expect(result.status === "failed" && result.error).not.toBeInstanceOf(WorkflowSignalTimeoutError);
   });
 
   it("waits for the actual encoded capture before returning a staged command", async () => {
@@ -228,7 +380,7 @@ describe("WorkflowReplayer", () => {
     const reached: boolean[] = [];
     const result = await new WorkflowReplayer().replay({ ...baseSnapshot, cancellationRequested: true, revision: 6, history: [
       scheduled(0, "completed", 0), completed(0, 0, "completed", 1),
-      scheduled(1, "first-pending", 2), scheduled(2, "second-pending", 3),
+      scheduled(2, "second-pending", 3), scheduled(1, "first-pending", 2),
       { type: "cancellation-requested", eventIndex: 4, occurredAt: new Date(4) },
       completed(2, 1, "too late", 5),
     ] }, async (_input, workflow) => {
@@ -246,6 +398,58 @@ describe("WorkflowReplayer", () => {
     });
     expect(reached).toEqual([false, false, true]);
     expect(result).toEqual({ status: "waiting", commands: [{ sequence: 3, kind: "activity", target: "compensate", payload: null }] });
+  });
+
+  it("does not mistake a consumed completed command for a durable suspension", async () => {
+    const result = await new WorkflowReplayer().replay({
+      ...baseSnapshot, revision: 2,
+      history: [scheduled(0, "complete"), completed(0, 0, "finished", 1)],
+    }, async (_input, replay) => {
+      await replay.command("activity", "complete", null);
+      return new Promise(() => undefined);
+    });
+    expect(result).toMatchObject({
+      status: "blocked", error: { name: "WorkflowInvalidSuspensionError" }, commands: [],
+    });
+  });
+
+  it("flushes a recorded completion needed by a pending preparation", async () => {
+    const completedReplay = vi.fn();
+    const rejectedReplay = vi.fn();
+    const replay = new WorkflowReplayer({ yieldExecution: () => Promise.resolve() });
+    void replay.replay({
+      ...baseSnapshot, revision: 4,
+      history: [scheduled(0, "first"), completed(0, 0, "one", 1),
+        scheduled(1, "second", 2), completed(1, 1, "two", 3)],
+    }, async (_input, context) => {
+      await context.command("activity", "first", null);
+      const second = context.command("activity", "second", null);
+      return context.prepare!(() => second);
+    }).then(completedReplay, rejectedReplay);
+    await setImmediate();
+    expect(completedReplay).toHaveBeenCalledExactlyOnceWith({ status: "completed", output: "two", commands: [] });
+    expect(rejectedReplay).not.toHaveBeenCalled();
+  });
+
+  it("propagates an unexpected replay scheduling failure", async () => {
+    const failure = new Error("Replay scheduling unavailable");
+    const replay = new WorkflowReplayer({ yieldExecution: () => Promise.reject(failure) });
+    await expect(replay.replay(baseSnapshot, () => new Promise(() => undefined))).rejects.toBe(failure);
+  });
+
+  it("delivers cancellation at the next boundary when earlier durable commands are already complete", async () => {
+    const cancellation = new WorkflowCancellationError(baseSnapshot.executionId);
+    const result = await new WorkflowReplayer().replay({
+      ...baseSnapshot, cancellationRequested: true, revision: 3,
+      history: [scheduled(0, "completed"), completed(0, 0, "finished", 1),
+        { type: "cancellation-requested", eventIndex: 2, occurredAt: new Date(2) }],
+    }, async (_input, replay) => {
+      expect(replay.canDeliverCancellation).toBe(false);
+      await expect(replay.command("activity", "completed", null)).resolves.toBe("finished");
+      expect(replay.canDeliverCancellation).toBe(true);
+      return replay.command("activity", "new", null, cancellation);
+    });
+    expect(result).toEqual({ status: "failed", error: cancellation, commands: [] });
   });
 
   it.each(["existing capture", "new capture", "new command"] as const)(
@@ -274,19 +478,22 @@ describe("WorkflowReplayer", () => {
     },
   );
 
-  it("blocks replay when a capture replaces a different recorded capture", async () => {
+  it.each([
+    { kind: "capture", expectedTarget: "original" },
+    { kind: "activity", expectedTarget: "renamed" },
+  ])("blocks replay when a capture replaces a recorded $kind with a different identity", async ({ kind, expectedTarget }) => {
     const capture = vi.fn(() => "different");
     const snapshot = {
       ...baseSnapshot,
       revision: 1,
-      history: [{ ...scheduled(0, "original"), kind: "capture" }],
+      history: [{ ...scheduled(0, expectedTarget), kind }],
     };
 
     // Replay must not silently rerun a side effect after its identity changes.
     await expect(new WorkflowReplayer().replay(snapshot, (_input, context) =>
       context.capture("renamed", capture))).resolves.toMatchObject({
       status: "blocked",
-      error: { name: "WorkflowNondeterminismError", sequence: 0 },
+      error: { name: "WorkflowNondeterminismError", sequence: 0, expectedKind: kind, actualKind: "capture" },
       commands: [],
     });
     expect(capture).not.toHaveBeenCalled();
@@ -309,7 +516,9 @@ describe("WorkflowReplayer", () => {
   it("validates total duration and includes whole days", () => {
     expect(workflowDurationToMilliseconds({ days: 2, milliseconds: 5 })).toBe(172_800_005);
     for (const milliseconds of [-1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
-      expect(() => workflowDurationToMilliseconds({ milliseconds })).toThrow(TypeError);
+      expect(() => workflowDurationToMilliseconds({ milliseconds })).toThrow(
+        "Workflow durations must resolve to safe non-negative milliseconds.",
+      );
     }
   });
 
@@ -361,7 +570,28 @@ describe("WorkflowReplayer", () => {
       new DurableWorkflowExecutionContext(workflow, {
         codec: jsonWorkflowPayloadCodec, cancellationRequested: false, createUuid: () => "unused", now: () => 0, signals: [],
       }).waitForSignal(signal as never));
-    expect(result).toEqual({ status: "failed", error: expect.any(TypeError), commands: [] });
+    expect(result).toEqual({ status: "failed", error: new TypeError(
+      'Signal "undeclared" is not declared by workflow execution "execution-1".',
+    ), commands: [] });
+  });
+
+  it("omits absent timeout and child options from durable commands", async () => {
+    const child = defineWorkflow({ name: "defaults.child", handler: () => undefined });
+    const signal = defineWorkflowSignal({ name: "defaults.signal", payload: z.null() });
+    const command = vi.fn().mockResolvedValue(null);
+    const context = new DurableWorkflowExecutionContext({
+      executionId: "defaults", version: 1, generation: 1, canDeliverCancellation: false,
+      command, capture: vi.fn(),
+    }, {
+      codec: jsonWorkflowPayloadCodec, cancellationRequested: false,
+      createUuid: () => "unused", now: () => 0, signals: [signal],
+    });
+    await expect(context.waitForSignal(signal)).resolves.toBeNull();
+    await expect(context.runChild(child, null)).resolves.toBeUndefined();
+    expect(command.mock.calls).toStrictEqual([
+      ["signal", signal.name, {}, undefined],
+      ["child", child.name, { input: null, version: 1 }, undefined],
+    ]);
   });
 
   it.each([
@@ -425,6 +655,54 @@ describe("WorkflowReplayer", () => {
     expect(result).toEqual({ status: "completed", output: "B", commands: [] });
   });
 
+  it("orders command slots by sequence when a history snapshot arrives out of order", async () => {
+    const result = await new WorkflowReplayer().replay({
+      ...baseSnapshot, revision: 4,
+      history: [scheduled(1, "second", 1), completed(1, 0, "second", 2),
+        completed(0, 1, "first", 3), scheduled(0, "first")],
+    }, async (_input, replay) => {
+      const first = replay.command("activity", "first", null);
+      const second = replay.command("activity", "second", null);
+      return Promise.all([first, second]);
+    });
+    expect(result).toEqual({ status: "completed", output: ["first", "second"], commands: [] });
+  });
+
+  it("does not ask the codec to decode an absent activity result on a legacy replay context", async () => {
+    const action = defineAction({
+      name: "optional.activity", input: z.null(), output: z.string().optional(), handler: () => undefined,
+    });
+    const decode = vi.fn(() => "not a real result");
+    const command = vi.fn().mockResolvedValue(undefined);
+    const context = new DurableWorkflowExecutionContext({
+      executionId: "legacy", version: 1, generation: 1, canDeliverCancellation: false,
+      command, capture: vi.fn(),
+    }, {
+      codec: { encode: jsonWorkflowPayloadCodec.encode.bind(jsonWorkflowPayloadCodec), decode },
+      cancellationRequested: false, createUuid: () => "unused", now: () => 0, signals: [],
+    });
+    await expect(context.run(action, null, { retry: { backoffCoefficient: 1 } })).resolves.toBeUndefined();
+    expect(decode).not.toHaveBeenCalled();
+    expect(command).toHaveBeenCalledExactlyOnceWith("activity", action.name, {
+      input: null, options: { maxAttempts: 1, initialDelayMs: 1_000, backoffCoefficient: 1 },
+    }, undefined);
+  });
+
+  it("delivers cancellation before encoding another continuation", async () => {
+    const encode = vi.fn();
+    const context = new DurableWorkflowExecutionContext({
+      executionId: "cancelled-run", version: 1, generation: 1, canDeliverCancellation: true,
+      command: vi.fn(), capture: vi.fn(),
+    }, {
+      codec: { encode, decode: jsonWorkflowPayloadCodec.decode },
+      cancellationRequested: true, createUuid: () => "unused", now: () => 0, signals: [],
+    });
+    expect(context.cancellationWasDelivered).toBe(false);
+    await expect(context.continueAsNew(null)).rejects.toBeInstanceOf(WorkflowCancellationError);
+    expect(context.cancellationWasDelivered).toBe(true);
+    expect(encode).not.toHaveBeenCalled();
+  });
+
   it("returns a blocked diagnostic for incompatible command history", async () => {
     const replayer = new WorkflowReplayer();
     const result = await replayer.replay({
@@ -438,6 +716,7 @@ describe("WorkflowReplayer", () => {
       status: "blocked",
       error: {
         name: "WorkflowNondeterminismError",
+        message: 'Workflow execution "execution-1" is non-deterministic at command 0: expected activity:old, received activity:new.',
         sequence: 0,
         expectedTarget: "old",
         actualTarget: "new",

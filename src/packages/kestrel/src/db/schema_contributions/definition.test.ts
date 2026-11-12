@@ -92,6 +92,19 @@ describe("database schema contributions", () => {
     expect(getDatabaseSchemaContributions({ target, unrelated: null, version: 1 })).toEqual([contribution]);
   });
 
+  it.each([
+    [null, "A database schema contribution must be an object."],
+    [{ id: 42, installSql: "SELECT 1;" }, "A database schema contribution requires a stable id."],
+    [{ id: "test:invalid", installSql: 42 }, 'Database schema contribution "test:invalid" requires install SQL.'],
+    [{ id: "test:invalid", installSql: "SELECT 1;", updateSql: [] },
+      'Database schema contribution "test:invalid" requires SQL text for "updateSql".'],
+  ] as const)("rejects malformed lifecycle data before attaching it (%j)", (input, diagnostic) => {
+    const target = {};
+    // JavaScript callers can bypass the TypeScript definition.
+    expect(() => defineDatabaseSchemaContribution(target, input as never)).toThrow(diagnostic);
+    expect(getDatabaseSchemaContributions({ target })).toEqual([]);
+  });
+
   it("derives the UNLOGGED lifecycle from a PostgreSQL table", () => {
     const schema = pgSchema("storage_test");
     const entries = defineUnloggedTable(schema.table("cache_entry", {
@@ -128,5 +141,9 @@ describe("database schema contributions", () => {
   it("preserves the normal SQL delimiter and the framework schema names", () => {
     expect(quoteSqlBody("SELECT 1;", "migration")).toBe("$migration$\nSELECT 1;\n$migration$");
     expect([devSchema.schemaName, utilsSchema.schemaName]).toEqual(["dev", "utils"]);
+    expect(getDatabaseSchemaContributions({ devSchema, utilsSchema }).map(({ installSql }) => installSql)).toEqual([
+      `COMMENT ON SCHEMA "dev" IS 'Disposable data used by local-development tools and diagnostics.';`,
+      `COMMENT ON SCHEMA "utils" IS 'Reusable operational infrastructure data.';`,
+    ]);
   });
 });

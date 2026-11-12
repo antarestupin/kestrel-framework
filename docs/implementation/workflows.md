@@ -84,6 +84,10 @@ Signals are durably appended once by their idempotency identity and return a rec
 
 Operational methods (`setPaused`, cancellation, force termination, retry, version recovery and continue-as-new) must use conditional state transitions and preserve history needed for diagnosis. Read methods must not mutate orchestration state except where their explicit wait contract requires notification. `continueAsNew()` archives one completed generation and creates its successor atomically.
 
+The memory adapter prepares a wake-up before writing a signal or completion, replacing a generation, recovering a blocked version or finalizing a child's result for its waiting parent. A retained concurrency permit is handed off in pending order after staging the successor tasks. If allocation fails during that handoff, the owner remains terminal and a later workflow poll retries admission.
+
+A child ID that already belongs to a terminal execution cannot satisfy a new child command. When the parent continues as new, its command sequence restarts. Generated child identities include the generation and explicit child IDs must remain distinct. A rejected child identity rolls back the activation's journal and task writes.
+
 Adapter failures reject and must not be represented as stale ownership. Store time governs leases and availability, no transaction may span workflow or activity code, and payload codecs must round-trip every persisted input, result, signal and side effect. The memory and PostgreSQL adapters implement the same semantic contract for deterministic tests and durable deployments.
 
 ## Programming model
@@ -179,7 +183,7 @@ The PostgreSQL adapter uses four driver round trips for any non-empty batch with
 | `workflow.now()` and `workflow.uuid()` | Convenience captures for replay-safe time and UUID generation. |
 | `workflow.continueAsNew(input)` | Atomically archives the completed history generation and starts a fresh generation under the same execution identity with validated input and the definition's current version. |
 
-Only JSON-compatible payloads cross the durable boundary by default. The payload codec is injectable, but input, output, signal, activity, child, and captured values must all be accepted by the selected codec. Replay waits for framework-owned asynchronous schema validation and codec work before deciding whether the handler has suspended. Parallel preparation retains its existing completion order when preparing commands for both old and new histories.
+Only JSON-compatible payloads cross the durable boundary by default. The payload codec is injectable, but input, output, signal, activity, child, and captured values must all be accepted by the selected codec. Replay waits for framework-owned asynchronous schema validation and codec work before deciding whether the handler has suspended. Parallel preparation retains its existing completion order when preparing commands for both old and new histories. A capture encoding failure fails the activation before publishing staged commands, even when the handler catches the codec error.
 
 The default codec rejects missing array entries at their payload path and normalizes negative zero to zero so in-memory and persisted payloads agree. A thrown value that cannot be converted to a diagnostic still produces durable failure metadata with a generic message.
 
@@ -218,6 +222,8 @@ const fulfillOrderWorkflow = defineWorkflow({
 ```
 
 `executions.limit` bounds active work for the complete definition. Keyed concurrency applies a separate limit per resolved business key, so order `A` can be serialized without blocking orders `B` and `C`. `enqueue` creates a pending execution, `reject` fails the competing start, and `return-existing` returns the oldest compatible active handle. `scope: "execution"` retains the keyed permit while the workflow waits for timers, signals, children, or activities; `active-work` releases compute admission during those waits.
+
+PostgreSQL hands a released execution permit to pending executions under the business-key advisory lock and skips rows held by other transactions. A workflow reservation poll checks a page of up to eight pending keys at most once per second per adapter, including when there are runnable tasks. The check runs in the reservation query and advances past examined keys even if they have no capacity. For keys with available capacity, recovery tries the same advisory lock, reads the oldest pending execution's limit, and recounts admitted executions under READ COMMITTED before promoting unlocked rows. Newly promoted tasks are available to later polls. Recovery preserves leases already returned by the reservation query if a separate repair fails.
 
 The key callback must produce a non-empty string for every accepted input. An invalid key rejects the start before storage.
 
@@ -313,7 +319,7 @@ const pollingWorkflow = defineWorkflow({
 });
 ```
 
-The execution keeps its `executionId`, parent/root links, original start identity, and logical concurrency permit. Its `historyGeneration` increments, its new input is schema-validated, and the new generation pins the definition's current version. The adapter archives the prior input, version, and immutable history in the same transaction that clears generation-local signals and tasks and creates the new workflow activation. `WorkflowHandle` consequently continues to address the whole logical chain, while a retry of the original start request remains idempotent. Continue-as-new rejects a generation with an unsettled durable command; parallel work must be joined before rotation.
+The execution keeps its `executionId`, parent/root links, original start identity, and logical concurrency permit. Its `historyGeneration` increments, its new input is schema-validated, and the new generation pins the definition's current version. The adapter archives the prior input, version, and immutable history in the same transaction that clears generation-local signals and tasks and creates the new workflow activation. `WorkflowHandle` consequently continues to address the whole logical chain, while a retry of the original start request remains idempotent. Continue-as-new rejects a generation with an unsettled durable command. Parallel work must be joined before rotation. The first continuation owns the activation while its input is being encoded. A child from an archived generation cannot be scheduled again under its terminal execution identity.
 
 ## Cancellation and compensation
 
@@ -489,7 +495,7 @@ const page = await operations.listExecutions({
 const details = await operations.getExecution(page.items[0]!.executionId);
 ```
 
-Execution search is ordered newest-first and uses an opaque cursor. Filters cover status, definition, version, date interval, parent, root, retry source, pause state, execution identity, and keyed-concurrency business key. Details return the current generation history, archived generation summaries, direct children, linked retries, and an execution-specific graph derived from durable state. The graph describes the path that actually ran; arbitrary handler code still prevents an exhaustive static state-machine diagram.
+Execution search is ordered newest-first and uses an opaque cursor. Filters cover status, definition, version, date interval, parent, root, retry source, pause state, execution identity, and keyed-concurrency business key. Details return the current generation history, archived generation summaries, direct children, linked retries, and an execution-specific graph derived from durable state. A child belongs to a command node only when the current generation's command identifies that child. Children from earlier generations remain attached to the execution node. The graph describes the path that actually ran, since arbitrary handler code prevents an exhaustive static state-machine diagram.
 
 ### Execution pagination contract
 

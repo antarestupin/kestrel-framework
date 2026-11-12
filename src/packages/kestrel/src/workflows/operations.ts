@@ -1,4 +1,5 @@
 import { uuidV7 } from "../utils/uuid.js";
+import { isObject } from "../utils/definitions.js";
 import { parseSchema } from "../definitions/index.js";
 
 import type {
@@ -12,6 +13,7 @@ import type {
 } from "./adapter.js";
 import { isTerminalWorkflowStatus } from "./adapter.js";
 import { WorkflowExecutionNotFoundError } from "./errors.js";
+import { workflowCommandIdentity } from "./history.js";
 import type {
   WorkflowCommandCompletedEvent,
   WorkflowCommandScheduledEvent,
@@ -331,6 +333,7 @@ export function buildWorkflowExecutionGraph(
     executionId: execution.executionId,
   }];
   const edges: WorkflowExecutionGraphEdge[] = [];
+  const childCommands = new Map<number, string>();
   const completions = new Map(history
     .filter((event): event is WorkflowCommandCompletedEvent =>
       event.type === "command-completed")
@@ -339,6 +342,16 @@ export function buildWorkflowExecutionGraph(
 
   for (const event of history) {
     if (event.type === "command-scheduled") {
+      if (event.kind === "child") {
+        const explicitId = isObject(event.payload) ? event.payload.executionId : undefined;
+        childCommands.set(event.sequence, typeof explicitId === "string"
+          ? explicitId
+          : workflowCommandIdentity({
+              executionId: execution.executionId,
+              historyGeneration: execution.historyGeneration,
+              sequence: event.sequence,
+            }));
+      }
       appendCommandNode(
         nodes,
         edges,
@@ -376,10 +389,13 @@ export function buildWorkflowExecutionGraph(
       ...(child.completedAt === undefined ? {} : { completedAt: child.completedAt }),
       executionId: child.executionId,
     });
+    const sequence = child.parentCommandSequence;
+    // A continuation can reuse a command sequence while an older child is
+    // still visible in the execution list. Only the current command owns it.
     edges.push({
-      from: child.parentCommandSequence === undefined
-        ? rootId
-        : `command:${child.parentCommandSequence}`,
+      from: sequence !== undefined && childCommands.get(sequence) === child.executionId
+        ? `command:${sequence}`
+        : rootId,
       to: id,
       kind: "child",
     });

@@ -103,6 +103,7 @@ export class DurableWorkflowExecutionContext<
   public readonly generation: number;
 
   private continuedInput: WorkflowPayload | undefined;
+  private continuationStarted = false;
 
   private cancellationDelivered = false;
 
@@ -192,6 +193,8 @@ export class DurableWorkflowExecutionContext<
     rawInput: WorkflowInput<Definition>,
     options: WorkflowChildOptions = {},
   ): Promise<WorkflowResult<Definition>> {
+    // Reject invalid identities in the handler before a durable commit is attempted.
+    if (options.executionId === "") throw new TypeError("Workflow execution IDs cannot be empty.");
     const payload = await this.prepare(async () => {
       const input = await parseSchema(workflow.inputSchema, rawInput, workflow.validation.input);
       const concurrency = resolveWorkflowConcurrency(workflow.concurrency, input);
@@ -259,10 +262,18 @@ export class DurableWorkflowExecutionContext<
   public async continueAsNew(input: Input): Promise<never> {
     const cancellation = this.takeCancellation();
     if (cancellation !== undefined) throw cancellation;
-    if (this.continuedInput !== undefined) {
+    if (this.continuationStarted) {
       throw new TypeError("A workflow activation can continue as new only once.");
     }
-    this.continuedInput = await this.prepare(() => this.options.codec.encode(input));
+    // Reserve the continuation before asynchronous encoding can interleave
+    // with another request from the same activation.
+    this.continuationStarted = true;
+    try {
+      this.continuedInput = await this.prepare(() => this.options.codec.encode(input));
+    } catch (error) {
+      this.continuationStarted = false;
+      throw error;
+    }
     throw new WorkflowContinueAsNewInterrupt();
   }
 
@@ -286,7 +297,7 @@ export class DurableWorkflowExecutionContext<
 }
 
 /** Internal control flow; the scheduler reads the request from the context. */
-class WorkflowContinueAsNewInterrupt extends Error {
+export class WorkflowContinueAsNewInterrupt extends Error {
   public constructor() {
     super("Workflow requested continue-as-new.");
     this.name = "WorkflowContinueAsNewInterrupt";

@@ -24,10 +24,11 @@
       "scope": "actions/**/*",
       "sourceFiles": 9,
       "state": "reviewed",
-      "focus": "All nine current source candidates assessed; 12 diagnostic/optional-metadata residuals classified; re-review after contract changes",
+      "focus": "Numbered pagination diagnostics, cursor validation and action composition",
       "evidence": [
         "actions-crud-pagination",
-        "actions-component"
+        "actions-component",
+        "actions-95-followup"
       ]
     },
     {
@@ -158,9 +159,10 @@
       "scope": "database/**/*",
       "sourceFiles": 8,
       "state": "reviewed",
-      "focus": "Maintenance commands, caller-owned transactions and generated identity isolation reviewed",
+      "focus": "Seed preflight, caller-owned transactions and generated identity ownership",
       "evidence": [
-        "database-storage-review"
+        "database-storage-review",
+        "database-95-followup"
       ]
     },
     {
@@ -168,10 +170,11 @@
       "scope": "db/**/*",
       "sourceFiles": 34,
       "state": "reviewed",
-      "focus": "Pool and query diagnostics, pagination, history, counters and schema contributions reviewed",
+      "focus": "Query instrumentation, pool recovery, migration validation, history and reference counters",
       "evidence": [
         "configuration-sample",
-        "db-storage-review"
+        "db-storage-review",
+        "db-95-followup"
       ]
     },
     {
@@ -388,7 +391,7 @@
       "scope": "workers/**/*",
       "sourceFiles": 23,
       "state": "reviewed",
-      "focus": "All 23 candidates assessed; scheduler admission and ownership, delivery, publication, adapters and contracts reviewed",
+      "focus": "Lease ownership, shutdown, adapter batches, scheduler and publication",
       "evidence": [
         "workers-scheduler",
         "workers-delivery-ownership-refresh",
@@ -399,7 +402,8 @@
         "workers-scheduler-review",
         "workers-delivery-review",
         "workers-adapters-review",
-        "workers-contracts-review"
+        "workers-contracts-review",
+        "workers-95-followup"
       ]
     },
     {
@@ -407,14 +411,15 @@
       "scope": "workflows/**/*",
       "sourceFiles": 38,
       "state": "reviewed",
-      "focus": "All 38 candidates assessed in 20 disjoint profiles; runtime, replay, operation and storage residuals classified",
+      "focus": "Replay, continuation, execution and child ownership, and durable adapters",
       "evidence": [
         "workflow-postgres-retry-races",
         "postgres-ownership",
         "workflow-task-ownership",
         "workflow-execution-retry",
         "workflow-terminal-control",
-        "workflows-component-review"
+        "workflows-component-review",
+        "workflows-95-followup"
       ]
     }
   ],
@@ -3146,6 +3151,371 @@
       },
       "analysis": "mutation_testing_final_wave.md",
       "limits": "Supplemental check of the shared shutdown fix. This scope does not change the historical full app aggregate."
+    },
+    {
+      "id": "actions-95-followup",
+      "date": "2026-11-12",
+      "components": [
+        "actions"
+      ],
+      "extent": "1 complete profiles across 9 candidate sources in actions/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 233,
+        "Survived": 5
+      },
+      "baselineCounts": {
+        "Killed": 226,
+        "Survived": 12
+      },
+      "mutationScore": 97.9,
+      "baselineMutationScore": 94.96,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 117,
+        "Survived": 1
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 115,
+        "Survived": 3
+      },
+      "baselineRevision": "c2a1fdb6f375e99d4280444148f15c3252d7d265",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/close95/",
+      "analysis": "mutation_testing_95_followup.md",
+      "profiles": [
+        "component-actions"
+      ],
+      "beforeSeconds": {
+        "component-actions": 350
+      },
+      "afterSeconds": {
+        "component-actions": 452
+      }
+    },
+    {
+      "id": "database-95-followup",
+      "date": "2026-11-12",
+      "components": [
+        "database"
+      ],
+      "extent": "1 complete profiles across 8 candidate sources in database/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 169,
+        "Survived": 6
+      },
+      "baselineCounts": {
+        "Killed": 172,
+        "Survived": 16
+      },
+      "mutationScore": 96.57,
+      "baselineMutationScore": 91.49,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 2
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 2
+      },
+      "baselineRevision": "c2a1fdb6f375e99d4280444148f15c3252d7d265",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/close95/",
+      "analysis": "mutation_testing_95_followup.md",
+      "profiles": [
+        "component-database"
+      ],
+      "beforeSeconds": {
+        "component-database": 144
+      },
+      "afterSeconds": {
+        "component-database": 163
+      }
+    },
+    {
+      "id": "db-95-followup",
+      "date": "2026-11-12",
+      "components": [
+        "db"
+      ],
+      "extent": "13 complete profiles across 34 candidate sources in db/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 2386,
+        "Survived": 114,
+        "RuntimeError": 118,
+        "Timeout": 10,
+        "NoCoverage": 2
+      },
+      "baselineCounts": {
+        "Killed": 2304,
+        "Survived": 186,
+        "Timeout": 10,
+        "RuntimeError": 126,
+        "NoCoverage": 9
+      },
+      "mutationScore": 95.38,
+      "baselineMutationScore": 92.23,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 650,
+        "RuntimeError": 117,
+        "Survived": 18
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 585,
+        "Survived": 55,
+        "RuntimeError": 126
+      },
+      "baselineRevision": "c2a1fdb6f375e99d4280444148f15c3252d7d265",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/close95/",
+      "analysis": "mutation_testing_95_followup.md",
+      "profiles": [
+        "db-provider",
+        "db-instrumentation",
+        "db-repository",
+        "db-history-declarations",
+        "db-history-column-types",
+        "db-history-identities",
+        "db-history-events",
+        "db-reference-counter-declarations",
+        "db-reference-counter-discovery",
+        "db-reference-counter-runtime",
+        "db-schema-table-metadata",
+        "db-schema-migrations",
+        "db-schema-descriptions"
+      ],
+      "beforeSeconds": {
+        "db-provider": 560,
+        "db-instrumentation": 353,
+        "db-repository": 242,
+        "db-history-declarations": 72,
+        "db-history-column-types": 111,
+        "db-history-identities": 89,
+        "db-history-events": 243,
+        "db-reference-counter-declarations": 129,
+        "db-reference-counter-discovery": 148,
+        "db-reference-counter-runtime": 296,
+        "db-schema-table-metadata": 96,
+        "db-schema-migrations": 349,
+        "db-schema-descriptions": 120
+      },
+      "afterSeconds": {
+        "db-provider": 463,
+        "db-instrumentation": 332,
+        "db-repository": 340,
+        "db-history-declarations": 79,
+        "db-history-column-types": 84,
+        "db-history-identities": 63,
+        "db-history-events": 203,
+        "db-reference-counter-declarations": 130,
+        "db-reference-counter-discovery": 141,
+        "db-reference-counter-runtime": 272,
+        "db-schema-table-metadata": 142,
+        "db-schema-migrations": 341,
+        "db-schema-descriptions": 146
+      }
+    },
+    {
+      "id": "workers-95-followup",
+      "date": "2026-11-12",
+      "components": [
+        "workers"
+      ],
+      "extent": "7 complete profiles across 23 candidate sources in workers/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 2094,
+        "Survived": 78,
+        "NoCoverage": 7,
+        "Timeout": 4
+      },
+      "baselineCounts": {
+        "Killed": 1915,
+        "Survived": 230,
+        "RuntimeError": 41,
+        "NoCoverage": 13,
+        "Timeout": 3
+      },
+      "mutationScore": 96.11,
+      "baselineMutationScore": 88.76,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 164,
+        "Survived": 22
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 118,
+        "Survived": 27,
+        "RuntimeError": 41
+      },
+      "baselineRevision": "c2a1fdb6f375e99d4280444148f15c3252d7d265",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/close95/",
+      "analysis": "mutation_testing_95_followup.md",
+      "profiles": [
+        "workers-contracts",
+        "workers-adapter-memory",
+        "workers-adapter-postgres",
+        "workers-adapter-schema",
+        "workers-delivery",
+        "workers-scheduler",
+        "workers-publication"
+      ],
+      "beforeSeconds": {
+        "workers-contracts": 359,
+        "workers-adapter-memory": 280,
+        "workers-adapter-postgres": 228,
+        "workers-adapter-schema": 269,
+        "workers-delivery": 381,
+        "workers-scheduler": 460,
+        "workers-publication": 207
+      },
+      "afterSeconds": {
+        "workers-contracts": 321,
+        "workers-adapter-memory": 315,
+        "workers-adapter-postgres": 255,
+        "workers-adapter-schema": 290,
+        "workers-delivery": 319,
+        "workers-scheduler": 69,
+        "workers-publication": 294
+      }
+    },
+    {
+      "id": "workflows-95-followup",
+      "date": "2026-11-12",
+      "components": [
+        "workflows"
+      ],
+      "extent": "26 complete profiles across 38 candidate sources in workflows/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 6672,
+        "Survived": 278,
+        "NoCoverage": 20,
+        "Timeout": 19,
+        "RuntimeError": 106
+      },
+      "baselineCounts": {
+        "Killed": 5928,
+        "Survived": 907,
+        "NoCoverage": 56,
+        "Timeout": 44,
+        "RuntimeError": 106
+      },
+      "mutationScore": 95.74,
+      "baselineMutationScore": 86.11,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 296,
+        "Survived": 42,
+        "RuntimeError": 106
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 288,
+        "Survived": 37,
+        "RuntimeError": 106,
+        "Timeout": 13
+      },
+      "baselineRevision": "c2a1fdb6f375e99d4280444148f15c3252d7d265",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/close95/",
+      "analysis": "mutation_testing_95_followup.md",
+      "profiles": [
+        "workflow-activation-memory",
+        "workflow-activation-postgres",
+        "workflow-memory-admission",
+        "workflow-memory-operations",
+        "workflow-memory-internals",
+        "workflow-memory-commands",
+        "workflow-memory-projections",
+        "workflow-memory-validation",
+        "workflow-postgres-start",
+        "workflow-postgres-reservation",
+        "workflow-postgres-activities",
+        "workflow-postgres-history",
+        "workflow-postgres-admission-internals",
+        "workflow-postgres-row-mapping",
+        "workflow-postgres-history-decoding",
+        "workflow-runtime",
+        "workflow-scheduler",
+        "workflow-transports",
+        "workflow-replay",
+        "workflow-operations",
+        "workflow-contracts",
+        "workflow-adapter-contracts",
+        "workflow-terminal-control",
+        "workflow-task-ownership",
+        "workflow-execution-retry",
+        "postgres-ownership"
+      ],
+      "beforeSeconds": {
+        "workflow-activation-memory": 182,
+        "workflow-activation-postgres": 63,
+        "workflow-memory-admission": 513,
+        "workflow-memory-operations": 364,
+        "workflow-memory-internals": 93,
+        "workflow-memory-commands": 335,
+        "workflow-memory-projections": 188,
+        "workflow-memory-validation": 293,
+        "workflow-postgres-start": 118,
+        "workflow-postgres-reservation": 202,
+        "workflow-postgres-activities": 96,
+        "workflow-postgres-history": 106,
+        "workflow-postgres-admission-internals": 147,
+        "workflow-postgres-row-mapping": 393,
+        "workflow-postgres-history-decoding": 299,
+        "workflow-runtime": 257,
+        "workflow-scheduler": 297,
+        "workflow-transports": 418,
+        "workflow-replay": 360,
+        "workflow-operations": 507,
+        "workflow-contracts": 473,
+        "workflow-adapter-contracts": 204,
+        "workflow-terminal-control": 247,
+        "workflow-task-ownership": 95,
+        "workflow-execution-retry": 162,
+        "postgres-ownership": 31
+      },
+      "afterSeconds": {
+        "workflow-activation-memory": 53,
+        "workflow-activation-postgres": 33,
+        "workflow-memory-admission": 197,
+        "workflow-memory-operations": 24,
+        "workflow-memory-internals": 95,
+        "workflow-memory-commands": 93,
+        "workflow-memory-projections": 75,
+        "workflow-memory-validation": 93,
+        "workflow-postgres-start": 18,
+        "workflow-postgres-reservation": 57,
+        "workflow-postgres-activities": 118,
+        "workflow-postgres-history": 114,
+        "workflow-postgres-admission-internals": 23,
+        "workflow-postgres-row-mapping": 317,
+        "workflow-postgres-history-decoding": 295,
+        "workflow-runtime": 256,
+        "workflow-scheduler": 25,
+        "workflow-transports": 166,
+        "workflow-replay": 26,
+        "workflow-operations": 40,
+        "workflow-contracts": 436,
+        "workflow-adapter-contracts": 78,
+        "workflow-terminal-control": 101,
+        "workflow-task-ownership": 12,
+        "workflow-execution-retry": 71,
+        "postgres-ownership": 47
+      }
     }
   ]
 }

@@ -7,15 +7,28 @@ import {
 import { z } from "zod";
 
 import { defineAction } from "../actions/index.js";
+import { ExecutionContext } from "../app/execution_context.js";
 import {
   ActionWorkflowActivityTransport,
   EmbeddedWorkflowActivityTransport,
   executeWorkflowActivityWithTimeout,
+  getWorkflowActivityExecutionContext,
+  setWorkflowActivityExecutionContext,
   toWorkflowActivityExecution,
   type WorkflowActivityExecution,
 } from "./activity_transport.js";
 
 describe("ActionWorkflowActivityTransport", () => {
+  it("projects a legacy activity as generation one without exposing its payload", () => {
+    const context = new ExecutionContext();
+    const activity = createActivity();
+    expect(getWorkflowActivityExecutionContext(context)).toBeUndefined();
+    setWorkflowActivityExecutionContext(context, activity);
+    expect(getWorkflowActivityExecutionContext(context)).toBe(activity);
+    expect(context.get("workflow.generation")).toBe(1);
+    expect(context.get("workflow.payload")).toBeUndefined();
+  });
+
   it("gives the same command sequence a different effect identity after continue-as-new", () => {
     const task = {
       id: "activity-task",
@@ -45,8 +58,78 @@ describe("ActionWorkflowActivityTransport", () => {
     expect(toWorkflowActivityExecution({ ...task, payload: { input: null, options: {
       maxAttempts: 0, initialDelayMs: -1, backoffCoefficient: "invalid",
     } } })).toMatchObject({ payload: null, retry: { maxAttempts: 1, initialDelayMs: 1_000, backoffCoefficient: 2 } });
-    expect(() => toWorkflowActivityExecution({ ...task, kind: "timer", payload: null })).toThrow(TypeError);
-    expect(() => toWorkflowActivityExecution(task)).toThrow(TypeError);
+    for (const malformed of [
+      { ...task, kind: "timer" as const, payload: null },
+      { ...task, commandSequence: undefined, payload: null },
+      { ...task, target: undefined, payload: null },
+      task,
+    ]) {
+      expect(() => toWorkflowActivityExecution(malformed as typeof task)).toThrow(
+        new TypeError('Workflow task "task" is not a valid activity.'),
+      );
+    }
+  });
+
+  it.each([null, [1, "input"], "input", false, { options: {} }, { input: 2, options: null }, { input: 2, options: [] }])(
+    "preserves legacy activity input %j without manufacturing a deadline",
+    (payload) => {
+      const task = { id: "legacy-task", executionId: "legacy", kind: "activity" as const,
+        commandSequence: 4, target: "legacy.action", attempt: 1 };
+      expect(toWorkflowActivityExecution({ ...task, payload })).toStrictEqual({
+        taskId: task.id, executionId: task.executionId, sequence: 4, historyGeneration: 1,
+        target: task.target, payload, attempt: 1, idempotencyKey: "legacy:4",
+        retry: { maxAttempts: 1, initialDelayMs: 1_000, backoffCoefficient: 2 },
+      });
+    },
+  );
+
+  it.each([
+    { maxAttempts: 3, initialDelayMs: 0, expected: { maxAttempts: 3, initialDelayMs: 0 } },
+    { maxAttempts: 1.5, initialDelayMs: 1.5, expected: { maxAttempts: 1, initialDelayMs: 1_000 } },
+    { maxAttempts: "3", initialDelayMs: "2", expected: { maxAttempts: 1, initialDelayMs: 1_000 } },
+  ])("validates the stored retry bounds and keeps both deadlines", ({ maxAttempts, initialDelayMs, expected }) => {
+    const activity = toWorkflowActivityExecution({
+      id: "scheduled", executionId: "run", historyGeneration: 2, kind: "activity",
+      commandSequence: 1, target: "paid", attempt: 2,
+      payload: { input: null, options: { maxAttempts, initialDelayMs, backoffCoefficient: 3,
+        maxDelayMs: 300, scheduleToCloseTimeoutMs: 1_000, startToCloseTimeoutMs: 200 } },
+    });
+    expect(activity).toEqual({
+      taskId: "scheduled", executionId: "run", historyGeneration: 2, sequence: 1,
+      target: "paid", attempt: 2, idempotencyKey: "run:1:generation-2", payload: null,
+      retry: { ...expected, backoffCoefficient: 3, maxDelayMs: 300 },
+      scheduleToCloseTimeoutMs: 1_000, startToCloseTimeoutMs: 200,
+    });
+  });
+
+  it.each([false, true])("cleans an owned activity timer after an early settlement (failure=%s)", async (fails) => {
+    vi.useFakeTimers();
+    const failure = new Error("Activity ended");
+    const abort = vi.fn();
+    const resolve = vi.fn();
+    const reject = vi.fn();
+    const execute = vi.fn<import("./activity_transport.js").WorkflowActivityTransport["execute"]>(
+      (_activity, signal) => {
+        signal.addEventListener("abort", abort, { once: true });
+        return fails ? Promise.reject(failure) : Promise.resolve("ready");
+      },
+    );
+    try {
+      void executeWorkflowActivityWithTimeout(
+        { execute }, { ...createActivity(), startToCloseTimeoutMs: 50 }, new AbortController().signal, false,
+      ).then(resolve, reject);
+      await vi.advanceTimersByTimeAsync(0);
+      if (fails) {
+        expect(reject).toHaveBeenCalledExactlyOnceWith(failure);
+        expect(resolve).not.toHaveBeenCalled();
+      } else {
+        expect(resolve).toHaveBeenCalledExactlyOnceWith("ready");
+        expect(reject).not.toHaveBeenCalled();
+      }
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(abort).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
   });
 
   it("fails explicitly for missing targets in both transport modes", async () => {
@@ -69,6 +152,26 @@ describe("ActionWorkflowActivityTransport", () => {
     expect(handler).toHaveBeenCalledExactlyOnceWith(activity.payload, expect.objectContaining({
       historyGeneration: 2, scheduleToCloseTimeoutMs: 60, startToCloseTimeoutMs: 30,
     }), signal);
+  });
+
+  it("passes the caller's signal and omits absent metadata for an unbounded legacy activity", async () => {
+    const activity = createActivity();
+    const signal = new AbortController().signal;
+    const handler = vi.fn(() => null);
+    const transport = new EmbeddedWorkflowActivityTransport(() => handler);
+    await expect(executeWorkflowActivityWithTimeout(transport, activity, signal, false)).resolves.toBeNull();
+    const { payload, ...metadata } = activity;
+    expect(handler.mock.calls).toStrictEqual([[payload, metadata, signal]]);
+  });
+
+  it("does not create optional deadlines from invalid stored option values", () => {
+    const activity = toWorkflowActivityExecution({
+      id: "task", executionId: "run", commandSequence: 0, kind: "activity", target: "work", attempt: 1,
+      payload: { input: null, options: { maxDelayMs: "soon", scheduleToCloseTimeoutMs: "later", startToCloseTimeoutMs: null } },
+    });
+    expect(activity.retry).toStrictEqual({ maxAttempts: 1, initialDelayMs: 1_000, backoffCoefficient: 2 });
+    expect(activity).not.toHaveProperty("scheduleToCloseTimeoutMs");
+    expect(activity).not.toHaveProperty("startToCloseTimeoutMs");
   });
 
   it("validates Action input and output around the injected execution scope", async () => {

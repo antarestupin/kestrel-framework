@@ -1,8 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
-import { getTableColumns } from "drizzle-orm";
+import { getTableColumns, sql } from "drizzle-orm";
 import { getTableConfig, type PgDatabase } from "drizzle-orm/pg-core";
 import { seed } from "drizzle-seed";
 
+import { isObject } from "../../utils/definitions.js";
 import type {
   DatabaseGeneratedSeedStep,
   DatabaseRecordSeedStep,
@@ -19,7 +20,7 @@ export async function seedDatabase(
   definition: DatabaseSeedDefinition,
   options: DatabaseSeedOptions = {},
 ): Promise<void> {
-  validateStepKeys(definition.steps);
+  validateSteps(definition.steps);
   const operation = async (executor: PgDatabase<any, any>) => {
     await assertTablesAreEmpty(executor, definition.steps);
     await executeSeed(executor, definition, options.now ?? new Date());
@@ -33,8 +34,8 @@ export async function seedDatabase(
   await database.transaction(operation);
 }
 
-/** Rejects ambiguous definition keys before opening the transaction. */
-function validateStepKeys(steps: readonly DatabaseSeedStep[]): void {
+/** Checks each step's metadata before any seed writes, even for a reused physical table. */
+function validateSteps(steps: readonly DatabaseSeedStep[]): void {
   const keys = new Set<string>();
 
   for (const step of steps) {
@@ -42,6 +43,7 @@ function validateStepKeys(steps: readonly DatabaseSeedStep[]): void {
       throw new Error(`Duplicate seed step '${step.key}'.`);
     }
 
+    resolveIdentity(step);
     keys.add(step.key);
   }
 }
@@ -75,9 +77,7 @@ async function executeSeed(
 
     await seed(database, schema, {
       ...(definition.seed === undefined ? {} : { seed: definition.seed }),
-      ...(definition.version === undefined
-        ? {}
-        : { version: definition.version }),
+      ...(definition.version === undefined ? {} : { version: definition.version }),
     }).refine((generators) => ({
       [step.key]: {
         count: step.count,
@@ -110,9 +110,8 @@ async function assertTablesAreEmpty(
     }
 
     visited.add(tableKey);
-    const identity = resolveIdentity(step);
     const rows = await database
-      .select({ value: identity })
+      .select({ present: sql<number>`1` })
       .from(step.table)
       .limit(1);
 
@@ -128,9 +127,9 @@ async function assertTablesAreEmpty(
 function excludePreviousIdentities(current: unknown[], previous: readonly unknown[]): unknown[] {
   if (previous.length === 0) return current;
   const existing = new Set(previous);
-  const structured = previous.filter((value) => value !== null && typeof value === "object");
+  const structured = previous.filter(isObject);
   return current.filter((value) => !existing.has(value)
-    && (value === null || typeof value !== "object"
+    && (!isObject(value)
       || !structured.some((oldValue) => isDeepStrictEqual(oldValue, value))));
 }
 

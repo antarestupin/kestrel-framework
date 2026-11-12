@@ -48,7 +48,7 @@ export interface MemoryWorkerAdapterOptions extends WorkerPublicationBudgets {
 export class MemoryWorkerAdapter implements WorkerAdapter {
   public readonly acknowledgementGrouping: WorkerAcknowledgementGrouping;
 
-  private readonly jobs = new Map<string, StoredJob>();
+  private jobs = new Map<string, StoredJob>();
 
   private readonly deadLetters: DeadLetterJob[] = [];
 
@@ -75,7 +75,8 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
   ): Promise<readonly string[]> {
     // Direct adapter calls obey the same contract as WorkerClient publications.
     const snapshots = snapshotWorkerRequests(requests, this.budgets);
-    const now = this.now();
+    // Keep timestamps returned by a caller-owned clock out of durable state.
+    const now = new Date(this.now());
     const stagedJobs = new Map(this.jobs);
     const jobIds = snapshots.map((request) => {
       if (request.identity !== undefined) {
@@ -116,8 +117,7 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
     });
 
     // Commit only after every identity in the batch has been validated.
-    this.jobs.clear();
-    for (const [id, job] of stagedJobs) this.jobs.set(id, job);
+    this.jobs = stagedJobs;
 
     return jobIds;
   }
@@ -126,7 +126,7 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
     request: ReserveJobsRequest,
   ): Promise<readonly ReservedJob[]> {
     validateReserveRequest(request);
-    const now = this.now();
+    const now = new Date(this.now());
     const selected: StoredJob[] = [];
     const selectedIds = new Set<string>();
 
@@ -187,8 +187,10 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
     jobs: readonly RetryJobRequest[],
   ): Promise<readonly JobReservationRef[]> {
     return this.mutate(jobs, (stored, request) => {
-      stored.availableAt = request.retryAt;
-      stored.lastError = request.error;
+      const availableAt = new Date(request.retryAt);
+      const lastError = { ...request.error };
+      stored.availableAt = availableAt;
+      stored.lastError = lastError;
       delete stored.reservedAt;
       delete stored.reservationToken;
     });
@@ -198,7 +200,7 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
     jobs: readonly DeferJobRequest[],
   ): Promise<readonly JobReservationRef[]> {
     return this.mutate(jobs, (stored, request) => {
-      stored.availableAt = request.availableAt;
+      stored.availableAt = new Date(request.availableAt);
       stored.attempt = Math.max(0, stored.attempt - 1);
       delete stored.reservedAt;
       delete stored.reservationToken;
@@ -209,8 +211,9 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
     jobs: readonly DeadLetterJobRequest[],
   ): Promise<readonly JobReservationRef[]> {
     return this.mutate(jobs, (stored, request) => {
-      this.jobs.delete(stored.id);
-      this.deadLetters.push({
+      // Prepare the record before deleting its live reservation. ID generation
+      // can fail, and a failed move must leave a retryable source record.
+      const deadLetter: DeadLetterJob = {
         id: this.createId(),
         originalJobId: stored.id,
         ...(stored.identity === undefined ? {} : { identity: stored.identity }),
@@ -224,10 +227,12 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
           ? {}
           : { executionId: stored.executionId }),
         attempt: stored.attempt,
-        error: request.error,
+        error: { ...request.error },
         createdAt: stored.createdAt,
-        failedAt: this.now(),
-      });
+        failedAt: new Date(this.now()),
+      };
+      this.deadLetters.push(deadLetter);
+      this.jobs.delete(stored.id);
     });
   }
 
@@ -235,7 +240,7 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
     jobs: readonly JobReservationRef[],
   ): Promise<readonly JobReservationRef[]> {
     return this.mutate(jobs, (stored) => {
-      stored.availableAt = this.now();
+      stored.availableAt = new Date(this.now());
       delete stored.reservedAt;
       delete stored.reservationToken;
     });

@@ -107,4 +107,30 @@ describe("workflow PostgreSQL schema", () => {
       ["parent_execution_id", "created_at"], ["root_execution_id", "created_at"], ["retry_of_execution_id"],
     ]);
   });
+
+  it("preserves durable index identities and server-side timestamp defaults", () => {
+    // Migration tooling compares index names and defaults across revisions.
+    const indexes = Object.fromEntries(Object.values(tables).map((table) => {
+      const config = getTableConfig(table);
+      return [config.name, config.indexes.map(({ config: index }) => index.name)];
+    }));
+    expect(indexes).toEqual({
+      dispatch_outbox: ["dispatch_outbox_command_idx", "dispatch_outbox_available_idx"],
+      execution: ["execution_status_updated_idx", "execution_definition_version_idx", "execution_parent_idx",
+        "execution_root_idx", "execution_retry_idx"],
+      history_archive: [],
+      history_event: ["history_command_schedule_idx", "history_command_completion_idx"],
+      signal: ["signal_execution_idempotency_idx", "signal_consumption_idx"],
+      task: ["task_reservation_idx", "task_execution_idx", "task_workflow_wakeup_idx"],
+    });
+    const dialect = new PgDialect();
+    for (const column of [
+      workflowTasks.availableAt, workflowTasks.createdAt, workflowDispatchOutbox.availableAt,
+      workflowDispatchOutbox.createdAt, workflowExecutions.createdAt, workflowExecutions.updatedAt,
+      workflowHistoryArchives.continuedAt, workflowHistoryEvents.occurredAt, workflowSignals.receivedAt,
+    ]) {
+      expect(column.default).toBeInstanceOf(SQL);
+      expect(dialect.sqlToQuery(column.default as SQL).sql).toBe("now()");
+    }
+  });
 });

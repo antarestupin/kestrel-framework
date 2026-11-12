@@ -68,5 +68,11 @@ export function snapshotWorkerRequests(
   budgets: WorkerPublicationBudgets,
 ): readonly EnqueueJobRequest[] {
   const guard = new WorkerPublicationBudgetGuard(budgets, requests.length);
-  return requests.map((request) => guard.snapshot(request));
+  // Array iteration visits empty slots so storage cannot publish a partial batch.
+  const snapshots: EnqueueJobRequest[] = [];
+  for (const [index, request] of requests.entries()) {
+    if (request === undefined) throw new TypeError(`Missing worker publication request at index ${index}.`);
+    snapshots.push(guard.snapshot(request));
+  }
+  return snapshots;
 }

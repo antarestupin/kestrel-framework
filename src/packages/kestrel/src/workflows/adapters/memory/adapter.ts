@@ -107,6 +107,12 @@ interface StoredWorkflowActivityDispatch {
   createdAt: Date;
 }
 
+interface WorkflowAdmission {
+  readonly workflowName: string;
+  readonly key: string;
+  readonly limit: number;
+}
+
 /** Process-local workflow storage used by clients, tests, and phase one. */
 export class MemoryWorkflowAdapter implements WorkflowAdapter {
   public readonly activityDispatchMode: WorkflowActivityDispatchMode;
@@ -138,6 +144,8 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
 
   private readonly dispatches = new Map<string, StoredWorkflowActivityDispatch>();
 
+  private readonly deferredAdmissions = new Map<string, WorkflowAdmission>();
+
   private readonly now: () => Date;
 
   private readonly createSignalId: () => string;
@@ -148,7 +156,9 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
 
   public constructor(options: MemoryWorkflowAdapterOptions = {}) {
     this.activityDispatchMode = options.activityDispatchMode ?? "embedded";
-    this.now = options.now ?? (() => new Date());
+    const now = options.now;
+    // A caller may reuse and mutate the Date returned by its clock.
+    this.now = now == null ? () => new Date() : () => new Date(now.call(this));
     this.createSignalId = options.createSignalId ?? uuidV7;
     this.createTaskId = options.createTaskId ?? uuidV7;
     this.createReservationToken = options.createReservationToken ?? uuidV7;
@@ -406,13 +416,6 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       receivedAt: this.now(),
     };
 
-    this.signals.push(signal);
-
-    if (idempotencyMapKey !== undefined) {
-      this.signalByIdempotencyKey.set(idempotencyMapKey, signal);
-    }
-
-
     const history = this.getRequiredHistory(request.executionId);
     const event: WorkflowSignalReceivedEvent = {
       type: "signal-received",
@@ -422,12 +425,18 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       payload: cloneWorkflowPayload(signal.payload),
       occurredAt: new Date(signal.receivedAt),
     };
+    const updatedAt = this.now();
+    // Allocate the wake-up before recording the signal or its idempotency key.
+    if (execution.concurrencyAdmitted) {
+      this.enqueueWorkflowTask(request.executionId, updatedAt);
+    }
+    this.signals.push(signal);
+    if (idempotencyMapKey !== undefined) {
+      this.signalByIdempotencyKey.set(idempotencyMapKey, signal);
+    }
     history.push(event);
     execution.revision += 1;
-    execution.updatedAt = this.now();
-    if (execution.concurrencyAdmitted) {
-      this.enqueueWorkflowTask(request.executionId, execution.updatedAt);
-    }
+    execution.updatedAt = updatedAt;
 
     return { id: signal.id, accepted: true };
   }
@@ -438,6 +447,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     validateReservationRequest(request);
     const now = this.now();
     const kinds = new Set(request.kinds);
+    const deferredFailure = kinds.has("workflow") ? this.retryDeferredAdmissions(now) : undefined;
     const candidates = [...this.tasks.values()]
       .filter((task) =>
         kinds.has(task.kind)
@@ -496,9 +506,12 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       }
     }
 
-    return selected.map((task) => {
+    // A failed handoff must not prevent unrelated tasks from being leased.
+    if (selected.length === 0 && deferredFailure !== undefined) throw deferredFailure.error;
+    // Allocate every token before claiming any task in the batch.
+    const reservations = selected.map((task) => ({ task, reservationToken: this.createReservationToken() }));
+    return reservations.map(({ task, reservationToken }) => {
       const execution = this.getRequiredExecution(task.executionId);
-      const reservationToken = this.createReservationToken();
       task.attempt += 1;
       task.reservedAt = now;
       task.reservationToken = reservationToken;
@@ -584,7 +597,17 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       };
     });
 
-    let completedSynchronously = false;
+    // An immediate completion must be able to schedule the next activation before changing the journal.
+    const signals = this.matchBufferedSignals(execution.executionId, history, request.commands);
+    const shouldWake = request.outcome.status === "waiting"
+      && (signals.length > 0 || preparedCommands.some(({ command }) => command.kind === "capture"));
+    const wake = shouldWake
+      ? this.prepareWorkflowTask(execution.executionId, now, undefined, task.id)
+      : undefined;
+    const completeParent = isTerminalWorkflowStatus(request.outcome.status)
+      ? this.prepareParentCompletion(execution, now)
+      : undefined;
+
     for (const { command, apply } of preparedCommands) {
       const event: WorkflowCommandScheduledEvent = {
         type: "command-scheduled",
@@ -597,23 +620,22 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       };
       history.push(event);
       execution.revision += 1;
-      completedSynchronously = apply() || completedSynchronously;
+      apply();
     }
 
-    completedSynchronously = this.consumeBufferedSignals(execution, now)
-      || completedSynchronously;
+    for (const { signal, sequence } of signals) {
+      signal.consumedBySequence = sequence;
+      this.appendCompletion(execution, sequence, now, { result: signal.payload, sourceId: signal.id });
+      this.deleteCommandTasks(execution.executionId, sequence);
+    }
 
     this.tasks.delete(task.id);
     execution.updatedAt = now;
-    this.applyActivationOutcome(execution, request.outcome, now);
+    this.applyActivationOutcome(execution, request.outcome, now, completeParent);
 
-    if (
-      completedSynchronously
-      && !isTerminalWorkflowStatus(execution.status)
-      && execution.status !== "blocked"
-    ) {
+    if (shouldWake) {
       execution.status = "queued";
-      this.enqueueWorkflowTask(execution.executionId, now);
+      if (wake !== undefined) this.tasks.set(wake.id, wake);
     }
     return true;
   }
@@ -679,12 +701,14 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       occurredAt: now,
     };
 
+    // The current reservation remains retryable if allocating its successor fails.
+    const wake = this.prepareWorkflowTask(request.executionId, now);
     history.push(event);
     execution.revision += 1;
     execution.status = "queued";
     execution.updatedAt = now;
     this.tasks.delete(task.id);
-    this.enqueueWorkflowTask(request.executionId, now);
+    if (wake !== undefined) this.tasks.set(wake.id, wake);
     return true;
   }
 
@@ -712,8 +736,8 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
         left.availableAt.getTime() - right.availableAt.getTime())
       .slice(0, request.limit);
 
-    return selected.map((dispatch) => {
-      const reservationToken = this.createReservationToken();
+    const reservations = selected.map((dispatch) => ({ dispatch, reservationToken: this.createReservationToken() }));
+    return reservations.map(({ dispatch, reservationToken }) => {
       dispatch.attempt += 1;
       dispatch.reservedAt = now;
       dispatch.reservationToken = reservationToken;
@@ -746,7 +770,8 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
   public async completeExternalActivity(
     request: CompleteExternalWorkflowActivityRequest,
   ): Promise<boolean> {
-    const execution = this.getRequiredExecution(request.executionId);
+    const execution = this.executions.get(request.executionId);
+    if (execution === undefined) return false;
     // Results written by an older generation may be retried until the Worker acknowledges them.
     const historyGeneration = request.historyGeneration ?? 1;
     if (historyGeneration !== execution.historyGeneration) {
@@ -774,7 +799,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     const completionOrder = history.filter(
       (event) => event.type === "command-completed",
     ).length;
-    history.push({
+    const event: WorkflowCommandCompletedEvent = {
       type: "command-completed",
       eventIndex: execution.revision,
       sequence: request.sequence,
@@ -786,11 +811,13 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
           : { result: cloneWorkflowPayload(request.result) }
         : { error: cloneWorkflowError(request.error) }),
       occurredAt: now,
-    });
+    };
+    // An external result is acknowledged only after its wake-up can be queued.
+    this.enqueueWorkflowTask(request.executionId, now);
+    history.push(event);
     execution.revision += 1;
     execution.status = "queued";
     execution.updatedAt = now;
-    this.enqueueWorkflowTask(request.executionId, now);
     return true;
   }
 
@@ -815,6 +842,9 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     }
 
     const now = this.now();
+    const completeParent = execution.status === "pending"
+      ? this.prepareParentCompletion(execution, now)
+      : undefined;
     const event: WorkflowCancellationRequestedEvent = {
       type: "cancellation-requested",
       eventIndex: execution.revision,
@@ -829,7 +859,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       execution.status = "cancelled";
       execution.completedAt = now;
       execution.updatedAt = now;
-      this.completeParentCommand(execution, now);
+      completeParent?.();
       this.releaseConcurrency(execution, now);
       this.resolveTerminalWaiters(execution);
       return true;
@@ -886,6 +916,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     }
 
     const now = this.now();
+    const completeParent = this.prepareParentCompletion(execution, now);
     execution.status = "terminated";
     execution.error = { name: "WorkflowExecutionTerminatedError", message: reason };
     execution.updatedAt = now;
@@ -895,7 +926,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     for (const [dispatchId, dispatch] of this.dispatches) {
       if (dispatch.executionId === executionId) this.dispatches.delete(dispatchId);
     }
-    this.completeParentCommand(execution, now);
+    completeParent?.();
     this.terminateOpenChildren(executionId, reason);
     this.releaseConcurrency(execution, now);
     // Waiters observe the final terminal snapshot after the retained permit is released.
@@ -1047,10 +1078,12 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     }
 
     const now = this.now();
+    // Preserve the blocked state if creating the recovery wake-up fails.
+    const wake = this.prepareWorkflowTask(execution.executionId, now);
     execution.status = "queued";
     execution.updatedAt = now;
     delete execution.error;
-    this.enqueueWorkflowTask(execution.executionId, now);
+    if (wake !== undefined) this.tasks.set(wake.id, wake);
     return true;
   }
 
@@ -1076,6 +1109,9 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     const history = this.getRequiredHistory(request.executionId);
     assertCommandsSettledBeforeContinuation(request.executionId, history);
     const now = this.now();
+    const nextInput = cloneWorkflowPayload(request.input);
+    // Keep the original activation available until its successor has an identity.
+    const nextTaskId = this.createTaskId();
     const archives = this.historyArchives.get(request.executionId) ?? [];
     archives.push({
       executionId: request.executionId,
@@ -1107,7 +1143,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     this.histories.set(request.executionId, []);
     execution.workflowVersion = request.workflowVersion;
     execution.historyGeneration += 1;
-    execution.input = cloneWorkflowPayload(request.input);
+    execution.input = nextInput;
     execution.revision = 0;
     execution.status = "queued";
     execution.cancellationRequested = false;
@@ -1115,7 +1151,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     delete execution.output;
     delete execution.error;
     delete execution.completedAt;
-    this.enqueueWorkflowTask(request.executionId, now);
+    this.enqueueWorkflowTask(request.executionId, now, nextTaskId);
     return true;
   }
 
@@ -1153,6 +1189,7 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       .map((signal) => ({
         ...signal,
         payload: cloneWorkflowPayload(signal.payload),
+        receivedAt: new Date(signal.receivedAt),
       }));
   }
 
@@ -1178,6 +1215,8 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
       payload: cloneWorkflowPayload(dispatch.payload),
       availableAt: new Date(dispatch.availableAt),
       createdAt: new Date(dispatch.createdAt),
+      ...(dispatch.reservedAt === undefined ? {} : { reservedAt: new Date(dispatch.reservedAt) }),
+      ...(dispatch.publishedAt === undefined ? {} : { publishedAt: new Date(dispatch.publishedAt) }),
     }));
   }
 
@@ -1223,57 +1262,49 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     execution: WorkflowExecution,
     outcome: CommitWorkflowActivationRequest["outcome"],
     now: Date,
+    completeParent: (() => void) | undefined,
   ): void {
     execution.status = outcome.status;
 
-    if (outcome.status === "completed") {
-      if (outcome.output !== undefined) {
-        execution.output = cloneWorkflowPayload(outcome.output);
-      }
-      execution.completedAt = now;
-      this.deleteExecutionTasks(execution.executionId);
-      this.completeParentCommand(execution, now);
-      this.cancelOpenChildren(execution.executionId);
-      this.releaseConcurrency(execution, now);
-      this.resolveTerminalWaiters(execution);
-    } else if (outcome.status === "cancelled") {
-      execution.completedAt = now;
-      this.deleteExecutionTasks(execution.executionId);
-      this.completeParentCommand(execution, now);
-      this.cancelOpenChildren(execution.executionId);
-      this.releaseConcurrency(execution, now);
-      this.resolveTerminalWaiters(execution);
+    if (outcome.status === "completed" && outcome.output !== undefined) {
+      execution.output = cloneWorkflowPayload(outcome.output);
     } else if (outcome.status === "failed" || outcome.status === "blocked") {
       execution.error = cloneWorkflowError(outcome.error);
-
-      if (outcome.status === "failed") {
-        execution.completedAt = now;
-        this.deleteExecutionTasks(execution.executionId);
-        this.completeParentCommand(execution, now);
-        this.cancelOpenChildren(execution.executionId);
-        this.releaseConcurrency(execution, now);
-        this.resolveTerminalWaiters(execution);
-      }
     }
+
+    if (!isTerminalWorkflowStatus(outcome.status)) return;
+
+    execution.completedAt = now;
+    this.deleteExecutionTasks(execution.executionId);
+    completeParent?.();
+    this.cancelOpenChildren(execution.executionId);
+    this.releaseConcurrency(execution, now);
+    this.resolveTerminalWaiters(execution);
   }
 
   private enqueueWorkflowTask(executionId: string, now: Date, taskId?: string): void {
+    const task = this.prepareWorkflowTask(executionId, now, taskId);
+    if (task !== undefined) this.tasks.set(task.id, task);
+  }
+
+  /** Prepares the next wake-up without changing reservation or journal state. */
+  private prepareWorkflowTask(executionId: string, now: Date, taskId?: string, replacedTaskId?: string): StoredWorkflowTask | undefined {
     const alreadyQueued = [...this.tasks.values()].some((task) =>
-      task.executionId === executionId && task.kind === "workflow");
+      task.executionId === executionId && task.kind === "workflow" && task.id !== replacedTaskId);
 
     if (alreadyQueued) {
-      return;
+      return undefined;
     }
 
     const id = taskId ?? this.createTaskId();
-    this.tasks.set(id, {
+    return {
       id,
       executionId,
       kind: "workflow",
       attempt: 0,
       availableAt: now,
       createdAt: now,
-    });
+    };
   }
 
   private incrementConcurrencyUsage(
@@ -1299,24 +1330,53 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     const keyed = execution.concurrency?.keyed;
 
     if (keyed?.scope !== "execution") return;
+    const admission = { workflowName: execution.workflowName, key: keyed.key, limit: keyed.limit };
+    const admissionKey = concurrencyMapKey(admission.workflowName, admission.key);
+    try {
+      this.admitPendingExecutions(admission, now);
+      this.deferredAdmissions.delete(admissionKey);
+    } catch {
+      // Preserve the terminal result and retry its permit handoff on the next workflow poll.
+      this.deferredAdmissions.set(admissionKey, admission);
+    }
+  }
+
+  private retryDeferredAdmissions(now: Date): { error: unknown } | undefined {
+    let failure: { error: unknown } | undefined;
+    for (const [key, admission] of this.deferredAdmissions) {
+      try {
+        this.admitPendingExecutions(admission, now);
+        this.deferredAdmissions.delete(key);
+      } catch (error) {
+        failure ??= { error };
+      }
+    }
+    return failure;
+  }
+
+  private admitPendingExecutions({ workflowName, key, limit }: WorkflowAdmission, now: Date): void {
     const admitted = [...this.executions.values()].filter((candidate) =>
-      candidate.workflowName === execution.workflowName
-      && candidate.concurrency?.keyed?.key === keyed.key
+      candidate.workflowName === workflowName
+      && candidate.concurrency?.keyed?.key === key
       && candidate.concurrencyAdmitted
       && !isTerminalWorkflowStatus(candidate.status)).length;
     const waiting = [...this.executions.values()]
       .filter((candidate) =>
-        candidate.workflowName === execution.workflowName
-        && candidate.concurrency?.keyed?.key === keyed.key
+        candidate.workflowName === workflowName
+        && candidate.concurrency?.keyed?.key === key
         && candidate.status === "pending")
       .sort((left, right) =>
         left.createdAt.getTime() - right.createdAt.getTime());
 
-    for (const candidate of waiting.slice(0, Math.max(0, keyed.limit - admitted))) {
+    // Prepare every wake-up before marking any pending execution as admitted.
+    const promotions = waiting.slice(0, Math.max(0, limit - admitted)).map((candidate) => ({
+      candidate, task: this.prepareWorkflowTask(candidate.executionId, now),
+    }));
+    for (const { candidate, task } of promotions) {
       candidate.concurrencyAdmitted = true;
       candidate.status = "queued";
       candidate.updatedAt = now;
-      this.enqueueWorkflowTask(candidate.executionId, now);
+      if (task !== undefined) this.tasks.set(task.id, task);
     }
   }
 
@@ -1412,12 +1472,11 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     command: CommitWorkflowActivationRequest["commands"][number],
     now: Date,
     stagedChildren: Map<string, WorkflowExecution>,
-  ): () => boolean {
+  ): () => void {
     if (command.kind === "activity") {
       const taskId = this.createTaskId();
       return () => {
         this.enqueueActivityTask(taskId, execution.executionId, command, now);
-        return false;
       };
     }
 
@@ -1434,13 +1493,12 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
           durationMs,
           now,
         );
-        return false;
       };
     }
 
     if (command.kind === "signal") {
       const timeoutMs = readOptionalNumber(command.payload, "timeoutMs");
-      if (timeoutMs === undefined) return () => false;
+      if (timeoutMs === undefined) return () => {};
       const taskId = this.createTaskId();
       return () => {
         this.enqueueTimerTask(
@@ -1452,7 +1510,6 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
           timeoutMs,
           now,
         );
-        return false;
       };
     }
 
@@ -1461,58 +1518,44 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
         this.appendCompletion(execution, command.sequence, now, command.captureError === undefined
           ? { result: command.payload }
           : { error: command.captureError });
-        return true;
       };
     }
 
     if (command.kind === "child") {
-      const startChild = this.prepareChild(execution, command, now, stagedChildren);
-      return () => {
-        startChild();
-        return false;
-      };
+      return this.prepareChild(execution, command, now, stagedChildren);
     }
 
     throw new TypeError(`Unsupported workflow command kind "${command.kind}".`);
   }
 
-  private consumeBufferedSignals(
-    execution: WorkflowExecution,
-    now: Date,
-  ): boolean {
-    const history = this.getRequiredHistory(execution.executionId);
+  /** Matches buffered signals in command order without consuming them. */
+  private matchBufferedSignals(
+    executionId: string,
+    history: readonly WorkflowHistoryEvent[],
+    newCommands: CommitWorkflowActivationRequest["commands"],
+  ): readonly { signal: StoredWorkflowSignal; sequence: number }[] {
     const completed = new Set(history
       .filter((event) => event.type === "command-completed")
       .map((event) => event.sequence));
-    let consumed = false;
+    const commands = [...history.filter((event) => event.type === "command-scheduled"), ...newCommands];
+    const matches: { signal: StoredWorkflowSignal; sequence: number }[] = [];
+    const usedSignals = new Set<StoredWorkflowSignal>();
 
-    for (const command of history) {
-      if (command.type !== "command-scheduled"
-        || command.kind !== "signal"
-        || completed.has(command.sequence)) {
-        continue;
-      }
+    for (const command of commands) {
+      if (command.kind !== "signal" || completed.has(command.sequence)) continue;
 
       const signal = this.signals.find((candidate) =>
-        candidate.executionId === execution.executionId
+        candidate.executionId === executionId
         && candidate.name === command.target
-        && candidate.consumedBySequence === undefined);
+        && candidate.consumedBySequence === undefined
+        && !usedSignals.has(candidate));
 
-      if (signal === undefined) {
-        continue;
-      }
-
-      signal.consumedBySequence = command.sequence;
-      this.appendCompletion(execution, command.sequence, now, {
-        result: signal.payload,
-        sourceId: signal.id,
-      });
-      this.deleteCommandTasks(execution.executionId, command.sequence);
-      completed.add(command.sequence);
-      consumed = true;
+      if (signal === undefined) continue;
+      usedSignals.add(signal);
+      matches.push({ signal, sequence: command.sequence });
     }
 
-    return consumed;
+    return matches;
   }
 
   private appendCompletion(
@@ -1563,14 +1606,15 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     const existing = this.executions.get(childId) ?? stagedChildren.get(childId);
 
     if (existing !== undefined) {
-      // An explicit ID can point to an earlier child with matching lineage.
-      // Verify its definition and input before recording a command for it.
+      // A matching active child can still complete the command. A terminal
+      // child from an archived generation cannot produce another completion.
       if (
         existing.workflowName !== command.target
         || existing.workflowVersion !== version
         || existing.parentExecutionId !== parent.executionId
         || existing.parentCommandSequence !== command.sequence
         || !isDeepStrictEqual(existing.input, childInput)
+        || isTerminalWorkflowStatus(existing.status)
       ) {
         throw new WorkflowExecutionConflictError(childId);
       }
@@ -1614,47 +1658,44 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     };
   }
 
-  private completeParentCommand(child: WorkflowExecution, now: Date): void {
-    if (
-      child.parentExecutionId === undefined
-      || child.parentCommandSequence === undefined
-    ) {
-      return;
-    }
+  /** Allocates a parent's wake-up before settling its child or recording the result. */
+  private prepareParentCompletion(child: WorkflowExecution, now: Date): (() => void) | undefined {
+    const { parentExecutionId, parentCommandSequence } = child;
+    if (parentExecutionId === undefined || parentCommandSequence === undefined) return undefined;
 
-    const parent = this.executions.get(child.parentExecutionId);
+    const parent = this.executions.get(parentExecutionId);
 
     // Low-level starts can retain a parent link after the parent has been removed.
-    if (parent === undefined || isTerminalWorkflowStatus(parent.status)) {
-      return;
+    if (parent === undefined || parent === child || isTerminalWorkflowStatus(parent.status)) {
+      return undefined;
     }
 
     const alreadyCompleted = this.getRequiredHistory(parent.executionId).some(
       (event) => event.type === "command-completed"
-        && event.sequence === child.parentCommandSequence,
+        && event.sequence === parentCommandSequence,
     );
+    if (alreadyCompleted) return undefined;
 
-    if (alreadyCompleted) {
-      return;
-    }
-
-    this.appendCompletion(parent, child.parentCommandSequence, now,
-      child.status === "completed"
-        ? child.output === undefined ? {} : { result: child.output }
-        : {
-            error: child.error ?? {
-              name: child.status === "cancelled"
-                ? "WorkflowCancellationError"
-                : "Error",
-              message: `Child workflow "${child.executionId}" ${child.status}.`,
-              ...(child.status === "cancelled"
-                ? { details: { executionId: child.executionId } }
-                : {}),
-            },
-          });
-    parent.status = "queued";
-    parent.updatedAt = now;
-    this.enqueueWorkflowTask(parent.executionId, now);
+    const wake = this.prepareWorkflowTask(parent.executionId, now);
+    return () => {
+      this.appendCompletion(parent, parentCommandSequence, now,
+        child.status === "completed"
+          ? child.output === undefined ? {} : { result: child.output }
+          : {
+              error: child.error ?? {
+                name: child.status === "cancelled"
+                  ? "WorkflowCancellationError"
+                  : "Error",
+                message: `Child workflow "${child.executionId}" ${child.status}.`,
+                ...(child.status === "cancelled"
+                  ? { details: { executionId: child.executionId } }
+                  : {}),
+              },
+            });
+      parent.status = "queued";
+      parent.updatedAt = now;
+      if (wake !== undefined) this.tasks.set(wake.id, wake);
+    };
   }
 
   private cancelOpenChildren(parentExecutionId: string): void {
@@ -1888,20 +1929,23 @@ function toReservedTask(
 function cloneHistory(
   history: readonly WorkflowHistoryEvent[],
 ): readonly WorkflowHistoryEvent[] {
-  return history.map((event) => ({
-    ...event,
-    occurredAt: new Date(event.occurredAt),
-    ...(event.type === "command-scheduled"
-      ? { payload: cloneWorkflowPayload(event.payload) }
-      : event.type === "signal-received"
-        ? { payload: cloneWorkflowPayload(event.payload) }
-        : event.type !== "command-completed" || event.result === undefined
-          ? {}
-          : { result: cloneWorkflowPayload(event.result) }),
-    ...(event.type === "command-completed" && event.error !== undefined
-      ? { error: cloneWorkflowError(event.error) }
-      : {}),
-  }));
+  return history.map((event) => {
+    const occurredAt = new Date(event.occurredAt);
+    switch (event.type) {
+      case "command-scheduled":
+      case "signal-received":
+        return { ...event, occurredAt, payload: cloneWorkflowPayload(event.payload) };
+      case "command-completed":
+        return {
+          ...event,
+          occurredAt,
+          ...(event.result === undefined ? {} : { result: cloneWorkflowPayload(event.result) }),
+          ...(event.error === undefined ? {} : { error: cloneWorkflowError(event.error) }),
+        };
+      case "cancellation-requested":
+        return { ...event, occurredAt };
+    }
+  });
 }
 
 function cloneWorkflowError(
@@ -1915,9 +1959,12 @@ function cloneWorkflowError(
   };
 }
 
-function readRecord(payload: WorkflowPayload): Readonly<Record<string, WorkflowPayload>> {
+function readRecord(
+  payload: WorkflowPayload,
+  message = "Workflow command payload must be an object.",
+): Readonly<Record<string, WorkflowPayload>> {
   if (payload === null || Array.isArray(payload) || typeof payload !== "object") {
-    throw new TypeError("Workflow command payload must be an object.");
+    throw new TypeError(message);
   }
 
   return payload as Readonly<Record<string, WorkflowPayload>>;
@@ -1975,11 +2022,8 @@ function readOptionalConcurrency(
   const value = readRecord(payload).concurrency;
 
   if (value === undefined) return undefined;
-  if (value === null || Array.isArray(value) || typeof value !== "object") {
-    throw new TypeError("Workflow child concurrency must be an object.");
-  }
 
-  const record = value as Readonly<Record<string, WorkflowPayload>>;
+  const record = readRecord(value, "Workflow child concurrency must be an object.");
   const definitionLimit = record.definitionLimit;
   const keyedValue = record.keyed;
   const keyed = keyedValue === undefined
@@ -2002,11 +2046,7 @@ function readOptionalConcurrency(
 function readResolvedKeyedConcurrency(
   value: WorkflowPayload,
 ): NonNullable<ResolvedWorkflowConcurrency["keyed"]> {
-  if (value === null || Array.isArray(value) || typeof value !== "object") {
-    throw new TypeError("Workflow keyed concurrency must be an object.");
-  }
-
-  const record = value as Readonly<Record<string, WorkflowPayload>>;
+  const record = readRecord(value, "Workflow keyed concurrency must be an object.");
   const { key, limit, conflict, scope } = record;
 
   if (typeof key !== "string" || key.length === 0

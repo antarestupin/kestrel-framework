@@ -3,11 +3,13 @@ import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { getFrameworkDatabaseTableKeys } from "../../../db/framework_table.js";
-import { workerDeadLetterJobs, workerJobs, workerQueueControls } from "./schema.js";
+import { getDatabaseSchemaContributions } from "../../../db/schema_contributions/index.js";
 
 /** Review the actual migration exports independently of connection-local SQL fixtures. */
 describe("worker PostgreSQL schema contracts", () => {
-  it("keeps singular qualified table identities and migration provenance", () => {
+  it("keeps singular qualified table identities and migration provenance", async () => {
+    // Observe import-time schema validation as a test failure when a declaration is malformed.
+    const { workerDeadLetterJobs, workerJobs, workerQueueControls } = await import("./schema.js");
     expect(getFrameworkDatabaseTableKeys({ workerJobs, workerDeadLetterJobs, workerQueueControls })).toEqual(new Set([
       JSON.stringify(["workers", "job"]), JSON.stringify(["workers", "dead_letter_queue"]), JSON.stringify(["workers", "queue_control"]),
     ]));
@@ -16,7 +18,8 @@ describe("worker PostgreSQL schema contracts", () => {
     expect(getTableConfig(workerQueueControls)).toMatchObject({ schema: "workers", name: "queue_control" });
   });
 
-  it("maps the raw SQL fields and ownership identities explicitly", () => {
+  it("maps the raw SQL fields and ownership identities explicitly", async () => {
+    const { workerDeadLetterJobs, workerJobs, workerQueueControls } = await import("./schema.js");
     expect(getTableConfig(workerJobs).columns.map((column) => column.name)).toEqual(["id", "identity", "queue", "payload", "correlation", "group_id", "execution_id", "attempt", "available_at", "reserved_at", "reservation_token", "state", "last_error", "created_at"]);
     expect(getTableConfig(workerDeadLetterJobs).columns.map((column) => column.name)).toEqual(["id", "original_job_id", "identity", "queue", "payload", "correlation", "group_id", "execution_id", "attempt", "error", "created_at", "failed_at"]);
     expect(getTableConfig(workerQueueControls).columns.map((column) => column.name)).toEqual(["queue", "enabled", "updated_at"]);
@@ -25,7 +28,8 @@ describe("worker PostgreSQL schema contracts", () => {
     expect(workerQueueControls.queue.primary).toBe(true);
   });
 
-  it("preserves safe defaults, required durable fields and timezone-aware dates", () => {
+  it("preserves safe defaults, required durable fields and timezone-aware dates", async () => {
+    const { workerDeadLetterJobs, workerJobs, workerQueueControls } = await import("./schema.js");
     expect(workerQueueControls.enabled.default).toBe(true);
     expect(workerQueueControls.enabled.notNull).toBe(true);
     expect(workerJobs.attempt.default).toBe(0);
@@ -42,7 +46,8 @@ describe("worker PostgreSQL schema contracts", () => {
     expect(workerDeadLetterJobs.createdAt.notNull).toBe(true);
   });
 
-  it("indexes identity uniqueness and the reservation/dead-letter access paths", () => {
+  it("indexes identity uniqueness and the reservation/dead-letter access paths", async () => {
+    const { workerDeadLetterJobs, workerJobs } = await import("./schema.js");
     const jobs = getTableConfig(workerJobs).indexes;
     const columns = (index: typeof jobs[number]) => index.config.columns.map((column) => "name" in column ? column.name : undefined);
     expect(jobs.some((index) => index.config.unique && index.config.where !== undefined && columns(index).join() === "identity")).toBe(true);
@@ -55,7 +60,8 @@ describe("worker PostgreSQL schema contracts", () => {
     }
   });
 
-  it("generates UUIDv7 defaults and predicates for the two partial indexes", () => {
+  it("generates UUIDv7 defaults and predicates for the two partial indexes", async () => {
+    const { workerDeadLetterJobs, workerJobs } = await import("./schema.js");
     const dialect = new PgDialect();
     for (const id of [workerJobs.id, workerDeadLetterJobs.id]) {
       expect(id.default).toBeInstanceOf(SQL);
@@ -71,5 +77,17 @@ describe("worker PostgreSQL schema contracts", () => {
       expect.objectContaining({ unique: true, sql: '"identity" IS NOT NULL', params: [] }),
       expect.objectContaining({ unique: false, sql: '"state" = \'reserved\'', params: [] }),
     ]);
+  });
+
+  it("preserves operator-facing SQL descriptions for every exported column", async () => {
+    const { workerDeadLetterJobs, workerJobs, workerQueueControls } = await import("./schema.js");
+    for (const table of [workerJobs, workerDeadLetterJobs, workerQueueControls]) {
+      const { name, columns } = getTableConfig(table);
+      const [descriptions] = getDatabaseSchemaContributions({ table });
+      expect(descriptions?.installSql).toContain(`COMMENT ON TABLE "workers"."${name}" IS `);
+      for (const column of columns) {
+        expect(descriptions?.installSql).toContain(`COMMENT ON COLUMN "workers"."${name}"."${column.name}" IS `);
+      }
+    }
   });
 });

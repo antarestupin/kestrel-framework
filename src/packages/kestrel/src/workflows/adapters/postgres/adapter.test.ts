@@ -266,8 +266,16 @@ beforeAll(async () => {
       id uuid PRIMARY KEY DEFAULT uuidv7(),
       execution_id text NOT NULL,
       kind text NOT NULL,
-      reservation_token uuid
+      command_sequence integer,
+      target text,
+      payload jsonb,
+      attempt integer DEFAULT 0 NOT NULL,
+      available_at timestamptz DEFAULT now() NOT NULL,
+      reserved_at timestamptz,
+      reservation_token uuid,
+      created_at timestamptz DEFAULT now() NOT NULL
     );
+    CREATE UNIQUE INDEX qualified_task_wakeup_idx ON ${qualifiedSchemaName}.task (execution_id) WHERE kind = 'workflow';
 
     CREATE TEMPORARY TABLE workflow_execution (
       id text PRIMARY KEY,
@@ -315,6 +323,12 @@ beforeAll(async () => {
       occurred_at timestamptz DEFAULT now() NOT NULL,
       PRIMARY KEY (execution_id, event_index)
     ) ON COMMIT PRESERVE ROWS;
+    CREATE UNIQUE INDEX workflow_history_schedule_idx
+      ON workflow_history_event (execution_id, command_sequence)
+      WHERE type = 'command-scheduled';
+    CREATE UNIQUE INDEX workflow_history_completion_idx
+      ON workflow_history_event (execution_id, command_sequence)
+      WHERE type = 'command-completed';
 
     CREATE TEMPORARY TABLE workflow_history_archive (
       execution_id text NOT NULL,
@@ -414,6 +428,20 @@ afterAll(async () => {
 });
 
 describe("PostgresWorkflowAdapter", () => {
+  it("rolls back a start batch when a PostgreSQL trigger suppresses one execution", async () => {
+    expect(adapter.activityDispatchMode).toBe("embedded");
+    await client.query(`
+      CREATE OR REPLACE FUNCTION pg_temp.skip_workflow_start() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+      CREATE TRIGGER skip_workflow_start BEFORE INSERT ON pg_temp.workflow_execution
+        FOR EACH ROW WHEN (NEW.id = 'suppressed') EXECUTE FUNCTION pg_temp.skip_workflow_start();
+    `);
+    await expect(adapter.startMany([startRequest("ordinary"), startRequest("suppressed")]))
+      .rejects.toThrow("PostgreSQL did not resolve a workflow start request.");
+    await expect(database.select().from(testExecutions)).resolves.toEqual([]);
+    await expect(database.select().from(testTasks)).resolves.toEqual([]);
+  });
+
   it("wakes a resumed waiting root after its previous activation was consumed", async () => {
     await adapter.start(startRequest("resume-waiting"));
     const task = await reserveOne("workflow");
@@ -641,7 +669,7 @@ describe("PostgresWorkflowAdapter", () => {
     const before = (await client.query("SELECT * FROM workflow_execution ORDER BY id")).rows;
     const retry = { sourceExecutionId: sourceId, executionId: "retry-validation-target", workflowVersion: 2 };
     await expect(adapter.retryExecution({ ...retry, sourceExecutionId: "missing-source" })).rejects.toBeInstanceOf(WorkflowExecutionNotFoundError);
-    await expect(adapter.retryExecution(retry)).rejects.toBeInstanceOf(TypeError);
+    await expect(adapter.retryExecution(retry)).rejects.toThrow("Only failed workflow executions can be retried.");
     await expect(adapter.retryExecution({ ...retry, executionId: "" })).rejects.toBeInstanceOf(TypeError);
     expect((await client.query("SELECT * FROM workflow_execution ORDER BY id")).rows).toEqual(before);
     const task = await reserveOne("workflow");
@@ -682,6 +710,21 @@ describe("PostgresWorkflowAdapter", () => {
     const activation = await reserveOne("workflow");
     expect(activation.executionId).toBe("retry-admitted");
     expect(activation.kind).toBe("workflow");
+  });
+
+  it("admits a retry when a legacy row has no complete keyed concurrency policy", async () => {
+    const sourceId = "retry-partial-policy";
+    await adapter.start(startRequest(sourceId));
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({ ...toRef(task), executionId: sourceId, expectedRevision: 0,
+      commands: [], outcome: { status: "failed", error: { name: "Failure", message: "Source failed." } },
+    });
+    // Without a limit, the partial metadata cannot be used to consume a concurrency permit.
+    await client.query("UPDATE workflow_execution SET concurrency_scope = 'execution', concurrency_key = 'legacy' WHERE id = $1", [sourceId]);
+    const targetId = "retry-without-complete-policy";
+    await expect(adapter.retryExecution({ sourceExecutionId: sourceId, executionId: targetId, workflowVersion: 2 }))
+      .resolves.toMatchObject({ created: true, execution: { status: "queued", concurrencyAdmitted: true } });
+    expect((await reserveOne("workflow")).executionId).toBe(targetId);
   });
 
   describe("concurrent PostgreSQL retries", () => {
@@ -882,8 +925,15 @@ describe("PostgresWorkflowAdapter", () => {
     await adapter.start(startRequest("empty-mutations"));
     await reserveOne("workflow");
     const before = (await client.query("SELECT * FROM workflow_task ORDER BY id")).rows;
-    expect(await adapter.releaseTasks([])).toEqual([]);
-    expect(await adapter.extendTaskLeases([])).toEqual([]);
+    const transaction = vi.spyOn(database, "transaction");
+    try {
+      expect(await adapter.releaseTasks([])).toEqual([]);
+      expect(await adapter.extendTaskLeases([])).toEqual([]);
+      // An empty lease batch can finish without acquiring any database ownership.
+      expect(transaction).not.toHaveBeenCalled();
+    } finally {
+      transaction.mockRestore();
+    }
     expect((await client.query("SELECT * FROM workflow_task ORDER BY id")).rows).toEqual(before);
   });
 
@@ -892,7 +942,8 @@ describe("PostgresWorkflowAdapter", () => {
       await adapter.start(startRequest("invalid-extension"));
       const task = await reserveOne("workflow");
       const before = (await client.query("SELECT * FROM workflow_task ORDER BY id")).rows;
-      await expect(adapter.extendTaskLeases([{ ...toRef(task), leaseMs }])).rejects.toThrow(TypeError);
+      await expect(adapter.extendTaskLeases([{ ...toRef(task), leaseMs }]))
+        .rejects.toEqual(new TypeError("Workflow task leaseMs must be a positive integer."));
       expect((await client.query("SELECT * FROM workflow_task ORDER BY id")).rows).toEqual(before);
     });
   }
@@ -1139,6 +1190,32 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(adapter.startMany([])).resolves.toEqual([]);
     expect(adapter.isRecoverablePollingError({ code: "08006" })).toBe(true);
     expect(adapter.isRecoverablePollingError({ code: "23505" })).toBe(false);
+  });
+
+  it("validates repeated execution IDs before attempting any write in a start batch", async () => {
+    const first = startRequest("duplicate");
+    for (const second of [{ ...first, workflowName: "other.run" }, { ...first, input: { other: true } }]) {
+      const counted = await countClientQueries(async () => {
+        await expect(adapter.startMany([first, second])).rejects.toMatchObject({
+          name: "WorkflowExecutionConflictError", executionId: first.executionId,
+        });
+      });
+      expect(counted.count).toBe(0);
+    }
+    await expect(database.select().from(testExecutions)).resolves.toEqual([]);
+  });
+
+  it("validates concurrency metadata independently for each definition and business key", async () => {
+    const keyed = { key: "customer", limit: 1, scope: "execution", conflict: "enqueue" } as const;
+    const requests = [
+      { ...startRequest("first-key"), concurrency: { keyed } },
+      { ...startRequest("other-definition"), workflowName: "other.run", concurrency: { keyed: { ...keyed, limit: 2 } } },
+      { ...startRequest("other-key"), concurrency: { keyed: { ...keyed, key: "another", scope: "active-work" as const } } },
+    ];
+    const results = await adapter.startMany(requests);
+    expect(results.map(({ created, execution }) => [created, execution.executionId, execution.concurrency])).toEqual(
+      requests.map(({ executionId, concurrency }) => [true, executionId, concurrency]),
+    );
   });
 
   it("enqueues keyed overflow within one start batch", async () => {
@@ -1408,6 +1485,16 @@ describe("PostgresWorkflowAdapter", () => {
       { ...recovery, workflowVersion: 2 }]) {
       await expect(adapter.recoverVersionBlockedExecution(invalid)).resolves.toBe(false);
     }
+    // The blocked status alone does not authorize version recovery.
+    await client.query("UPDATE workflow_execution SET error = NULL WHERE id = $1", [request.executionId]);
+    await expect(adapter.recoverVersionBlockedExecution(recovery)).resolves.toBe(false);
+    await client.query("UPDATE workflow_execution SET error = $2::jsonb WHERE id = $1", [
+      request.executionId, JSON.stringify({ name: "WorkflowNondeterminismError", message: "Replay mismatch." }),
+    ]);
+    await expect(adapter.recoverVersionBlockedExecution(recovery)).resolves.toBe(false);
+    await client.query("UPDATE workflow_execution SET error = $2::jsonb WHERE id = $1", [
+      request.executionId, JSON.stringify({ name: "WorkflowExecutionVersionUnsupportedError", message: "Version unavailable." }),
+    ]);
     await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "blocked", revision: 0 });
     await expect(adapter.recoverVersionBlockedExecution(recovery)).resolves.toBe(true);
     await expect(adapter.recoverVersionBlockedExecution(recovery)).resolves.toBe(false);
@@ -1567,33 +1654,202 @@ describe("PostgresWorkflowAdapter", () => {
       .toEqual([true, true, true]);
   });
 
+  it("rejects reusing an explicit terminal child ID after the parent continues", async () => {
+    const request = startRequest("parent-explicit-child-reuse");
+    await adapter.start(request);
+    const first = await reserveOne("workflow");
+    const command = {
+      sequence: 0, kind: "child", target: request.workflowName,
+      payload: { input: null, version: 1, executionId: "explicit-child" },
+    } as const;
+    const waiting = { status: "waiting" } as const;
+    await expect(adapter.commitActivation({
+      ...toRef(first), executionId: request.executionId, expectedRevision: 0,
+      commands: [command], outcome: waiting,
+    })).resolves.toBe(true);
+
+    const child = await reserveOne("workflow");
+    expect(child.executionId).toBe("explicit-child");
+    await expect(adapter.commitActivation({
+      ...toRef(child), executionId: child.executionId, expectedRevision: 0,
+      commands: [], outcome: { status: "completed", output: null },
+    })).resolves.toBe(true);
+
+    const parent = await reserveOne("workflow");
+    const { revision } = await loadOne(parent);
+    // The successor must omit stale output metadata from an externally restored row.
+    await client.query("UPDATE workflow_execution SET output_present = true WHERE id = $1", [request.executionId]);
+    await expect(adapter.continueAsNew({
+      ...toRef(parent), executionId: request.executionId, expectedRevision: revision,
+      workflowVersion: 1, input: null,
+    })).resolves.toBe(true);
+    expect(await adapter.get(request.executionId)).not.toHaveProperty("output");
+
+    const successor = await reserveOne("workflow");
+    const next = {
+      ...toRef(successor), executionId: request.executionId, expectedRevision: 0, outcome: waiting,
+    };
+    await expect(adapter.commitActivation({ ...next, commands: [command] }))
+      .rejects.toBeInstanceOf(WorkflowExecutionConflictError);
+    await expect(adapter.getHistory(request.executionId)).resolves.toEqual([]);
+    await expect(adapter.get("explicit-child")).resolves.toMatchObject({ status: "completed", output: null });
+    await expect(adapter.commitActivation({
+      ...next,
+      commands: [{ ...command, payload: { ...command.payload, executionId: "new-explicit-child" } }],
+    })).resolves.toBe(true);
+    await expect(reserveOne("workflow")).resolves.toMatchObject({ executionId: "new-explicit-child" });
+  });
+
+  it("matches all child identity fields before accepting a compatible active child", async () => {
+    const request = startRequest("compatible-child-parent");
+    await adapter.start(request);
+    const activation = await reserveOne("workflow");
+    const executionId = "precreated-child";
+    const input = { key: "value" };
+    const childRequest = {
+      ...startRequest(executionId), input,
+      workflowName: "example.child", workflowVersion: 2,
+      parentExecutionId: request.executionId, parentCommandSequence: 0,
+      rootExecutionId: request.executionId,
+    };
+    await adapter.start(childRequest);
+    const command = {
+      sequence: 0, kind: "child", target: childRequest.workflowName,
+      payload: { input, version: 2, executionId },
+    } as const;
+    const commit = {
+      ...toRef(activation), executionId: request.executionId, expectedRevision: 0,
+      outcome: { status: "waiting" },
+    } as const;
+
+    for (const candidate of [
+      { ...command, target: "example.other" },
+      { ...command, payload: { ...command.payload, version: 1 } },
+      { ...command, payload: { ...command.payload, input: null } },
+    ]) {
+      await expect(adapter.commitActivation({ ...commit, commands: [candidate] }))
+        .rejects.toBeInstanceOf(WorkflowExecutionConflictError);
+    }
+    // A matching ID and payload still belong to the original parent command position.
+    await client.query("UPDATE workflow_execution SET parent_command_sequence = 1 WHERE id = $1", [executionId]);
+    await expect(adapter.commitActivation({ ...commit, commands: [command] }))
+      .rejects.toBeInstanceOf(WorkflowExecutionConflictError);
+    await client.query("UPDATE workflow_execution SET parent_command_sequence = 0 WHERE id = $1", [executionId]);
+
+    await expect(adapter.getHistory(request.executionId)).resolves.toEqual([]);
+    await expect(adapter.commitActivation({ ...commit, commands: [command] })).resolves.toBe(true);
+    expect((await database.select().from(testTasks)).map((task) => [task.kind, task.executionId]))
+      .toEqual([["workflow", executionId]]);
+  });
+
+  it("keeps a compatible precreated child pending until its stored permit can be admitted", async () => {
+    const request = startRequest("precreated-pending-parent");
+    await adapter.start(request);
+    const parent = await reserveOne("workflow");
+    const workflowName = "example.retained-child";
+    const holder = { ...startRequest("permit-holder"), workflowName };
+    const concurrency = { keyed: { key: "shared", limit: 1, conflict: "enqueue", scope: "execution" } } as const;
+    await adapter.start({ ...holder, concurrency });
+    const childId = "already-pending-child";
+    await expect(adapter.start({
+      ...startRequest(childId), workflowName, input: null, concurrency, parentExecutionId: request.executionId,
+      parentCommandSequence: 0, rootExecutionId: request.executionId,
+    })).resolves.toMatchObject({ execution: { status: "pending", concurrencyAdmitted: false } });
+
+    await expect(adapter.commitActivation({
+      ...toRef(parent), executionId: request.executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "child", target: workflowName, payload: { input: null, version: 1, executionId: childId } }],
+      outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    expect((await database.select().from(testTasks)).map(({ executionId }) => executionId)).toEqual([holder.executionId]);
+    await expect(adapter.get(childId)).resolves.toMatchObject({ status: "pending", concurrencyAdmitted: false });
+    await expect(adapter.forceTerminate(holder.executionId)).resolves.toBe(true);
+    await expect(reserveOne("workflow")).resolves.toMatchObject({ executionId: childId });
+  });
+
+  it("rolls back the activation when a trigger suppresses its child insert", async () => {
+    const request = startRequest("suppressed-child-parent");
+    await adapter.start(request);
+    const parent = await reserveOne("workflow");
+    const childId = "suppressed-child";
+    await client.query(`
+      CREATE FUNCTION pg_temp.skip_workflow_child() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.id = 'suppressed-child' THEN RETURN NULL; END IF;
+        RETURN NEW;
+      END $$;
+      CREATE TRIGGER skip_workflow_child BEFORE INSERT ON workflow_execution
+      FOR EACH ROW EXECUTE FUNCTION pg_temp.skip_workflow_child();
+    `);
+    const command = { sequence: 0, kind: "child", target: "example.child", payload: { input: null, version: 1, executionId: childId } };
+    const commit = {
+      ...toRef(parent), executionId: request.executionId, expectedRevision: 0, commands: [command], outcome: { status: "waiting" },
+    } as const;
+    try {
+      await expect(adapter.commitActivation(commit)).rejects.toBeInstanceOf(WorkflowExecutionConflictError);
+      await expect(adapter.getHistory(request.executionId)).resolves.toEqual([]);
+      await expect(adapter.get(childId)).resolves.toBeUndefined();
+      expect((await database.select().from(testTasks)).map(({ executionId }) => executionId)).toEqual([request.executionId]);
+    } finally {
+      await client.query("DROP TRIGGER skip_workflow_child ON workflow_execution; DROP FUNCTION pg_temp.skip_workflow_child()");
+    }
+    await expect(adapter.commitActivation(commit)).resolves.toBe(true);
+    await expect(reserveOne("workflow")).resolves.toMatchObject({ executionId: childId });
+  });
+
   it("rejects malformed command metadata without writing history or timers", async () => {
     const request = startRequest("invalid-command-metadata");
     await adapter.start(request);
     const activation = await reserveOne("workflow");
-    const invalid: [string, WorkflowPayload][] = [
-      ["unknown", null], ["timer", null], ["timer", []], ["timer", "duration"],
-      ["timer", { durationMs: -1 }], ["timer", { durationMs: 0.5 }], ["signal", { timeoutMs: "soon" }],
-      ["child", { version: 1 }], ["child", { version: 1, input: null, executionId: "" }],
+    const keyed = { key: "account", limit: 1, conflict: "enqueue", scope: "execution" } as const;
+    const invalid: [string, WorkflowPayload, string?][] = [
+      ["unknown", null, 'Unsupported workflow command kind "unknown".'],
+      ["timer", null, "Workflow command payload must be an object."],
+      ["timer", []], ["timer", "duration", "Workflow command payload must be an object."],
+      ["timer", { durationMs: -1 }, 'Workflow command field "durationMs" must be non-negative.'],
+      ["timer", { durationMs: 0.5 }], ["signal", { timeoutMs: "soon" }],
+      ["child", { version: 1 }, 'Workflow command field "input" is required.'],
+      ["child", { input: null, version: 1, executionId: "" }, 'Workflow command field "executionId" must be non-empty.'],
       ["child", { version: 1, input: null, executionId: 5 }],
+      ["child", { input: null, version: 1, concurrency: null }, "Workflow child concurrency must be an object."],
       ["child", { version: 1, input: null, concurrency: [] }],
+      ["child", { input: null, version: 1, concurrency: { definitionLimit: "1" } }, "Workflow definition concurrency limit is invalid."],
       ["child", { version: 1, input: null, concurrency: { definitionLimit: 0 } }],
       ["child", { version: 1, input: null, concurrency: { definitionLimit: 1.5 } }],
       ["child", { version: 1, input: null, concurrency: { keyed: true } }],
+      ["child", { input: null, version: 1, concurrency: { keyed: null } }, "Workflow keyed concurrency must be an object."],
+      ["child", { input: null, version: 1, concurrency: { keyed: [] } }, "Workflow keyed concurrency must be an object."],
     ];
-    const keyed = { key: "account", limit: 1, conflict: "enqueue", scope: "execution" } as const;
     // The PostgreSQL adapter normalizes every child conflict policy to enqueue.
-    for (const patch of [{ key: "" }, { key: 1 }, { limit: 0 }, { limit: 1.5 }, { scope: "unknown" }]) {
-      invalid.push(["child", { version: 1, input: null, concurrency: { keyed: { ...keyed, ...patch } } }]);
+    for (const patch of [{ key: "" }, { key: 1 }, { limit: "1" }, { limit: 0 }, { limit: 1.5 }, { scope: "unknown" }]) {
+      invalid.push(["child", { version: 1, input: null, concurrency: { keyed: { ...keyed, ...patch } } }, "Workflow keyed concurrency metadata is invalid."]);
     }
-    for (const [kind, payload] of invalid) {
+    for (const [kind, payload, diagnostic] of invalid) {
       await expect(adapter.commitActivation({
         ...toRef(activation), executionId: request.executionId, expectedRevision: 0,
         commands: [{ kind, payload, sequence: 0, target: "invalid" }], outcome: { status: "waiting" },
-      })).rejects.toBeInstanceOf(TypeError);
+      })).rejects.toThrow(diagnostic ?? TypeError);
     }
     await expect(loadOne(activation)).resolves.toMatchObject({ history: [], revision: 0 });
     await expect(database.select().from(testTasks)).resolves.toMatchObject([{ id: activation.id, kind: "workflow" }]);
+  });
+
+  it("persists a child with the minimum definition limit and active-work keyed admission", async () => {
+    const request = startRequest("minimum-child-limits");
+    await adapter.start(request);
+    const parent = await reserveOne("workflow");
+    const keyed = { key: "account", limit: 1, scope: "active-work", conflict: "enqueue" };
+    await expect(adapter.commitActivation({
+      ...toRef(parent), executionId: request.executionId, expectedRevision: 0,
+      commands: [{
+        sequence: 0, kind: "child", target: "example.child",
+        payload: { input: null, version: 1, concurrency: { definitionLimit: 1, keyed } },
+      }],
+      outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    await expect(adapter.get(`${request.executionId}:0`)).resolves.toMatchObject({
+      concurrency: { definitionLimit: 1, keyed }, concurrencyAdmitted: true,
+    });
   });
 
   it("orders synchronous completions and preserves only unmatched timers", async () => {
@@ -1981,14 +2237,197 @@ describe("PostgresWorkflowAdapter", () => {
 
   it("validates lookup and reservation boundaries before changing persisted work", async () => {
     const missing = "missing-history";
-    await expect(adapter.getHistory(missing)).rejects.toBeInstanceOf(WorkflowExecutionNotFoundError);
-    await expect(adapter.getHistoryArchives(missing)).rejects.toBeInstanceOf(WorkflowExecutionNotFoundError);
+    const missingExecution = new WorkflowExecutionNotFoundError(missing);
+    await expect(adapter.getHistory(missing)).rejects.toThrow(missingExecution);
+    await expect(adapter.getHistoryArchives(missing)).rejects.toThrow(missingExecution);
+    await expect(adapter.start(startRequest(""))).rejects.toThrow("Workflow execution IDs cannot be empty.");
     for (const invalid of [0, -1, 0.5, Infinity]) {
-      await expect(adapter.listExecutions({ limit: invalid })).rejects.toBeInstanceOf(TypeError);
-      await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: invalid, leaseMs: 100 })).rejects.toBeInstanceOf(TypeError);
-      await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: invalid })).rejects.toBeInstanceOf(TypeError);
-      await expect(outboxAdapter.reserveActivityDispatches({ limit: invalid, leaseMs: 100 })).rejects.toBeInstanceOf(TypeError);
-      await expect(outboxAdapter.reserveActivityDispatches({ limit: 1, leaseMs: invalid })).rejects.toBeInstanceOf(TypeError);
+      await expect(adapter.listExecutions({ limit: invalid })).rejects.toThrow("Workflow execution query limit must be between 1 and 200.");
+      await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: invalid, leaseMs: 100 }))
+        .rejects.toThrow("Workflow task reservation limit must be positive.");
+      await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: invalid }))
+        .rejects.toThrow("Workflow task leaseMs must be positive.");
+      await expect(outboxAdapter.reserveActivityDispatches({ limit: invalid, leaseMs: 100 }))
+        .rejects.toThrow("Workflow activity dispatch limit must be positive.");
+      await expect(outboxAdapter.reserveActivityDispatches({ limit: 1, leaseMs: invalid }))
+        .rejects.toThrow("Workflow activity dispatch leaseMs must be positive.");
+    }
+    await expect(adapter.listExecutions({ limit: 201 })).rejects.toThrow("between 1 and 200");
+    await expect(adapter.listExecutions({ limit: 200 })).resolves.toMatchObject({ items: [] });
+    await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1 })).resolves.toEqual([]);
+    await expect(outboxAdapter.reserveActivityDispatches({ limit: 1, leaseMs: 1 })).resolves.toEqual([]);
+  });
+
+  it("rejects incomplete persisted journal events during both history and activation reads", async () => {
+    const request = startRequest("invalid-journal-row");
+    await adapter.start(request);
+    const activation = await reserveOne("workflow");
+    const base = { executionId: request.executionId, eventIndex: 0 };
+    const signalId = "00000000-0000-4000-8000-000000000001";
+    const invalid: (typeof testHistory.$inferInsert)[] = [
+      { ...base, type: "command-scheduled", commandKind: "activity", target: "work" },
+      { ...base, type: "command-scheduled", commandSequence: 0, target: "work" },
+      { ...base, type: "command-scheduled", commandSequence: 0, commandKind: "activity" },
+      { ...base, type: "command-completed", completionOrder: 0 },
+      { ...base, type: "command-completed", commandSequence: 0 },
+      { ...base, type: "signal-received", signalName: "ready" },
+      { ...base, type: "signal-received", signalId },
+    ];
+    for (const event of invalid) {
+      await database.insert(testHistory).values(event);
+      const message = 'Invalid workflow history event 0 for execution "invalid-journal-row".';
+      await expect(adapter.getHistory(request.executionId)).rejects.toThrow(message);
+      await expect(loadOne(activation)).rejects.toThrow(message);
+      await database.delete(testHistory);
+    }
+  });
+
+  it("keeps absent result and error fields distinct from explicit null in serialized journals", async () => {
+    const request = startRequest("serialized-journal-fields");
+    await adapter.start(request);
+    const activation = await reserveOne("workflow");
+    const occurredAt = new Date("2026-08-01T10:00:00.000Z");
+    const base = { executionId: request.executionId, occurredAt };
+    const signalId = "00000000-0000-4000-8000-000000000002";
+    const otherSignalId = "00000000-0000-4000-8000-000000000003";
+    await database.insert(testHistory).values([
+      { ...base, eventIndex: 0, type: "command-scheduled", commandSequence: 0, commandKind: "activity", target: "work" },
+      { ...base, eventIndex: 1, type: "command-completed", commandSequence: 0, completionOrder: 0, payloadPresent: true },
+      { ...base, eventIndex: 2, type: "command-completed", commandSequence: 1, completionOrder: 1 },
+      { ...base, eventIndex: 3, type: "signal-received", signalId, signalName: "ready" },
+      // A historical row can contain extra columns. Its discriminant still selects its event shape.
+      { ...base, eventIndex: 4, type: "cancellation-requested", commandSequence: 2, commandKind: "activity", target: "ignored", completionOrder: 2, signalId, signalName: "ignored" },
+      { ...base, eventIndex: 5, type: "command-scheduled", commandSequence: 2, commandKind: "activity", target: "work", payload: { data: "command" } },
+      { ...base, eventIndex: 6, type: "signal-received", signalId: otherSignalId, signalName: "other", payload: { data: "signal" } },
+    ]);
+    const expected = [
+      { type: "command-scheduled", eventIndex: 0, sequence: 0, kind: "activity", target: "work", payload: null, occurredAt },
+      { type: "command-completed", eventIndex: 1, sequence: 0, completionOrder: 0, result: null, occurredAt },
+      { type: "command-completed", eventIndex: 2, sequence: 1, completionOrder: 1, occurredAt },
+      { type: "signal-received", eventIndex: 3, signalId, name: "ready", payload: null, occurredAt },
+      { type: "cancellation-requested", eventIndex: 4, occurredAt },
+      { type: "command-scheduled", eventIndex: 5, sequence: 2, kind: "activity", target: "work", payload: { data: "command" }, occurredAt },
+      { type: "signal-received", eventIndex: 6, signalId: otherSignalId, name: "other", payload: { data: "signal" }, occurredAt },
+    ];
+    await expect(adapter.getHistory(request.executionId)).resolves.toStrictEqual(expected);
+    expect((await loadOne(activation)).history).toStrictEqual(expected);
+  });
+
+  it("returns a stored retry link and explicit null output from an idempotent start", async () => {
+    const request = startRequest("completed-retry-metadata");
+    const first = await adapter.start(request);
+    for (const field of ["retryOfExecutionId", "concurrency", "parentExecutionId", "parentCommandSequence", "completedAt", "output"]) {
+      expect(first.execution).not.toHaveProperty(field);
+    }
+    // Reissuing the same start must read, rather than clear, metadata from the stored execution.
+    const completedAt = new Date("2026-08-01T12:00:00.000Z");
+    await client.query(`UPDATE workflow_execution
+      SET retry_of_execution_id = 'source', status = 'completed', output_present = true,
+          paused_at = $2, completed_at = $2, cancellation_requested = true
+      WHERE id = $1`, [request.executionId, completedAt]);
+    const repeated = await adapter.start(request);
+    expect(repeated).toMatchObject({
+      created: false,
+      execution: {
+        output: null, retryOfExecutionId: "source", status: "completed",
+        pausedAt: completedAt, completedAt, cancellationRequested: true,
+      },
+    });
+    expect(repeated.execution).not.toHaveProperty("error");
+    expect(repeated.execution).toStrictEqual(await adapter.get(request.executionId));
+  });
+
+  it("keeps incomplete persisted keyed metadata out of execution summaries", async () => {
+    const request = startRequest("partial-keyed-metadata");
+    await adapter.start(request);
+    for (const [key, limit, conflict, scope] of [
+      [null, 2, "enqueue", "execution"],
+      ["customer", null, "enqueue", "execution"],
+      ["customer", 2, null, "execution"],
+      ["customer", 2, "enqueue", null],
+    ]) {
+      // Legacy or externally managed rows can retain only part of their concurrency metadata.
+      await client.query(`UPDATE workflow_execution
+        SET definition_concurrency_limit = 3, concurrency_key = $2,
+            concurrency_key_limit = $3, concurrency_conflict = $4, concurrency_scope = $5
+        WHERE id = $1`, [request.executionId, key, limit, conflict, scope]);
+      await expect(adapter.get(request.executionId)).resolves.toMatchObject({
+        concurrency: { definitionLimit: 3 },
+      });
+      expect((await adapter.get(request.executionId))?.concurrency).not.toHaveProperty("keyed");
+    }
+    await client.query(`UPDATE workflow_execution
+      SET definition_concurrency_limit = NULL, concurrency_key = 'customer',
+          concurrency_key_limit = 2, concurrency_conflict = 'enqueue', concurrency_scope = 'execution'
+      WHERE id = $1`, [request.executionId]);
+    expect((await adapter.get(request.executionId))?.concurrency).toStrictEqual({
+      keyed: { key: "customer", limit: 2, conflict: "enqueue", scope: "execution" },
+    });
+  });
+
+  it("retains payloads and both ownership pairs when rescheduling and publishing an outbox batch", async () => {
+    const request = startRequest("batch-outbox-payload");
+    await adapter.start(request);
+    const task = await reserveOne("workflow");
+    expect(task).not.toHaveProperty("parentExecutionId");
+    await expect(outboxAdapter.commitActivation({
+      ...toRef(task), executionId: request.executionId, expectedRevision: 0,
+      commands: [
+        { sequence: 0, kind: "activity", target: "first", payload: { data: "retained" } },
+        { sequence: 1, kind: "activity", target: "second", payload: null },
+      ],
+      outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    const reserve = () => outboxAdapter.reserveActivityDispatches({ limit: 2, leaseMs: 60_000 });
+    const initial = await reserve();
+    expect(initial.map(({ sequence, payload }) => ({ sequence, payload }))).toEqual(expect.arrayContaining([
+      { sequence: 0, payload: { data: "retained" } }, { sequence: 1, payload: null },
+    ]));
+    expect(initial).toHaveLength(2);
+    const refs = initial.map(({ id, reservationToken }) => ({ dispatchId: id, reservationToken }));
+    const retryAt = new Date("2000-01-01T00:00:00Z");
+    await expect(outboxAdapter.retryActivityDispatches(refs.map((ref) => ({ ...ref, retryAt }))))
+      .resolves.toEqual(expect.arrayContaining(refs));
+    const renewed = await reserve();
+    const current = renewed.map(({ id, reservationToken }) => ({ dispatchId: id, reservationToken }));
+    expect(current).toHaveLength(2);
+    await expect(outboxAdapter.markActivityDispatchesPublished(current)).resolves.toEqual(expect.arrayContaining(current));
+    await expect(reserve()).resolves.toEqual([]);
+  });
+
+  it("projects reservation metadata and payloads according to the task kind", async () => {
+    const request = {
+      ...startRequest("task-projection"), workflowVersion: 3,
+      parentExecutionId: "parent", parentCommandSequence: 1, rootExecutionId: "root",
+    };
+    await adapter.start(request);
+    const activation = await reserveOne("workflow");
+    expect(activation).toMatchObject({
+      workflowVersion: 3, parentExecutionId: "parent", rootExecutionId: "root",
+      historyGeneration: 1, attempt: 1,
+    });
+    for (const field of ["payload", "target", "commandSequence"]) {
+      expect(activation).not.toHaveProperty(field);
+    }
+
+    const activity = { sequence: 0, kind: "activity", target: "example.work", payload: { input: "value" } };
+    const timer = { sequence: 1, kind: "timer", target: "sleep", payload: { durationMs: 0 } };
+    await expect(adapter.commitActivation({
+      ...toRef(activation), executionId: request.executionId, expectedRevision: 0,
+      commands: [activity, timer], outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    const tasks = await adapter.reserveTasks({ kinds: ["activity", "timer"], limit: 2, leaseMs: 1 });
+    expect(tasks.map(({ kind, commandSequence, target, payload }) => ({
+      kind, sequence: commandSequence, target, payload,
+    }))).toEqual(expect.arrayContaining([activity, timer]));
+    expect(tasks).toHaveLength(2);
+    for (const task of tasks) {
+      expect(task).toMatchObject({ availableAt: expect.any(Date), reservedAt: expect.any(Date), createdAt: expect.any(Date) });
+      expect(task.availableAt.getTime() - task.reservedAt.getTime()).toBe(1);
+      await expect(adapter.continueAsNew({
+        ...toRef(task), executionId: request.executionId, expectedRevision: 2,
+        workflowVersion: 3, input: null,
+      })).resolves.toBe(false);
     }
   });
 
@@ -2036,6 +2475,282 @@ describe("PostgresWorkflowAdapter", () => {
     ]);
     await expire();
     await expect(reserve()).resolves.toEqual([]);
+  });
+
+  it("uses the last visible execution as the cursor and includes paused executions by default", async () => {
+    const ids = ["pause-page-d", "pause-page-c", "pause-page-b", "pause-page-a"];
+    await adapter.startMany(ids.map(startRequest));
+    await expect(adapter.setPaused(ids[2]!, true)).resolves.toBe(true);
+    // Equal timestamps exercise the execution ID tie-breaker at the page boundary.
+    const createdAt = "2026-09-18T12:00:00.123456Z";
+    await client.query("UPDATE workflow_execution SET created_at = $1::timestamptz", [createdAt]);
+
+    const first = await adapter.listExecutions({ limit: 3 });
+    expect(first.items.map(({ executionId }) => executionId)).toEqual(ids.slice(0, 3));
+    expect(z.decode(workflowExecutionCursorCodec, first.nextCursor!)).toEqual({
+      id: ids[2], createdAt,
+    });
+    const last = await adapter.listExecutions({ limit: 3, cursor: first.nextCursor! });
+    expect(last.items.map(({ executionId }) => executionId)).toEqual(ids.slice(3));
+    expect(last.nextCursor).toBeUndefined();
+
+    const paused = await adapter.listExecutions({ limit: 4, paused: true });
+    const unpaused = await adapter.listExecutions({ limit: 4, paused: false });
+    expect(paused.items.map(({ executionId }) => executionId)).toEqual([ids[2]]);
+    expect(unpaused.items.map(({ executionId }) => executionId)).toEqual([ids[0], ids[1], ids[3]]);
+  });
+
+  it("preserves the execution input and signal payload when loading an activation", async () => {
+    const request = startRequest("persisted-signal-payload");
+    const payload = { received: ["input", 42] };
+    await adapter.start(request);
+    const receipt = await adapter.sendSignal({
+      executionId: request.executionId, workflowName: request.workflowName,
+      signalName: "input-received", payload,
+    });
+    expect(receipt).toEqual({ id: expect.any(String), accepted: true });
+    const signal = { type: "signal-received", signalId: receipt.id, name: "input-received", payload };
+    await expect(adapter.getHistory(request.executionId)).resolves.toMatchObject([signal]);
+    await expect(loadOne(await reserveOne("workflow"))).resolves.toMatchObject({
+      input: request.input, revision: 1, history: [signal],
+    });
+    // The durable history records presence separately from the JSONB payload.
+    await expect(database.select().from(testHistory)).resolves.toMatchObject([
+      { type: signal.type, signalId: signal.signalId, signalName: signal.name, payload, payloadPresent: true },
+    ]);
+  });
+
+  it("rejects a signal suppressed by a PostgreSQL trigger without advancing history", async () => {
+    const request = startRequest("suppressed-signal");
+    await adapter.start(request);
+    await client.query(`
+      CREATE FUNCTION pg_temp.skip_workflow_signal() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+      CREATE TRIGGER skip_workflow_signal BEFORE INSERT ON pg_temp.workflow_signal
+        FOR EACH ROW WHEN (NEW.name = 'suppressed') EXECUTE FUNCTION pg_temp.skip_workflow_signal();
+    `);
+    try {
+      await expect(adapter.sendSignal({
+        executionId: request.executionId, workflowName: request.workflowName,
+        signalName: "suppressed", payload: null,
+      })).rejects.toThrow("PostgreSQL did not return the stored workflow signal.");
+      await expect(adapter.get(request.executionId)).resolves.toMatchObject({ revision: 0 });
+      await expect(adapter.getHistory(request.executionId)).resolves.toEqual([]);
+      await expect(database.select().from(testSignals)).resolves.toEqual([]);
+    } finally {
+      await client.query(`
+        DROP TRIGGER skip_workflow_signal ON pg_temp.workflow_signal;
+        DROP FUNCTION pg_temp.skip_workflow_signal();
+      `);
+    }
+  });
+
+  it("skips a locked pending execution while holding the keyed admission lock", async () => {
+    const owner = qualifiedWorkflowAdapter(database);
+    const ids = ["admission-handoff-0", "admission-handoff-1", "admission-handoff-2"];
+    const key = "admission-handoff";
+    const requests = ids.map((id) => ({
+      ...startRequest(id),
+      concurrency: { keyed: { key, limit: 1, conflict: "enqueue", scope: "execution" } } as const,
+    }));
+    await owner.startMany(requests);
+    await expect(owner.get(ids[1]!)).resolves.toMatchObject({ status: "pending" });
+    await expect(owner.get(ids[2]!)).resolves.toMatchObject({ status: "pending" });
+
+    const peer = await pool.connect();
+    try {
+      await peer.query("BEGIN");
+      await peer.query(`SELECT id FROM ${qualifiedSchemaName}.execution WHERE id = $1 FOR UPDATE`, [ids[1]]);
+      await database.transaction(async (transaction) => {
+        // A handoff must reach another pending row while the oldest waiter is locked.
+        await transaction.execute(sql`SET LOCAL lock_timeout = '1s'`);
+        const releasing = qualifiedWorkflowAdapter(transaction);
+        await expect(releasing.forceTerminate(ids[0]!, "release the execution slot")).resolves.toBe(true);
+        await expect(releasing.get(ids[1]!)).resolves.toMatchObject({ status: "pending", concurrencyAdmitted: false });
+        await expect(releasing.get(ids[2]!)).resolves.toMatchObject({ status: "queued", concurrencyAdmitted: true });
+        await expect(transaction.select().from(qualifiedTasks).where(sql`${qualifiedTasks.executionId} = ${ids[2]}`))
+          .resolves.toMatchObject([{ kind: "workflow" }]);
+
+        const { rows } = await peer.query<{ acquired: boolean }>(
+          "SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS acquired",
+          [`workflow-key:${requests[0]!.workflowName}:${key}`],
+        );
+        expect(rows).toEqual([{ acquired: false }]);
+      });
+    } finally {
+      try {
+        await peer.query("ROLLBACK");
+      } finally {
+        peer.release();
+      }
+    }
+  });
+
+  it("recovers a waiter stranded by a concurrent resume during busy workflow polls", async () => {
+    await client.query(`TRUNCATE ${qualifiedSchemaName}.task, ${qualifiedSchemaName}.execution`);
+    const owner = qualifiedWorkflowAdapter(database);
+    const admittedId = "recovery-active";
+    const waiterId = "recovery-waiter";
+    const concurrency = {
+      keyed: { key: "recovery", limit: 1, conflict: "enqueue", scope: "execution" },
+    } as const;
+    const requests = [admittedId, waiterId].map((id) => ({ ...startRequest(id), concurrency }));
+    await owner.startMany(requests);
+    await expect(owner.setPaused(waiterId, true)).resolves.toBe(true);
+    const peer = await pool.connect();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(10_000);
+    const reserve = () => owner.reserveTasks({ kinds: ["workflow"], limit: 2, leaseMs: 60_000 });
+    try {
+      await drizzle(peer).transaction(async (transaction) => {
+        // Resume holds the pending execution row until the caller's transaction commits.
+        await expect(qualifiedWorkflowAdapter(transaction).setPaused(waiterId, false)).resolves.toBe(true);
+        await expect(owner.forceTerminate(admittedId)).resolves.toBe(true);
+      });
+      await expect(owner.get(waiterId)).resolves.toMatchObject({ status: "pending", concurrencyAdmitted: false });
+
+      await owner.start(startRequest("unrelated-first"));
+      await drizzle(peer).transaction(async (transaction) => {
+        // Recovery cannot block a scheduler behind another owner of the business key.
+        await transaction.execute(sql`
+          SELECT pg_advisory_xact_lock(hashtextextended(${"workflow-key:example.run:recovery"}, 0))
+        `);
+        await expect(reserve()).resolves.toMatchObject([{ executionId: "unrelated-first" }]);
+        await expect(owner.get(waiterId)).resolves.toMatchObject({ status: "pending" });
+      });
+      await expect(reserve()).resolves.toEqual([]);
+      await expect(owner.get(waiterId)).resolves.toMatchObject({ status: "pending" });
+
+      clock.mockReturnValue(11_000);
+      await owner.start(startRequest("unrelated-second"));
+      await expect(reserve()).resolves.toMatchObject([{ executionId: "unrelated-second" }]);
+      await expect(owner.get(waiterId)).resolves.toMatchObject({ status: "queued", concurrencyAdmitted: true });
+      await expect(reserve()).resolves.toMatchObject([{ executionId: waiterId, kind: "workflow" }]);
+    } finally {
+      clock.mockRestore();
+      peer.release();
+    }
+  });
+
+  it("bounds and advances recovery across keys that remain busy", async () => {
+    await client.query(`TRUNCATE ${qualifiedSchemaName}.task, ${qualifiedSchemaName}.execution`);
+    // Seed durable gaps left by earlier scheduler instances.
+    const ids = Array.from({ length: 9 }, (_, index) => `recovery-page-${index}`);
+    await seedPendingAdmissions(ids);
+    const owner = qualifiedWorkflowAdapter(database);
+    const peer = await pool.connect();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(20_000);
+    const reserve = () => owner.reserveTasks({ kinds: ["workflow"], limit: 10, leaseMs: 60_000 });
+    try {
+      await drizzle(peer).transaction(async (transaction) => {
+        await transaction.execute(sql`
+          SELECT pg_advisory_xact_lock(hashtextextended(key, 0))
+          FROM unnest(ARRAY[${sql.join(ids.slice(0, 8).map((id) => sql`${`workflow-key:example.run:${id}`}`), sql`, `)}]) held(key)
+        `);
+        await expect(reserve()).resolves.toEqual([]);
+        await expect(owner.get(ids[8]!)).resolves.toMatchObject({ status: "pending" });
+        clock.mockReturnValue(21_000);
+        await expect(reserve()).resolves.toEqual([]);
+        await expect(owner.get(ids[8]!)).resolves.toMatchObject({ status: "queued" });
+      });
+      clock.mockReturnValue(22_000);
+      await expect(reserve()).resolves.toMatchObject([{ executionId: ids[8] }]);
+      const recovered = await reserve();
+      expect(recovered.map(({ executionId }) => executionId).sort()).toEqual(ids.slice(0, 8));
+    } finally {
+      clock.mockRestore();
+      peer.release();
+    }
+  });
+
+  it("recounts available capacity after another transaction takes the discovered slot", async () => {
+    await client.query(`TRUNCATE ${qualifiedSchemaName}.task, ${qualifiedSchemaName}.execution`);
+    const waiterId = "recovery-stale";
+    const incomingId = "recovery-incoming";
+    await seedPendingAdmissions([waiterId]);
+    const owner = qualifiedWorkflowAdapter(database);
+    const peer = await pool.connect();
+    const originalQuery = client.query;
+    const query = vi.spyOn(client, "query").mockImplementation(((...arguments_: unknown[]) => {
+      const request = arguments_[0] as string | { text?: string };
+      const statement = typeof request === "string" ? request : request.text;
+      const run = () => Reflect.apply(originalQuery, client, arguments_);
+      if (!statement?.includes("pg_try_advisory_xact_lock")) return run();
+      // Commit another admission after discovery and before recovery takes the key.
+      return qualifiedWorkflowAdapter(drizzle(peer)).start({
+        ...startRequest(incomingId),
+        concurrency: {
+          keyed: { key: waiterId, limit: 1, conflict: "enqueue", scope: "execution" },
+        },
+      }).then(run);
+    }) as typeof client.query);
+    try {
+      await expect(owner.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 60_000 })).resolves.toEqual([]);
+      await expect(owner.get(incomingId)).resolves.toMatchObject({ status: "queued", concurrencyAdmitted: true });
+      await expect(owner.get(waiterId)).resolves.toMatchObject({ status: "pending", concurrencyAdmitted: false });
+    } finally {
+      query.mockRestore();
+      peer.release();
+    }
+  });
+
+  it("returns valid leases and repairs other keys when one admission repair fails", async () => {
+    await client.query(`TRUNCATE ${qualifiedSchemaName}.task, ${qualifiedSchemaName}.execution`);
+    const failedId = "recovery-error";
+    const healthyId = "recovery-healthy";
+    await seedPendingAdmissions([failedId, healthyId]);
+    await client.query(`
+      CREATE FUNCTION ${qualifiedSchemaName}.fail_recovery() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'admission interrupted'; END $$;
+      CREATE TRIGGER fail_recovery BEFORE UPDATE ON ${qualifiedSchemaName}.execution
+        FOR EACH ROW WHEN (OLD.id = 'recovery-error' AND NEW.status = 'queued')
+        EXECUTE FUNCTION ${qualifiedSchemaName}.fail_recovery();
+    `);
+    const owner = qualifiedWorkflowAdapter(database);
+    const reserve = (adapter: PostgresWorkflowAdapter) =>
+      adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 60_000 });
+    try {
+      await owner.start(startRequest("recovery-error-unrelated"));
+      await expect(reserve(owner)).resolves.toMatchObject([{ executionId: "recovery-error-unrelated" }]);
+      await expect(owner.get(healthyId)).resolves.toMatchObject({ status: "queued" });
+      await expect(reserve(owner)).resolves.toMatchObject([{ executionId: healthyId }]);
+      await expect(reserve(qualifiedWorkflowAdapter(database))).rejects.toMatchObject({
+        cause: { message: "admission interrupted" },
+      });
+      await expect(owner.get(failedId)).resolves.toMatchObject({ status: "pending" });
+    } finally {
+      await client.query(`
+        DROP TRIGGER fail_recovery ON ${qualifiedSchemaName}.execution;
+        DROP FUNCTION ${qualifiedSchemaName}.fail_recovery();
+      `);
+    }
+  });
+
+  it("locks an execution ID at start and skips the admission lock for active-work termination", async () => {
+    const key = "active-work-admission";
+    const request = {
+      ...startRequest("active-work-admission"),
+      concurrency: { keyed: { key, limit: 1, conflict: "enqueue", scope: "active-work" } } as const,
+    };
+    const peer = await pool.connect();
+    const tryLock = async (name: string): Promise<boolean> => {
+      const { rows } = await peer.query<{ acquired: boolean }>(
+        "SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS acquired", [name],
+      );
+      return rows[0]!.acquired;
+    };
+    try {
+      await database.transaction(async (transaction) => {
+        await qualifiedWorkflowAdapter(transaction).start(request);
+        await expect(tryLock(`workflow-start:${request.executionId}`)).resolves.toBe(false);
+      });
+      await database.transaction(async (transaction) => {
+        // Active-work reservations have no execution-wide slot to hand off.
+        await expect(qualifiedWorkflowAdapter(transaction).forceTerminate(request.executionId)).resolves.toBe(true);
+        await expect(tryLock(`workflow-key:${request.workflowName}:${key}`)).resolves.toBe(true);
+      });
+    } finally {
+      peer.release();
+    }
   });
 
   it("keeps common durable transitions within their query budgets", async () => {
@@ -2125,6 +2840,111 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(adapter.get(request.executionId)).resolves.toMatchObject({
       status: "completed", output: { ok: true }, concurrencyAdmitted: false, completedAt: expect.any(Date),
     });
+  });
+
+  it("commits a single timer and a single outbox activity in one statement each", async () => {
+    const request = startRequest("single-command-query-budget");
+    await outboxAdapter.start(request);
+    const timerActivation = await reserveOne("workflow");
+    const timer = { sequence: 0, kind: "timer", target: "sleep", payload: { durationMs: 60_000 } };
+    await expect(countClientQueries(() => outboxAdapter.commitActivation({
+      ...toRef(timerActivation), executionId: request.executionId, expectedRevision: 0,
+      commands: [timer], outcome: { status: "waiting" },
+    }))).resolves.toEqual({ count: 1, result: true });
+
+    const [scheduled] = await outboxAdapter.getHistory(request.executionId);
+    const [storedTimer] = await database.select().from(testTasks);
+    expect(storedTimer).toMatchObject({ kind: "timer", commandSequence: 0, target: "sleep", payload: timer.payload });
+    expect(storedTimer!.availableAt.getTime() - scheduled!.occurredAt.getTime()).toBe(60_000);
+
+    // An unrelated signal creates a fresh activation while the durable timer remains pending.
+    await outboxAdapter.sendSignal({
+      executionId: request.executionId, workflowName: request.workflowName, signalName: "unrelated", payload: null,
+    });
+    const activityActivation = await reserveOne("workflow");
+    const activity = { sequence: 1, kind: "activity", target: "example.dispatch", payload: { amount: 3 } };
+    await expect(countClientQueries(() => outboxAdapter.commitActivation({
+      ...toRef(activityActivation), executionId: request.executionId, expectedRevision: 2,
+      commands: [activity], outcome: { status: "waiting" },
+    }))).resolves.toEqual({ count: 1, result: true });
+    await expect(database.select().from(testTasks)).resolves.toEqual([storedTimer]);
+    await expect(database.select().from(testDispatchOutbox)).resolves.toMatchObject([
+      { executionId: request.executionId, commandSequence: 1, target: activity.target, payload: activity.payload },
+    ]);
+  });
+
+  it("settles buffered signals when an activation blocks or adds an ordinary command", async () => {
+    const request = startRequest("signal-fast-path-boundary");
+    await adapter.start(request);
+    const initial = await reserveOne("workflow");
+    const signal = (sequence: number, target: string) => ({ sequence, kind: "signal", target, payload: {} });
+    await expect(adapter.commitActivation({
+      ...toRef(initial), executionId: request.executionId, expectedRevision: 0,
+      commands: [signal(0, "first"), signal(1, "second")], outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+
+    const firstReceipt = await adapter.sendSignal({
+      executionId: request.executionId, workflowName: request.workflowName, signalName: "first", payload: "one",
+    });
+    const first = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(first), executionId: request.executionId, expectedRevision: 3,
+      commands: [{ sequence: 2, kind: "timer", target: "sleep", payload: { durationMs: 60_000 } }],
+      outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "queued", revision: 5 });
+    expect((await adapter.getHistory(request.executionId)).at(-1)).toMatchObject({
+      type: "command-completed", sequence: 0, completionOrder: 0, sourceId: firstReceipt.id, result: "one",
+    });
+
+    const secondReceipt = await adapter.sendSignal({
+      executionId: request.executionId, workflowName: request.workflowName, signalName: "second", payload: "two",
+    });
+    const second = await reserveOne("workflow");
+    const error = { name: "WorkflowNondeterminismError", message: "Replay diverged after the first signal." };
+    await expect(adapter.commitActivation({
+      ...toRef(second), executionId: request.executionId, expectedRevision: 6,
+      commands: [], outcome: { status: "blocked", error },
+    })).resolves.toBe(true);
+    await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "blocked", revision: 7, error });
+    expect((await adapter.getHistory(request.executionId)).at(-1)).toMatchObject({
+      type: "command-completed", sequence: 1, completionOrder: 1, sourceId: secondReceipt.id, result: "two",
+    });
+    await expect(database.select().from(testTasks)).resolves.toMatchObject([
+      { executionId: request.executionId, kind: "timer", commandSequence: 2 },
+    ]);
+  });
+
+  it("skips reading buffered signals once every signal command has settled", async () => {
+    const request = startRequest("settled-signal-query-budget");
+    await adapter.start(request);
+    await adapter.sendSignal({
+      executionId: request.executionId, workflowName: request.workflowName, signalName: "ready", payload: null,
+    });
+    const initial = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(initial), executionId: request.executionId, expectedRevision: 1,
+      commands: [{ sequence: 0, kind: "signal", target: "ready", payload: {} }], outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    const next = await reserveOne("workflow");
+    const queries = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.commitActivation({
+        ...toRef(next), executionId: request.executionId, expectedRevision: 3,
+        commands: [{ sequence: 1, kind: "capture", target: "value", payload: 7 }], outcome: { status: "waiting" },
+      })).resolves.toBe(true);
+      const readSignals = queries.mock.calls.some(([query]: readonly unknown[]) => {
+        const statement = typeof query === "string" ? query : (query as { text: string }).text;
+        return /\bfrom\s+"workflow_signal"/iu.test(statement);
+      });
+      expect(readSignals).toBe(false);
+    } finally {
+      queries.mockRestore();
+    }
+    await expect(adapter.getHistory(request.executionId)).resolves.toMatchObject([
+      { type: "signal-received" }, { type: "command-scheduled", sequence: 0 }, { type: "command-completed", sequence: 0 },
+      { type: "command-scheduled", sequence: 1 }, { type: "command-completed", sequence: 1, result: 7 },
+    ]);
   });
 
   it.each([
@@ -2483,7 +3303,7 @@ describe("PostgresWorkflowAdapter", () => {
     { outcome: { status: "completed" }, completion: {} },
     { outcome: { status: "completed", output: null }, completion: { result: null } },
     { outcome: { status: "failed", error: { name: "ChildFailure", message: "Child failed." } }, completion: { error: { name: "ChildFailure", message: "Child failed." } } },
-    { outcome: { status: "cancelled" }, completion: { error: { name: "WorkflowCancellationError", details: { executionId: "terminal-child" } } } },
+    { outcome: { status: "cancelled" }, completion: { error: { name: "WorkflowCancellationError", message: 'Child workflow "terminal-child" was cancelled.', details: { executionId: "terminal-child" } } } },
   ] as const)("records the exact terminal child outcome in its parent (%#)", async ({ outcome, completion }) => {
     const request = startRequest("terminal-outcome-parent");
     const childId = "terminal-child";
@@ -2526,6 +3346,38 @@ describe("PostgresWorkflowAdapter", () => {
     })).resolves.toBe(true);
     await expect(adapter.get(child.executionId)).resolves.toMatchObject({ status: "completed", output: null });
     await expect(adapter.get(parentId)).resolves.toEqual(before);
+    await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 60_000 })).resolves.toEqual([]);
+  });
+
+  it("does not wake the parent twice when two linked executions report the same child command", async () => {
+    const request = startRequest("deduplicated-child-completion");
+    await adapter.start(request);
+    const parent = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(parent), executionId: request.executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "child", target: "example.child", payload: { version: 1, input: null } }],
+      outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    const child = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(child), executionId: child.executionId, expectedRevision: 0,
+      commands: [], outcome: { status: "completed", output: "first" },
+    })).resolves.toBe(true);
+    const woken = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(woken), executionId: request.executionId, expectedRevision: 2, commands: [], outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+
+    const duplicateId = "second-child-record";
+    await adapter.start({ ...startRequest(duplicateId), parentExecutionId: request.executionId, parentCommandSequence: 0 });
+    const duplicate = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(duplicate), executionId: duplicateId, expectedRevision: 0, commands: [], outcome: { status: "completed", output: "later" },
+    })).resolves.toBe(true);
+    await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "waiting", revision: 2 });
+    await expect(adapter.getHistory(request.executionId)).resolves.toMatchObject([
+      { type: "command-scheduled", sequence: 0 }, { type: "command-completed", sequence: 0, result: "first" },
+    ]);
     await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 60_000 })).resolves.toEqual([]);
   });
 
@@ -2919,6 +3771,17 @@ function qualifiedWorkflowAdapter(connection: PostgresWorkflowDatabase): Postgre
     testDispatchOutbox as unknown as typeof workflowDispatchOutbox,
     testHistoryArchives as unknown as typeof workflowHistoryArchives,
   );
+}
+
+async function seedPendingAdmissions(ids: readonly string[]): Promise<void> {
+  await client.query(`
+    INSERT INTO ${qualifiedSchemaName}.execution (
+      id, workflow_name, workflow_version, status, root_execution_id,
+      concurrency_key, concurrency_key_limit, concurrency_conflict, concurrency_scope, concurrency_admitted
+    )
+    SELECT id, 'example.run', 1, 'pending', id, id, 1, 'enqueue', 'execution', false
+    FROM unnest($1::text[]) pending(id)
+  `, [ids]);
 }
 
 async function seedFailedQualifiedExecution(id: string, key?: string): Promise<void> {

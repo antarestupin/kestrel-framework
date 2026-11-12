@@ -174,7 +174,9 @@ describe("WorkerAcknowledgementBuffer", () => {
     });
     buffer.enqueue("first-queue", reservation("first"));
     buffer.enqueue("second-queue", reservation("second"));
-    await expect(buffer.flush()).rejects.toMatchObject({ errors: [first, second] });
+    await expect(buffer.flush()).rejects.toMatchObject({
+      message: "Several worker queue acknowledgements failed.", errors: [first, second],
+    });
     await expect(buffer.flush()).resolves.toBeUndefined();
   });
 
@@ -188,7 +190,9 @@ describe("WorkerAcknowledgementBuffer", () => {
     });
     buffer.enqueue("queue", reservation("first"));
     buffer.enqueue("queue", reservation("second"));
-    await expect(buffer.flush()).rejects.toMatchObject({ errors: [first, second] });
+    await expect(buffer.flush()).rejects.toMatchObject({
+      message: "Several worker acknowledgement batches failed.", errors: [first, second],
+    });
     await expect(buffer.flush()).resolves.toBeUndefined();
   });
 

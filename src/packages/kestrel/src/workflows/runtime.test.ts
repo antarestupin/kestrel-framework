@@ -360,7 +360,9 @@ describe("WorkflowRuntime", () => {
       expect(failed).toHaveBeenCalledExactlyOnceWith(failure);
       // The failure must abort sibling polling before explicit shutdown.
       expect(runtime.state.scheduler.status).toBe("stopped");
-      await expect(runtime.stop()).rejects.toMatchObject({ name: "AggregateError", errors: [failure] });
+      await expect(runtime.stop()).rejects.toMatchObject({
+        name: "AggregateError", message: "Workflow polling failed.", errors: [failure],
+      });
       expect(reserveDispatches).toHaveBeenCalledExactlyOnceWith({ limit: 6, leaseMs: 850 });
       expect(reserve).toHaveBeenCalledOnce();
       expect(reserve.mock.calls[0]?.[0].kinds).toEqual(["workflow", "timer"]);

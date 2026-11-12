@@ -84,7 +84,9 @@ describe("WorkerDeferralBuffer", () => {
     const persisted = vi.fn();
     const buffer = new WorkerDeferralBuffer(adapter, { maxSize: 1, flushIntervalMs: 1_000, onDeferred });
     buffer.enqueue([request("first", 100), request("second", 200)], persisted);
-    await expect(buffer.flush()).rejects.toMatchObject({ errors: [first, second] });
+    await expect(buffer.flush()).rejects.toMatchObject({
+      message: "Several worker deferral batches failed.", errors: [first, second],
+    });
     expect(defer).toHaveBeenCalledTimes(2);
     expect(onDeferred).not.toHaveBeenCalled();
     expect(persisted).not.toHaveBeenCalled();

@@ -176,9 +176,13 @@ export class WorkflowProvider<Config> implements Provider<Config> {
 
     return {
       record: (event) => {
-        configured?.record(event);
-        const observer = observerContext?.get();
-        if (observer !== undefined) recordWorkflowInstrumentation(observer, event);
+        // A failed telemetry destination cannot prevent the other destination
+        // from receiving this event or the scheduler from recording the next one.
+        try { configured?.record(event); } catch { /* Application instrumentation is best effort. */ }
+        try {
+          const observer = observerContext?.get();
+          if (observer !== undefined) recordWorkflowInstrumentation(observer, event);
+        } catch { /* The scoped observer is independent of durable workflow state. */ }
       },
     };
   }

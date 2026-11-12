@@ -21,6 +21,11 @@ test("profiles preserve Stryker flags and require a bounded existing component",
   }
   assert.throws(() => mutationArguments(["--mode", "fast", "--ignoreStatic=false"]));
   assert.throws(() => mutationArguments(["--mode", "component", "di", "--mutate=src/**"]));
+  assert.throws(() => mutationArguments(["--mode", "component", "di", "-msrc/**"]));
+  assert.throws(() => mutationArguments(["--mode", "component", "di", "--testFiles=src/**/*.test.ts"]));
+  assert.throws(() => mutationArguments(["--mode", "db-history-events", "--testFiles", "history"]));
+  assert.throws(() => mutationArguments(["--mode", "db-history-events", "-t", "history"]));
+  assert.throws(() => mutationArguments(["--mode", "db-history-events", "-thistory"]));
   assert.equal(mutationArguments(["--mode", "static-sample"]).budgetMs, 600_000);
   assert.equal(staticSamplePatterns().length, 9);
   assert.equal(mutationArguments(["--mode", "shutdown"]).budgetMs, 600_000);
@@ -56,6 +61,10 @@ const componentPartitions = {
   workflows: [
     ...focusedProfileNames().filter((mode) => mode.startsWith("workflow-")),
     "postgres-ownership",
+  ],
+  workers: [
+    "workers-delivery", "workers-scheduler", "workers-contracts", "workers-publication",
+    "workers-adapter-memory", "workers-adapter-postgres", "workers-adapter-schema",
   ],
   throttling: [
     "throttling-admission", "throttling-queues", "throttling-circuits", "throttling-completion",

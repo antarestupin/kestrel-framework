@@ -122,7 +122,10 @@ describe("cursor pagination boundary contracts", () => {
 
   it("rejects a null structured cursor even when the underlying value schema accepts null", () => {
     const nullable = createPaginationCursorCodec(z.object({ id: z.number() }).nullable());
-    expect(createCursorPaginationInputSchema(nullable).safeParse({ type: "cursor", after: null }).success).toBe(false);
+    expect(createCursorPaginationInputSchema(nullable).safeParse({ type: "cursor", after: null }))
+      .toMatchObject({ success: false, error: { issues: [
+        { code: "custom", path: ["after"], message: "Cursor values must be non-null." },
+      ] } });
   });
 
   it("rejects invalid cursor tokens and oversized explicit nested input", () => {
@@ -132,6 +135,12 @@ describe("cursor pagination boundary contracts", () => {
     for (const after of ["!", "", "e30", z.encode(createPaginationCursorCodec(z.number()), 5)]) {
       expect(controller.safeParse({ after }).success).toBe(false);
     }
+    // This token has a valid wire format but contains an incompatible cursor value.
+    const wrongValue = z.encode(createPaginationCursorCodec(z.number()), 5);
+    expect(controller.safeParse({ after: wrongValue })).toMatchObject({
+      success: false,
+      error: { issues: [{ code: "custom", path: ["after"], message: "Invalid pagination cursor." }] },
+    });
   });
 
   it("reports invalid outgoing cursor values as a custom cursor issue", () => {
@@ -141,7 +150,7 @@ describe("cursor pagination boundary contracts", () => {
     } });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.issues).toMatchObject([
-      { code: "custom", path: ["pageInfo", "nextCursor"] },
+      { code: "custom", path: ["pageInfo", "nextCursor"], message: "Invalid pagination cursor." },
     ]);
   });
 });
