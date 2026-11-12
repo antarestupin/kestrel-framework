@@ -189,6 +189,25 @@ describe("atlas relation hydration", () => {
     }]);
   });
 
+  it("does not offer phantom record links for absent identifiers within a relation list", () => {
+    const records = new Map([["user", [{ id: "user-1", name: "Ada" }, { id: "user-2" }]]]);
+    expect(resolveRelationValue(reviewerField, ["user-1", "user-2"], records, userResource)).toEqual(["Ada", "user-2"]);
+    expect(resolveRelationReferences(manifest, reviewerField, ["user-1", null, undefined, "user-2"], records)).toEqual([
+      { resourceId: "user", recordId: "user-1", label: "Ada" },
+      { resourceId: "user", recordId: "user-2", label: "user-2" },
+    ]);
+  });
+
+  it("honors the relation display override for array-backed records without a target manifest", () => {
+    const author = { ...authorField, relation: { ...authorField.relation!, displayField: "name" } };
+    const records = new Map([["user", [{ id: "user-1", name: "Ada" }]]]);
+    expect(resolveRelationValue(author, "user-1", records)).toBe("Ada");
+    expect(resolveRelationValue(authorField, "user-1", records)).toBe("user-1");
+    expect(resolveRelationReferences({ ...manifest, resources: [articleResource] }, author, "user-1", records)).toEqual([
+      { resourceId: "user", recordId: "user-1", label: "Ada" },
+    ]);
+  });
+
   it("renders hydrated relation values as target record links", () => {
     const markup = renderToStaticMarkup(createElement(FieldValue, {
       basePath: "/atlas",

@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -218,6 +219,7 @@ function ControllerRequestEditor({
     () => createBodyValue(controller, 0),
   );
   const [sending, setSending] = useState(false);
+  const inFlight = useRef(false);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<RequestResult>();
   const [executionId, setExecutionId] = useState<string>();
@@ -238,28 +240,26 @@ function ControllerRequestEditor({
   };
 
   const send = async () => {
+    // A second click can reach this handler before React disables the button.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setSending(true);
     setError(undefined);
     setResult(undefined);
     setExecutionId(undefined);
 
     try {
-      const requestedExecutionId = observability === undefined
+      const correlation = observability === undefined
         ? undefined
-        : uuidV7();
+        : { header: observability.executionIdHeader, value: uuidV7() };
       const request = buildRequest(
         controller,
         fieldValues,
         body,
-        requestedExecutionId === undefined || observability === undefined
-          ? undefined
-          : {
-              header: observability.executionIdHeader,
-              value: requestedExecutionId,
-            },
+        correlation,
       );
 
-      setExecutionId(requestedExecutionId);
+      setExecutionId(correlation?.value);
 
       const startedAt = performance.now();
       const response = await fetch(request.url, request.init);
@@ -282,6 +282,7 @@ function ControllerRequestEditor({
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   };
@@ -333,7 +334,7 @@ function ControllerRequestEditor({
                   }))}
                   placeholder={getSchemaLabel(input.schema)}
                   type="text"
-                  value={fieldValues[input.name] ?? ""}
+                  value={fieldValues[input.name]}
                 />
               </label>
             ))}

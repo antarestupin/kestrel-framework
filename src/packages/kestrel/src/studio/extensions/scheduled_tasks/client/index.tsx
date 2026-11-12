@@ -297,8 +297,8 @@ function formatDuration(milliseconds: number): string {
   return unit === undefined ? `${milliseconds}ms` : `${milliseconds / unit[0]}${unit[1]}`;
 }
 
-function formatDate(value?: string): string {
-  return value === undefined ? "—" : new Date(value).toLocaleString();
+function formatDate(value: string): string {
+  return new Date(value).toLocaleString();
 }
 
 function RunTime({

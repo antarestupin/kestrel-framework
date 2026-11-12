@@ -5,6 +5,20 @@ import { loadRelationRecords } from "./relation_loader.js";
 
 const resource = { id: "entry", identity: "id", readManyBatchSize: 2 } as AtlasResourceManifest;
 describe("relation batch cache", () => {
+  it("uses batches of 100 when a resource has no explicit limit", async () => {
+    const client = new QueryClient();
+    const { readManyBatchSize: _limit, ...defaultResource } = resource;
+    const ids = Array.from({ length: 101 }, (_, index) => index + 1);
+    const read = vi.fn(async (batch: readonly unknown[]) => batch.map((id) => ({ id })));
+    try {
+      await expect(loadRelationRecords(client, "/atlas", defaultResource, ids, read))
+        .resolves.toHaveLength(101);
+      expect(read.mock.calls.map(([batch]) => batch.length)).toEqual([100, 1]);
+    } finally {
+      client.clear();
+    }
+  });
+
   it("deduplicates, bounds batches, caches absent records and fetches only new identifiers", async () => {
     const client = new QueryClient();
     const read = vi.fn(async (ids: readonly unknown[]) => ids.filter((id) => id !== "missing").map((id) => ({ id, __atlas_display: `Label ${id}` })));

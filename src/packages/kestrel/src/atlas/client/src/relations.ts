@@ -88,19 +88,13 @@ export function resolveRelationValue(
   }
 
   const targetRecords = recordsByResource.get(relation.resource) ?? [];
+  // Callers with array-backed data can rely on the conventional identity.
+  const identity = target?.identity ?? "id";
+  const displayField = relation.displayField ?? target?.displayField ?? identity;
   const resolveOne = (identifier: unknown) => {
-    const record = findRelationRecord(targetRecords, target?.identity, identifier);
+    const record = findRelationRecord(targetRecords, identity, identifier);
 
-    if (record === undefined) {
-      return identifier;
-    }
-
-    return record[
-      relation.displayField
-      ?? target?.displayField
-      ?? target?.identity
-      ?? "id"
-    ] ?? identifier;
+    return record?.[displayField] ?? identifier;
   };
 
   return relation.cardinality === "many" && Array.isArray(value)
@@ -128,30 +122,21 @@ export function resolveRelationReferences(
     (resource) => resource.id === relation.resource,
   );
   const targetRecords = recordsByResource.get(relation.resource) ?? [];
+  const identity = target?.identity ?? "id";
+  const displayField = relation.displayField ?? target?.displayField ?? identity;
   const values = relation.cardinality === "many" && Array.isArray(value)
     ? value
     : [value];
 
-  return values.map((identifier) => {
-    const record = findRelationRecord(targetRecords, target?.identity, identifier);
-    const targetIdentity = target === undefined || record === undefined
-      ? undefined
-      : record[target.identity];
-    const fallbackIdentity = identifier;
-
-    return {
+  return values.flatMap((identifier) => {
+    // An empty relation value is not an addressable target.
+    if (identifier == null) return [];
+    const record = findRelationRecord(targetRecords, identity, identifier);
+    return [{
       resourceId: relation.resource,
-      ...(targetIdentity === undefined && fallbackIdentity === undefined
-        ? {}
-        : { recordId: String(targetIdentity ?? fallbackIdentity) }),
-      label: record?.[
-        relation.displayField
-        ?? target?.displayField
-        ?? target?.identity
-        ?? "id"
-      ]
-        ?? identifier,
-    };
+      recordId: String(record?.[identity] ?? identifier),
+      label: record?.[displayField] ?? identifier,
+    }];
   });
 }
 
@@ -217,8 +202,8 @@ function serializeIdentifier(identifier: unknown): string {
 }
 
 /** Hook callers index each target once, avoiding a scan for every matrix cell. */
-function findRelationRecord(records: readonly RelationRecord[] | ReadonlyMap<string, RelationRecord>, identity: string | undefined, identifier: unknown) {
+function findRelationRecord(records: readonly RelationRecord[] | ReadonlyMap<string, RelationRecord>, identity: string, identifier: unknown) {
   return Array.isArray(records)
-    ? records.find((row) => serializeIdentifier(identity === undefined ? undefined : row[identity]) === serializeIdentifier(identifier))
+    ? records.find((row) => serializeIdentifier(row[identity]) === serializeIdentifier(identifier))
     : (records as ReadonlyMap<string, RelationRecord>).get(serializeIdentifier(identifier));
 }

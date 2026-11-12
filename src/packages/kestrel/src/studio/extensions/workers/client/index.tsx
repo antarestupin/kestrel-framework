@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -65,7 +66,7 @@ function WorkersStudioPage({ page }: { page: StudioPageManifest }) {
 
 function WorkerWorkspace({ dataPath }: { dataPath: string }) {
   const [resource, setResource] = useState<CatalogResource>({ status: "loading" });
-  const [updatingQueue, setUpdatingQueue] = useState<string>();
+  const [updatingQueues, setUpdatingQueues] = useState<ReadonlySet<string>>(() => new Set());
 
   const load = useCallback(async () => {
     try {
@@ -94,7 +95,8 @@ function WorkerWorkspace({ dataPath }: { dataPath: string }) {
   }, [load]);
 
   const setEnabled = async (worker: StudioWorkerQueue, enabled: boolean) => {
-    setUpdatingQueue(worker.queue);
+    // Each queue remains locked until its own update settles.
+    setUpdatingQueues((current) => new Set(current).add(worker.queue));
 
     try {
       const response = await fetch(`${dataPath}/queues/control`, {
@@ -114,7 +116,11 @@ function WorkerWorkspace({ dataPath }: { dataPath: string }) {
         message: error instanceof Error ? error.message : String(error),
       });
     } finally {
-      setUpdatingQueue(undefined);
+      setUpdatingQueues((current) => {
+        const pending = new Set(current);
+        pending.delete(worker.queue);
+        return pending;
+      });
     }
   };
 
@@ -189,17 +195,17 @@ function WorkerWorkspace({ dataPath }: { dataPath: string }) {
                   <span>{node.reserved}</span>
                   <button
                     className={`queue-toggle ${node.enabled ? "enabled" : "paused"}`}
-                    disabled={updatingQueue === node.queue}
+                    disabled={updatingQueues.has(node.queue)}
                     onClick={() => void setEnabled(node, !node.enabled)}
                     type="button"
                   >
                     <Icon
-                      name={updatingQueue === node.queue
+                      name={updatingQueues.has(node.queue)
                         ? "loading"
                         : node.enabled ? "play" : "pause"}
-                      spin={updatingQueue === node.queue}
+                      spin={updatingQueues.has(node.queue)}
                     />
-                    {updatingQueue === node.queue
+                    {updatingQueues.has(node.queue)
                       ? "Updating…"
                       : node.enabled ? "Active" : "Paused"}
                   </button>
@@ -284,11 +290,7 @@ function WorkerDetailWorkspace({
     return () => window.clearInterval(interval);
   }, [load]);
 
-  const setEnabled = async (enabled: boolean) => {
-    if (resource.status !== "ready") {
-      return;
-    }
-
+  const setEnabled = async (queue: string, enabled: boolean) => {
     setUpdatingQueue(true);
     setControlError(undefined);
 
@@ -297,7 +299,7 @@ function WorkerDetailWorkspace({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          queue: resource.detail.worker.queue,
+          queue,
           enabled,
         }),
       });
@@ -354,7 +356,7 @@ function WorkerDetailWorkspace({
         observability={resource.detail.observability}
         onEnqueued={load}
         onRefresh={refresh}
-        onSetEnabled={setEnabled}
+        onSetEnabled={(enabled) => setEnabled(resource.detail.worker.queue, enabled)}
         queueUpdating={updatingQueue}
         refreshing={refreshing}
         worker={resource.detail.worker}
@@ -389,6 +391,7 @@ function WorkerPublisher({
     () => formatPayload(worker, 0),
   );
   const [sending, setSending] = useState(false);
+  const inFlight = useRef(false);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<StudioWorkerEnqueueResult>();
   const [executionId, setExecutionId] = useState<string>();
@@ -402,6 +405,9 @@ function WorkerPublisher({
   };
 
   const enqueue = async () => {
+    // Block double clicks before the disabled button is committed.
+    if (inFlight.current) return;
+    inFlight.current = true;
     setSending(true);
     setError(undefined);
     setResult(undefined);
@@ -440,6 +446,7 @@ function WorkerPublisher({
       setExecutionId(undefined);
       setError(caught instanceof Error ? caught.message : String(caught));
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   };

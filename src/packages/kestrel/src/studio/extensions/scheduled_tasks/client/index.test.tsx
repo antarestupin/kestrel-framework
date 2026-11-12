@@ -148,4 +148,32 @@ describe("Studio scheduled-task interactions", () => {
     await act(async () => pause.resolve(new Response(null, { status: 204 })));
     expect(button("Resume", row(firstTask)).disabled).toBe(false);
   });
+
+  it("distinguishes an uninitialized persistent task and formats short and distant run times", async () => {
+    const pending: StudioScheduledTask = {
+      ...localTask, id: "exports.pending", stateKind: "persistent",
+      schedule: { kind: "cron", expression: "10 * * * *" },
+    };
+    const active: StudioScheduledTask = {
+      ...secondTask, state: {
+        paused: false, activeRuns: 0, lastOutcome: "failure",
+        lastCompletedAt: "2026-11-12T07:00:00.000Z", nextScheduledAt: "2026-11-12T10:00:40.000Z",
+      },
+    };
+    request.mockRejectedValueOnce("Scheduler network unavailable")
+      .mockResolvedValueOnce(catalog(pending, active))
+      .mockRejectedValueOnce("Control network unavailable");
+    await mount();
+    expect(container.textContent).toContain("Scheduler network unavailable");
+    await act(async () => button("Retry").click());
+    expect(row(pending).querySelector(".scheduled-task-status")?.textContent).toBe("Pending");
+    expect(row(pending).querySelector('[data-label="Schedule"]')?.textContent).toBe("10 * * * *");
+    expect(row(active).querySelector(".scheduled-task-status")?.textContent).toBe("Active");
+    expect(row(active).querySelector('[data-label="Last run"]')?.textContent).toContain("3 hours ago");
+    expect(row(active).querySelector('[data-label="Last run"]')?.textContent).toContain("Failed");
+    expect(row(active).querySelector('[data-label="Next run"]')?.textContent).toContain("in 40 seconds");
+    await act(async () => button("Run now", row(active)).click());
+    expect(container.textContent).toContain("Control network unavailable");
+    expect(button("Run now", row(active)).disabled).toBe(false);
+  });
 });

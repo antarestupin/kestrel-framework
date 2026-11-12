@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { StudioPageHeader } from "../../../client/src/page.js";
 import type { StudioPageRenderer } from "../../../client/src/page_renderer.js";
@@ -51,8 +51,13 @@ function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [workflowName, setWorkflowName] = useState("");
+  const activeLoad = useRef<AbortController | undefined>(undefined);
 
   const load = useCallback(async (cursor?: string, append = false) => {
+    // A later filter or refresh owns the results, even if an aborted response still resolves.
+    activeLoad.current?.abort();
+    const request = new AbortController();
+    activeLoad.current = request;
     setLoading(true);
     setError(undefined);
     try {
@@ -63,21 +68,27 @@ function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
       if (status !== "") url.searchParams.set("status", status);
       if (workflowName !== "") url.searchParams.set("workflowName", workflowName);
       const [catalogResponse, executionsResponse] = await Promise.all([
-        fetch(`${dataPath}/catalog`),
-        fetch(url),
+        fetch(`${dataPath}/catalog`, { signal: request.signal }),
+        fetch(url, { signal: request.signal }),
       ]);
       if (!catalogResponse.ok || !executionsResponse.ok) {
         throw new Error("Unable to load durable workflow operations.");
       }
       const nextCatalog = await catalogResponse.json() as StudioWorkflowCatalog;
       const page = await executionsResponse.json() as StudioWorkflowExecutionPage;
+      if (request.signal.aborted) return;
       setCatalog(nextCatalog);
       setExecutions((current) => append ? [...current, ...page.items] : [...page.items]);
       setNextCursor(page.nextCursor);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
+      if (!request.signal.aborted) {
+        setError(loadError instanceof Error ? loadError.message : String(loadError));
+      }
     } finally {
-      setLoading(false);
+      if (activeLoad.current === request) {
+        activeLoad.current = undefined;
+        setLoading(false);
+      }
     }
   }, [dataPath, search, status, workflowName]);
 
@@ -85,8 +96,14 @@ function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
     void load();
 
     // Refresh operational state at the same cadence as logs and observations.
-    const interval = window.setInterval(() => void load(), 2_000);
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(() => {
+      if (activeLoad.current === undefined) void load();
+    }, 2_000);
+    return () => {
+      activeLoad.current?.abort();
+      activeLoad.current = undefined;
+      window.clearInterval(interval);
+    };
   }, [load]);
 
   return (
@@ -412,6 +429,8 @@ function SignalPanel({
     : signals[0]!;
   const [payload, setPayload] = useState("null");
   const [message, setMessage] = useState<string>();
+  const [delivering, setDelivering] = useState(false);
+  const deliveryInFlight = useRef(false);
 
   if (["cancelled", "completed", "failed", "terminated"].includes(details.execution.status)) return null;
   return (
@@ -419,6 +438,11 @@ function SignalPanel({
       className="workflow-signal-panel"
       onSubmit={async (event: FormEvent) => {
         event.preventDefault();
+        // A signal can advance durable work, so a second submit cannot overlap it.
+        if (deliveryInFlight.current) return;
+        deliveryInFlight.current = true;
+        setDelivering(true);
+        setMessage(undefined);
         try {
           const response = await fetch(`${dataPath}/signals`, {
             method: "POST",
@@ -435,19 +459,22 @@ function SignalPanel({
           await onDelivered();
         } catch (signalError) {
           setMessage(signalError instanceof Error ? signalError.message : String(signalError));
+        } finally {
+          deliveryInFlight.current = false;
+          setDelivering(false);
         }
       }}
     >
       <h3>Send signal</h3>
       {signals.length === 0
-        ? <input onChange={(event) => setSelectedSignal(event.target.value)} placeholder="signal.name" value={signalName} />
+        ? <input disabled={delivering} onChange={(event) => setSelectedSignal(event.target.value)} placeholder="signal.name" value={signalName} />
         : (
-            <select onChange={(event) => setSelectedSignal(event.target.value)} value={signalName}>
+            <select disabled={delivering} onChange={(event) => setSelectedSignal(event.target.value)} value={signalName}>
               {signals.map((signal) => <option key={signal} value={signal}>{signal}</option>)}
             </select>
           )}
-      <textarea onChange={(event) => setPayload(event.target.value)} rows={3} value={payload} />
-      <button disabled={signalName.trim() === ""} type="submit">Deliver</button>
+      <textarea disabled={delivering} onChange={(event) => setPayload(event.target.value)} rows={3} value={payload} />
+      <button disabled={delivering || signalName.trim() === ""} type="submit">Deliver</button>
       {message !== undefined ? <small>{message}</small> : null}
     </form>
   );

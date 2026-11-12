@@ -685,6 +685,8 @@ export function ResourceEditPage(properties: RecordProperties) {
   return (
     <ResourceForm
       {...properties}
+      // A retained route must not submit one record's draft against another.
+      key={recordId}
       mode="update"
       onCancel={() => void navigate({ to: recordRoute })}
       onSuccess={() => void navigate({ to: recordRoute })}
@@ -1127,19 +1129,16 @@ export function CollectionControls({
     ? resource.fields.filter((field) => field.filterOperators.length > 0)
     : [];
   const [search, setSearch] = useState(query.search ?? "");
-  const [fieldId, setFieldId] = useState(filterableFields[0]?.id ?? "");
-  const selectedField = filterableFields.find((field) => field.id === fieldId);
-  const [operator, setOperator] = useState(
-    selectedField?.filterOperators[0] ?? "equals",
-  );
+  const [fieldId, setFieldId] = useState<string>();
+  const [operatorId, setOperatorId] = useState<AtlasCollectionFilter["operator"]>();
+  // A resource change can remove the last selected field or operator.
+  const selectedField = filterableFields.find((field) => field.id === fieldId) ?? filterableFields[0];
+  const operators = selectedField?.filterOperators ?? [];
+  const operator = operators.find((item) => item === operatorId) ?? operators[0];
   const [value, setValue] = useState("");
+  const activeFilters = query.filters ?? [];
 
   useEffect(() => setSearch(query.search ?? ""), [query.search]);
-  useEffect(() => {
-    if (selectedField !== undefined && !selectedField.filterOperators.includes(operator)) {
-      setOperator(selectedField.filterOperators[0] ?? "equals");
-    }
-  }, [operator, selectedField]);
 
   if (!searchable && filterableFields.length === 0) {
     return null;
@@ -1155,7 +1154,7 @@ export function CollectionControls({
     });
   };
   const addFilter = () => {
-    if (selectedField === undefined) {
+    if (selectedField === undefined || operator === undefined) {
       return;
     }
 
@@ -1171,7 +1170,7 @@ export function CollectionControls({
     onChange({
       ...query,
       pagination: resetPage,
-      filters: [...query.filters ?? [], filter],
+      filters: [...activeFilters, filter],
     });
     setValue("");
   };
@@ -1208,7 +1207,7 @@ export function CollectionControls({
           <select
             aria-label="Filter field"
             onChange={(event) => setFieldId(event.target.value)}
-            value={fieldId}
+            value={selectedField?.id}
           >
             {filterableFields.map((field) => (
               <option key={field.id} value={field.id}>{field.label}</option>
@@ -1216,12 +1215,12 @@ export function CollectionControls({
           </select>
           <select
             aria-label="Filter operator"
-            onChange={(event) => setOperator(
+            onChange={(event) => setOperatorId(
               event.target.value as AtlasCollectionFilter["operator"],
             )}
             value={operator}
           >
-            {(selectedField?.filterOperators ?? []).map((item) => (
+            {operators.map((item) => (
               <option key={item} value={item}>{humanizeOperator(item)}</option>
             ))}
           </select>
@@ -1238,13 +1237,13 @@ export function CollectionControls({
           <button onClick={addFilter} type="button">Add filter</button>
         </div>
       )}
-      {(query.filters ?? []).length === 0 ? null : (
+      {activeFilters.length === 0 ? null : (
         <div className="collection-filter-list" aria-label="Active filters">
-          {(query.filters ?? []).map((filter, index) => (
+          {activeFilters.map((filter, index) => (
             <button
               key={`${filter.field}:${filter.operator}:${index}`}
               onClick={() => {
-                const filters = (query.filters ?? []).filter(
+                const filters = activeFilters.filter(
                   (_item, itemIndex) => itemIndex !== index,
                 );
                 onChange({
@@ -1295,10 +1294,6 @@ function createCollectionFilter(
   operator: AtlasCollectionFilter["operator"],
   value: string,
 ): AtlasCollectionFilter | undefined {
-  if (!field.filterOperators.includes(operator)) {
-    return undefined;
-  }
-
   if (operator === "is-null" || operator === "is-not-null") {
     return { field: field.id, operator };
   }
@@ -1453,10 +1448,11 @@ export function ResourceTable({
         <tbody>
           {items.map((record, index) => {
             const identity = record[resource.identity];
-            const recordId = String(identity ?? index);
+            // A projection can omit the identity. Its array position cannot address a record.
+            const recordId = identity == null ? undefined : String(identity);
 
             return (
-              <tr key={recordId}>
+              <tr key={recordId === undefined ? `projection:${index}` : `record:${recordId}`}>
                 {fields.map((field) => (
                   <td key={field.id}>
                     <FieldValue
@@ -1474,7 +1470,7 @@ export function ResourceTable({
                     />
                   </td>
                 ))}
-                <td className="row-actions">
+                <td className="row-actions">{recordId === undefined ? null : (
                   <div className="row-actions-controls">
                     <button className="button" onClick={() => onRead(recordId)} type="button">
                       <Icon name="view" />
@@ -1491,7 +1487,7 @@ export function ResourceTable({
                       />
                     ) : null}
                   </div>
-                </td>
+                )}</td>
               </tr>
             );
           })}

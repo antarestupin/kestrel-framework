@@ -32,9 +32,14 @@ const pages = [
   { id: "email-history", kind: "development-email-history", path: "/email-history", title: "Email history", dataPath: emailPath },
   { id: "email-inbox", kind: "development-email-inbox", path: "/emails", title: "Email inbox", dataPath: emailPath },
   { id: "email-capture", kind: "development-email-capture", path: "/emails/$captureId", title: "Captured email", dataPath: emailPath, showInNavigation: false },
+  { id: "email-capture-incomplete", kind: "development-email-capture", path: "/email-capture", title: "Captured email", dataPath: emailPath, showInNavigation: false },
   { id: "observations", kind: "development-observation-list", path: "/observations", title: "Observations", dataPath: observationPath },
   { id: "executions", kind: "development-observations", path: "/executions", title: "Executions", dataPath: observationPath },
+  { id: "execution", kind: "development-observation-execution", path: "/executions/$executionId", title: "Execution details", dataPath: observationPath, showInNavigation: false },
+  { id: "execution-incomplete", kind: "development-observation-execution", path: "/execution", title: "Execution details", dataPath: observationPath, showInNavigation: false },
   { id: "correlation", kind: "development-observation-correlation", path: "/correlations/$contextKey/$executionId", title: "Correlated execution", dataPath: observationPath, showInNavigation: false },
+  { id: "correlation-incomplete", kind: "development-observation-correlation", path: "/correlations/$contextKey", title: "Correlated execution", dataPath: observationPath, showInNavigation: false },
+  { id: "correlation-without-context", kind: "development-observation-correlation", path: "/correlated/$executionId", title: "Correlated execution", dataPath: observationPath, showInNavigation: false },
 ] as const satisfies readonly StudioPageManifest[];
 
 let container: HTMLDivElement;
@@ -350,9 +355,138 @@ describe("Studio workflow controls", () => {
     expect(container.querySelector("h2")?.textContent).toBe("replacement");
     expect(container.querySelector('[href="/studio/workflows/failed"]')?.textContent).toContain("Retried from");
   });
+
+  it.each(["resolves", "rejects"])("keeps the active workflow filter when an older request %s", async (settlement) => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const unfiltered = Promise.withResolvers<Response>();
+    let nextFilterFailure = false;
+    const request = mockFetch((url) => {
+      if (url.pathname.endsWith("/catalog")) return Response.json({ definitions: [], unsupportedActiveVersions: [] });
+      if (url.searchParams.get("status") !== "failed") return unfiltered.promise;
+      return nextFilterFailure
+        ? Promise.reject("Workflow network unavailable")
+        : Response.json({ items: [execution("filtered", { status: "failed" })] });
+    });
+    await mountStudio("/workflows");
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(request).toHaveBeenCalledTimes(2);
+    const status = container.querySelectorAll("select")[1]!;
+    await act(async () => changeValue(status, "failed"));
+    expect(container.querySelector('[href="/studio/workflows/filtered"]')).not.toBeNull();
+    await act(async () => {
+      if (settlement === "resolves") unfiltered.resolve(Response.json({ items: [execution("stale")] }));
+      else unfiltered.reject(new DOMException("Aborted workflow list", "AbortError"));
+    });
+    expect(container.querySelector('[href="/studio/workflows/stale"]')).toBeNull();
+    expect(container.querySelector('[href="/studio/workflows/filtered"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("Aborted workflow list");
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(request).toHaveBeenCalledTimes(6);
+
+    nextFilterFailure = true;
+    await act(async () => button("Refresh").click());
+    expect(container.textContent).toContain("Workflow network unavailable");
+    expect(container.querySelector('[href="/studio/workflows/filtered"]')).not.toBeNull();
+  });
+
+  it("submits one custom signal at a time and permits recovery after a rejected delivery", async () => {
+    const delivery = Promise.withResolvers<Response>();
+    const deliveries: unknown[] = [];
+    mockFetch((url, init) => {
+      if (url.pathname.endsWith("/signals")) {
+        deliveries.push(JSON.parse(String(init?.body)));
+        if (deliveries.length === 1) return delivery.promise;
+        if (deliveries.length === 2) return Promise.reject("Signal network unavailable");
+        return new Response(null, { status: 204 });
+      }
+      return Response.json(details(execution("current"), { declaredSignals: [] }));
+    });
+    await mountStudio("/workflows/current");
+    expect(button("Deliver").disabled).toBe(true);
+    await act(async () => changeValue(container.querySelector<HTMLInputElement>('[placeholder="signal.name"]')!, "custom.ready"));
+    await act(async () => {
+      const deliver = button("Deliver");
+      deliver.click();
+      deliver.click();
+    });
+    expect(deliveries).toEqual([{ executionId: "current", signalName: "custom.ready", payload: null }]);
+    expect(button("Deliver").disabled).toBe(true);
+
+    await act(async () => delivery.resolve(new Response(null, { status: 503 })));
+    expect(container.textContent).toContain("Signal failed (503).");
+    expect(button("Deliver").disabled).toBe(false);
+    await act(async () => button("Deliver").click());
+    expect(container.textContent).toContain("Signal network unavailable");
+    await act(async () => button("Deliver").click());
+    expect(container.textContent).toContain("Signal delivered.");
+  });
+
+  it("recovers a version-blocked execution after a failed initial detail request", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    let attempts = 0;
+    let recovered = false;
+    let terminated = false;
+    const actions: string[] = [];
+    mockFetch((url, init) => {
+      if (url.pathname.endsWith("/control")) {
+        const { action } = JSON.parse(String(init?.body)) as { action: string };
+        actions.push(action);
+        if (actions.length === 1) return Promise.reject("Control network unavailable");
+        recovered = action === "recover";
+        terminated = action === "terminate";
+        return new Response(null, { status: 204 });
+      }
+      if (++attempts === 1) return new Response(null, { status: 503 });
+      if (attempts === 2) return Promise.reject("Execution network unavailable");
+      const state = terminated ? execution("blocked", { status: "terminated" })
+        : recovered ? execution("blocked") : execution("blocked", {
+          status: "blocked", error: { name: "WorkflowExecutionVersionUnsupportedError", message: "Unavailable code." },
+        });
+      return Response.json(details(state, {
+        history: [{ eventIndex: 1, type: "cancellation-requested", occurredAt: timestamp }],
+      }));
+    });
+    await mountStudio("/workflows/blocked");
+    expect(container.textContent).toContain("Unable to load workflow execution (503).");
+    await act(async () => vi.advanceTimersByTimeAsync(3_000));
+    expect(container.textContent).toContain("Execution network unavailable");
+    await act(async () => vi.advanceTimersByTimeAsync(3_000));
+    expect(container.textContent).toContain("Unavailable code.");
+    await act(async () => button("Recover replay").click());
+    expect(container.textContent).toContain("Control network unavailable");
+    await act(async () => button("Recover replay").click());
+    expect(container.textContent).not.toContain("Recover replay");
+    await act(async () => button("Force terminate").click());
+    expect(actions).toEqual(["recover", "recover", "terminate"]);
+    expect(container.querySelector(".workflow-status")?.textContent).toBe("terminated");
+  });
+
+  it("reports an incomplete workflow link without loading an unspecified execution", async () => {
+    const request = mockFetch(() => { throw new Error("Unexpected workflow request"); });
+    const { router, RouterProvider } = createStudioRouter({
+      basePath: "/studio", icons: {}, extensions: [{
+        id: "workflows", title: "Workflows", section: { id: "operations", title: "Operations" },
+        pages: [{ id: "execution", kind: "workflows.execution", path: "/incomplete", title: "Workflow", dataPath: workflowPath }],
+      }],
+    });
+    router.update({ history: createMemoryHistory({ initialEntries: ["/studio/incomplete"] }) });
+    await router.load();
+    await act(async () => root.render(<RouterProvider router={router} />));
+    expect(container.textContent).toContain("The workflow execution link is incomplete.");
+    expect(request).not.toHaveBeenCalled();
+  });
 });
 
 describe("Studio captured email", () => {
+  it("does not send a request for a capture link without an ID", async () => {
+    const fetch = mockFetch(() => { throw new Error("Unexpected email request"); });
+    await mountStudio("/email-capture");
+    expect(container.textContent).toContain("The captured email link is incomplete.");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("retains the inbox and reports a rejected clear action before allowing a retry", async () => {
     const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
     vi.stubGlobal("confirm", confirm);
@@ -497,9 +631,211 @@ describe("Studio captured email", () => {
     expect(fetch).toHaveBeenCalledTimes(4);
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
+
+  it("keeps loaded older emails when polling adds a new one and resets on manual refresh", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const older = capture("older", { subject: "Older message", from: { address: "sender@example.test", name: "" } });
+    const original = capture("original", { subject: "Original message" });
+    const newest = capture("newest", { subject: "Newest message", from: recipient });
+    const cursors: (string | null)[] = [];
+    mockFetch((url) => {
+      const cursor = url.searchParams.get("before");
+      cursors.push(cursor);
+      if (cursor === "7") return Response.json({ items: [older], nextBefore: null });
+      return Response.json({ items: cursors.length === 1 ? [original] : [newest, original], nextBefore: 7 });
+    });
+
+    await mountStudio("/emails");
+    await act(async () => button("Load older").click());
+    expect(container.textContent).toContain("Older message");
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect([...container.querySelectorAll(".email-inbox-row")].map((row) => row.getAttribute("href"))).toEqual([
+      "/studio/emails/newest", "/studio/emails/original", "/studio/emails/older",
+    ]);
+    expect(container.textContent).toContain("No attachments");
+    expect([...container.querySelectorAll(".email-avatar")].map((avatar) => avatar.textContent)).toEqual(["R", "S", "@"]);
+    expect(container.querySelector(".email-load-more")).toBeNull();
+
+    await act(async () => button("Refresh").click());
+    expect(container.textContent).not.toContain("Older message");
+    expect(button("Load older")).toBeDefined();
+    expect(cursors).toEqual([null, "7", null, null]);
+  });
+
+  it("retains the preview through polling errors and follows changes in body availability", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let reads = 0;
+    mockFetch((url) => {
+      expect(url.pathname).toBe(`${emailPath}/captures/original`);
+      reads++;
+      if (reads === 2) return new Response(null, { status: 503 });
+      if (reads === 3) throw "offline";
+      if (reads === 4) return Response.json(capture("original", { text: null, hasText: false }));
+      if (reads === 5) return Response.json(capture("original", { text: null, html: null, hasText: false, hasHtml: false }));
+      return Response.json(capture("original", {
+        html: null, hasHtml: false,
+        attachments: [{ filename: "note.txt", size: 42, contentId: null, contentType: "text/plain", disposition: "attachment" }],
+        observation: { id: "send-observation", executionId: "execution-log", occurredAt: timestamp, operation: null, outcome: null, result: null, transport: null, durationMs: null },
+      }));
+    });
+
+    await mountStudio("/emails/original");
+    expect(container.querySelector(".email-preview")?.textContent).toContain("Thanks for your order");
+    expect(container.textContent).toContain("text/plain · 42 B");
+    expect(container.querySelector(".email-observation")?.textContent).toContain("unknownEmail send");
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(container.textContent).toContain("Unable to load captured email (503).");
+    expect(container.querySelector(".email-preview")?.textContent).toContain("Thanks for your order");
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(container.textContent).toContain("offline");
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(container.querySelector("iframe")).not.toBeNull();
+    expect(button("Text").disabled).toBe(true);
+    expect(container.querySelector(".error-panel")).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(container.querySelector(".email-preview")?.textContent).toBe("No text body.");
+  });
+
+  it("shows an unavailable capture before any preview has loaded", async () => {
+    mockFetch(() => new Response(null, { status: 404 }));
+    await mountStudio("/emails/missing");
+    expect(container.textContent).toContain("Unable to load captured email (404).");
+    expect(container.querySelector(".email-preview")).toBeNull();
+  });
+
+  it("recovers the inbox after failed loads and shows fallback errors for untyped rejections", async () => {
+    vi.stubGlobal("confirm", () => true);
+    let reads = 0;
+    mockFetch((_url, init) => {
+      if (init?.method === "DELETE") throw "unexpected delete failure";
+      reads++;
+      if (reads === 1) return new Response(null, { status: 403 });
+      if (reads === 2) throw "offline";
+      return Response.json({ items: [capture("original")], nextBefore: null });
+    });
+    await mountStudio("/emails");
+    expect(container.textContent).toContain("Email request failed (403).");
+    await act(async () => button("Refresh").click());
+    expect(container.textContent).toContain("offline");
+    await act(async () => button("Refresh").click());
+    expect(container.textContent).toContain("Your order");
+    await act(async () => button("Clear inbox").click());
+    expect(container.textContent).toContain("Unable to clear the inbox.");
+    expect(container.textContent).toContain("Your order");
+  });
+
+  it("keeps a capture visible when a resend rejects without an Error object", async () => {
+    vi.stubGlobal("confirm", () => true);
+    mockFetch((url) => {
+      if (url.pathname.endsWith("/resend")) throw "offline";
+      return Response.json(capture("original"));
+    });
+    await mountStudio("/emails/original");
+    await act(async () => button("Resend").click());
+    expect(container.textContent).toContain("Unable to resend captured email.");
+    expect(container.querySelector("iframe")).not.toBeNull();
+  });
 });
 
 describe("Studio observation explorer", () => {
+  it.each([
+    ["/execution", "The execution link is incomplete."],
+    ["/correlations/workflow.id", "The correlation link is incomplete."],
+    ["/correlated/execution", "The correlation link is incomplete."],
+  ])("rejects incomplete observation links at %s", async (path, message) => {
+    const fetch = mockFetch(() => { throw new Error("Unexpected observation request"); });
+    await mountStudio(path);
+    expect(container.textContent).toContain(message);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("opens a dedicated execution permalink with its observations and logs", async () => {
+    const fetch = mockFetch((url) => {
+      expect(url.searchParams.get("executionId")).toBe("requested");
+      return Response.json({ items: url.pathname.endsWith("/events") ? [
+        observation("requested-event", 1, { executionId: "requested", name: "requested.observation" }),
+      ] : [] });
+    });
+    await mountStudio("/executions/requested");
+    expect(container.querySelector(".dedicated-execution")?.textContent).toContain("requested.observation");
+    expect(container.querySelector('a[href="/studio/executions/requested"]')?.textContent).toBe("Permalink");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores earlier filtered requests and keeps the latest observation results", async () => {
+    const previous = Promise.withResolvers<Response>();
+    const fetch = mockFetch((url) => {
+      const category = url.searchParams.get("category");
+      if (category === null) return previous.promise;
+      expect(category).toBe("database");
+      expect(url.searchParams.get("name")).toBe("query");
+      expect(url.searchParams.get("outcome")).toBe("failure");
+      expect(url.searchParams.get("executionId")).toBe("requested");
+      return Response.json({ items: [observation("new", 2, { name: "Current observation" })], nextBefore: null });
+    });
+    await mountStudio("/observations");
+    await act(async () => {
+      changeValue(container.querySelector<HTMLInputElement>('[placeholder="database"]')!, " database ");
+      changeValue(container.querySelector<HTMLInputElement>('[placeholder="database.query"]')!, " query ");
+      changeValue(container.querySelector<HTMLSelectElement>(".observation-filters select")!, "failure");
+      changeValue(container.querySelector<HTMLInputElement>('[placeholder="UUID"]')!, " requested ");
+    });
+    await act(async () => button("Apply filters").click());
+    expect(container.textContent).toContain("Current observation");
+    await act(async () => previous.resolve(Response.json({
+      items: [observation("old", 1, { name: "Stale observation" })], nextBefore: null,
+    })));
+    expect(container.textContent).not.toContain("Stale observation");
+    expect(container.textContent).toContain("Current observation");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports HTTP and untyped failures for the filtered list and its clear operation", async () => {
+    let reads = 0;
+    let clears = 0;
+    mockFetch((_url, init) => {
+      if (init?.method === "DELETE") {
+        clears++;
+        if (clears === 1) return new Response(null, { status: 409 });
+        throw "clear failed";
+      }
+      reads++;
+      if (reads === 1) return new Response(null, { status: 403 });
+      throw "offline";
+    });
+    await mountStudio("/observations");
+    expect(container.textContent).toContain("Observations request failed with status 403.");
+    await act(async () => {
+      changeValue(container.querySelector<HTMLInputElement>('[placeholder="database"]')!, "other");
+    });
+    await act(async () => button("Apply filters").click());
+    expect(container.textContent).toContain("Unable to load observations.");
+    await act(async () => button("Clear observations").click());
+    expect(container.textContent).toContain("Clearing observations failed with status 409.");
+    await act(async () => button("Clear observations").click());
+    expect(container.textContent).toContain("Unable to clear observations.");
+  });
+
+  it("recovers the executions list through polling after HTTP and untyped failures", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    let reads = 0;
+    mockFetch((url) => {
+      expect(url.pathname).toBe(`${observationPath}/executions`);
+      reads++;
+      if (reads === 1) return new Response(null, { status: 503 });
+      if (reads === 2) throw "offline";
+      return Response.json({ items: [], nextBefore: null });
+    });
+    await mountStudio("/executions");
+    expect(container.textContent).toContain("Executions request failed with status 503.");
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(container.textContent).toContain("Unable to load observed executions.");
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(container.textContent).toContain("No executions");
+  });
+
   it("selects a captured execution, appends older ones and handles a failed clear", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const running = {
@@ -543,6 +879,11 @@ describe("Studio observation explorer", () => {
     const completedRow = [...container.querySelectorAll<HTMLButtonElement>(".execution-row")]
       .find((row) => row.textContent.includes("orders.complete"));
     await act(async () => completedRow!.click());
+    expect(container.querySelector(".execution-row.selected")?.textContent).toContain("orders.complete");
+    expect(container.querySelector(".execution-timeline")?.textContent).toContain("run-2.event");
+
+    // Live refresh must retain an older execution that the operator is inspecting.
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
     expect(container.querySelector(".execution-row.selected")?.textContent).toContain("orders.complete");
     expect(container.querySelector(".execution-timeline")?.textContent).toContain("run-2.event");
 

@@ -1,9 +1,10 @@
 import { AtlasBrand } from "./brand.js";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 
 import type { AtlasClientConfig } from "../../client_config.js";
 import {
   getAtlasLoginReturnTo,
+  navigateAfterAuthentication,
   signInAtlasWithPassword,
 } from "./login_runtime.js";
 
@@ -13,6 +14,7 @@ export function AtlasLogin(
 ) {
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const requestPending = useRef(false);
   const authentication = config.authentication;
 
   if (authentication === undefined) {
@@ -23,6 +25,9 @@ export function AtlasLogin(
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // A second submit can arrive before React commits the disabled button.
+    if (requestPending.current) return;
+    requestPending.current = true;
     setError(undefined);
     setSubmitting(true);
 
@@ -36,7 +41,7 @@ export function AtlasLogin(
     );
 
     if (result.status === "authenticated") {
-      window.location.assign(getAtlasLoginReturnTo(
+      navigateAfterAuthentication(getAtlasLoginReturnTo(
         window.location.search,
         config.basePath,
         authentication.loginPath,
@@ -51,6 +56,7 @@ export function AtlasLogin(
       : result.status === "invalid"
       ? "The supplied credentials are invalid."
       : "Sign-in is temporarily unavailable. Please try again.");
+    requestPending.current = false;
     setSubmitting(false);
   };
 

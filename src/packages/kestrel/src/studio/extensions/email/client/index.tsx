@@ -268,11 +268,16 @@ function EmailCaptureDetail({
     }
   };
 
-  if (error !== undefined) return <p className="error-panel">{error}</p>;
-  if (capture === undefined) return <p className="loading-panel">Loading captured email…</p>;
+  if (capture === undefined) {
+    return error === undefined
+      ? <p className="loading-panel">Loading captured email…</p>
+      : <p className="error-panel">{error}</p>;
+  }
 
   return (
     <section className="email-detail" aria-label="Captured email detail">
+      {/* A polling error must not remove an already loaded preview or its controls. */}
+      {error !== undefined && <p className="error-panel" role="alert">{error}</p>}
       {resendError !== undefined && <p className="error-panel" role="alert">{resendError}</p>}
       <header className="email-detail-header">
         <div>
@@ -400,19 +405,22 @@ function EmailToolbar({
   );
 }
 
-type PaginatedResource<Item> =
-  | { status: "loading"; items: readonly Item[]; nextBefore: number | null; refresh(): Promise<void>; loadMore(): Promise<void> }
-  | { status: "error"; message: string; items: readonly Item[]; nextBefore: number | null; refresh(): Promise<void>; loadMore(): Promise<void> }
-  | { status: "ready"; items: readonly Item[]; nextBefore: number | null; refresh(): Promise<void>; loadMore(): Promise<void> };
+type PaginatedState<Item> = {
+  items: readonly Item[];
+  loadedOlder: boolean;
+  nextBefore: number | null;
+} & ({ status: "loading" | "ready" } | { status: "error"; message: string });
 
-function usePaginatedEmailResource<Item>(url: string): PaginatedResource<Item> {
-  const [state, setState] = useState<{
-    status: "error" | "loading" | "ready";
-    message?: string;
-    items: readonly Item[];
-    nextBefore: number | null;
-  }>({ status: "loading", items: [], nextBefore: null });
-  const load = useCallback(async (before?: number) => {
+type PaginatedResource<Item> = PaginatedState<Item> & {
+  refresh(): Promise<void>;
+  loadMore(before: number): Promise<void>;
+};
+
+function usePaginatedEmailResource<Item extends { id: string }>(url: string): PaginatedResource<Item> {
+  const [state, setState] = useState<PaginatedState<Item>>({
+    status: "loading", items: [], loadedOlder: false, nextBefore: null,
+  });
+  const load = useCallback(async (before?: number, replaceHistory = false) => {
     try {
       const requestUrl = new URL(url, window.location.origin);
       requestUrl.searchParams.set("limit", "50");
@@ -420,11 +428,22 @@ function usePaginatedEmailResource<Item>(url: string): PaginatedResource<Item> {
       const response = await fetch(requestUrl);
       if (!response.ok) throw new Error(`Email request failed (${response.status}).`);
       const page = await response.json() as { items: readonly Item[]; nextBefore: number | null };
-      setState((current) => ({
-        status: "ready",
-        items: before === undefined ? page.items : [...current.items, ...page.items],
-        nextBefore: page.nextBefore,
-      }));
+      setState((current) => {
+        if (before !== undefined) {
+          return {
+            status: "ready", items: mergeEmailItems(current.items, page.items),
+            loadedOlder: true, nextBefore: page.nextBefore,
+          };
+        }
+        // A background refresh updates the newest page without collapsing loaded history.
+        if (current.loadedOlder && !replaceHistory) {
+          return {
+            status: "ready", items: mergeEmailItems(page.items, current.items),
+            loadedOlder: true, nextBefore: current.nextBefore,
+          };
+        }
+        return { status: "ready", items: page.items, loadedOlder: false, nextBefore: page.nextBefore };
+      });
     } catch (error: unknown) {
       setState((current) => ({
         ...current,
@@ -440,15 +459,13 @@ function usePaginatedEmailResource<Item>(url: string): PaginatedResource<Item> {
     return () => window.clearInterval(interval);
   }, [load]);
 
-  const refresh = useCallback(() => load(), [load]);
-  const loadMore = useCallback(async () => {
-    if (state.nextBefore !== null) await load(state.nextBefore);
-  }, [load, state.nextBefore]);
+  const refresh = useCallback(() => load(undefined, true), [load]);
+  return { ...state, refresh, loadMore: load };
+}
 
-  if (state.status === "error") {
-    return { ...state, status: "error", message: state.message ?? "Unable to load email data.", refresh, loadMore };
-  }
-  return { ...state, refresh, loadMore } as PaginatedResource<Item>;
+function mergeEmailItems<Item extends { id: string }>(first: readonly Item[], rest: readonly Item[]): Item[] {
+  const seen = new Set(first.map((item) => item.id));
+  return [...first, ...rest.filter((item) => !seen.has(item.id))];
 }
 
 function ResourceState<Item>({
@@ -464,9 +481,10 @@ function ResourceState<Item>({
 }
 
 function LoadMore<Item>({ resource }: { resource: PaginatedResource<Item> }) {
-  return resource.nextBefore === null
+  const before = resource.nextBefore;
+  return before === null
     ? null
-    : <button className="email-load-more" onClick={() => void resource.loadMore()} type="button">Load older</button>;
+    : <button className="email-load-more" onClick={() => void resource.loadMore(before)} type="button">Load older</button>;
 }
 
 function ResultBadge({ result, outcome }: Pick<StudioEmailHistoryItem, "result" | "outcome">) {

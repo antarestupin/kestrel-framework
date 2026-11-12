@@ -12,6 +12,7 @@ import {
   hasHorizontallyHiddenContentToRight,
   createScopedCollectionQuery,
   getNextSorting,
+  OperationControl,
   readFormValue,
   RecordLinks,
   RecordLinkItem,
@@ -112,6 +113,34 @@ describe("atlas operation forms", () => {
     expect(readFormValue(form, {
       id: "count", required: false, schema: { type: ["integer", "string", "null"] },
     })).toBe("42");
+  });
+
+  it("keeps unconstrained arrays and distinguishes required from absent optional values", () => {
+    const form = new FormData();
+    form.append("tags", "one");
+    form.append("tags", new File(["ignored"], "note.txt"));
+    form.append("note", "");
+    form.append("nullable", "literal");
+    expect(readFormValue(form, { id: "tags", required: true, schema: { type: "array", items: true } })).toEqual(["one"]);
+    expect(readFormValue(form, { id: "note", required: true, schema: { type: "string" } })).toBe("");
+    expect(readFormValue(form, { id: "note", required: false, schema: { type: "string" } })).toBeUndefined();
+    expect(readFormValue(form, { id: "missing", required: true, schema: { type: "string" } })).toBeNull();
+    expect(readFormValue(form, { id: "nullable", required: true, schema: {
+      oneOf: [{ type: "integer" }, { type: "string" }, { type: "null" }],
+    } })).toBe("literal");
+  });
+
+  it("renders usable default controls when no icon is specified", () => {
+    const control = (effect: "write" | "destructive") => renderToStaticMarkup(createElement(OperationControl, {
+      label: "Run", operation: { id: "example", sourceId: "app", effect, inputs: [] }, pending: false,
+    }));
+    const destructive = control("destructive");
+    const write = control("write");
+    expect(destructive).toContain("Run");
+    expect(write).toContain("Run");
+    expect(destructive).toContain("<svg");
+    expect(write).toContain("<svg");
+    expect(destructive).not.toBe(write);
   });
 });
 

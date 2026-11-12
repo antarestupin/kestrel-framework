@@ -24,8 +24,12 @@ describe("Studio client extensions", () => {
       "workflows.execution",
     ];
 
-    await expect(Promise.all(kinds.map(loadStudioPageRenderer))).resolves
+    // Navigation and intent preload can request the same lazy renderer together.
+    const loads = kinds.map(loadStudioPageRenderer);
+    const concurrent = loadStudioPageRenderer(kinds[0]!);
+    await expect(Promise.all(loads)).resolves
       .toEqual(kinds.map((kind) => expect.objectContaining({ kind })));
+    expect(await concurrent).toBe(await loads[0]);
   });
 
   it("keeps pages without an installed client renderer supported", async () => {

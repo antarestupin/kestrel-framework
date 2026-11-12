@@ -325,10 +325,11 @@ function useExecutionLogs(
   useEffect(() => {
     requestPendingRef.current = requestPending;
 
+    // Use the same per-execution polling window as the timeline.
     if (!requestPending) {
       requestFinishedAtRef.current = performance.now();
     }
-  }, [requestPending]);
+  }, [contextKey, dataPath, executionId, requestPending]);
 
   useEffect(() => {
     let cancelled = false;

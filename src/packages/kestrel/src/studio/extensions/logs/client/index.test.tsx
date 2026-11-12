@@ -38,6 +38,7 @@ describe("Studio log explorer interactions", () => {
       await act(async () => root.unmount());
     } finally {
       container.remove();
+      vi.useRealTimers();
       vi.unstubAllGlobals();
     }
   });
@@ -115,5 +116,25 @@ describe("Studio log explorer interactions", () => {
     await click("Workers");
     expect(container.textContent).not.toContain("Logs request failed");
     expect(container.textContent).toContain("Worker error after recovery");
+  });
+
+  it("retains loaded older log entries during polling until the log is cleared", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    fetchMock.mockResolvedValueOnce(pageOf(10, "Original message", 10))
+      .mockResolvedValueOnce(pageOf(9, "Older message"))
+      .mockResolvedValueOnce(pageOf(11, "Live message", 11))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({ items: [], nextBefore: null }));
+    await render();
+    await click("Load older logs");
+    expect(container.textContent).toContain("Older message");
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(container.textContent).toContain("Live message");
+    expect(container.textContent).toContain("Older message");
+    expect(container.textContent).not.toContain("Load older logs");
+
+    await click("Clear logs");
+    expect(container.textContent).toContain("No logs match this filter.");
+    expect(container.textContent).not.toContain("Older message");
   });
 });

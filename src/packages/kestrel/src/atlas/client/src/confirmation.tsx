@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -37,6 +38,13 @@ export function AtlasConfirmationProvider({
   const [pending, setPending] = useState<PendingConfirmation>();
   const [open, setOpen] = useState(false);
   const pendingRef = useRef<PendingConfirmation | undefined>(undefined);
+
+  useEffect(() => () => {
+    // Removing the confirmation surface cancels any decision still awaiting input.
+    pendingRef.current?.resolve(false);
+    pendingRef.current = undefined;
+  }, []);
+
   const requestConfirmation = useCallback<RequestConfirmation>((options) => {
     // Resolve a superseded request defensively instead of leaving its promise open.
     pendingRef.current?.resolve(false);

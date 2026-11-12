@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 
+import { RouterContextProvider } from "@tanstack/react-router";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { loadStudioPageRenderer } from "../../../client/src/extensions.js";
+import { createStudioRouter } from "../../../client/src/router.js";
 import type { StudioPageManifest } from "../../../extension.js";
 import {
   CONTROLLERS_STUDIO_PAGE_KIND,
@@ -58,6 +60,7 @@ describe("Studio HTTP controller explorer interactions", () => {
       await act(async () => root.unmount());
     } finally {
       container.remove();
+      vi.useRealTimers();
       vi.unstubAllGlobals();
     }
   });
@@ -65,7 +68,10 @@ describe("Studio HTTP controller explorer interactions", () => {
   async function render(manifest: StudioPageManifest = page) {
     const renderer = await loadStudioPageRenderer(CONTROLLERS_STUDIO_PAGE_KIND);
     expect(renderer).toBeDefined();
-    await act(async () => root.render(renderer!.render(manifest)));
+    const { router } = createStudioRouter({ basePath: "/studio", icons: {}, extensions: [] });
+    await act(async () => root.render(
+      <RouterContextProvider router={router}>{renderer!.render(manifest)}</RouterContextProvider>,
+    ));
   }
 
   function button(label: string): HTMLButtonElement {
@@ -82,6 +88,7 @@ describe("Studio HTTP controller explorer interactions", () => {
       .mockReturnValueOnce(catalog.promise)
       .mockReturnValueOnce(response.promise)
       .mockRejectedValueOnce(new TypeError("Network unavailable"))
+      .mockRejectedValueOnce("Request interrupted")
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await render();
@@ -127,6 +134,9 @@ describe("Studio HTTP controller explorer interactions", () => {
     expect(button("Send request").disabled).toBe(false);
 
     await act(async () => button("Send request").click());
+    expect(container.textContent).toContain("Request interrupted");
+
+    await act(async () => button("Send request").click());
     expect(container.querySelector(".controller-response .success")?.textContent).toContain("204");
     expect(container.querySelector(".controller-response")?.textContent).toContain("(empty response)");
   });
@@ -147,5 +157,85 @@ describe("Studio HTTP controller explorer interactions", () => {
     await act(async () => nextCatalog.resolve(new Response(null, { status: 403 })));
     expect(container.textContent).toContain("Unable to load HTTP controllers (403).");
     expect(container.textContent).not.toContain("Send request");
+  });
+
+  it("uses the server execution ID for traces that arrive after the HTTP response", async () => {
+    vi.useFakeTimers();
+    const response = Promise.withResolvers<Response>();
+    const observationPath = "/studio/observations";
+    const second = {
+      ...controller, id: "widgets.read", name: "Read widget", method: "GET", url: "/api/widgets",
+      inputs: [
+        { name: "search", sourceName: "search", binding: "query", required: false, schema: { format: "email" } },
+        { name: "extra", sourceName: "extra", binding: "query", required: false, schema: {} },
+      ],
+      examples: [],
+    } satisfies StudioHttpControllerDefinition;
+    const catalogData: StudioHttpControllerCatalog = {
+      nodes: [{ id: "widgets", name: "Widgets", kind: "group", children: [controller, second] }],
+      observability: { dataPath: observationPath, executionIdHeader: "x-execution-id" },
+    };
+    let tracePolls = 0;
+    request.mockImplementation((input) => {
+      const url = new URL(String(input), window.location.origin);
+      if (url.pathname === page.dataPath) return Promise.resolve(Response.json(catalogData));
+      if (url.pathname === "/api/widgets") return response.promise;
+      if (url.pathname === `${observationPath}/logs`) return Promise.resolve(Response.json({ items: [] }));
+      if (url.pathname === `${observationPath}/events`) {
+        const complete = url.searchParams.get("executionId") === "server-run" && ++tracePolls === 2;
+        return Promise.resolve(Response.json({ items: complete ? [{
+          id: "completion", sequence: 1, executionId: "server-run",
+          name: "execution.completed", category: "application", occurredAt: "2026-11-12T10:00:00Z",
+          schemaVersion: 1, data: {}, outcome: "success", durationMs: 5,
+        }] : [] }));
+      }
+      throw new Error(`Unexpected request ${url}`);
+    });
+    await render();
+    const namespace = container.querySelector<HTMLElement>(".controller-tree summary")!;
+    await act(async () => namespace.click());
+    expect(namespace.parentElement?.hasAttribute("open")).toBe(false);
+    await act(async () => button("Expand all").click());
+    await act(async () => button("Read widget").click());
+    const input = container.querySelector("input")!;
+    expect(input.placeholder).toBe("email");
+    expect(container.querySelectorAll("input")[1]?.placeholder).toBe("value");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "reader@example.test");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      const send = button("Send request");
+      send.click();
+      send.click();
+    });
+    const sent = request.mock.calls.filter(([url]) => String(url).startsWith("/api/widgets"));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.[0]).toBe("/api/widgets?search=reader%40example.test");
+    const requestedId = new Headers(sent[0]?.[1]?.headers).get("x-execution-id");
+    expect(requestedId).toBeTruthy();
+    expect(container.querySelector(".controller-observations code")?.textContent).toBe(requestedId);
+
+    await act(async () => response.resolve(new Response("Report accepted", { headers: { "x-execution-id": "server-run" } })));
+    expect(container.querySelector(".controller-observations code")?.textContent).toBe("server-run");
+    expect(container.textContent).toContain("Waiting for observations");
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(container.querySelector(".controller-observations")?.textContent).toContain("execution.completed");
+  });
+
+  it("discards an aborted catalog request and displays an empty replacement", async () => {
+    request.mockImplementationOnce((_input, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    })).mockResolvedValueOnce(Response.json({ nodes: [] }));
+    await render();
+    await render({ ...page, dataPath: "/studio/empty-controllers" });
+    expect(container.textContent).toContain("No HTTP controller is registered.");
+    expect(container.textContent).not.toContain("Aborted");
+  });
+
+  it("renders a readable catalog error when the transport rejects with a string", async () => {
+    request.mockRejectedValueOnce("Network unavailable");
+    await render();
+    expect(container.querySelector(".error-panel")?.textContent).toBe("Network unavailable");
   });
 });

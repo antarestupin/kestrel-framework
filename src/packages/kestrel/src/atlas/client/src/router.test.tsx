@@ -46,6 +46,15 @@ const manifest: AtlasManifest = {
 };
 
 describe("atlas router renderer registries", () => {
+  it("renders a diagnostic when a View has no installed renderer", () => {
+    const { router } = createAtlasRouter(manifest);
+    const view = router.routesByPath["/example/views/summary"]?.options.component;
+    expect(view?.({} as never)).toEqual(expect.objectContaining({
+      type: "div",
+      props: expect.objectContaining({ children: "Unknown atlas View renderer: summary" }),
+    }));
+  });
+
   it("uses registered page and View renderers", () => {
     const Home = () => createElement("div", {}, "Custom home");
     const Summary = () => createElement("div", {}, "Custom summary");

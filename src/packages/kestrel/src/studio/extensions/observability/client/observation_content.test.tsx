@@ -48,6 +48,26 @@ describe("ObservationContent", () => {
     expect(markup).toContain("{\n  &quot;result&quot;: &quot;ok&quot;\n}");
   });
 
+  it("keeps malformed database diagnostics visible as raw JSON", () => {
+    const markup = renderToStaticMarkup(<ObservationContent event={observation({
+      name: "database.query", data: { sql: "select 1", parameters: "legacy diagnostic" },
+    })} />);
+    expect(markup).toContain("observation-json");
+    expect(markup).toContain("legacy diagnostic");
+  });
+
+  it("renders empty parameters, prepared statement and error metadata without inventing row details", () => {
+    const markup = renderToStaticMarkup(<ObservationContent event={observation({
+      name: "database.query",
+      data: { sql: "select 1", parameters: [], statementName: "check", errorCode: "57014" },
+    })} />);
+    expect(markup).toContain("No parameters");
+    expect(markup).toContain("<dt>Statement</dt><dd>check</dd>");
+    expect(markup).toContain("<dt>Error code</dt><dd>57014</dd>");
+    expect(markup).not.toContain("<dt>Rows</dt>");
+    expect(markup).not.toContain("<dt>Command</dt>");
+  });
+
   it("opens failed observations while distinguishing unset outcome and duration", () => {
     const event = observation({ name: "custom.event", data: {} });
     const failed = renderToStaticMarkup(<ObservationRow event={{ ...event, outcome: "failure" }} showDate />);

@@ -5,7 +5,7 @@ import { Link, Outlet } from "@tanstack/react-router";
 import type { AtlasClientAuthenticationConfig } from "../../client_config.js";
 import type { AtlasManifest } from "../../contract.js";
 import { CatalogIcon, Icon } from "./ui/icon.js";
-import { signOutAtlas } from "./login_runtime.js";
+import { navigateAfterAuthentication, signOutAtlas } from "./login_runtime.js";
 import { groupNavigationResources } from "./navigation.js";
 import { AtlasThemeSelector } from "./theme.js";
 
@@ -88,7 +88,7 @@ export function AtlasSignOut({
     const result = await signOutAtlas(authentication.signOutUrl);
 
     if (result.status === "signed-out") {
-      window.location.assign(authentication.loginPath);
+      navigateAfterAuthentication(authentication.loginPath);
       return;
     }
 

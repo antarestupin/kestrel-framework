@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AtlasRendererRegistryProvider } from "./renderer_registry.js";
 import { resolveRelationReferences, resolveRelationValue } from "./relations.js";
-import type { AtlasManifest } from "../../contract.js";
+import type { AtlasFieldManifest, AtlasManifest } from "../../contract.js";
 import { createHistoryRelationContext } from "./history_relations.js";
 import { HistoryTable } from "./history_matrix.js";
 import type { AtlasResourceManifest } from "../../contract.js";
@@ -10,6 +10,21 @@ import type { AtlasResourceManifest } from "../../contract.js";
 // The renderer consumes only field labels and visibility from the resource.
 const resource = { fields: [{ id: "title", label: "Title" }, { id: "secret", hidden: true }] } as unknown as AtlasResourceManifest;
 describe("history matrix", () => {
+  it("preserves fields removed from the current resource and raw actor identifiers", () => {
+    const actorField = {
+      id: "actor", label: "Actor", kind: "relation", relation: { resource: "person", cardinality: "one" },
+    } as AtlasFieldManifest;
+    const html = renderToStaticMarkup(<HistoryTable resource={resource}
+      fields={["title", "legacyName", "legacyJson"]} actorField={actorField} events={[{
+        sequence: "1", changedAt: "2026-10-01Z", operation: "update", actor: "previous-user",
+        reason: null, values: { title: "Current field", legacyName: "Former field", legacyJson: { enabled: true } },
+      }]} />);
+    expect(html).toContain("previous-user");
+    expect(html).toContain('scope="row">legacyName');
+    expect(html).toContain("<pre>Former field</pre>");
+    expect(html).toContain("&quot;enabled&quot;: true");
+  });
+
   it("renders explicit NULL, empty strings and unchanged cells distinctly, with escaped content", () => {
     const html = renderToStaticMarkup(<HistoryTable resource={resource} fields={["title", "secret"]} events={[
       { sequence: "1", changedAt: "2026-10-01Z", operation: "insert", actor: null, reason: null, values: { title: "" } },

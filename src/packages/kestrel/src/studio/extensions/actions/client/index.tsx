@@ -39,7 +39,8 @@ function ActionsListData({ page }: { page: StudioPageManifest }) {
     );
   }
 
-  return <ActionsExplorer dataPath={page.dataPath} />;
+  // Retire the previous catalog and its execution endpoint before loading a new one.
+  return <ActionsExplorer key={page.dataPath} dataPath={page.dataPath} />;
 }
 
 function ActionsExplorer({ dataPath }: { dataPath: string }) {

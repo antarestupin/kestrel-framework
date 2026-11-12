@@ -137,10 +137,11 @@ function useTimeline(
   useEffect(() => {
     requestPendingRef.current = requestPending;
 
+    // A different execution has its own post-request polling window.
     if (!requestPending) {
       requestFinishedAtRef.current = performance.now();
     }
-  }, [requestPending]);
+  }, [contextKey, dataPath, executionId, requestPending]);
 
   useEffect(() => {
     let cancelled = false;

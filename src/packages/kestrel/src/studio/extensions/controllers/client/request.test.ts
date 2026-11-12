@@ -60,4 +60,10 @@ describe("Studio controller request editor", () => {
   it.each([".", ".."])("rejects a path value interpreted as a navigation segment (%s)", (person) => {
     expect(() => buildRequest(controller, { person, team: "team" }, "{}")).toThrow(/dot segment/);
   });
+
+  it("retains literal path tokens and appends parameters to an existing query", () => {
+    const get = { ...controller, method: "GET", url: "/people/:label?format=summary", inputs: [controller.inputs[2]!] } as const;
+    expect(buildRequest(get, { show: "active" }, "").url).toBe("/people/:label?format=summary&include=active");
+    expect(buildRequest(get, { show: "" }, "").url).toBe("/people/:label?format=summary");
+  });
 });

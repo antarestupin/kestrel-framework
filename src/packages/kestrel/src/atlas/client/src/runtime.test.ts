@@ -85,9 +85,11 @@ describe("Atlas client runtime", () => {
   });
 
   it("keeps empty, plain text and problem JSON gateway failures distinguishable", async () => {
+    const untypedResponse = new Response("Temporarily unavailable", { status: 503 });
+    untypedResponse.headers.delete("content-type");
     const fetch = vi.fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(new Response("Temporarily unavailable", { status: 503 }))
+      .mockResolvedValueOnce(untypedResponse)
       .mockResolvedValueOnce(new Response('{"detail":"Conflict"}', {
         status: 409, headers: { "content-type": "application/problem+json" },
       }));

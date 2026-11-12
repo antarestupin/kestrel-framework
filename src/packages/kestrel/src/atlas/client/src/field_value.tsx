@@ -76,10 +76,11 @@ function StandardFieldValue({
               href={href}
               key={`${reference.resourceId}-${recordId}-${index}`}
               onClick={(event) => {
-                if (onOpenRelation !== undefined) {
-                  event.preventDefault();
-                  onOpenRelation(reference.resourceId, recordId);
-                }
+                // Modified clicks retain browser link behavior, such as opening a new tab.
+                if (onOpenRelation === undefined || event.button !== 0
+                  || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                onOpenRelation(reference.resourceId, recordId);
               }}
             >
               {renderText(label)}

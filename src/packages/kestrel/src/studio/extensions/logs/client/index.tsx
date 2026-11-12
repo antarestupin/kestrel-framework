@@ -137,6 +137,7 @@ type LogsResource =
   | {
       status: "ready";
       items: readonly StudioLog[];
+      loadedOlder: boolean;
       nextBefore: number | null;
       clear(): Promise<void>;
       loadMore(): Promise<void>;
@@ -150,11 +151,11 @@ function useLogs(
   const [state, setState] = useState<
     | { status: "loading" }
     | { status: "error"; message: string }
-    | { status: "ready"; items: readonly StudioLog[]; nextBefore: number | null }
+    | { status: "ready"; items: readonly StudioLog[]; loadedOlder: boolean; nextBefore: number | null }
   >({ status: "loading" });
   const activeRequest = useRef<AbortController | undefined>(undefined);
 
-  const load = useCallback(async (signal: AbortSignal, before?: number) => {
+  const load = useCallback(async (signal: AbortSignal, before?: number, replaceHistory = false) => {
     if (signal.aborted) return;
     try {
       const url = new URL(dataPath, window.location.origin);
@@ -184,13 +185,21 @@ function useLogs(
       const page = await response.json() as StudioLogPage;
       if (signal.aborted) return;
 
-      setState((current) => ({
-        status: "ready",
-        items: before === undefined || current.status !== "ready"
-          ? page.items
-          : [...current.items, ...page.items],
-        nextBefore: page.nextBefore,
-      }));
+      setState((current) => {
+        if (current.status === "ready" && !replaceHistory) {
+          if (before !== undefined) {
+            return {
+              status: "ready", items: mergeLogEntries(current.items, page.items),
+              loadedOlder: true, nextBefore: page.nextBefore,
+            };
+          }
+          // Refresh the newest entries without replacing the loaded pagination.
+          if (current.loadedOlder) {
+            return { ...current, items: mergeLogEntries(page.items, current.items) };
+          }
+        }
+        return { status: "ready", items: page.items, loadedOlder: false, nextBefore: page.nextBefore };
+      });
     } catch (error: unknown) {
       if (signal.aborted) return;
       setState({
@@ -227,7 +236,7 @@ function useLogs(
       if (!response.ok) {
         throw new Error(`Clearing logs failed with status ${response.status}.`);
       }
-      await load(signal);
+      await load(signal, undefined, true);
     } catch (error: unknown) {
       if (signal.aborted) return;
       setState({
@@ -244,4 +253,9 @@ function useLogs(
   }, [load, state]);
 
   return { ...state, clear, loadMore };
+}
+
+function mergeLogEntries(first: readonly StudioLog[], rest: readonly StudioLog[]): StudioLog[] {
+  const seen = new Set(first.map((log) => log.id));
+  return [...first, ...rest.filter((log) => !seen.has(log.id))];
 }

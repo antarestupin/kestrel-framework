@@ -128,32 +128,33 @@ function AtlasEffects({
         <Toast.Viewport
           className={`notification-stack ${manifest.notifications.position}`}
         >
-          {toastManager.toasts.map((toast) => (
-            <Toast.Root
-              className={`notification ${toast.type ?? "info"}`}
-              key={toast.id}
-              swipeDirection={getAtlasNotificationSwipeDirections(
-                manifest.notifications.position,
-              )}
-              toast={toast}
-            >
-              <Toast.Content className="notification-content">
-                <Toast.Description>{toast.description}</Toast.Description>
-                {toast.data?.link === undefined ? null : (
-                  <a href={`${getAtlasBasePath(manifest.basePath)}${
-                    getAtlasTargetPath(manifest, toast.data.link.target)
-                  }`}>
-                    {toast.data.link.label}
-                  </a>
+          {toastManager.toasts.map((toast) => {
+            const link = toast.data?.link;
+            // A notification remains useful when its target is absent from this manifest.
+            const canLink = link !== undefined && manifest.resources.some(
+              ({ id }) => id === link.target.resource,
+            );
+            return (
+              <Toast.Root
+                className={`notification ${toast.type ?? "info"}`}
+                key={toast.id}
+                swipeDirection={getAtlasNotificationSwipeDirections(
+                  manifest.notifications.position,
                 )}
-              </Toast.Content>
-              <Toast.Close
-                aria-label="Dismiss notification"
+                toast={toast}
               >
-                ×
-              </Toast.Close>
-            </Toast.Root>
-          ))}
+                <Toast.Content className="notification-content">
+                  <Toast.Description>{toast.description}</Toast.Description>
+                  {canLink ? (
+                    <a href={`${getAtlasBasePath(manifest.basePath)}${getAtlasTargetPath(manifest, link.target)}`}>
+                      {link.label}
+                    </a>
+                  ) : null}
+                </Toast.Content>
+                <Toast.Close aria-label="Dismiss notification">×</Toast.Close>
+              </Toast.Root>
+            );
+          })}
         </Toast.Viewport>
       </Toast.Portal>
     </AtlasEffectContext.Provider>

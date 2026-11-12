@@ -20,6 +20,11 @@ export type AtlasSignOutResult =
   | { readonly status: "signed-out" }
   | { readonly status: "unavailable" };
 
+/** Reloads the document so the new session determines the available Atlas page. */
+export function navigateAfterAuthentication(path: string): void {
+  window.location.assign(path);
+}
+
 /** Detects the public login document without loading the protected manifest. */
 export function isAtlasLoginPath(
   pathname: string,

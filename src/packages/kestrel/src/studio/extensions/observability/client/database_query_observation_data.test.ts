@@ -37,6 +37,21 @@ describe("database query observation data", () => {
     })).toBe("vscode://file/C:/workspace/query.ts:10:2");
   });
 
+  it("does not encode an already encoded source filename twice", () => {
+    expect(createVscodeSourceUrl({
+      file: "file:///workspace/query%20%231%3F.ts",
+      line: 10,
+      column: 2,
+    })).toBe("vscode://file/workspace/query%20%231%3F.ts:10:2");
+    expect(mapSourceFile("file:///runtime/query%20.ts", {
+      runtimeRoot: "/runtime",
+      editorRoot: "/editor",
+    })).toBe("/editor/query .ts");
+    expect(createVscodeSourceUrl({
+      file: "file:///workspace/query%.ts", line: 10, column: 2,
+    })).toBe("vscode://file/workspace/query%25.ts:10:2");
+  });
+
   it("maps a container project root to the editor-visible project", () => {
     const mapping = {
       runtimeRoot: "/workspace/agora/",
@@ -63,5 +78,11 @@ describe("database query observation data", () => {
       runtimeRoot: "/workspace/agora",
       editorRoot: "/Users/developer/Projects/agora",
     })).toBe("/workspace/other/file.ts");
+  });
+
+  it("maps a filesystem root and its children without doubling path separators", () => {
+    expect(mapSourceFile("/", { runtimeRoot: "/", editorRoot: "/editor" })).toBe("/editor");
+    expect(mapSourceFile("/src/query.ts", { runtimeRoot: "/", editorRoot: "/editor" })).toBe("/editor/src/query.ts");
+    expect(mapSourceFile("/runtime/query.ts", { runtimeRoot: "/runtime", editorRoot: "/" })).toBe("/query.ts");
   });
 });

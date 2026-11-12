@@ -148,7 +148,10 @@ export function CatalogIcon({
   fallback,
   className,
 }: CatalogIconProperties) {
-  const definition = iconId === undefined ? undefined : catalog[iconId];
+  // Only icons explicitly present in the serialized catalog can be rendered.
+  const definition = iconId !== undefined && Object.hasOwn(catalog, iconId)
+    ? catalog[iconId]
+    : undefined;
 
   return definition === undefined
     ? <Icon className={className} name={fallback} />

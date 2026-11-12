@@ -165,7 +165,6 @@ const EMPTY_OBSERVATION_FILTERS: ObservationFilters = {
 function ObservationListExplorer({ dataPath }: { dataPath: string }) {
   const [draftFilters, setDraftFilters] = useState(EMPTY_OBSERVATION_FILTERS);
   const [filters, setFilters] = useState(EMPTY_OBSERVATION_FILTERS);
-  const resource = useObservations(dataPath, filters);
 
   const updateDraftFilter = (
     field: keyof ObservationFilters,
@@ -237,6 +236,16 @@ function ObservationListExplorer({ dataPath }: { dataPath: string }) {
         </div>
       </form>
 
+      {/* Each filter owns its requests and pagination so late results cannot replace another filter. */}
+      <ObservationListResults key={JSON.stringify([dataPath, filters])} dataPath={dataPath} filters={filters} />
+    </section>
+  );
+}
+
+function ObservationListResults({ dataPath, filters }: { dataPath: string; filters: ObservationFilters }) {
+  const resource = useObservations(dataPath, filters);
+  return (
+    <>
       <div className="observation-list-toolbar">
         <span>
           {resource.status === "ready"
@@ -281,7 +290,7 @@ function ObservationListExplorer({ dataPath }: { dataPath: string }) {
           )}
         </>
       )}
-    </section>
+    </>
   );
 }
 
@@ -342,7 +351,7 @@ function useObservations(
           : !replaceHistory
             && current.status === "ready"
             && current.loadedOlder
-            ? mergeNewestObservations(page.items, current.items)
+            ? mergePages(page.items, current.items, (observation) => observation.id)
             : page.items,
         loadedOlder: !replaceHistory
           && (before !== undefined
@@ -393,15 +402,16 @@ function useObservations(
 }
 
 /** Preserves already loaded history while replacing the live newest page. */
-function mergeNewestObservations(
-  newest: readonly StudioObservation[],
-  current: readonly StudioObservation[],
-): readonly StudioObservation[] {
-  const newestIds = new Set(newest.map((observation) => observation.id));
+function mergePages<Item>(
+  first: readonly Item[],
+  rest: readonly Item[],
+  identity: (item: Item) => string,
+): readonly Item[] {
+  const ids = new Set(first.map(identity));
 
   return [
-    ...newest,
-    ...current.filter((observation) => !newestIds.has(observation.id)),
+    ...first,
+    ...rest.filter((item) => !ids.has(identity(item))),
   ];
 }
 
@@ -506,13 +516,14 @@ type ExecutionsState =
   | {
       status: "ready";
       items: readonly StudioObservationExecution[];
+      loadedOlder: boolean;
       nextBefore: number | null;
     };
 
 function useExecutions(dataPath: string) {
   const [state, setState] = useState<ExecutionsState>({ status: "loading" });
 
-  const load = useCallback(async (before?: number) => {
+  const load = useCallback(async (before?: number, replaceHistory = false) => {
     try {
       const url = new URL(`${dataPath}/executions`, window.location.origin);
       url.searchParams.set("limit", "50");
@@ -531,13 +542,22 @@ function useExecutions(dataPath: string) {
 
       const page = await response.json() as StudioObservationExecutionPage;
 
-      setState((current) => ({
-        status: "ready",
-        items: before === undefined || current.status !== "ready"
-          ? page.items
-          : [...current.items, ...page.items],
-        nextBefore: page.nextBefore,
-      }));
+      setState((current) => {
+        if (current.status === "ready" && !replaceHistory) {
+          if (before !== undefined) {
+            return {
+              status: "ready",
+              items: mergePages(current.items, page.items, (execution) => execution.executionId),
+              loadedOlder: true, nextBefore: page.nextBefore,
+            };
+          }
+          // The selected execution can live on an already loaded older page.
+          if (current.loadedOlder) {
+            return { ...current, items: mergePages(page.items, current.items, (execution) => execution.executionId) };
+          }
+        }
+        return { status: "ready", items: page.items, loadedOlder: false, nextBefore: page.nextBefore };
+      });
     } catch (error: unknown) {
       setState({
         status: "error",
@@ -562,7 +582,7 @@ function useExecutions(dataPath: string) {
       return;
     }
 
-    await load();
+    await load(undefined, true);
   }, [dataPath, load]);
   const loadMore = useCallback(async () => {
     if (state.status === "ready" && state.nextBefore !== null) {

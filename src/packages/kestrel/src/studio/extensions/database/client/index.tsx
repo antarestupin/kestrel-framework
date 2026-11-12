@@ -210,19 +210,19 @@ const DatabaseCommentExpansionContext = createContext<
 /** Collects stable disclosure keys without requiring child registration. */
 function getDatabaseCommentKeys(layout: StudioDatabaseLayout): string[] {
   return layout.schemas.flatMap((schema) => [
-    ...(schema.description === undefined ? [] : [`schema ${schema.name}`]),
-    ...schema.tables.flatMap((table) => {
-      const tableName = `${schema.name}.${table.name}`;
-      return [
-        ...(table.description === undefined ? [] : [`table ${tableName}`]),
-        ...table.columns.flatMap((column) =>
-          column.description === undefined
-            ? []
-            : [`column ${tableName}.${column.name}`]
-        ),
-      ];
-    }),
+    ...(schema.description === undefined ? [] : [commentKey("schema", schema.name)]),
+    ...schema.tables.flatMap((table) => [
+      ...(table.description === undefined ? [] : [commentKey("table", schema.name, table.name)]),
+      ...table.columns.flatMap((column) =>
+        column.description === undefined ? [] : [commentKey("column", schema.name, table.name, column.name)]
+      ),
+    ]),
   ]);
+}
+
+/** Keep quoted names containing dots distinct from separate identifier segments. */
+function commentKey(kind: string, ...names: string[]): string {
+  return JSON.stringify([kind, ...names]);
 }
 
 /** Renders one independently expandable PostgreSQL schema section. */
@@ -233,7 +233,7 @@ export function DatabaseSchemaSection({
   schema: StudioDatabaseSchema;
   group?: SchemaGroup;
 }) {
-  const comment = useDatabaseComment(`schema ${schema.name}`);
+  const comment = useDatabaseComment("schema", schema.name);
   const headingId = useId();
 
   return (
@@ -292,7 +292,7 @@ function DatabaseTableCard({
   table: StudioDatabaseTable;
   node: TableNode;
 }) {
-  const comment = useDatabaseComment(`table ${schemaName}.${table.name}`);
+  const comment = useDatabaseComment("table", schemaName, table.name);
 
   return (
     <article
@@ -331,7 +331,8 @@ function DatabaseTableCard({
                   column={column}
                   foreignKeys={table.foreignKeys ?? []}
                   key={column.name}
-                  tableName={`${schemaName}.${table.name}`}
+                  schemaName={schemaName}
+                  tableName={table.name}
                 />
               ))}
             </div>
@@ -343,13 +344,15 @@ function DatabaseTableCard({
 function DatabaseColumnRow({
   column,
   foreignKeys,
+  schemaName,
   tableName,
 }: {
   column: StudioDatabaseColumn;
   foreignKeys: readonly StudioDatabaseForeignKey[];
+  schemaName: string;
   tableName: string;
 }) {
-  const comment = useDatabaseComment(`column ${tableName}.${column.name}`);
+  const comment = useDatabaseComment("column", schemaName, tableName, column.name);
   // Keep full constraint details available without drawing relationship arrows.
   const references = foreignKeys.filter((key) => key.columns.includes(column.name));
   const referenceTitle = references.map((key) =>
@@ -364,7 +367,7 @@ function DatabaseColumnRow({
             {column.primaryKey ? <abbr title="Primary key">PK</abbr> : null}
             {references.length > 0 ? <abbr title={referenceTitle}>FK</abbr> : null}
           </span>
-          <code title={`${tableName}.${column.name}`}>{column.name}</code>
+          <code title={`${schemaName}.${tableName}.${column.name}`}>{column.name}</code>
           {column.nullable
             ? <span className="database-nullable" title="Nullable">?</span>
             : null}
@@ -401,19 +404,20 @@ interface DatabaseCommentDisclosure {
 }
 
 /** Provides independent disclosure state and accessible relationships. */
-function useDatabaseComment(label: string): DatabaseCommentDisclosure {
+function useDatabaseComment(kind: string, ...names: string[]): DatabaseCommentDisclosure {
   const commentId = useId();
   const expansion = useContext(DatabaseCommentExpansionContext);
   const [locallyExpanded, setLocallyExpanded] = useState(false);
-  const expanded = expansion?.expandedComments.has(label) ?? locallyExpanded;
+  const key = commentKey(kind, ...names);
+  const expanded = expansion?.expandedComments.has(key) ?? locallyExpanded;
 
   return {
     commentId,
     expanded,
-    label,
+    label: `${kind} ${names.join(".")}`,
     toggle: expansion === undefined
       ? () => setLocallyExpanded((current) => !current)
-      : () => expansion.toggle(label),
+      : () => expansion.toggle(key),
   };
 }
 
