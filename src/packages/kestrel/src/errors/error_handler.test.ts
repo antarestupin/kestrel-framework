@@ -7,6 +7,7 @@ import {
 
 import {
   DefaultErrorHandler,
+  getHttpErrorName,
   type ErrorRepresentationContext,
   type HttpRepresentableError,
   type CliRepresentableError,
@@ -124,6 +125,42 @@ describe("DefaultErrorHandler", () => {
     });
   });
 
+  it("renders an empty aggregate without a stack or a cause list", () => {
+    const handler = new DefaultErrorHandler({ debug: true });
+    const error = new AggregateError([], "No underlying failures");
+    delete error.stack;
+
+    expect(handler.handleHttp(error, context)).toStrictEqual({
+      statusCode: 500,
+      error: "AggregateError",
+      message: "No underlying failures",
+      extensions: { executionId: "execution-123" },
+    });
+    expect(handler.handleCli(error, context)).toStrictEqual({
+      exitCode: 1,
+      message: "AggregateError: No underlying failures",
+    });
+  });
+
+  it("renders debug diagnostics for thrown values that cannot be stringified", () => {
+    const handler = new DefaultErrorHandler({ debug: true });
+    const unprintable: unknown = Object.create(null);
+    const message = "The thrown value could not be converted to a string.";
+
+    expect(handler.handleHttp(unprintable, context)).toStrictEqual({
+      statusCode: 500,
+      error: "UnknownError",
+      message,
+      extensions: { executionId: "execution-123" },
+    });
+    expect(handler.handleCli(unprintable, context)).toStrictEqual({
+      exitCode: 1,
+      message: `UnknownError: ${message}`,
+    });
+    expect(handler.handleHttp(new Error("Operation failed", { cause: unprintable }), context).extensions)
+      .toMatchObject({ causes: [{ error: "UnknownError", message }] });
+  });
+
   it("retains nested polling failures and avoids duplicate or cyclic diagnostics", () => {
     const handler = new DefaultErrorHandler({ debug: true });
     const databaseError = new Error('relation "workflows.task" does not exist');
@@ -150,5 +187,12 @@ describe("DefaultErrorHandler", () => {
     const production = new DefaultErrorHandler({ debug: false });
     expect(production.handleCli(error, context).message).not.toContain(databaseError.message);
     expect(production.handleHttp(error, context).extensions).not.toHaveProperty("causes");
+  });
+});
+
+describe("getHttpErrorName", () => {
+  it("supplies a generic reason phrase for an unrecognized status code", () => {
+    expect(getHttpErrorName(409)).toBe("Conflict");
+    expect(getHttpErrorName(599)).toBe("Error");
   });
 });

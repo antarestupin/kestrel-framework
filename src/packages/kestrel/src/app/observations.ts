@@ -1,3 +1,4 @@
+import { formatThrownValue } from "../errors/format_thrown_value.js";
 import {
   defineObservation,
   type ObservationData,
@@ -96,7 +97,7 @@ function createErrorDiagnostic(error: unknown): ExecutionErrorObservationData {
   if (!(error instanceof Error)) {
     return {
       name: "UnknownError",
-      message: String(error),
+      message: formatThrownValue(error),
     };
   }
 

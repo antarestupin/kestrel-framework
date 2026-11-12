@@ -1,5 +1,6 @@
 import { STATUS_CODES } from "node:http";
 
+import { formatThrownValue } from "./format_thrown_value.js";
 import {
   type CliErrorRepresentation,
   type ErrorRepresentationContext,
@@ -140,7 +141,7 @@ function createDiagnostic(error: unknown): ErrorDiagnostic {
   if (!(error instanceof Error)) {
     return {
       error: "UnknownError",
-      message: String(error),
+      message: formatThrownValue(error),
     };
   }
 

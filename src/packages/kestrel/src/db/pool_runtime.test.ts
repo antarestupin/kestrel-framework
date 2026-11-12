@@ -2,11 +2,81 @@ import { PassThrough } from "node:stream";
 import { EventEmitter } from "node:events";
 import { Pool, type PoolClient } from "pg";
 import { describe, expect, it, vi } from "vitest";
-import { PostgresPoolRuntime } from "./pool_runtime.js";
+import { PostgresPoolPolicyError, PostgresPoolRuntime } from "./pool_runtime.js";
 
 const policy = { maxWaitingRequests: 1, shutdownTimeoutMs: 20 };
 
 describe("PostgreSQL pool lifecycle", () => {
+  it("releases admission when native client construction throws synchronously", async () => {
+    // pg parses this connection string at checkout, before it can open a socket.
+    const pool = new Pool({ max: 1, connectionString: "postgresql://[" });
+    const runtime = new PostgresPoolRuntime(pool, { ...policy, maxWaitingRequests: 0 });
+    const callback = vi.fn();
+
+    try {
+      expect(() => pool.connect(callback)).toThrow(TypeError);
+      expect(callback).not.toHaveBeenCalled();
+      expect(runtime.snapshot()).toMatchObject({
+        state: "degraded", acquiring: 0, acquisitionFailures: 1,
+        lastFailure: { type: "acquisition", failure: "acquisition_failed" },
+      });
+
+      // The next promise-form call still reaches pg and sees its native error.
+      await expect(pool.connect()).rejects.toBeInstanceOf(TypeError);
+      expect(runtime.snapshot()).toMatchObject({ acquiring: 0, acquisitions: 2, acquisitionFailures: 2 });
+    } finally {
+      await runtime.close();
+    }
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("counts the granted lease before an acquisition sink can request another one", async () => {
+    const pool = new Pool({ max: 1 });
+    const client = new EventEmitter() as PoolClient;
+    const release = vi.fn();
+    const nativeConnect = vi.fn<(callback: Parameters<Pool["connect"]>[0]) => void>()
+      .mockImplementation((callback) => callback(new Error("unexpected native checkout"), undefined, () => {}))
+      .mockImplementationOnce((callback) => callback(undefined, client, release));
+    pool.connect = nativeConnect as unknown as Pool["connect"];
+    let reentrant: Promise<PoolClient> | undefined;
+    const runtime = new PostgresPoolRuntime(pool, { ...policy, maxWaitingRequests: 0 }, (event) => {
+      if (event.type === "acquisition" && event.outcome === "success") {
+        // The sink runs synchronously and can reenter before connect returns.
+        reentrant = pool.connect();
+        void reentrant.catch(() => undefined);
+      }
+    });
+
+    try {
+      await expect(pool.connect()).resolves.toBe(client);
+      await expect(reentrant).rejects.toMatchObject({ code: "queue_full" });
+      expect(nativeConnect).toHaveBeenCalledOnce();
+    } finally {
+      client.release();
+      await runtime.close();
+    }
+  });
+
+  it("preserves a synchronous checkout callback error after recording its acquisition", async () => {
+    const pool = new Pool();
+    const client = new EventEmitter() as PoolClient;
+    const release = vi.fn();
+    pool.connect = vi.fn((callback) => callback(undefined, client, release)) as unknown as Pool["connect"];
+    const runtime = new PostgresPoolRuntime(pool, policy);
+    const failure = new Error("application callback failed");
+
+    try {
+      expect(() => pool.connect((_error, _client, done) => {
+        done();
+        throw failure;
+      })).toThrow(failure);
+      expect(release).toHaveBeenCalledOnce();
+      expect(runtime.snapshot()).toMatchObject({ acquiring: 0, acquisitions: 1, acquisitionFailures: 0 });
+    } finally {
+      await runtime.close();
+    }
+  });
+
   it("handles pool errors without a subscriber and does not report secrets", async () => {
     const pool = new Pool();
     const onEvent = vi.fn(() => Promise.reject(new Error("sink failed")));
@@ -132,5 +202,51 @@ describe("PostgreSQL pool lifecycle", () => {
     pool.query = vi.fn(async () => ({})) as unknown as Pool["query"];
     expect((await runtime.checkHealth()).state).toBe("healthy");
     await runtime.close();
+  });
+
+  it("degrades on a failed health query while leaving policy rejection and recovery distinct", async () => {
+    const pool = new Pool();
+    const failure = new Error("health query failed");
+    const saturated = new PostgresPoolPolicyError("queue_full");
+    const query = vi.fn()
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(saturated)
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce({});
+    pool.query = query as Pool["query"];
+    const runtime = new PostgresPoolRuntime(pool, policy);
+
+    try {
+      expect((await runtime.checkHealth()).state).toBe("healthy");
+      await expect(runtime.checkHealth()).rejects.toBe(saturated);
+      expect(runtime.snapshot().state).toBe("healthy");
+      await expect(runtime.checkHealth()).rejects.toBe(failure);
+      expect(runtime.snapshot().state).toBe("degraded");
+      expect((await runtime.checkHealth()).state).toBe("healthy");
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("preserves a health query failure during shutdown without changing the closing state", async () => {
+    const pool = new Pool();
+    const query = Promise.withResolvers<unknown>();
+    const drain = Promise.withResolvers<void>();
+    pool.query = vi.fn(() => query.promise) as unknown as Pool["query"];
+    pool.end = vi.fn(() => drain.promise) as Pool["end"];
+    const runtime = new PostgresPoolRuntime(pool, policy);
+    const failure = new Error("connection ended during the health query");
+    const checking = runtime.checkHealth();
+    const closing = runtime.close();
+
+    try {
+      query.reject(failure);
+      await expect(checking).rejects.toBe(failure);
+      expect(runtime.snapshot().state).toBe("closing");
+    } finally {
+      drain.resolve();
+      await closing;
+    }
+    expect(runtime.snapshot().state).toBe("closed");
   });
 });

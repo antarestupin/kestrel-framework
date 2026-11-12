@@ -113,6 +113,8 @@ Every `ExecutionScope` resolves an `ErrorHandler`. HTTP and CLI managers catch e
 
 Applications can subclass the default handler and override `resolveHttp()` or `resolveCli()` for application-specific mappings before delegating to `super`. They can override `reportUnexpected()` to send complete unexpected errors to their logging or reporting infrastructure.
 
+When a thrown value cannot be converted to a string, debug responses and execution observations use a fallback diagnostic. Diagnostic formatting does not replace the original failure.
+
 ## Application policy
 
 The current application handler lives in `src/server/core/errors`. `ErrorProvider` lives with the other application providers in `src/server/core/providers` and replaces the Kestrel fallback with a scoped `AppErrorHandler`, which reads `config.core.debug` and reports unexpected errors through the execution logger.

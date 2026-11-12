@@ -1,12 +1,13 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { EventEmitter } from "node:events";
 
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { integer, pgTable, text } from "drizzle-orm/pg-core";
-import type {
-  ClientBase,
+import {
   Pool,
-  QueryResult,
+  type ClientBase,
+  type QueryResult,
 } from "pg";
 import {
   describe,
@@ -15,11 +16,12 @@ import {
   vi,
 } from "vitest";
 
-import { createPostgresTestPool } from "../testing/postgres.js";
+import { createPostgresTestConfig, createPostgresTestPool } from "../testing/postgres.js";
 import type {
   DatabaseQueryInstrumentation,
   DatabaseQueryInstrumentationEvent,
 } from "./observations.js";
+import { PostgresPoolRuntime } from "./pool_runtime.js";
 import {
   instrumentDrizzleDatabase,
   instrumentPostgresClient,
@@ -77,7 +79,10 @@ describe("PostgreSQL query instrumentation", () => {
   it("captures transaction and relational-query callers without leaking driver stack frames", async () => {
     const pool = createPostgresTestPool();
     const events: DatabaseQueryInstrumentationEvent[] = [];
-    const getInstrumentation = () => ({ record: (event: DatabaseQueryInstrumentationEvent) => events.push(event) });
+    let observing = true;
+    const getInstrumentation = () => observing
+      ? { record: (event: DatabaseQueryInstrumentationEvent) => events.push(event) }
+      : undefined;
     const config = { parameters: "include", origin: "stack" } as const;
     instrumentPostgresPool(pool, config, getInstrumentation);
     const database = instrumentDrizzleDatabase(
@@ -85,6 +90,7 @@ describe("PostgreSQL query instrumentation", () => {
     );
 
     try {
+      expect(database.$client).toBe(pool);
       await database.transaction(async (transaction) => {
         // The table belongs to the transaction connection and disappears at commit.
         await transaction.execute(sql`create temporary table query_instrumentation_user (id integer primary key, name text not null) on commit drop`);
@@ -92,6 +98,19 @@ describe("PostgreSQL query instrumentation", () => {
         const users = transaction.query.users;
         expect(transaction.query.users).toBe(users);
         expect(await users.findFirst({ where: (table, { eq }) => eq(table.id, 42) })).toEqual({ id: 42, name: "Ada" });
+        expect(users.findMany().toSQL().sql).toContain('"query_instrumentation_user"');
+
+        // The same wrapped transaction and relation remain usable outside observation.
+        const observedCount = events.length;
+        observing = false;
+        try {
+          expect(await users.findFirst()).toEqual({ id: 42, name: "Ada" });
+          expect(await transaction.execute(sql`select 42 as id`)).toMatchObject({ rows: [{ id: 42 }] });
+          expect(await pool.query("select 42 as id")).toMatchObject({ rows: [{ id: 42 }] });
+        } finally {
+          observing = true;
+        }
+        expect(events).toHaveLength(observedCount);
       });
 
       const begin = events.find((event) => event.data.sql === "begin");
@@ -131,6 +150,41 @@ describe("PostgreSQL query instrumentation", () => {
       }),
       outcome: "success",
     }));
+  });
+
+  it("attributes a queued pool query to the requesting execution, even when another execution releases the connection", async () => {
+    const config = { ...createPostgresTestConfig(), max: 1 };
+    const pool = new Pool(config);
+    const runtime = new PostgresPoolRuntime(pool, config.resourcePolicy);
+    const scope = new AsyncLocalStorage<DatabaseQueryInstrumentation>();
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    const recordReleaser = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresPool(pool, config.queryObservability, () => scope.getStore());
+
+    try {
+      const lease = await pool.connect();
+      const result = scope.run({ record }, function queryInWaitingExecution() {
+        return pool.query("select 42 as id");
+      });
+      const waiting = pool.waitingCount;
+      // pg-pool resumes a queued callback from the unrelated release call.
+      scope.run({ record: recordReleaser }, () => lease.release());
+
+      await expect(result).resolves.toMatchObject({ rows: [{ id: 42 }] });
+      expect(waiting).toBe(1);
+      expect(recordReleaser).not.toHaveBeenCalled();
+      expect(record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        outcome: "success",
+        data: expect.objectContaining({
+          sql: "select 42 as id",
+          origin: expect.objectContaining({
+            function: expect.stringContaining("queryInWaitingExecution"),
+          }),
+        }),
+      }));
+    } finally {
+      await runtime.close();
+    }
   });
 
   it("records named prepared queries with parameters and result metadata", async () => {
@@ -302,6 +356,41 @@ describe("PostgreSQL query instrumentation", () => {
     });
   });
 
+  it.each([
+    { name: "the stack is unavailable", format: () => undefined },
+    {
+      name: "every frame belongs to dependencies or Node",
+      format: () => [
+        "Error",
+        "    at query (/app/node_modules/pg/lib/client.js:42:10)",
+        "    at process.processTicksAndRejections (node:internal/process/task_queues:99:5)",
+      ].join("\n"),
+    },
+    {
+      name: "a custom formatter returns structured frames",
+      format: (_error: Error, frames: NodeJS.CallSite[]) => frames,
+    },
+    {
+      name: "a custom formatter throws",
+      format: () => { throw new Error("stack formatter failed"); },
+    },
+  ])("executes and records a query without an origin when $name", async ({ format }) => {
+    const query = vi.fn(async () => successfulResult);
+    const client = createClient(query);
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    instrumentPostgresClient(client, { parameters: "omit", origin: "stack" }, () => ({ record }));
+
+    const result = withStackFormatter(format, () => client.query("select 42"));
+
+    await expect(result).resolves.toBe(successfulResult);
+    expect(query).toHaveBeenCalledExactlyOnceWith("select 42");
+    expect(record).toHaveBeenCalledExactlyOnceWith({
+      data: { sql: "select 42", command: "SELECT", rowCount: 1 },
+      durationMs: expect.any(Number),
+      outcome: "success",
+    });
+  });
+
   it("does not instrument queries without an active execution sink", async () => {
     const query = vi.fn(async () => successfulResult);
     const client = createClient(query);
@@ -354,6 +443,24 @@ function createAsynchronousPool(client: ClientBase): Pool {
     })) as Pool["query"];
 
   return pool;
+}
+
+/** Changes V8 stack formatting only for the synchronous query invocation. */
+function withStackFormatter<Value>(
+  format: ErrorConstructor["prepareStackTrace"],
+  run: () => Value,
+): Value {
+  const previous = Object.getOwnPropertyDescriptor(Error, "prepareStackTrace");
+  Error.prepareStackTrace = format;
+  try {
+    return run();
+  } finally {
+    if (previous === undefined) {
+      Reflect.deleteProperty(Error, "prepareStackTrace");
+    } else {
+      Object.defineProperty(Error, "prepareStackTrace", previous);
+    }
+  }
 }
 
 /** Keeps a recognizable application frame above the real Drizzle call. */

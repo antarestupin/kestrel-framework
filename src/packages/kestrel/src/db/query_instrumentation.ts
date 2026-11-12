@@ -476,12 +476,24 @@ function captureQueryOrigin(
     return undefined;
   }
 
-  const frames = new Error().stack
-    ?.split("\n")
+  let stack: unknown;
+  try {
+    // V8 lets applications replace the stack with a structured value or throw
+    // while formatting it. Origin capture must never prevent the query.
+    stack = new Error().stack;
+  } catch {
+    return undefined;
+  }
+  if (typeof stack !== "string") {
+    return undefined;
+  }
+
+  const frames = stack
+    .split("\n")
     .slice(1)
     .map(parseStackFrame)
     .filter((frame): frame is StackFrame =>
-      frame !== undefined && isApplicationFrame(frame.file)) ?? [];
+      frame !== undefined && isApplicationFrame(frame.file));
   const caller = frames[0];
 
   if (caller === undefined) {

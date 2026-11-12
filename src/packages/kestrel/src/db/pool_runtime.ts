@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Pool, PoolClient } from "pg";
 
 import type { PostgresDrizzleConfig } from "./configuration.js";
@@ -153,7 +154,8 @@ export class PostgresPoolRuntime {
   private acquire(connect: Pool["connect"], callback: ConnectCallback): void {
     const start = performance.now();
     let finished = false;
-    const finish: ConnectCallback = (error, client, release) => {
+    // pg can service a queued checkout while another execution releases its lease.
+    const finish = AsyncLocalStorage.bind<ConnectCallback>((error, client, release) => {
       if (finished) {
         // A pending native connection may complete after shutdown rejected its caller.
         if (client !== undefined) (release ?? client.release.bind(client))(true);
@@ -168,18 +170,6 @@ export class PostgresPoolRuntime {
       }
       finished = true;
       this.pending.delete(finish);
-      this.acquisitions++;
-      this.lastAcquisitionDurationMs = performance.now() - start;
-      if (error) this.acquisitionFailures++;
-      if (error && !(error instanceof PostgresPoolPolicyError) && !this.isClosing()) {
-        this.state = "degraded";
-        this.failureVersion++;
-      }
-      this.report({
-        type: "acquisition", outcome: error ? "failure" : "success", timestamp: Date.now(),
-        durationMs: this.lastAcquisitionDurationMs,
-        ...(error ? { failure: error instanceof PostgresPoolPolicyError ? error.code : "acquisition_failed", errorCode: safeErrorCode(error) } : {}),
-      });
       if (client !== undefined) {
         const nativeRelease = release ?? client.release.bind(client);
         let released = false;
@@ -200,11 +190,17 @@ export class PostgresPoolRuntime {
           ownedRelease(true);
         });
         client.release = ownedRelease;
-        callback(error, client, ownedRelease);
+        release = ownedRelease;
+      }
+
+      // A synchronous event sink can reenter connect, so publish the lease first.
+      this.recordAcquisition(start, error === undefined ? undefined : { error });
+      if (client !== undefined) {
+        callback(error, client, release);
       } else {
         callback(error);
       }
-    };
+    });
     if (this.isClosing()) {
       queueMicrotask(() => finish(new PostgresPoolPolicyError("closing")));
       return;
@@ -215,7 +211,38 @@ export class PostgresPoolRuntime {
       return;
     }
     this.pending.add(finish);
-    connect((error, client, release) => finish(error ?? undefined, client, release));
+    try {
+      connect((error, client, release) => finish(error ?? undefined, client, release));
+    } catch (error) {
+      if (!finished) {
+        // A synchronous driver failure owns no lease and must release its pending slot.
+        finished = true;
+        this.pending.delete(finish);
+        this.recordAcquisition(start, { error });
+      }
+      throw error;
+    }
+  }
+
+  private recordAcquisition(start: number, failure?: { error: unknown }): void {
+    this.acquisitions++;
+    this.lastAcquisitionDurationMs = performance.now() - start;
+    const error = failure?.error;
+    if (failure !== undefined) {
+      this.acquisitionFailures++;
+      if (!(error instanceof PostgresPoolPolicyError) && !this.isClosing()) {
+        this.state = "degraded";
+        this.failureVersion++;
+      }
+    }
+    this.report({
+      type: "acquisition", outcome: failure === undefined ? "success" : "failure", timestamp: Date.now(),
+      durationMs: this.lastAcquisitionDurationMs,
+      ...(failure === undefined ? {} : {
+        failure: error instanceof PostgresPoolPolicyError ? error.code : "acquisition_failed",
+        errorCode: safeErrorCode(error),
+      }),
+    });
   }
 
   private isClosing(): boolean {

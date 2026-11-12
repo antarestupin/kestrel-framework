@@ -50,7 +50,14 @@ describe("direct execution cleanup", () => {
     }
   });
 
-  it("observes an undefined rejection as a failure with its original value", async () => {
+  it.each([
+    { label: "undefined", reason: undefined, message: "undefined" },
+    {
+      label: "an unprintable value",
+      reason: Object.create(null) as unknown,
+      message: "The thrown value could not be converted to a string.",
+    },
+  ])("observes a rejection with $label and preserves the original failure", async ({ reason, message }) => {
     const app = new App({});
     const record = vi.fn();
     app.container.registerValue("observer", { record });
@@ -58,14 +65,13 @@ describe("direct execution cleanup", () => {
       name: "example.reject",
       input: z.null(),
       output: z.null(),
-      handler: () => Promise.reject(undefined),
+      handler: () => Promise.reject(reason),
     });
 
     try {
-      await expect(app.get(action).run(null)).rejects.toBeUndefined();
-      // The failure outcome, rather than the value of the rejection, selects error diagnostics.
+      await expect(app.get(action).run(null)).rejects.toBe(reason);
       expect(record).toHaveBeenCalledWith(executionCompletedObservation, expect.objectContaining({
-        error: { name: "UnknownError", message: "undefined" },
+        error: { name: "UnknownError", message },
       }), expect.objectContaining({ outcome: "failure" }));
     } finally {
       await app.dispose();
