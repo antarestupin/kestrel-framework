@@ -44,7 +44,7 @@ For application setup and task-oriented examples, see the [Events usage guide](.
 
 ## Design and implementation
 
-Dispatch parses input once, takes a listener snapshot and invokes matching synchronous listeners in registration order. Asynchronous listeners are registered in the dispatching bus's `DeferredTasks` group before `dispatch()` returns. Child buses share an internal engine containing the registry and closed-scope set; each facade separately owns the listeners registered through it.
+Dispatch parses input once, takes a listener snapshot and invokes matching synchronous listeners in registration order. Asynchronous listeners are registered in the dispatching bus's `DeferredTasks` group before `dispatch()` returns. Child buses share an internal engine containing the registry and closed-scope set. Each facade owns the listeners registered through its frozen scope identity and ancestry.
 
 Scope selection is explicit. The default `exact` selection observes only the registration scope. `descendants` lets an ancestor observe its subtree without implicit bubbling. Closing a scope removes listeners owned by that scope and its descendants while leaving ancestor and sibling registrations intact.
 
@@ -133,7 +133,7 @@ The dispatch returns only after every synchronous listener has run and every asy
 
 TypeScript allows an `async` function where a `void` callback is expected. The bus therefore also checks the result at runtime and throws an explanatory error if a listener registered through `listen()` returns a promise. Use `listenAsync()` for all promise-returning listeners.
 
-`listenOnce()` removes its listener before invocation, ensuring overlapping or nested dispatches cannot invoke it twice. `waitFor()` is a promise-based convenience that resolves with the next parsed payload. Neither API observes an event that has already been dispatched.
+Dispatch reserves one-time listeners in its snapshot, so nested dispatches skip those reservations. The bus removes each synchronous one-time listener before calling it and removes each asynchronous one after its task group accepts the work. If an earlier listener stops dispatch or the task group rejects admission, any unconsumed registration can observe a later event. `waitFor()` uses the same reservation semantics and resolves with the next payload its listener receives.
 
 ## Asynchronous listeners
 

@@ -24,7 +24,6 @@ export class AsyncFactoryScope<Config> {
   private readonly cache = new Map<AsyncFactory<Config>, Promise<unknown>>();
   private readonly pending = new Set<Promise<unknown>>();
   private readonly resources: Array<() => void | Promise<void>> = [];
-  private disposal: Promise<void> | undefined;
   private closed = false;
   private readonly factories: WeakMap<object, AsyncFactory<Config>>;
 
@@ -150,9 +149,9 @@ export class AsyncFactoryScope<Config> {
   }
 
   public dispose(): Promise<void> {
-    if (this.disposal !== undefined) return this.disposal;
     this.closed = true;
-    this.disposal = (async () => {
+    // The owning container publishes its disposal promise before invoking a resource callback.
+    return Promise.resolve().then(async () => {
       while (this.pending.size > 0) await Promise.allSettled([...this.pending]);
       const errors: unknown[] = [];
       for (const dispose of this.resources.reverse()) {
@@ -161,7 +160,6 @@ export class AsyncFactoryScope<Config> {
       this.resources.length = 0;
       this.cache.clear();
       if (errors.length > 0) throw new AggregateError(errors, "Async dependency disposal failed.");
-    })();
-    return this.disposal;
+    });
   }
 }

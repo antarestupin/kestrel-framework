@@ -99,7 +99,7 @@ The concurrency library has no adapter API. Callers inject ordinary handlers, pr
 
 ## Batch buffers
 
-`BatchBuffer` collects individual in-memory values and passes them to an asynchronous handler in strictly bounded batches. A batch becomes ready when it reaches `maxBatchSize`, when `maxWaitMs` has elapsed since its first value was added, or when `run()` forces the current incomplete batch.
+`BatchBuffer` collects individual in-memory values and passes them to an asynchronous handler in strictly bounded batches. A batch becomes ready when it reaches `maxBatchSize`, when `maxWaitMs` has elapsed since its first value was added, or when `run()` forces the current incomplete batch. Waits beyond Node's timer range are split into bounded segments measured against that original admission time.
 
 ```ts
 const buffer = new BatchBuffer<AuditEvent>({
@@ -115,7 +115,7 @@ buffer.add(event);
 const result = await buffer.run();
 ```
 
-`add()` is synchronous. Size and timeout triggers run in the background without creating an unhandled rejection: each handler invocation produces one outcome retained until the next `run()` boundary. The outcome key is the exact readonly batch passed to the handler, the successful result is the handler's return value, and a rejection is kept as an `unknown` error. `run()` starts the current incomplete batch, waits for quiescence including values added while it is draining, and returns all unconsumed outcomes as an `AggregatedResult`. A later run does not repeat outcomes that a previous run has consumed.
+`add()` is synchronous. Size and timeout triggers run in the background and retain one outcome per handler invocation until the next `run()` boundary. The outcome key is the exact readonly batch passed to the handler, the successful result is the handler's return value, and a rejection is kept as an `unknown` error. If reading the aggregate needed by `addAndWait()` throws, that invocation records a single failed batch. `run()` starts the current incomplete batch, waits for quiescence including values added while it is draining, and returns all unconsumed outcomes as an `AggregatedResult`. A later run does not repeat outcomes that a previous run has consumed.
 
 When the handler itself returns an `AggregatedResult` keyed by the exact buffered values, `addAndWait()` adds one value and returns its individual result. An error associated with that value rejects the returned promise with the original error. Every awaited value must have exactly one outcome in the handler aggregate; an omitted outcome rejects with `BatchBufferResultNotFoundError`. Equal values are matched to outcomes in their admission order.
 
@@ -227,7 +227,7 @@ const result = await runAggregatedResult(async function *() {
 });
 ```
 
-The generator is advanced manually so its return value is preserved; `for await...of` would discard it. The optional `onYield` callback is awaited before each outcome is added to the aggregate, allowing a consumer such as the worker scheduler to validate or persist progressive results. A callback failure closes the generator before propagating the original error.
+The generator is advanced manually so its return value is preserved; `for await...of` would discard it. Generator producers implement the synchronous or asynchronous iteration protocol with `next`, `return` and `throw`. Returning an ordinary cursor or iterator from a regular function preserves it as global data. The optional `onYield` callback is awaited before each outcome is added to the aggregate, allowing a consumer such as the worker scheduler to validate or persist progressive results. A callback failure closes the generator before propagating the original error.
 
 A regular function with no return and a generator returning nothing both produce `data: undefined`. If the producer throws or generator iteration fails, the error is propagated and no partial aggregate is returned. Consumers that persist outcomes from `onYield` remain responsible for tracking that progressive state when handling a later producer error.
 
@@ -328,7 +328,7 @@ try {
 }
 ```
 
-The group moves through `open`, `closing` and `closed` states. Pending tasks may register child work while the group is closing. The transition to `closed` happens atomically when the pending count reaches zero, and later `defer()` or `track()` calls throw `DeferredTasksClosedError` synchronously.
+The group moves through `open`, `closing` and `closed` states. Pending tasks may register child work while the group is closing. `track()` records ownership before adopting a promise-like value, so a getter that calls `close()` observes that pending task. The transition to `closed` happens atomically when the pending count reaches zero, and later `defer()` or `track()` calls throw `DeferredTasksClosedError` synchronously.
 
 Repeated `close()` calls share the same promise and result.
 

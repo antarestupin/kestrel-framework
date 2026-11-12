@@ -221,6 +221,45 @@ describe("DependencyContainer", () => {
     expect(dispose).toHaveBeenCalledExactlyOnceWith(resource);
   });
 
+  it("waits for all synchronous registration disposers and keeps each failure", async () => {
+    const root = createDependencyContainer({});
+    const container = root.createScope();
+    const finish = Promise.withResolvers<void>();
+    const firstFailure = new Error("first disposer failed");
+    const secondFailure = new Error("second disposer failed");
+    const first = {};
+    const second = {};
+    const disposeFirst = vi.fn(() => { throw firstFailure; });
+    const disposeSecond = vi.fn(async () => {
+      await finish.promise;
+      throw secondFailure;
+    });
+    container.registerFactory("first", () => first, { lifetime: "scoped", dispose: disposeFirst });
+    container.registerFactory("second", () => second, { lifetime: "scoped", dispose: disposeSecond });
+    container.resolve(dep("first"));
+    container.resolve(dep("second"));
+
+    let settled = false;
+    const errors = container.dispose().then(
+      () => { settled = true; return undefined; },
+      (error: unknown) => { settled = true; return error; },
+    );
+    try {
+      // Give immediate rejections time to propagate while the second disposer is gated.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(disposeFirst).toHaveBeenCalledExactlyOnceWith(first);
+      expect(disposeSecond).toHaveBeenCalledExactlyOnceWith(second);
+      expect(settled).toBe(false);
+    } finally {
+      finish.resolve();
+      await errors;
+      await root.dispose();
+    }
+    const failure = await errors;
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect((failure as AggregateError).errors).toEqual([firstFailure, secondFailure]);
+  });
+
   it("reports missing named dependencies", () => {
     const container = createDependencyContainer({});
 

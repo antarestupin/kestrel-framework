@@ -308,6 +308,22 @@ const focusedProfiles = {
     ["outbound_http/types.ts"],
   ],
 
+  // Partition App lifecycle, execution and catalog independently of their shared import graph.
+  "app-composition": [["app/app.ts", "", "public async createExecutionScope("]],
+  "app-execution": [
+    ["app/app.ts", "public async createExecutionScope(", "public start("],
+    ["app/app.ts", "public runInObservationContext<"],
+    ["app/execution_scope.ts"],
+  ],
+  "app-startup": [["app/app.ts", "public start(", "public stop("]],
+  "app-shutdown": [["app/app.ts", "public stop(", "public runInObservationContext<"]],
+  "app-shutdown-coordination": [["app/shutdown.ts"], ["app/process.ts"]],
+  "app-execution-context": [["app/execution_context.ts"]],
+  "app-catalog": [["app/catalog.ts"]],
+  "app-contracts": [
+    ["app/adapter.ts"], ["app/events.ts"], ["app/index.ts"],
+    ["app/observations.ts"], ["app/workloads.ts"],
+  ],
   "atlas-collection-query": [["atlas/client/src/collection.ts"]],
   "catalog-identities": [
     ["app/catalog.ts", "public readonly cliControllers =", "public readonly workers ="],

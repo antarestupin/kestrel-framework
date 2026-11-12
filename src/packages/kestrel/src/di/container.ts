@@ -23,9 +23,13 @@ import {
   type ResolvedDependency,
 } from "./dependencies.js";
 
+/** Internal binding for a root-owned value that is already cached by its lifecycle handle. */
+export const singletonReference = Symbol("singletonReference");
+
 export interface RegistrationOptions<Value> {
   lifetime?: DependencyLifetime;
   dispose?: (value: Value) => Promise<void> | void;
+  [singletonReference]?: true;
 }
 
 export interface DependencyContainer<Config> {
@@ -116,7 +120,16 @@ class DependencyContainerImpl<Config>
       const errors: unknown[] = [];
       // Async consumers release resources before synchronous prerequisites.
       try { await this.asyncFactories.dispose(); } catch (error) { errors.push(error); }
-      try { await this.container.dispose(); } catch (error) { errors.push(error); }
+      // Awilix owns the cache. Clear it before cleanup and wait for every disposer,
+      // including slow callbacks that overlap an earlier failure.
+      const resources = [...this.container.cache.values()];
+      this.container.cache.clear();
+      const results = await Promise.allSettled(resources.map(async ({ resolver, value }) =>
+        (resolver as DisposableResolver<unknown>).dispose?.(value),
+      ));
+      for (const result of results) {
+        if (result.status === "rejected") errors.push(result.reason);
+      }
       if (errors.length > 0) throw new AggregateError(errors, "Dependency disposal failed.");
     })();
     return this.disposal;
@@ -144,10 +157,11 @@ class DependencyContainerImpl<Config>
     factory: (dependencies: Dependencies) => Value,
     options: RegistrationOptions<Value> = {},
   ): void {
-    const resolver = applyRegistrationOptions(
-      asFunction(factory),
-      options,
-    );
+    // Forwarding an owned singleton is safe for cached consumers. Resolve its
+    // handle every time so a cached raw value cannot bypass a disposal guard.
+    const resolver = options[singletonReference]
+      ? asFunction(factory, { isLeakSafe: true })
+      : applyRegistrationOptions(asFunction(factory), options);
 
     this.container.register(id, resolver);
   }

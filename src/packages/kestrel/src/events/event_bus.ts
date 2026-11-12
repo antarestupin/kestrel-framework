@@ -17,7 +17,7 @@ export interface EventScopeOptions {
 }
 
 /** Immutable identity in the hierarchy shared by every bound event bus. */
-export interface EventScope extends EventScopeOptions {
+export interface EventScope extends Readonly<EventScopeOptions> {
   readonly parent?: EventScope;
 }
 
@@ -49,15 +49,16 @@ export type AsyncEventListener<Event extends AnyEventDefinition> = (
 export type StopListening = () => void;
 
 interface RegisteredListener {
+  readonly event: AnyEventDefinition;
   readonly callback: (
     payload: unknown,
     context: EventListenerContext,
   ) => PromiseLike<void> | void;
   readonly asynchronous: boolean;
-  readonly owner: EventBus;
   readonly scope: EventScope;
   readonly scopeSelection: EventListenerScope;
-  once: boolean;
+  readonly once: boolean;
+  reserved: boolean;
 }
 
 interface EventBusEngine {
@@ -73,10 +74,6 @@ interface EventBusEngine {
  */
 export class EventBus {
   private readonly engine: EventBusEngine;
-
-  private readonly ownedListeners = new Set<RegisteredListener>();
-
-  private closed = false;
 
   private readonly scopeNode: EventScope;
 
@@ -95,9 +92,9 @@ export class EventBus {
       closedScopes: new WeakSet(),
       listeners: new Map(),
     };
-    this.scopeNode = parentScope === undefined
+    this.scopeNode = Object.freeze(parentScope === undefined
       ? { ...scope }
-      : { ...scope, parent: parentScope };
+      : { ...scope, parent: parentScope });
   }
 
   /** Creates a child facade sharing this bus's registry. */
@@ -177,8 +174,8 @@ export class EventBus {
     const listeners = this.takeListenerSnapshot(event);
     const context: EventListenerContext = { scope: this.scopeNode };
 
-    for (const listener of listeners) {
-      try {
+    try {
+      for (const listener of listeners) {
         if (listener.asynchronous) {
           // Dispatch owns asynchronous listener work so an ancestor observing
           // a child still extends the child scope's resource lifetime.
@@ -194,7 +191,10 @@ export class EventBus {
               throw error;
             }
           }, { name: `event:${event.name}` });
+          // Keep the registration available if this task group rejects admission.
+          if (listener.once) this.removeListener(listener);
         } else {
+          if (listener.once) this.removeListener(listener);
           const result = listener.callback(parsedPayload, context);
 
           if (isPromiseLike(result)) {
@@ -206,9 +206,15 @@ export class EventBus {
             );
           }
         }
-      } catch (error: unknown) {
-        this.reportListenerFailure(event, error);
-        throw error;
+      }
+    } catch (error: unknown) {
+      this.reportListenerFailure(event, error);
+      throw error;
+    } finally {
+      // An earlier listener can stop dispatch. Release reservations for any one-time
+      // listeners that were never reached so they can observe the next event.
+      for (const listener of listeners) {
+        if (listener.once) listener.reserved = false;
       }
     }
   }
@@ -222,11 +228,10 @@ export class EventBus {
 
   /** Removes every listener registered through this bound facade. */
   public close(): void {
-    if (this.closed) {
+    if (this.engine.closedScopes.has(this.scopeNode)) {
       return;
     }
 
-    this.closed = true;
     this.engine.closedScopes.add(this.scopeNode);
 
     // Closing a scope also retires listeners owned by its descendants. This
@@ -264,18 +269,18 @@ export class EventBus {
     this.assertOpen();
     const listeners = this.getOrCreateListeners(event);
     const registered: RegisteredListener = {
+      event,
       callback: listener as RegisteredListener["callback"],
       asynchronous,
       once,
-      owner: this,
+      reserved: false,
       scope: this.scopeNode,
       scopeSelection: options.scope ?? "exact",
     };
 
     listeners.add(registered);
-    this.ownedListeners.add(registered);
 
-    return () => this.removeListener(registered, event);
+    return () => this.removeListener(registered);
   }
 
   private takeListenerSnapshot(
@@ -288,17 +293,15 @@ export class EventBus {
     }
 
     const snapshot = [...listeners].filter((listener) =>
-      listener.scope === this.scopeNode
-      || (
-        listener.scopeSelection === "descendants"
-        && isDescendantOf(this.scopeNode, listener.scope)
-      )
+      !listener.reserved
+      && (listener.scope === this.scopeNode
+        || (listener.scopeSelection === "descendants"
+          && isDescendantOf(this.scopeNode, listener.scope)))
     );
 
+    // Reserve in snapshot order before invoking any user code that can dispatch again.
     for (const listener of snapshot) {
-      if (listener.once) {
-        this.removeListener(listener, event);
-      }
+      if (listener.once) listener.reserved = true;
     }
 
     return snapshot;
@@ -319,25 +322,10 @@ export class EventBus {
     return listeners;
   }
 
-  private removeListener(
-    listener: RegisteredListener,
-    knownEvent?: AnyEventDefinition,
-  ): void {
-    listener.owner.ownedListeners.delete(listener);
-    const entries = knownEvent === undefined
-      ? this.engine.listeners.entries()
-      : [[knownEvent, this.engine.listeners.get(knownEvent)] as const];
-
-    for (const [event, listeners] of entries) {
-      if (listeners === undefined || !listeners.delete(listener)) {
-        continue;
-      }
-
-      if (listeners.size === 0) {
-        this.engine.listeners.delete(event);
-      }
-
-      return;
+  private removeListener(listener: RegisteredListener): void {
+    const listeners = this.engine.listeners.get(listener.event);
+    if (listeners?.delete(listener) && listeners.size === 0) {
+      this.engine.listeners.delete(listener.event);
     }
   }
 
@@ -378,7 +366,7 @@ export class EventBus {
       scope = scope.parent;
     }
 
-    return !this.closed;
+    return true;
   }
 }
 
@@ -399,8 +387,7 @@ function isDescendantOf(scope: EventScope, ancestor: EventScope): boolean {
 
 /** Detects accidental promise-returning listeners hidden by void assignability. */
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
-  return typeof value === "object"
-    && value !== null
+  return ((typeof value === "object" && value !== null) || typeof value === "function")
     && "then" in value
     && typeof value.then === "function";
 }

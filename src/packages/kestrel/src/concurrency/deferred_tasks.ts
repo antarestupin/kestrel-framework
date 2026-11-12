@@ -77,12 +77,7 @@ export class DeferredTasks {
     task: DeferredTask,
     options: DeferredTaskOptions = {},
   ): void {
-    this.assertAcceptingTasks();
-
-    // Construct the promise before tracking but run the callback later. The
-    // task is registered synchronously before any queued callback can execute.
-    const promise = Promise.resolve().then(task);
-    this.trackPromise(promise, options);
+    void this.trackOperation(() => Promise.resolve().then(task), options);
   }
 
   /**
@@ -92,9 +87,7 @@ export class DeferredTasks {
     promise: PromiseLike<Value>,
     options: DeferredTaskOptions = {},
   ): Promise<Value> {
-    this.assertAcceptingTasks();
-
-    return this.trackPromise(Promise.resolve(promise), options);
+    return this.trackOperation(async () => promise, options);
   }
 
   /**
@@ -148,17 +141,20 @@ export class DeferredTasks {
     return this.closePromise;
   }
 
-  private trackPromise<Value>(
-    promise: Promise<Value>,
+  private trackOperation<Value>(
+    start: () => Promise<Value>,
     options: DeferredTaskOptions,
   ): Promise<Value> {
-    const pendingTask: PendingTask = options.name === undefined
-      ? {}
-      : { name: options.name };
+    this.assertAcceptingTasks();
+    // Reading diagnostic metadata may reenter the group before admission.
+    const name = options.name;
+    this.assertAcceptingTasks();
+    const pendingTask: PendingTask = name === undefined ? {} : { name };
 
     this.pendingTasks.add(pendingTask);
 
-    const trackedPromise = promise.then(
+    // A thenable's getter can reenter close() during adoption. Ownership is already visible.
+    const trackedPromise = start().then(
       (value) => {
         this.settleTask(pendingTask);
         return value;
@@ -234,16 +230,14 @@ export class DeferredTasks {
   }
 
   private reportError(error: unknown, task: PendingTask): void {
-    if (this.options.onError === undefined) {
-      return;
-    }
-
-    const context: DeferredTaskErrorContext = task.name === undefined
-      ? {}
-      : { name: task.name };
-
     try {
-      const reporting = this.options.onError(error, context);
+      // Resolving a lazily configured sink is part of the optional reporting boundary.
+      const onError = this.options.onError;
+      if (onError === undefined) return;
+      const context: DeferredTaskErrorContext = task.name === undefined
+        ? {}
+        : { name: task.name };
+      const reporting = onError.call(this.options, error, context);
 
       // Error reporting is deliberately outside the tracked workload. A
       // broken reporter must not extend the lifetime or replace task errors.

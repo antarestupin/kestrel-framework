@@ -383,51 +383,47 @@ export class App<
     const container = this.container.createScope();
     const executionId = id ?? uuidV7();
     const tasks = new DeferredTasks();
-    const context = new ExecutionContext(this.executionContextOptions);
-
-    // Correlation is part of every execution context, independently of which
-    // transports or optional integrations resolve scoped dependencies.
-    context.setDiagnostic("executionId", executionId);
-    const eventBus = this.eventBus.createScope(
-      { id: executionId, kind: "execution" },
-      tasks,
-    );
-
-    // Register the id before resolving scoped services such as loggers and the
-    // error handler, which may use it for correlation.
-    container.registerValue("executionId", executionId);
-    container.registerValue("executionContext", context);
-    container.registerValue("executionSignal", this.shutdown.signal);
-    container.registerValue("deferredTasks", tasks);
-    container.registerValue("eventBus", eventBus);
-    const errorHandler = container.resolve(errorHandlerDependency);
-    const execution = new ExecutionScope(
-      container,
-      executionId,
-      errorHandler,
-      tasks,
-      eventBus,
-      context,
-      this.shutdown.signal,
-    );
-
-    // Context values let scoped dependencies correlate work without knowing
-    // which transport owns the execution.
-    container.registerValue("execution", execution);
-    this.lifecycle.activeExecutions.add(execution);
-    void execution.whenDisposed.then(() => {
-      this.lifecycle.activeExecutions.delete(execution);
-    });
+    let eventBus: EventBus | undefined;
+    let execution: ExecutionScope<Config> | undefined;
 
     try {
+      const context = new ExecutionContext(this.executionContextOptions);
+      // Correlation is available even when an execution uses no optional integration.
+      context.setDiagnostic("executionId", executionId);
+      eventBus = this.eventBus.createScope({ id: executionId, kind: "execution" }, tasks);
+
+      // Register the id before resolving scoped services that use it for correlation.
+      container.registerValue("executionId", executionId);
+      container.registerValue("executionContext", context);
+      container.registerValue("executionSignal", this.shutdown.signal);
+      container.registerValue("deferredTasks", tasks);
+      container.registerValue("eventBus", eventBus);
+      const initialized = new ExecutionScope(
+        container, executionId, container.resolve(errorHandlerDependency), tasks,
+        eventBus, context, this.shutdown.signal,
+      );
+      execution = initialized;
+
+      container.registerValue("execution", initialized);
+      this.lifecycle.activeExecutions.add(initialized);
+      void initialized.whenDisposed.then(() => {
+        this.lifecycle.activeExecutions.delete(initialized);
+      });
+
       eventBus.dispatch(executionStartedEvent, { executionId });
       await tasks.wait();
-
-      return execution;
+      return initialized;
     } catch (error: unknown) {
-      // A failed start still completes the scope as cancelled so shutdown does
-      // not retain it and scoped resources are released deterministically.
-      await execution.dispose("cancelled").catch(() => undefined);
+      if (execution !== undefined) {
+        await execution.dispose("cancelled").catch(() => undefined);
+      } else {
+        // Factories can allocate scoped resources before the execution is constructed.
+        try {
+          await tasks.close().catch(() => undefined);
+          eventBus?.close();
+        } catch { /* Preserve the initialization failure. */ }
+        finally { await container.dispose().catch(() => undefined); }
+      }
       throw error;
     }
   }
@@ -459,6 +455,9 @@ export class App<
 
     try {
       this.lifecycle.currentState = "bootstrapping";
+      // Boot hooks and DI consumers share this finalized selection by reference.
+      Object.freeze(this.lifecycle.bootPlan.workloads);
+      Object.freeze(this.lifecycle.bootPlan);
       this.eventBus.dispatch(bootstrapStartedEvent, {});
       await this.tasks.wait();
       if (this.shutdown.error !== undefined) throw this.shutdown.error;
@@ -483,6 +482,7 @@ export class App<
         }
       }
 
+      if (this.shutdown.error !== undefined) throw this.shutdown.error;
       this.eventBus.dispatch(bootstrapCompletedEvent, {});
       await this.tasks.wait();
       if (this.shutdown.error !== undefined) throw this.shutdown.error;
@@ -523,7 +523,7 @@ export class App<
 
   /** Identifies class-based providers while retaining an anonymous fallback. */
   private getProviderName(provider: Provider<Config>): string {
-    return provider.constructor.name || "AnonymousProvider";
+    return provider.constructor?.name || "AnonymousProvider";
   }
 
   /** Finalizes the workload and infrastructure selection before bootstrap. */

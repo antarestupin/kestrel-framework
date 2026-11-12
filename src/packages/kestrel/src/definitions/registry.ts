@@ -11,6 +11,6 @@ export class DefinitionRegistry<Definition> {
 
   /** Returns the immutable definition catalog consumed by runtimes and tools. */
   public get definitions(): readonly Definition[] {
-    return this.registeredDefinitions;
+    return Object.freeze([...this.registeredDefinitions]);
   }
 }

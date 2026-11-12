@@ -52,15 +52,16 @@ export class BackgroundRuntime<Config> {
           const runtime = this.runtimes[workload]!;
           // Include partially started runtimes in cleanup after startup failure.
           started.push(runtime);
-          const starting = Promise.resolve().then(() => runtime.start());
-          const completions = started.flatMap((running) => running.completion === undefined ? [] : [running.completion]);
+          // A workload can publish its polling lifetime before its startup promise settles.
+          const starting = runtime.start();
+          const completions = collectPollingCompletions(started);
           await Promise.race([starting, ...completions.map((completion) => completion.then(() => {
             throw new Error("Background polling terminated during startup.");
           }))]);
         }
       },
       get completion() {
-        const completions = started.flatMap((runtime) => runtime.completion === undefined ? [] : [runtime.completion]);
+        const completions = collectPollingCompletions(started);
         return completions.length === 0 ? undefined : Promise.race(completions);
       },
       stop: async () => {
@@ -72,6 +73,14 @@ export class BackgroundRuntime<Config> {
       },
     }, this.options.waitForShutdown);
   }
+}
+
+/** Captures each published polling lifetime once for the supervisor's race. */
+function collectPollingCompletions(runtimes: readonly BackgroundWorkloadRuntime[]): Promise<void>[] {
+  return runtimes.flatMap((runtime) => {
+    const completion = runtime.completion;
+    return completion === undefined ? [] : [completion];
+  });
 }
 
 export const backgroundWorkloads = ["workers", "scheduled-tasks", "workflows"] as const satisfies readonly BackgroundWorkload[];

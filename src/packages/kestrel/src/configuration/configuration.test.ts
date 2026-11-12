@@ -532,4 +532,143 @@ describe("environment resolution", () => {
       "Invalid application environment",
     );
   });
+
+  it("reports unsupported non-JSON values through the configuration error contract", () => {
+    const cyclic = { self: undefined as unknown };
+    cyclic.self = cyclic;
+    const toJSON = () => { throw new Error("caller serialization must not run"); };
+    const callable = Object.assign(() => {}, { toString: toJSON });
+    for (const [value, description] of [
+      [1n, "1"], [null, "null"], [cyclic, "object"], [{ toJSON }, "object"], [callable, "function"],
+    ] as const) {
+      expect(() => resolveEnvironment(value)).toThrow(ConfigurationError);
+      expect(() => resolveEnvironment(value))
+        .toThrow(`Invalid application environment ${description}. Expected one of: development, test, preview, production.`);
+    }
+  });
+});
+
+describe("configuration boundary contracts", () => {
+  const api = createConfigurationApi({
+    environments: ["test", "production"], defaultEnvironment: "test",
+    environmentOverrides: { prefix: "CFG" },
+  });
+
+  it("validates the entire prefix and reserves only names beneath it", () => {
+    expect(() => createConfigurationApi({
+      environments: ["test"], defaultEnvironment: "test",
+      environmentOverrides: { prefix: "CFG.invalid" },
+    })).toThrow('Invalid conventional environment variable prefix "CFG.invalid".');
+    expect(api.resolveConfig({}, {
+      env: { CFG: "ordinary", OTHER__SETTING: "ordinary", CFG__OMITTED: undefined },
+    })).toEqual({});
+  });
+
+  it("preserves detailed causes and paths through conventional and explicit validation", () => {
+    const schema = z.string().min(3, "too short").regex(/^[A-Z]+$/u, "uppercase only");
+    const base = defineConfigBase(z.object({ field: schema }));
+    const check = (run: () => unknown, message: string) => {
+      expect(run).toThrow(expect.objectContaining({
+        name: "ConfigurationError", message, cause: expect.any(z.ZodError),
+      }));
+    };
+    check(() => api.resolveConfig({ service: configure(base, { field: "OKAY" }) }, {
+      env: { CFG__SERVICE__FIELD: "a" },
+    }), 'Invalid conventional environment variable "CFG__SERVICE__FIELD" at "service.field": too short; uppercase only');
+    check(() => api.resolveConfig({ entries: ["valid", api.envVar("EXPLICIT", schema)] }, {
+      env: { EXPLICIT: "a" },
+    }), 'Invalid environment variable "EXPLICIT" at "entries.1": too short; uppercase only');
+    check(() => api.resolveConfig({ entries: [configure(base, { field: "a" })] }, { env: {} }),
+      "Invalid configuration: entries.0.field: too short; entries.0.field: uppercase only");
+    check(() => api.resolveEnvironment("unknown"), 'Invalid application environment "unknown". Expected one of: test, production.');
+  });
+
+  it("resolves prototype-free definitions without treating class instances as config branches", () => {
+    class OpaqueSetting {
+      public readonly value = api.envVar("OPAQUE");
+    }
+    const opaque = new OpaqueSetting();
+    const prototypeFree = Object.assign(Object.create(null) as { field: typeof opaque.value }, {
+      field: api.envVar("FIELD"),
+    });
+    const result = api.resolveConfig({ prototypeFree, opaque, nil: null }, { env: { FIELD: "present" } });
+    expect(result.prototypeFree).toEqual({ field: "present" });
+    expect(result.opaque).toBe(opaque);
+    expect(result.nil).toBeNull();
+  });
+
+  it("discovers leaves through object wrappers and preserves acronym boundaries", () => {
+    const nested = z.object({ TLSConfig: z.string().default("default") });
+    const base = defineConfigBase(z.object({
+      nullable: nested.nullable(),
+      prefault: nested.prefault({ TLSConfig: "prefault" }),
+      fallback: nested.catch({ TLSConfig: "fallback" }),
+      readonly: nested.readonly(),
+      required: nested.optional().nonoptional(),
+    }));
+    const definition = { library: configure(base, {
+      nullable: null, fallback: api.fromEnv({ test: undefined }), readonly: {}, required: {},
+    }) };
+    const result = api.resolveConfig(definition, { env: {
+      CFG__LIBRARY__NULLABLE__TLS_CONFIG: "nullable",
+      CFG__LIBRARY__PREFAULT__TLS_CONFIG: "prefaulted",
+      CFG__LIBRARY__FALLBACK__TLS_CONFIG: "fallback-value",
+      CFG__LIBRARY__READONLY__TLS_CONFIG: "readonly",
+      CFG__LIBRARY__REQUIRED__TLS_CONFIG: "required",
+    } });
+    expect(result.library).toEqual({
+      nullable: { TLSConfig: "nullable" }, prefault: { TLSConfig: "prefaulted" },
+      fallback: { TLSConfig: "fallback-value" }, readonly: { TLSConfig: "readonly" },
+      required: { TLSConfig: "required" },
+    });
+    expect(Object.isFrozen(result.library.readonly)).toBe(true);
+  });
+
+  it("accepts the same conventional path discovered in a nested contribution", () => {
+    const schema = z.object({ port: z.number() });
+    const root = defineConfigBase(z.object({ adapter: schema }));
+    const adapter = configure(defineConfigBase(schema), { port: 8080 });
+    const config = api.resolveConfig({ service: configure(root, { adapter: api.fromEnv({ test: adapter }) }) }, {
+      env: { CFG__SERVICE__ADAPTER__PORT: "9090" },
+    });
+    expect(config.service.adapter.port).toBe(9090);
+  });
+
+  it("materializes only the optional branch containing a supplied override", () => {
+    const nested = z.object({ host: z.string() }).optional();
+    const base = defineConfigBase(z.object({ cache: nested, cacheBackup: nested }));
+    expect(api.resolveConfig({ service: configure(base, {}) }, {
+      env: { CFG__SERVICE__CACHE_BACKUP__HOST: "backup" },
+    })).toStrictEqual({ service: { cacheBackup: { host: "backup" } } });
+  });
+
+  it("reports every explicit variable used by a composed source on the same path", () => {
+    const base = defineConfigBase(z.object({ label: z.string() }));
+    const fallback = api.envVar("INNER", { fallback: "label" });
+    const label = api.envVar("OUTER", { fallback });
+    expect(() => api.resolveConfig({ service: configure(base, { label }) }, {
+      env: { CFG__SERVICE__LABEL: "override" },
+    })).toThrow('Conventional environment variable "CFG__SERVICE__LABEL" cannot override "service.label" because that path explicitly uses envVar("OUTER"), envVar("INNER").');
+  });
+
+  const object = z.object({ value: z.string() });
+  it.each([
+    ["tuple", z.tuple([z.string()]), ["value"]],
+    ["record", z.record(z.string(), z.string()), { key: "value" }],
+    ["map", z.map(z.string(), z.string()), new Map([["key", "value"]])],
+    ["set", z.set(z.string()), new Set(["value"])],
+    ["intersection", z.intersection(object, object), { value: "value" }],
+    ["lazy", z.lazy(() => z.string()), "value"],
+    ["object pipe", object.pipe(z.custom<{ value: string }>()), { value: "value" }],
+    ["array pipe", z.array(z.string()).pipe(z.custom<string[]>()), ["value"]],
+    ["mixed object union", z.union([z.string(), object]), "value"],
+    ["mixed array union", z.union([z.string(), z.array(z.string())]), "value"],
+  ] as const)("excludes unstable %s inputs from conventional aliases", (_label, schema, value) => {
+    const base = defineConfigBase(z.object({ field: schema }));
+    // An explicit binding can still populate the field using the application's own input.
+    const definition = { service: configure(base, { field: api.fromEnv({ test: value }) }) };
+    expect(api.resolveConfig(definition, { env: {} }).service.field).toEqual(value);
+    expect(() => api.resolveConfig(definition, { env: { CFG__SERVICE__FIELD: "replacement" } }))
+      .toThrow('Unknown conventional environment variable "CFG__SERVICE__FIELD".');
+  });
 });

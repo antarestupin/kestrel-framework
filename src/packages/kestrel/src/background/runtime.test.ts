@@ -30,6 +30,7 @@ describe("BackgroundRuntime", () => {
     // A callback can throw before returning its promised cleanup; every sibling still owns a drain.
     expect(calls).toEqual(["workers:start", "scheduled:start", "workflows:start", "app:stop", "workflows:stop", "scheduled:stop", "workers:stop"]);
     expect(failure).toBeInstanceOf(AggregateError);
+    expect((failure as AggregateError).message).toBe("Background workload shutdown failed.");
     expect((failure as AggregateError).errors).toEqual([syncFailure, asyncFailure]);
   });
 
@@ -78,10 +79,83 @@ describe("BackgroundRuntime", () => {
       }
       expect(beforeFallback?.completed).toBe(false);
       if (outcome === "rejected") expect(beforeFallback?.error).toBe(failure);
-      else expect(beforeFallback?.error).toBeInstanceOf(Error);
+      else expect(beforeFallback?.error).toMatchObject({ message: "Background polling terminated during startup." });
       expect(calls).toEqual(["workers:start", "workflows:start", "app:stop", "workflows:stop", "workers:stop"]);
     });
   }
+
+  it("supervises a polling lifetime published by the workload while it is still starting", async () => {
+    const calls: string[] = [];
+    const failure = new Error("polling failed before startup returned");
+    const polling = Promise.withResolvers<void>();
+    const starting = Promise.withResolvers<void>();
+    const shutdown = Promise.withResolvers<void>();
+    void polling.promise.catch(() => undefined);
+    let completion: Promise<void> | undefined;
+    const workers = {
+      start: () => {
+        calls.push("workers:start");
+        completion = polling.promise;
+        polling.reject(failure);
+        return starting.promise;
+      },
+      get completion() { return completion; },
+      stop: async () => { calls.push("workers:stop"); starting.resolve(); },
+    };
+    const app = { shutdown: new ApplicationShutdown(), stop: async () => { calls.push("app:stop"); } };
+    const background = new BackgroundRuntime(
+      app as never,
+      { workers, workflows: runtime("workflows", calls) },
+      { waitForShutdown: () => shutdown.promise },
+    );
+    const observed = vi.fn();
+    const running = background.run(["workers", "workflows"]).catch(observed);
+    try {
+      // Observe termination while the explicit startup and shutdown gates remain pending.
+      await setImmediate();
+      expect(observed).toHaveBeenCalledExactlyOnceWith(failure);
+      expect(calls).toEqual(["workers:start", "app:stop", "workers:stop"]);
+    } finally {
+      shutdown.resolve();
+      starting.resolve();
+      await running;
+      app.shutdown.finish();
+    }
+  });
+
+  it.each(["fulfilled", "rejected"] as const)("drains every workload when steady-state polling is %s", async (outcome) => {
+    const calls: string[] = [];
+    const completion = Promise.withResolvers<void>();
+    const shutdown = Promise.withResolvers<void>();
+    const failure = new Error("polling failed in steady state");
+    void completion.promise.catch(() => undefined);
+    const workers = { ...runtime("workers", calls), completion: completion.promise };
+    const app = { shutdown: new ApplicationShutdown(), stop: async () => { calls.push("app:stop"); } };
+    const background = new BackgroundRuntime(
+      app as never,
+      { workers, workflows: runtime("workflows", calls) },
+      { waitForShutdown: () => shutdown.promise },
+    );
+    const observed = vi.fn();
+    const running = background.run([]).catch(observed);
+    try {
+      // Give the supervisor a turn to reach steady state before settling its poller.
+      await setImmediate();
+      expect(calls).toEqual(["workers:start", "workflows:start"]);
+      if (outcome === "rejected") completion.reject(failure);
+      else completion.resolve();
+      await setImmediate();
+      expect(observed).toHaveBeenCalledExactlyOnceWith(outcome === "rejected"
+        ? failure
+        : expect.objectContaining({ message: "Runtime polling terminated before shutdown was requested." }));
+      expect(calls).toEqual(["workers:start", "workflows:start", "app:stop", "workflows:stop", "workers:stop"]);
+    } finally {
+      shutdown.resolve();
+      completion.resolve();
+      await running;
+      app.shutdown.finish();
+    }
+  });
 
   it("does not start a later workload after owner cancellation interrupts startup", async () => {
     const calls: string[] = [];
@@ -152,8 +226,13 @@ describe("readRequestedWorkloads", () => {
     expect(readRequestedWorkloads([], [])).toEqual([]);
   });
 
-  it.each([["--workload", "unknown"], ["--workload="], ["--workload=workflows"]])("rejects invalid or unavailable selections %j", (...arguments_) => {
-    expect(() => readRequestedWorkloads(arguments_, ["workers"])).toThrow(TypeError);
+  it.each([
+    { arguments_: ["--workload", "unknown"], message: 'Unknown background workload: "unknown".' },
+    { arguments_: ["--workload="], message: 'Unknown background workload: "".' },
+    { arguments_: ["--workload=workflows"], message: 'Unavailable background workload: "workflows".' },
+    { arguments_: ["--workload"], message: "Missing value for --workload." },
+  ])("rejects an invalid, unavailable or missing selection with $message", ({ arguments_, message }) => {
+    expect(() => readRequestedWorkloads(arguments_, ["workers"])).toThrow(new TypeError(message));
   });
 
   it("reads repeatable and inline workload options before bootstrap", () => {

@@ -21,24 +21,24 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | Lot | Candidate files | Assessment state | Next focus / subdivision | Evidence |
 | --- | ---: | --- | --- | --- |
 | `actions` | 9 | Reviewed | All nine current source candidates assessed; 12 diagnostic/optional-metadata residuals classified; re-review after contract changes | `actions-crud-pagination`, `actions-component` |
-| `app` | 11 | Partial / selected evidence | Shutdown, diagnostic budgets/destinations and CLI/worker identity wiring reviewed; startup, ownership and other catalog paths pending | `app-shutdown`, `execution-diagnostics`, `catalog-identities` |
+| `app` | 11 | Reviewed | Composition, startup, scope teardown, transport draining, catalog and diagnostic contracts reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#application) |
 | `atlas` | 53 | Partial / selected evidence | Portable collection URL helper reviewed; other client/server, routing, rendering and adapter scopes pending | `atlas-collection-query` |
 | `authentication` | 44 | Assessment complete; review pending | Review remaining survivors, including production PostgreSQL provider and migration wiring | [Coverage reassessment](mutation_testing_coverage_reassessment.md#authentication) · [Follow-up](mutation_testing_gap_followup.md#authentication) |
 | `authorization` | 23 | Reviewed | Requirement evaluation, scoped composition, denial semantics and role stores reviewed | [Boundary review](mutation_testing_http_boundaries.md#authorization) |
-| `background` | 4 | Assessment complete; review pending | All four candidate files assessed; synchronous stop-drain bug fixed; controlled steady-state completion assertions and residual policy follow-up pending | `component-background` |
+| `background` | 4 | Reviewed | Selection, startup and steady-state polling, rollback and transport drain reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#background-workloads) |
 | `cache` | 24 | Reviewed | Capacity, pruning, coordination, adapter ownership and all storage contracts reviewed | [Storage review](mutation_testing_storage_boundaries.md#cache) |
 | `cli` | 8 | Not assessed | Parsing, dispatch and exit/signals; subprocess observation limit | — |
 | `client` | 10 | Not assessed | Client generation and development/build adapters | — |
-| `concurrency` | 4 | Not assessed | Queue, batch and cancellation contracts | — |
-| `configuration` | 1 | Not assessed | Parsing and composition contracts | — |
+| `concurrency` | 4 | Reviewed | Deferred admission, batch timing and outcome ownership, and generator protocol reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#concurrency) |
+| `configuration` | 1 | Reviewed | Environment resolution, override precedence, supported paths and diagnostics reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#configuration) |
 | `controllers` | 2 | Not assessed | Contract/type exports; establish whether runtime mutations exist | — |
 | `database` | 8 | Reviewed | Maintenance commands, caller-owned transactions and generated identity isolation reviewed | [Storage review](mutation_testing_storage_boundaries.md#maintenance-and-seeding) |
 | `db` | 34 | Reviewed | Pool and query diagnostics, pagination, history, counters and schema contributions reviewed | [Storage review](mutation_testing_storage_boundaries.md#database-runtime-and-repositories) |
-| `definitions` | 5 | Not assessed | Definition validation and composition | — |
-| `di` | 5 | Partial / selected evidence | Container/scopes; historical adapter-lifecycle pilot | `adapter-circuit-pilot` |
+| `definitions` | 5 | Reviewed | Path and identity validation, immutable registration metadata and schema parsing reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#definition-registries) |
+| `di` | 5 | Reviewed | Adapter ownership, dependency resolution, graph validation and disposal reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#dependency-injection) |
 | `email` | 34 | Not assessed | Composition, rendering, transport failures and adapter ownership | — |
 | `errors` | 5 | Reviewed | Transport representation lookup, opaque fallback and cyclic diagnostics reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
-| `events` | 4 | Not assessed | Dispatch, asynchronous failures, scopes and close semantics | — |
+| `events` | 4 | Reviewed | Dispatch, one-time listener reservations, error propagation and scope teardown reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#events) |
 | `http` | 28 | Reviewed | Routing, access and lifecycle, Host admission, client transport and generation reviewed | [Boundary review](mutation_testing_http_boundaries.md#http) |
 | `lock` | 22 | Reviewed | Acquisition, lease ownership, batch renewal and all adapter contracts reviewed | [Storage review](mutation_testing_storage_boundaries.md#lock) |
 | `log` | 13 | Not assessed | Redaction, formatting, filtering and transport ownership | — |
@@ -56,7 +56,7 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `workers` | 23 | Reviewed | Scheduler admission and ownership, delivery, publication, adapters and contracts | [Component review](mutation_testing_workers_complete_review.md) |
 | `workflows` | 38 | Reviewed | Runtime, replay, operator commands and adapter contracts | [Component review](mutation_testing_workflows_complete_review.md) |
 
-The current total is 12 not-assessed lots, 3 partially assessed lots, 13 reviewed lots, 6 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
+The current total is 8 not-assessed lots, 1 partially assessed lot, 20 reviewed lots, 5 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
 
 ## Evidence ledger
 
@@ -229,6 +229,22 @@ All completed comparisons retain static and hybrid mutants. The disjoint profile
 | `cache` | 848 | 724 / 118 / 12 → 817 / 31 / 1 | 2 / 10 → 2 / 10 | 84.81% → 96.24% |
 
 Local reports, exact comparisons and input hashes are archived under `artifacts/mutation/nov12-storage-boundaries/`.
+
+## November 12 lifecycle boundary review
+
+All completed comparisons retain static and hybrid mutants. The disjoint profiles account for the full mutation set in 34 candidate sources. The [lifecycle boundary review](mutation_testing_lifecycle_boundaries.md) records the confirmed bugs, remaining mutations, and the execution budget for each profile.
+
+| Component | Matched mutants | Killed / Survived / NoCoverage | Timeout / RuntimeError | Stryker score |
+| --- | ---: | --- | --- | --- |
+| `app` | 942 | 870 / 112 / 7 → 993 / 26 / 0 | 5 / 18 → 8 / 18 | 88.03% → 97.47% |
+| `di` | 271 | 290 / 33 / 7 → 328 / 15 / 1 | 6 / 0 → 5 / 0 | 88.10% → 95.42% |
+| `background` | 120 | 134 / 10 / 0 → 137 / 2 / 0 | 1 / 0 → 1 / 0 | 93.10% → 98.57% |
+| `concurrency` | 345 | 333 / 43 / 0 → 379 / 19 / 0 | 17 / 0 → 17 / 0 | 89.06% → 95.42% |
+| `events` | 137 | 154 / 47 / 1 → 203 / 4 / 0 | 5 / 4 → 6 / 4 | 76.81% → 98.12% |
+| `configuration` | 447 | 368 / 79 / 2 → 451 / 10 / 1 | 1 / 3 → 1 / 3 | 82.00% → 97.62% |
+| `definitions` | 64 | 71 / 10 / 0 → 86 / 4 / 0 | 0 / 0 → 0 / 0 | 87.65% → 95.56% |
+
+Local reports, exact comparisons and input hashes are archived under `artifacts/mutation/nov12-lifecycle-boundaries/`.
 
 ## Historical global campaign
 

@@ -109,8 +109,8 @@ describe("AppCatalog", () => {
 
   it("rejects misplaced definitions and ambiguous category identities", () => {
     expect(() => new App({}, {
-      catalog: defineCatalog({ misplaced: createUser }),
-    })).toThrow("must be declared below a definition category");
+      catalog: defineCatalog({ users: { misplaced: createUser } }),
+    })).toThrow('Catalog definition at "users.misplaced" must be declared below a definition category.');
 
     const first = defineHttpController({
       access: testHttpAccess,
@@ -164,16 +164,23 @@ describe("AppCatalog", () => {
   });
 
   it.each([
-    { entry: { controllers: null }, message: 'Catalog controllers at "users" must be a catalog branch' },
-    { entry: { controllers: createUser }, message: 'Catalog controllers at "users" must be a catalog branch' },
-    { entry: { controllers: { socket: {} } }, message: 'Unsupported controller catalog transport "socket" at "users"' },
-    { entry: { actions: createUser }, message: 'Catalog category at "users" must contain named definitions' },
-    { entry: { actions: null }, message: 'Catalog category at "users" must contain named definitions' },
-    { entry: { actions: { nested: { create: onboardUser } } }, message: 'Invalid definition at catalog path "users.nested.create"' },
-    { entry: { actions: { create: null } }, message: 'Invalid definition at catalog path "users.create"' },
-  ])("rejects malformed categories with a qualified diagnostic", ({ entry, message }) => {
+    { label: "null controllers", entry: { controllers: null }, message: 'Catalog controllers at "users" must be a catalog branch' },
+    { label: "a controller category filled with an action", entry: { controllers: createUser }, message: 'Catalog controllers at "users" must be a catalog branch' },
+    { label: "an unsupported transport", entry: { controllers: { socket: {} } }, message: 'Unsupported controller catalog transport "socket" at "users"' },
+    { label: "a bare action", entry: { actions: createUser }, message: 'Catalog category at "users" must contain named definitions' },
+    { label: "a null action category", entry: { actions: null }, message: 'Catalog category at "users" must contain named definitions' },
+    { label: "a workflow in an action category", entry: { actions: { nested: { create: onboardUser } } }, message: 'Invalid definition at catalog path "users.nested.create"' },
+    { label: "a null action", entry: { actions: { create: null } }, message: 'Invalid definition at catalog path "users.create"' },
+    { label: "a numeric action", entry: { actions: { create: 42 } }, message: 'Invalid definition at catalog path "users.create"' },
+  ])("rejects $label with a qualified diagnostic", ({ entry, message }) => {
     // JavaScript and dynamic contributions can reach the runtime validator with invalid shapes.
     const declaration = { users: entry } as unknown as AppCatalogDeclaration;
     expect(() => new AppCatalog(declaration, () => true)).toThrow(message);
+  });
+
+  it.each([42, "a", null])("rejects a primitive subcatalog with its full path (%j)", (value) => {
+    // Dynamic JavaScript contributions must validate branches before traversing them.
+    const catalog = { users: { exports: value } } as unknown as AppCatalogDeclaration;
+    expect(() => new AppCatalog(catalog, () => true)).toThrow('Catalog branch at "users.exports" must be an object.');
   });
 });

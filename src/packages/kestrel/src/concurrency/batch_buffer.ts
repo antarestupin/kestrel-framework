@@ -4,6 +4,8 @@ import {
   type AggregatedResultOutcome,
 } from "./aggregated_result.js";
 
+const maximumTimerDelayMs = 2_147_483_647;
+
 export type BatchBufferExecution = "parallel" | "sequential";
 
 export type BatchBufferHandler<Value, Result> = (
@@ -223,11 +225,12 @@ export class BatchBuffer<Value, Result = void> {
     const execute = async (): Promise<void> => {
       try {
         const result = await this.options.handler(batch);
+        // Publish a batch only after reading the result required to settle its awaited values.
+        this.settleAwaitedValues(entries, result);
         this.completedBatches.push({
           sequence,
           outcome: { key: batch, status: "success", result },
         });
-        this.settleAwaitedValues(entries, result);
       } catch (error: unknown) {
         this.completedBatches.push({
           sequence,
@@ -320,10 +323,13 @@ export class BatchBuffer<Value, Result = void> {
       0,
       this.options.maxWaitMs - (performance.now() - first.addedAt),
     );
+    // Node clamps an oversized timer to one millisecond. Arm a bounded segment and recheck the original age.
+    const delayMs = Math.min(remainingMs, maximumTimerDelayMs);
     this.timer = setTimeout(() => {
       this.timer = undefined;
-      this.startIncompleteBatch();
-    }, remainingMs);
+      if (remainingMs > delayMs) this.scheduleIncompleteBatch();
+      else this.startIncompleteBatch();
+    }, delayMs);
     this.timer.unref?.();
   }
 

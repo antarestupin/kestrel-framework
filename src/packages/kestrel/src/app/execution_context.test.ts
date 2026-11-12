@@ -86,6 +86,16 @@ describe("ExecutionContext", () => {
     expect(context.toRecord("observation")).toEqual({ points: [10, 20] });
   });
 
+  it("initializes a missing internal accumulator and reads missing keys as undefined", () => {
+    const context = new ExecutionContext();
+    const value = { private: true };
+    expect(context.get("missing")).toBeUndefined();
+    context.append("missing", value);
+    expect(context.get("missing")).toEqual([value]);
+    expect((context.get("missing") as unknown[])[0]).toBe(value);
+    expect(context.toRecord("observation")).toEqual({});
+  });
+
   it("copies sparse arrays and records with no prototype into JSON-safe values", () => {
     const context = new ExecutionContext();
     const details = Object.assign(Object.create(null) as { enabled: boolean }, { enabled: false });
@@ -103,7 +113,7 @@ describe("ExecutionContext", () => {
     const arrayWithAccessor = Object.defineProperty([1], "0", {
       get: () => { throw new Error("The array getter must not run."); },
     });
-    const arrayWithNamedProperty = Object.assign([1], { "01": "not an index" });
+    const arrayWithNamedProperty = Object.assign([1, 2], { "01": "not an index" });
     const arrayWithNegativeIndex = Object.assign([1], { "-1": "not an index" });
     const arrayWithLabel = Object.assign([1], { label: "not an index" });
 
@@ -124,6 +134,21 @@ describe("ExecutionContext", () => {
       destinations: ["unknown" as "log"],
     })).toThrow('Unknown execution context diagnostic destination "unknown"');
     expect(context.entries()).toEqual([]);
+  });
+
+  it("bounds nesting through array elements and copies shared values without treating them as cycles", () => {
+    const context = new ExecutionContext();
+    let deep: ExecutionContextValue = null;
+    for (let level = 0; level < 101; level++) deep = [deep];
+    expect(() => context.setDiagnostic("deep", deep)).toThrow("100 nested levels");
+
+    const shared = { note: null };
+    context.setDiagnostic("shared", { one: shared, two: [shared] });
+    expect(context.toRecord("observation")).toEqual({ shared: { one: shared, two: [shared] } });
+  });
+
+  it.each(["maxEntrySizeBytes", "maxTotalSizeBytes"] as const)("identifies the invalid %s setting", (key) => {
+    expect(() => new ExecutionContext({ [key]: 0 })).toThrow(`Execution context ${key} must be a positive integer.`);
   });
 
   it.each([

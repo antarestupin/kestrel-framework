@@ -33,8 +33,8 @@ export async function runSupervisedRuntime<Config>(
   const errors: unknown[] = [];
   try {
     // Install signal listeners before asynchronous runtime initialization.
-    const startup = Promise.resolve().then(() => runtime.start(signalWait.signal));
     const shutdownRequested = wait(signalWait.signal);
+    const startup = Promise.resolve().then(() => runtime.start(signalWait.signal));
     const started = await Promise.race([startup.then(() => true), shutdownRequested.then(() => false)]);
     if (started) {
       const completion = runtime.completion?.then(() => {

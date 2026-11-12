@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import {
   afterEach,
   describe,
@@ -64,6 +65,7 @@ describe("BatchBuffer", () => {
     buffer.add(1);
     await vi.advanceTimersByTimeAsync(60);
     buffer.add(2);
+    expect(vi.getTimerCount()).toBe(1);
     await vi.advanceTimersByTimeAsync(39);
     expect(handler).not.toHaveBeenCalled();
 
@@ -71,6 +73,33 @@ describe("BatchBuffer", () => {
     expect(handler).toHaveBeenCalledOnce();
     expect(handler).toHaveBeenCalledWith([1, 2]);
     await buffer.run();
+  });
+
+  it("keeps a long batch wait beyond the native timer range", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const maximumNativeDelayMs = 2_147_483_647;
+    const handler = vi.fn(async () => undefined);
+    const buffer = new BatchBuffer<number>({
+      maxBatchSize: 10,
+      maxWaitMs: maximumNativeDelayMs + 50,
+      execution: "sequential",
+      handler,
+    });
+
+    try {
+      // A buffer can be created long after the monotonic clock started.
+      await vi.advanceTimersByTimeAsync(100);
+      buffer.add(1);
+      // A native timer outside its supported range would fire after one millisecond.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(handler).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(maximumNativeDelayMs + 48);
+      expect(handler).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(handler).toHaveBeenCalledExactlyOnceWith([1]);
+    } finally {
+      await buffer.close();
+    }
   });
 
   it("executes ready batches sequentially", async () => {
@@ -128,6 +157,45 @@ describe("BatchBuffer", () => {
     await buffer.run();
   });
 
+  it("retains parallel outcomes in admission order despite reverse completion", async () => {
+    const gates = [Promise.withResolvers<void>(), Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+    const buffer = new BatchBuffer<number, number>({
+      maxBatchSize: 1,
+      maxWaitMs: 100,
+      execution: "parallel",
+      handler: async ([value]) => {
+        await gates[value!]!.promise;
+        return value!;
+      },
+    });
+    for (const value of [0, 1, 2]) buffer.add(value);
+    const draining = buffer.run();
+    // Complete each handler in reverse order, then read the admission-ordered snapshot.
+    for (const gate of [...gates].reverse()) {
+      gate.resolve();
+      await setImmediate();
+    }
+    expect((await draining).results).toEqual([
+      { key: [0], result: 0 }, { key: [1], result: 1 }, { key: [2], result: 2 },
+    ]);
+  });
+
+  it("cancels the age timer when the size boundary consumes its values", async () => {
+    vi.useFakeTimers();
+    const handler = vi.fn(async () => undefined);
+    const buffer = new BatchBuffer<number>({ maxBatchSize: 2, maxWaitMs: 100, execution: "parallel", handler });
+    try {
+      buffer.add(1);
+      expect(vi.getTimerCount()).toBe(1);
+      buffer.add(2);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(handler).toHaveBeenCalledExactlyOnceWith([1, 2]);
+    } finally {
+      await buffer.close();
+    }
+  });
+
   it("aggregates handler failures and continues later batches", async () => {
     const failure = new Error("Unavailable");
     const handler = vi.fn(async (batch: readonly number[]) => {
@@ -171,11 +239,13 @@ describe("BatchBuffer", () => {
       }),
     });
 
-    const first = buffer.addAndWait(1);
-    const second = buffer.addAndWait(2);
-
-    await expect(first).resolves.toBe("first");
-    await expect(second).rejects.toBe(failure);
+    const fulfilled = vi.fn();
+    const rejected = vi.fn();
+    void buffer.addAndWait(1).then(fulfilled, rejected);
+    void buffer.addAndWait(2).then(fulfilled, rejected);
+    await buffer.close();
+    expect(fulfilled).toHaveBeenCalledExactlyOnceWith("first");
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(failure);
   });
 
   it("rejects an awaited value omitted from its aggregated result", async () => {
@@ -189,9 +259,42 @@ describe("BatchBuffer", () => {
       handler: async () => createAggregatedResult(),
     });
 
-    await expect(buffer.addAndWait(1)).rejects.toBeInstanceOf(
-      BatchBufferResultNotFoundError,
-    );
+    const fulfilled = vi.fn();
+    const rejected = vi.fn();
+    void buffer.addAndWait(1).then(fulfilled, rejected);
+    await buffer.close();
+    expect(fulfilled).not.toHaveBeenCalled();
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      name: "BatchBufferResultNotFoundError",
+      message: "The batch handler returned no outcome for an awaited value.",
+    }));
+    expect(rejected.mock.calls[0]?.[0]).toBeInstanceOf(BatchBufferResultNotFoundError);
+  });
+
+  it("reports one failed batch if reading the handler aggregate throws", async () => {
+    const failure = new Error("cannot read aggregate outcomes");
+    const buffer = new BatchBuffer<number, AggregatedResult<number, string, Error>>({
+      maxBatchSize: 1,
+      maxWaitMs: 60_000,
+      execution: "parallel",
+      handler: () => ({
+        status: "success",
+        get results(): never { throw failure; },
+        errors: [],
+        data: undefined,
+      }),
+    });
+
+    const fulfilled = vi.fn();
+    const rejected = vi.fn();
+    void buffer.addAndWait(1).then(fulfilled, rejected);
+    // A handler invocation owns one aggregate outcome even when item settlement fails.
+    const result = await buffer.close();
+    expect(result.status).toBe("error");
+    expect(result.results).toHaveLength(0);
+    expect(result.errors).toEqual([{ key: [1], error: failure }]);
+    expect(fulfilled).not.toHaveBeenCalled();
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(failure);
   });
 
   it("matches repeated values to outcomes in admission order", async () => {
@@ -212,7 +315,12 @@ describe("BatchBuffer", () => {
 
     buffer.add(1);
 
-    await expect(buffer.addAndWait(1)).resolves.toBe("awaited");
+    const fulfilled = vi.fn();
+    const rejected = vi.fn();
+    void buffer.addAndWait(1).then(fulfilled, rejected);
+    await buffer.close();
+    expect(fulfilled).toHaveBeenCalledExactlyOnceWith("awaited");
+    expect(rejected).not.toHaveBeenCalled();
   });
 
   it("includes values added while a run is draining", async () => {
@@ -271,7 +379,12 @@ describe("BatchBuffer", () => {
 
     expect(secondClose).toBe(firstClose);
     expect(() => buffer.add(2)).toThrow(BatchBufferClosedError);
+    expect(() => buffer.add(2)).toThrow(expect.objectContaining({
+      name: "BatchBufferClosedError",
+      message: "Cannot add a value to a closed batch buffer.",
+    }));
     await expect(firstClose).resolves.toMatchObject({ status: "success" });
+    expect(buffer.close()).toBe(firstClose);
   });
 
   it("drains a value accepted between an idle run and close", async () => {
@@ -330,6 +443,18 @@ describe("BatchBuffer", () => {
       execution: "sequential",
       handler: async () => undefined,
     })).toThrow("Batch buffer wait must be a non-negative finite number.");
+    expect(() => new BatchBuffer({
+      maxBatchSize: 1,
+      maxWaitMs: -1,
+      execution: "parallel",
+      handler: () => undefined,
+    })).toThrow("Batch buffer wait must be a non-negative finite number.");
+    expect(() => new BatchBuffer({
+      maxBatchSize: 1,
+      maxWaitMs: 0,
+      execution: "parallel",
+      handler: () => undefined,
+    })).not.toThrow();
     expect(() => new BatchBuffer({
       maxBatchSize: 1,
       maxWaitMs: 1,

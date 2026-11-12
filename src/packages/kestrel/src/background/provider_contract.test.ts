@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { App } from "../app/index.js";
 import { backgroundRuntimeDependency } from "./dependencies.js";
@@ -23,6 +24,9 @@ describe("background provider contracts", () => {
       expect(path).toEqual(["backgroundRuntime", "runBackground"]);
       expect(controller).toMatchObject({ command: "run background", description: "Run selected background workloads.", runtime: "background", observe: false, dependencies: { runtime: backgroundRuntimeDependency }, bindings: { workloads: { kind: "option", name: "workload", repeatable: true } } });
       expect(controller.inputSchema.parse({})).toEqual({ workloads: [] });
+      expect(z.toJSONSchema(controller.inputSchema)).toMatchObject({
+        properties: { workloads: { description: "Background workload to run; repeatable." } },
+      });
       expect(controller.inputSchema.safeParse({ workloads: ["unsupported"] }).success).toBe(false);
       expect(controller.inputSchema.parse({ workloads: ["workers", "scheduled-tasks", "workflows"] })).toEqual({ workloads: ["workers", "scheduled-tasks", "workflows"] });
       expect(controller.prepareWorkloads?.(["run", "background"])).toEqual(available);

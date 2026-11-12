@@ -203,6 +203,31 @@ describe("AggregatedResult", () => {
     expect(aggregated.data).toEqual(["first", "second"]);
   });
 
+  it("preserves ordinary global data with a next method", async () => {
+    // Cursor objects can expose next() without producing aggregated outcomes.
+    const cursor = { next: vi.fn(() => ({ done: true, value: "next page" })) };
+    const aggregate = await runAggregatedResult<string, number, Error, typeof cursor>(() => cursor);
+
+    expect(aggregate.data).toBe(cursor);
+    expect(cursor.next).not.toHaveBeenCalled();
+  });
+
+  it("does not consume an ordinary iterable iterator used as global data", async () => {
+    const values = ["first", "second"].values();
+    const aggregate = await runAggregatedResult<string, number, Error, typeof values>(() => values);
+
+    expect(aggregate.data).toBe(values);
+    expect(values.next()).toEqual({ done: false, value: "first" });
+  });
+
+  it("preserves null and next-like data objects as ordinary results", async () => {
+    const data = [null, { next: "cursor" }, { next: () => undefined, return: () => undefined, throw: () => undefined }];
+    for (const value of data) {
+      const aggregate = await runAggregatedResult<string, number, Error, typeof value>(() => value);
+      expect(aggregate.data).toBe(value);
+    }
+  });
+
   it("propagates generator failures", async () => {
     const failure = new Error("stream failed");
 
@@ -318,9 +343,18 @@ describe("AggregatedResult", () => {
 
     if (!parsed.success) {
       expect(parsed.error.issues).toContainEqual(expect.objectContaining({
+        code: "custom",
         path: ["status"],
         message: "Expected status \"partial\" from the aggregated results.",
       }));
     }
+  });
+
+  it("validates error-only aggregates and their item schema", () => {
+    const schema = createAggregatedResultSchema({ key: z.string(), result: z.number(), error: z.string() });
+    const aggregate = { status: "error", results: [], errors: [{ key: "first", error: "failed" }], data: undefined };
+
+    expect(schema.parse(aggregate)).toEqual(aggregate);
+    expect(schema.safeParse({ ...aggregate, errors: [{ key: 1, error: 42 }] }).success).toBe(false);
   });
 });

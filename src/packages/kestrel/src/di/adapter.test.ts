@@ -36,6 +36,9 @@ describe("adapter definitions", () => {
       expect(create).toHaveBeenCalledTimes(2);
       await a.dispose();
       expect(() => a.get()).toThrow("disposed");
+      // A DI lookup must observe closure even when the adapter was resolved before disposal.
+      expect(() => first.resolve(dep("adapter"))).toThrow("disposed");
+      expect(second.resolve(dep("adapter"))).toBe(b.get());
     } finally { await first.dispose(); await second.dispose(); }
     for (const result of create.mock.results) expect(result.value.close).toHaveBeenCalledOnce();
   });
@@ -87,6 +90,52 @@ describe("adapter definitions", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it("closes unused handles on container disposal without running adapter hooks", async () => {
+    const container = createDependencyContainer({});
+    const create = vi.fn(() => ({}));
+    const initialize = vi.fn();
+    const dispose = vi.fn();
+    const beforeDispose = vi.fn();
+    const registration = registerAdapter(container, "adapter", defineAdapter({
+      dependencies: {}, capabilities: {}, create, initialize, dispose,
+    }), undefined, { beforeDispose });
+    await container.dispose();
+    try {
+      // The container owns the handle even if no consumer has initialized its adapter.
+      expect(() => registration.get()).toThrow("disposed");
+      await expect(registration.boot()).rejects.toThrow("disposed");
+      expect(() => container.resolve(dep("adapter"))).toThrow("disposed");
+      expect(create).not.toHaveBeenCalled();
+      expect(initialize).not.toHaveBeenCalled();
+      expect(dispose).not.toHaveBeenCalled();
+      expect(beforeDispose).not.toHaveBeenCalled();
+    } finally { await registration.dispose(); }
+  });
+
+  it("lends the same root adapter to synchronous and asynchronous singleton consumers", async () => {
+    const root = createDependencyContainer({});
+    const child = root.createScope();
+    const endpoint = dep<string>("endpoint");
+    const adapter = dep<{ endpoint: string }>("adapter");
+    root.registerValue(endpoint.id, "root");
+    child.registerValue(endpoint.id, "child");
+    const registration = registerAdapter(root, adapter.id, defineAdapter({
+      dependencies: { endpoint }, capabilities: {}, create: (dependencies) => dependencies,
+    }), undefined);
+    root.registerFactory("syncConsumer", ({ adapter }: { adapter: { endpoint: string } }) => adapter, { lifetime: "singleton" });
+    root.registerAsyncFactory("asyncConsumer", { adapter }, ({ adapter }) => adapter, { lifetime: "singleton" });
+    try {
+      expect(child.resolve(dep("syncConsumer"))).toBe(registration.get());
+      expect(await child.resolveAsync(dep("asyncConsumer"))).toBe(registration.get());
+      expect(child.resolve(adapter)).toEqual({ endpoint: "root" });
+      await registration.dispose();
+      await expect(child.resolveAsync(adapter)).rejects.toThrow("disposed");
+    } finally {
+      await child.dispose();
+      await root.dispose();
+    }
+  });
+
   it("copies nonempty capabilities into an immutable reusable recipe", () => {
     const capabilities = { transactions: true };
     const definition = defineAdapter({ dependencies: {}, capabilities, create: () => ({}) });
@@ -95,6 +144,8 @@ describe("adapter definitions", () => {
     expect(definition.capabilities).toEqual({ transactions: true });
     expect(Object.isFrozen(definition)).toBe(true);
     expect(Object.isFrozen(definition.capabilities)).toBe(true);
+    expect(Object.hasOwn(definition, "initialize")).toBe(false);
+    expect(Object.hasOwn(definition, "dispose")).toBe(false);
   });
 
   it("cancels a queued boot without disposing an adapter that was never created", async () => {
@@ -102,9 +153,10 @@ describe("adapter definitions", () => {
     const create = vi.fn(() => ({}));
     const initialize = vi.fn();
     const dispose = vi.fn();
+    const beforeDispose = vi.fn();
     const registration = registerAdapter(container, "adapter", defineAdapter({
       dependencies: {}, capabilities: {}, create, initialize, dispose,
-    }), {});
+    }), {}, { beforeDispose });
     // Dispose before the boot microtask can acquire ownership of an instance.
     const boot = registration.boot();
     const rejectedBoot = expect(boot).rejects.toThrow("disposed");
@@ -115,6 +167,7 @@ describe("adapter definitions", () => {
       expect(create).not.toHaveBeenCalled();
       expect(initialize).not.toHaveBeenCalled();
       expect(dispose).not.toHaveBeenCalled();
+      expect(beforeDispose).toHaveBeenCalledOnce();
     } finally { await container.dispose(); }
   });
 
@@ -193,6 +246,23 @@ describe("adapter definitions", () => {
       // The container owns the same cached failed disposal promise.
       await expect(container.dispose()).rejects.toThrow();
     }
+  });
+
+  it("keeps both the drain error and the release error", async () => {
+    const container = createDependencyContainer({});
+    const drainFailure = new Error("drain failed");
+    const releaseFailure = new Error("release failed");
+    const registration = registerAdapter(container, "adapter", defineAdapter({
+      dependencies: {}, capabilities: {}, create: () => ({}),
+      dispose: () => { throw releaseFailure; },
+    }), undefined, { beforeDispose: () => { throw drainFailure; } });
+    registration.get();
+    try {
+      const failure = await registration.dispose().catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(AggregateError);
+      expect((failure as AggregateError).message).toBe('Adapter "adapter" disposal failed.');
+      expect((failure as AggregateError).errors).toEqual([drainFailure, releaseFailure]);
+    } finally { await container.dispose().catch(() => {}); }
   });
 
   it("waits for in-flight initialization before disposing", async () => {

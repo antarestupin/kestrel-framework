@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DefinitionCatalogRegistry } from "./catalog_registry.js";
+import { DefinitionRegistry } from "./registry.js";
 
 const application = { kind: "application" } as const;
 const provider = { kind: "provider", provider: "TestProvider" } as const;
@@ -36,6 +37,47 @@ describe("DefinitionCatalogRegistry", () => {
     expect(registry.catalog).toEqual({ domain: { read: "read", write: "write" } });
   });
 
+  it("compares entire branch paths and reports the original path on conflicts", () => {
+    const registry = new DefinitionCatalogRegistry<string>()
+      .register("read", application, ["domain", "read"])
+      .register("write", provider, ["domain", "write", "entry"]);
+    expect(registry.catalog).toEqual({ domain: { read: "read", write: { entry: "write" } } });
+    expect(() => registry.register("duplicate", provider, ["domain", "read"]))
+      .toThrow('Catalog path "domain.read" is contributed more than once.');
+    expect(() => registry.register("parent", provider, ["domain", "write"]))
+      .toThrow('Catalog path "domain.write" collides with definition path "domain.write.entry".');
+  });
+
+  it("rejects a root definition before it can block later named entries", () => {
+    const registry = new DefinitionCatalogRegistry<string>();
+    expect(() => registry.register("unaddressable", application, []))
+      .toThrow("A catalog registration requires a non-empty path.");
+    registry.register("available", application, ["named"]);
+    expect(registry.catalog).toEqual({ named: "available" });
+  });
+
+  it("retains direct application provenance when JavaScript omits it", () => {
+    const registry = new DefinitionCatalogRegistry<string>()
+      .register("read", undefined, ["read"]);
+    expect(registry.registrations[0]?.source).toStrictEqual({ kind: "application" });
+  });
+
+  it("isolates registration provenance and path from callers and readers", () => {
+    const source = { kind: "provider" as const, provider: "OriginalProvider" };
+    const definition = { id: "read" };
+    const registry = new DefinitionCatalogRegistry<typeof definition>()
+      .register(definition, source, ["domain", "read"]);
+    const registrations = registry.registrations;
+    source.provider = "ChangedProvider";
+    expect(Reflect.set(registrations[0]!.path, 0, "changed")).toBe(false);
+    expect(Reflect.set(registrations[0]!.source, "provider", "ChangedAgain")).toBe(false);
+    expect(Reflect.set(registrations[0]!, "definition", { id: "another" })).toBe(false);
+    expect(Reflect.deleteProperty(registrations, "0")).toBe(false);
+    expect(registry.registrations[0]?.source).toEqual({ kind: "provider", provider: "OriginalProvider" });
+    expect(registry.catalog.domain).toEqual({ read: definition });
+    expect(registry.definitions[0]).toBe(definition);
+  });
+
   it("keeps prototype-named paths in the catalog's own properties", () => {
     const key = "__kestrelDefinitionCatalogProjection";
     const registry = new DefinitionCatalogRegistry<string>()
@@ -51,5 +93,19 @@ describe("DefinitionCatalogRegistry", () => {
     } finally {
       Reflect.deleteProperty(Object.prototype, key);
     }
+  });
+});
+
+describe("DefinitionRegistry", () => {
+  it("publishes an immutable snapshot while retaining the definitions' identity", () => {
+    const first = { id: "first" };
+    const second = { id: "second" };
+    const registry = new DefinitionRegistry<typeof first>().register(first);
+    const snapshot = registry.definitions;
+    registry.register(second);
+    expect(snapshot).toEqual([first]);
+    expect(Reflect.set(snapshot, 0, second)).toBe(false);
+    expect(registry.definitions[0]).toBe(first);
+    expect(registry.definitions[1]).toBe(second);
   });
 });

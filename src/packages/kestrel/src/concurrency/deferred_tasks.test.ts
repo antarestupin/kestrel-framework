@@ -43,6 +43,56 @@ describe("DeferredTasks", () => {
     await expect(tasks.wait()).resolves.toBeUndefined();
   });
 
+  it("registers a thenable before inspecting its then getter can close the group", async () => {
+    const tasks = new DeferredTasks();
+    const work = Promise.withResolvers<number>();
+    let closing: Promise<void> | undefined;
+    const source: PromiseLike<number> = {
+      get then() {
+        closing = tasks.close();
+        return work.promise.then.bind(work.promise);
+      },
+    };
+
+    const tracked = tasks.track(source);
+    try {
+      // Assimilating a PromiseLike can run user code before the work settles.
+      await Promise.resolve();
+      expect(closing).toBeDefined();
+      expect(tasks.state).toBe("closing");
+      expect(tasks.pendingCount).toBe(1);
+    } finally {
+      work.resolve(42);
+      await expect(tracked).resolves.toBe(42);
+      await closing;
+    }
+    expect(tasks.state).toBe("closed");
+  });
+
+  it("does not schedule a task when reading its diagnostic name closes the group", async () => {
+    const tasks = new DeferredTasks();
+    const task = vi.fn();
+
+    expect(() => tasks.defer(task, {
+      get name() {
+        void tasks.close();
+        return "reentrant cleanup";
+      },
+    })).toThrow(DeferredTasksClosedError);
+    await tasks.close();
+    expect(task).not.toHaveBeenCalled();
+  });
+
+  it("rejects a closed registration before accessing its diagnostic metadata", async () => {
+    const tasks = new DeferredTasks();
+    const readName = vi.fn(() => { throw new Error("metadata unavailable"); });
+    await tasks.close();
+
+    expect(() => tasks.defer(() => undefined, { get name(): string { return readName(); } }))
+      .toThrow(DeferredTasksClosedError);
+    expect(readName).not.toHaveBeenCalled();
+  });
+
   it("waits for tasks registered by pending work", async () => {
     const tasks = new DeferredTasks();
     const calls: string[] = [];
@@ -112,6 +162,7 @@ describe("DeferredTasks", () => {
     const rejection = await tasks.wait().catch((error: unknown) => error);
 
     expect(rejection).toBeInstanceOf(AggregateError);
+    expect((rejection as AggregateError).message).toBe("Multiple deferred tasks failed.");
     expect((rejection as AggregateError).errors).toEqual([
       firstFailure,
       secondFailure,
@@ -187,12 +238,27 @@ describe("DeferredTasks", () => {
     try {
       await expect(tasks.close()).rejects.toBe(failure);
       expect(onError).toHaveBeenCalledExactlyOnceWith(failure, {});
+      expect(onError.mock.calls[0]).toStrictEqual([failure, {}]);
       expect(tasks.state).toBe("closed");
     } finally {
       if (onError.mock.calls.length === 0) report.resolve();
       else report.reject(new Error("reporter unavailable"));
     }
     await expect(tasks.close()).rejects.toBe(failure);
+  });
+
+  it("contains a throwing reporter accessor and closes the owned work group", async () => {
+    const failure = new Error("original task failure");
+    const tasks = new DeferredTasks({
+      get onError(): never { throw new Error("reporter lookup failed"); },
+    });
+    const tracked = tasks.track(Promise.reject(failure));
+    const closing = tasks.close();
+
+    // A lazily resolved diagnostics sink must not prevent the failing task from settling.
+    await expect(tracked).rejects.toBe(failure);
+    await expect(closing).rejects.toBe(failure);
+    expect(tasks.state).toBe("closed");
   });
 
   it("accepts child work while closing and closes at quiescence", async () => {
@@ -233,7 +299,25 @@ describe("DeferredTasks", () => {
     expect(() => tasks.track(Promise.resolve())).toThrow(
       DeferredTasksClosedError,
     );
+    expect(() => tasks.defer(() => undefined)).toThrow(expect.objectContaining({
+      name: "DeferredTasksClosedError",
+      message: "Cannot register a task in a closed deferred task group.",
+    }));
     await expect(firstClose).resolves.toBeUndefined();
+  });
+
+  it("closes admission before earlier quiescence waiters resume", async () => {
+    const tasks = new DeferredTasks();
+    const work = Promise.withResolvers<void>();
+    void tasks.track(work.promise);
+    const resumed = tasks.wait().then(() => {
+      // This waiter precedes the closer's continuation in registration order.
+      expect(tasks.state).toBe("closed");
+      expect(() => tasks.defer(() => undefined)).toThrow(DeferredTasksClosedError);
+    });
+    const closing = tasks.close();
+    work.resolve();
+    await Promise.all([resumed, closing]);
   });
 
   it("closes even when deferred work fails", async () => {

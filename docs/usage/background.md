@@ -31,7 +31,7 @@ Start every registered workload together for a simple deployment, or select only
 ./do run background --workload workers --workload workflows
 ```
 
-No selection means every registered background workload. Unknown or unavailable workloads fail before startup.
+Omitting `--workload` selects every registered background workload. A missing option value, unknown workload or unavailable workload fails before startup.
 
 ## Deploy workloads independently
 

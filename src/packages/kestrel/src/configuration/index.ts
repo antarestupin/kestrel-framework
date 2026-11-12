@@ -294,8 +294,11 @@ export function createConfigurationApi<
       return result.data;
     }
 
-    const received =
-      value === undefined ? "undefined" : JSON.stringify(value);
+    // Describe non-string values without invoking caller serialization hooks.
+    const kind = typeof value;
+    const received = typeof value === "string" ? JSON.stringify(value)
+      : (value !== null && kind === "object") || kind === "function" ? kind
+      : String(value);
 
     throw new ConfigurationError(
       `Invalid application environment ${received}. Expected one of: ${options.environments.join(", ")}.`,

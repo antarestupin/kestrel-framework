@@ -140,9 +140,11 @@ export class ExecutionScope<Config> implements ActionExecution {
       return this.disposePromise;
     }
 
-    this.disposePromise = this.finishAndDispose(outcome);
-
-    return this.disposePromise;
+    // Synchronous completion listeners can call dispose before dispatch returns.
+    const disposing = Promise.withResolvers<void>();
+    this.disposePromise = disposing.promise;
+    void this.finishAndDispose(outcome).then(disposing.resolve, disposing.reject);
+    return disposing.promise;
   }
 
   /** Announces completion and drains deferred work before releasing resources. */
@@ -172,24 +174,28 @@ export class ExecutionScope<Config> implements ActionExecution {
         errors.push(error);
       }
 
-      if (errors.length === 1) {
-        throw errors[0];
+      try {
+        this.eventBus?.close();
+      } catch (error: unknown) {
+        errors.push(error);
       }
 
-      if (errors.length > 1) {
-        throw new AggregateError(
-          errors,
-          "Execution completion failed.",
-        );
-      }
-    } finally {
-      this.eventBus?.close();
-
+      // Release scoped resources even when a completion listener or the bus failed.
       try {
         await this.container.dispose();
-      } finally {
-        this.resolveDisposed();
+      } catch (error: unknown) {
+        errors.push(error);
       }
+    } finally {
+      this.resolveDisposed();
+    }
+
+    if (errors.length === 1) {
+      throw errors[0];
+    }
+
+    if (errors.length > 1) {
+      throw new AggregateError(errors, "Execution completion failed.");
     }
   }
 }

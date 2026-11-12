@@ -65,6 +65,8 @@ The three scheduled-task profiles partition all current candidate files in that 
 
 For the full storage boundary review, run `test:mutation:focus` with `db-provider`, `db-instrumentation`, `db-repository`, `db-history-declarations`, `db-history-column-types`, `db-history-identities`, `db-history-events`, `db-reference-counter-declarations`, `db-reference-counter-discovery`, `db-reference-counter-runtime`, `db-schema-table-metadata`, `db-schema-migrations` and `db-schema-descriptions` for `db`. Use `lock-acquisition`, `lock-ownership`, `lock-adapters` and `lock-contracts` for `lock`. Run `test:mutation:component` for `database` and `cache`. All these profiles keep static mutants and apply the ten-minute budget. See the [storage boundary review](../implementation/mutation_testing_storage_boundaries.md) for the before/after results and remaining mutants.
 
+For the complete application lifecycle assessment, run `test:mutation:focus` with `app-composition`, `app-startup`, `app-execution`, `app-shutdown`, `app-shutdown-coordination`, `app-execution-context`, `app-catalog` and `app-contracts`. Use `test:mutation:component` for `di`, `background`, `concurrency`, `events`, `configuration` and `definitions`. The [lifecycle boundary review](../implementation/mutation_testing_lifecycle_boundaries.md) records the per-profile comparisons and classifications.
+
 From the repository root, prepare the dedicated PostgreSQL and Redis test infrastructure, then validate the instrumented test run before starting a complete mutation assessment:
 
 ```sh

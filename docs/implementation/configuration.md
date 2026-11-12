@@ -47,6 +47,8 @@ For application setup and task-oriented examples, see the [Configuration usage g
 
 Configuration is a synchronous, recursive resolution pass followed by Zod parsing at every library contribution. Exact TypeScript shapes preserve application extensions, while runtime schemas remain authoritative for values consumed by libraries. Explicit environment-variable bindings are tracked by path, and conventional overrides are derived only from stable schema leaves. Unknown, colliding or doubly bound variables fail resolution.
 
+Invalid environment selectors produce `ConfigurationError` with the Zod failure as its cause. The diagnostic describes non-string values without invoking caller serialization hooks.
+
 There is no implicit deep merge. Composition is explicit TypeScript object construction, which keeps ownership and precedence visible. The library does not define environment names or access `process.env`; the application passes both through `ResolveConfigOptions`.
 
 ## Execution scenario

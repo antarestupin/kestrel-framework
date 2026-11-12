@@ -206,13 +206,17 @@ export class AppCatalog<Declaration extends AppCatalogDeclaration = AppCatalogDe
       } else if (name === "controllers") {
         this.registerControllers(value, source, parentPath);
       } else {
+        const path = [...parentPath, name];
         if (isDefinition(value)) {
           throw new TypeError(
-            `Catalog definition at "${[...parentPath, name].join(".")}" must be declared below a definition category.`,
+            `Catalog definition at "${path.join(".")}" must be declared below a definition category.`,
           );
         }
-
-        this.visitCatalog(value, source, [...parentPath, name]);
+        // Object.entries silently ignores primitive numbers and recurses on single-character strings.
+        if (!isObject(value)) {
+          throw new TypeError(`Catalog branch at "${path.join(".")}" must be an object.`);
+        }
+        this.visitCatalog(value, source, path);
       }
     }
   }

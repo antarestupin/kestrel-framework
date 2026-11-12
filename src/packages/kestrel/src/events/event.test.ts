@@ -40,4 +40,17 @@ describe("event definitions", () => {
       schema: z.null(),
     })).toBe(false);
   });
+
+  it("requires the event marker on an object with its declared value", () => {
+    const event = defineEvent({ name: "object.event", schema: z.null() });
+    const [marker] = Object.getOwnPropertySymbols(event);
+    expect(marker).toBeDefined();
+    const inactive = { ...event, [marker!]: false };
+    const callable = Object.assign(() => {}, { [marker!]: true, schema: event.schema });
+
+    for (const candidate of [undefined, null, 0, "object.event", inactive, callable]) {
+      expect(isEventDefinition(candidate)).toBe(false);
+    }
+    expect(isEventDefinition(event)).toBe(true);
+  });
 });

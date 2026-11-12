@@ -34,9 +34,12 @@ export class DefinitionCatalogRegistry<Definition> {
   /** Registers one definition while rejecting ambiguous paths and identities. */
   public register(
     definition: Definition,
-    source: CatalogDefinitionSource,
+    source: CatalogDefinitionSource = { kind: "application" },
     path: readonly string[],
   ): this {
+    if (path.length === 0) {
+      throw new TypeError("A catalog registration requires a non-empty path.");
+    }
     const pathKey = JSON.stringify(path);
     const existingAtPath = this.registrationsByPath.get(pathKey);
 
@@ -67,11 +70,15 @@ export class DefinitionCatalogRegistry<Definition> {
       );
     }
 
-    const registration = {
+    // Keep the indexed path and reported provenance stable across caller mutations.
+    const sourceSnapshot = source.kind === "provider"
+      ? { kind: source.kind, provider: source.provider }
+      : { kind: source.kind };
+    const registration = Object.freeze({
       definition,
-      path: [...path],
-      source,
-    };
+      path: Object.freeze([...path]),
+      source: Object.freeze(sourceSnapshot),
+    });
 
     this.registeredDefinitions.push(registration);
     this.registrationsByPath.set(pathKey, registration);
@@ -88,9 +95,9 @@ export class DefinitionCatalogRegistry<Definition> {
     return this.registeredDefinitions.map(({ definition }) => definition);
   }
 
-  /** Lists definitions together with their declaration metadata. */
+  /** Returns a snapshot of definitions together with their declaration metadata. */
   public get registrations(): readonly CatalogDefinitionRegistration<Definition>[] {
-    return this.registeredDefinitions;
+    return Object.freeze([...this.registeredDefinitions]);
   }
 
   /** Reconstructs the homogeneous nested view consumed by catalog-aware tools. */
@@ -105,11 +112,10 @@ export class DefinitionCatalogRegistry<Definition> {
   }
 }
 
-/** Returns whether a path is a strict prefix of another catalog path. */
+/** Matches every leading segment. Identical paths were already rejected by the index. */
 function isPathPrefix(
   prefix: readonly string[],
   path: readonly string[],
 ): boolean {
-  return prefix.length < path.length
-    && prefix.every((part, index) => path[index] === part);
+  return prefix.every((part, index) => path[index] === part);
 }

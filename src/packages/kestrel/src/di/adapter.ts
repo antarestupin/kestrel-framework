@@ -1,6 +1,5 @@
-import type { DependencyContainer } from "./container.js";
+import { singletonReference, type DependencyContainer } from "./container.js";
 import {
-  dep,
   type RegisteredDependencyDescriptor,
   type ResolvedDependencies,
 } from "./dependencies.js";
@@ -61,71 +60,58 @@ export function registerAdapter<Config, Value, Context, Capabilities>(
     beforeDispose?: () => void | Promise<void>;
   } = {},
 ): AdapterRegistration<Value> {
-  let resource: AdapterRegistration<Value> | undefined;
+  let activated = false;
   let disposed = false;
-  const resourceDependency = dep<AdapterRegistration<Value>>(`${id}Lifecycle`);
-  container.registerFactory(resourceDependency.id, () => {
-    let created = false;
-    let value: Value;
-    let bootPromise: Promise<void> | undefined;
-    let disposePromise: Promise<void> | undefined;
-    let validationError: unknown;
-    let invalid = false;
-    resource = {
-      get(): Value {
-        // Both registration-owned and container-owned disposal set this terminal flag.
-        if (disposed) throw new Error(`Adapter "${id}" is disposed.`);
-        if (invalid) throw validationError;
-        if (!created) {
-          value = definition.create((dependency) => container.resolve(dependency), context);
-          // Track ownership before validation so even a rejected instance is released.
-          created = true;
-          try { options.validate?.(value); } catch (error) {
-            invalid = true;
-            validationError = error;
-            throw error;
-          }
-        }
-        return value;
-      },
-      boot(): Promise<void> {
-        bootPromise ??= Promise.resolve().then(() => {
-          const adapter = this.get();
-          return definition.initialize?.(adapter);
-        });
-        return bootPromise;
-      },
-      dispose(): Promise<void> {
-        // Container-owned teardown must also close the public handle before cache re-entry.
-        disposed = true;
-        disposePromise ??= (async () => {
-          await bootPromise?.catch(() => undefined);
-          try { await options.beforeDispose?.(); } finally {
-            if (created) await definition.dispose?.(value);
-          }
-        })();
-        return disposePromise;
-      },
-    };
-    return resource;
-  }, { lifetime: "singleton", dispose: (resource) => resource.dispose() });
-  container.registerFactory(id, () => container.resolve(resourceDependency).get(), { lifetime: "singleton" });
-  const registration = {
-    get: () => {
+  let created = false;
+  let value: Value;
+  let bootPromise: Promise<void> | undefined;
+  let disposePromise: Promise<void> | undefined;
+  let validationError: unknown;
+  let invalid = false;
+  const registration: AdapterRegistration<Value> = {
+    get() {
       if (disposed) throw new Error(`Adapter "${id}" is disposed.`);
-      return container.resolve(resourceDependency).get();
+      if (invalid) throw validationError;
+      activated = true;
+      if (!created) {
+        value = definition.create((dependency) => container.resolve(dependency), context);
+        // Track ownership before validation so even a rejected instance is released.
+        created = true;
+        try { options.validate?.(value); } catch (error) {
+          invalid = true;
+          validationError = error;
+          throw error;
+        }
+      }
+      return value;
     },
-    boot: () => {
+    boot() {
       if (disposed) return Promise.reject(new Error(`Adapter "${id}" is disposed.`));
-      return container.resolve(resourceDependency).boot();
+      activated = true;
+      bootPromise ??= Promise.resolve().then(() => {
+        const adapter = registration.get();
+        return definition.initialize?.(adapter);
+      });
+      return bootPromise;
     },
-    dispose: async () => {
-      // Shutdown of an unused registration must never create infrastructure.
+    dispose() {
       disposed = true;
-      await resource?.dispose();
+      disposePromise ??= (async () => {
+        if (!activated) return;
+        await bootPromise?.catch(() => undefined);
+        const errors: unknown[] = [];
+        try { await options.beforeDispose?.(); } catch (error) { errors.push(error); }
+        // Keep the drain failure even when release independently fails.
+        try { if (created) await definition.dispose?.(value); } catch (error) { errors.push(error); }
+        if (errors.length === 1) throw errors[0];
+        if (errors.length > 1) throw new AggregateError(errors, `Adapter "${id}" disposal failed.`);
+      })();
+      return disposePromise;
     },
   };
-  container.registerValue(`${id}Registration`, registration);
+  // Own the lightweight handle immediately so even unused registrations close with their container.
+  container.registerValue(`${id}Registration`, registration, { dispose: (value) => value.dispose() });
+  container.registerFactory(id, () => registration.get(), { lifetime: "singleton", [singletonReference]: true });
   return registration;
 }
 

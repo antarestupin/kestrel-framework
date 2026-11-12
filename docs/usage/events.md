@@ -25,7 +25,7 @@ app.eventBus.dispatch(memberCreated, { memberId: "member-1" });
 stopListening();
 ```
 
-`listen` callbacks must be synchronous. Dispatch validates the payload, invokes listeners in registration order and rethrows synchronous failures. Use `listenOnce` for a one-time listener and `waitFor` to await the next dispatch; neither replays past events.
+`listen` callbacks must be synchronous. Dispatch validates the payload, invokes listeners in registration order and rethrows synchronous failures. Use `listenOnce` for a one-time listener and `waitFor` to await its next payload. If an earlier listener throws, the one-time registration remains available for a later dispatch.
 
 ## Await asynchronous listeners
 

@@ -285,7 +285,7 @@ export async function runAggregatedResult<
     // Close a suspended generator when the yield callback fails so its finally
     // blocks run before the original processing error is propagated.
     try {
-      await produced.return?.(undefined as Data);
+      await produced.return(undefined as Data);
     } catch {
       // Iterator cleanup must not replace the yield or callback failure.
     }
@@ -421,8 +421,12 @@ export function createAggregatedResultSchema(
 function isAggregatedResultGenerator<Key, Result, Error, Data>(
   value: AggregatedResultGenerator<Key, Result, Error, Data> | Data,
 ): value is AggregatedResultGenerator<Key, Result, Error, Data> {
-  return typeof value === "object"
-    && value !== null
-    && "next" in value
-    && typeof value.next === "function";
+  if (typeof value !== "object" || value === null) return false;
+
+  // Plain cursors and iterators can be global data; generator producers implement the full protocol.
+  const candidate = value as Partial<Generator & AsyncGenerator>;
+  return typeof candidate.next === "function"
+    && typeof candidate.return === "function"
+    && typeof candidate.throw === "function"
+    && (typeof candidate[Symbol.iterator] === "function" || typeof candidate[Symbol.asyncIterator] === "function");
 }

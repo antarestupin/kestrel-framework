@@ -1,23 +1,55 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   ExecutionContext,
   type ExecutionContextDiagnosticDestination,
 } from "./execution_context.js";
-import { getExecutionObservationError } from "./observations.js";
+import { getExecutionObservationContext, getExecutionObservationError, setExecutionLogContext } from "./observations.js";
 
 describe("execution error diagnostics", () => {
+  it("preserves observation metadata when the module is initialized on demand", async () => {
+    // Check a fresh import because Studio also loads execution observations lazily.
+    vi.resetModules();
+    const { executionStartedObservation, executionCompletedObservation, executionContextObservationDestination } = await import("./observations.js");
+    expect(executionStartedObservation).toStrictEqual({ name: "execution.started", category: "execution", schemaVersion: 1 });
+    expect(executionCompletedObservation).toStrictEqual({ name: "execution.completed", category: "execution", schemaVersion: 2 });
+    expect(executionContextObservationDestination).toBe("observation");
+  });
+
   it("preserves a non-Error cause and omits an absent stack", () => {
     const error = new Error("Outer failure", { cause: "inner failure" });
     delete error.stack;
 
-    expect(getExecutionObservationError(error)).toEqual({
+    expect(getExecutionObservationError(error)).toStrictEqual({
       error: {
         name: "Error",
         message: "Outer failure",
         causes: [{ name: "UnknownError", message: "inner failure" }],
       },
     });
+  });
+
+  it("reports each member of a cause cycle once in cause order", () => {
+    const root = new Error("root");
+    const first = new Error("first");
+    const second = new Error("second");
+    root.cause = first;
+    first.cause = second;
+    second.cause = first;
+    expect(getExecutionObservationError(root).error?.causes?.map(({ message }) => message)).toEqual(["first", "second"]);
+    second.cause = root;
+    expect(getExecutionObservationError(root).error?.causes?.map(({ message }) => message)).toEqual(["first", "second"]);
+  });
+
+  it("places operation, transport and workload in logs while omitting an empty observation projection", () => {
+    const context = new ExecutionContext();
+    context.setDiagnostic("executionId", "example-id");
+    setExecutionLogContext(context, { operation: "jobs.execute", transport: "worker", workload: "workers" });
+    expect(context.toRecord("log")).toEqual({ executionId: "example-id", operation: "jobs.execute", transport: "worker", workload: "workers" });
+    expect(context.toRecord("observation")).toEqual({ executionId: "example-id" });
+    expect(getExecutionObservationContext(context)).toStrictEqual({});
+    context.setDiagnostic("attempt", 2, { destinations: ["observation"] });
+    expect(getExecutionObservationContext(context)).toEqual({ context: { attempt: 2 } });
   });
 });
 

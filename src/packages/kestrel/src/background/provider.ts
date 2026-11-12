@@ -98,7 +98,9 @@ export function readRequestedWorkloads(
 
     if (argument === "--workload") {
       const value = arguments_[index + 1];
-      if (value !== undefined) requested.push(value);
+      // An incomplete explicit selection must not fall back to starting every workload.
+      if (value === undefined) throw new TypeError("Missing value for --workload.");
+      requested.push(value);
       index += 1;
     } else if (argument.startsWith("--workload=")) {
       requested.push(argument.slice("--workload=".length));

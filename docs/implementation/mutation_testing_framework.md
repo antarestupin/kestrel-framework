@@ -199,6 +199,8 @@ The [actions, cache and application follow-up](./mutation_testing_actions_follow
 
 The [storage boundary review](./mutation_testing_storage_boundaries.md) extends the selected cache, lock and database evidence to the full `db`, `lock`, `database` and `cache` lots. It records fresh measurements with static mutants, the defects reproduced against PostgreSQL and Redis, and the remaining limitations.
 
+The [lifecycle boundary review](./mutation_testing_lifecycle_boundaries.md) covers application startup and teardown, dependency injection, background workloads, concurrency, events, configuration and definition registries. It records complete bounded profiles with static mutants, the reproduced ownership and composition defects, and the residual classifications.
+
 ## Historical execution and interpretation
 
 The first full-scope attempts exposed two execution constraints: cumulative coverage metadata can exhaust a non-isolated runner's heap, and repeated runner startup dominates many small mutation runs. Deterministic projects containing at most six non-isolated test files were an intermediate workaround that passed the complete instrumented baseline. Their checkpoints remain historical observations.

@@ -2,10 +2,39 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { defineAction } from "../actions/index.js";
-import { App, executionCompletedEvent } from "./index.js";
+import { App, executionCompletedEvent, executionContextDependency } from "./index.js";
 import { executionCompletedObservation, executionStartedObservation } from "./observations.js";
 
 describe("direct execution cleanup", () => {
+  it("records direct start metadata and the elapsed time of a successful action", async () => {
+    const app = new App({});
+    const record = vi.fn();
+    app.container.registerValue("observer", { record });
+    const action = defineAction({
+      name: "example.timed",
+      input: z.null(),
+      output: z.null(),
+      dependencies: { context: executionContextDependency },
+      handler(_input, { context }) {
+        expect(context.toRecord("log")).toMatchObject({ operation: "example.timed", transport: "direct" });
+        clock.mockReturnValue(112);
+        return null;
+      },
+    });
+    await app.start();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(100);
+    try {
+      await expect(app.get(action).run(null)).resolves.toBeNull();
+      expect(record.mock.calls).toEqual([
+        [executionStartedObservation, { operation: "example.timed", transport: "direct" }],
+        [executionCompletedObservation, { operation: "example.timed", transport: "direct" }, { outcome: "success", durationMs: 12 }],
+      ]);
+    } finally {
+      clock.mockRestore();
+      await app.dispose();
+    }
+  });
+
   it.each([
     { stage: "log metadata", outcome: "failure" },
     { stage: "start observation", outcome: "failure" },

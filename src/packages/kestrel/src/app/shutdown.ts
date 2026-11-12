@@ -27,11 +27,10 @@ export class ApplicationShutdown {
   private startedAt: number | undefined;
   private drainTimer: ReturnType<typeof setTimeout> | undefined;
   private deadlineTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly waiters = new Set<(error: ApplicationShutdownTimeoutError) => void>();
+  private readonly waiters = new Map<(error: ApplicationShutdownTimeoutError) => void, string>();
   private readonly listeners = new Set<(error: ApplicationShutdownTimeoutError) => void>();
   private readonly drains = new Map<() => Promise<void>, Promise<void> | undefined>();
   private draining = false;
-  private phase = "shutdown";
   private timeoutError: ApplicationShutdownTimeoutError | undefined;
 
   public get error(): ApplicationShutdownTimeoutError | undefined { return this.timeoutError; }
@@ -71,8 +70,17 @@ export class ApplicationShutdown {
 
   public async drained(): Promise<void> {
     this.requestDrain();
-    const results = await Promise.allSettled([...this.drains.values()]);
-    const errors = results.flatMap((result) => result.status === "rejected" ? [result.reason] : []);
+    const errors: unknown[] = [];
+    let settled = 0;
+    // A drain can register another transport while shared resources are still borrowed.
+    while (settled < this.drains.size) {
+      const batch = [...this.drains.values()].slice(settled);
+      const results = await Promise.allSettled(batch);
+      for (const result of results) {
+        if (result.status === "rejected") errors.push(result.reason);
+      }
+      settled += batch.length;
+    }
     if (errors.length) throw new AggregateError(errors, "Transport drain failed.");
   }
 
@@ -92,12 +100,11 @@ export class ApplicationShutdown {
   /** Bound awaiting, without claiming cancellation of the underlying operation. */
   public async wait<Result>(phase: string, operation: () => Promise<Result> | Result): Promise<Result> {
     this.begin();
-    this.phase = phase;
-    if (this.remainingMs() <= 0) this.expire();
+    if (this.remainingMs() <= 0) this.expire(phase);
     if (this.error !== undefined) throw this.error;
     let rejectWait: (error: ApplicationShutdownTimeoutError) => void = () => undefined;
     const expired = new Promise<never>((_, reject) => { rejectWait = reject; });
-    this.waiters.add(rejectWait);
+    this.waiters.set(rejectWait, phase);
     // A pending bounded wait keeps the deadline alive even without other handles.
     this.deadlineTimer?.ref();
     try {
@@ -118,12 +125,14 @@ export class ApplicationShutdown {
     return this.timeoutMs - (performance.now() - this.startedAt!);
   }
 
-  private expire(): void {
+  private expire(requestedPhase = "shutdown"): void {
     if (this.error !== undefined) return;
-    const error = new ApplicationShutdownTimeoutError(this.phase, this.timeoutMs);
+    // A later wait that already completed cannot explain an active timeout.
+    const phase = [...this.waiters.values()].at(-1) ?? requestedPhase;
+    const error = new ApplicationShutdownTimeoutError(phase, this.timeoutMs);
     this.timeoutError = error;
     this.controller.abort(error);
-    for (const reject of this.waiters) reject(error);
+    for (const reject of this.waiters.keys()) reject(error);
     for (const listener of this.listeners) {
       try { listener(error); } catch { /* Diagnostics cannot delay termination. */ }
     }

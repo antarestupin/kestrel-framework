@@ -34,12 +34,13 @@
       "id": "app",
       "scope": "app/**/*",
       "sourceFiles": 11,
-      "state": "partial",
-      "focus": "Shutdown, diagnostic budgets/destinations and CLI/worker identity wiring reviewed; startup, ownership and other catalog paths pending",
+      "state": "reviewed",
+      "focus": "Composition, startup, scope teardown, transport draining, catalog and diagnostic contracts reviewed",
       "evidence": [
         "app-shutdown",
         "execution-diagnostics",
-        "catalog-identities"
+        "catalog-identities",
+        "app-lifecycle-review"
       ]
     },
     {
@@ -81,10 +82,11 @@
       "id": "background",
       "scope": "background/**/*",
       "sourceFiles": 4,
-      "state": "assessment-complete-review-pending",
-      "focus": "All four candidate files assessed; synchronous stop-drain bug fixed; controlled steady-state completion assertions and residual policy follow-up pending",
+      "state": "reviewed",
+      "focus": "Selection, startup and steady-state polling, rollback and transport drain reviewed",
       "evidence": [
-        "component-background"
+        "component-background",
+        "background-lifecycle-review"
       ]
     },
     {
@@ -118,17 +120,21 @@
       "id": "concurrency",
       "scope": "concurrency/**/*",
       "sourceFiles": 4,
-      "state": "not-assessed",
-      "focus": "Queue, batch and cancellation contracts",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Deferred admission, batch timing and outcome ownership, and generator protocol reviewed",
+      "evidence": [
+        "concurrency-lifecycle-review"
+      ]
     },
     {
       "id": "configuration",
       "scope": "configuration/**/*",
       "sourceFiles": 1,
-      "state": "not-assessed",
-      "focus": "Parsing and composition contracts",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Environment resolution, override precedence, supported paths and diagnostics reviewed",
+      "evidence": [
+        "configuration-lifecycle-review"
+      ]
     },
     {
       "id": "controllers",
@@ -163,18 +169,21 @@
       "id": "definitions",
       "scope": "definitions/**/*",
       "sourceFiles": 5,
-      "state": "not-assessed",
-      "focus": "Definition validation and composition",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Path and identity validation, immutable registration metadata and schema parsing reviewed",
+      "evidence": [
+        "definitions-lifecycle-review"
+      ]
     },
     {
       "id": "di",
       "scope": "di/**/*",
       "sourceFiles": 5,
-      "state": "partial",
-      "focus": "Container/scopes; historical adapter-lifecycle pilot",
+      "state": "reviewed",
+      "focus": "Adapter ownership, dependency resolution, graph validation and disposal reviewed",
       "evidence": [
-        "adapter-circuit-pilot"
+        "adapter-circuit-pilot",
+        "di-lifecycle-review"
       ]
     },
     {
@@ -199,9 +208,11 @@
       "id": "events",
       "scope": "events/**/*",
       "sourceFiles": 4,
-      "state": "not-assessed",
-      "focus": "Dispatch, asynchronous failures, scopes and close semantics",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Dispatch, one-time listener reservations, error propagation and scope teardown reviewed",
+      "evidence": [
+        "events-lifecycle-review"
+      ]
     },
     {
       "id": "http",
@@ -1840,6 +1851,275 @@
       },
       "analysis": "mutation_testing_storage_boundaries.md",
       "limits": "One infeasible guard, two progress-limit detections, and ten invalid schema variants are classified separately."
+    },
+    {
+      "id": "app-lifecycle-review",
+      "date": "2026-11-12",
+      "components": [
+        "app"
+      ],
+      "extent": "All 11 candidate sources in app/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 993,
+        "Survived": 26,
+        "Timeout": 8,
+        "RuntimeError": 18
+      },
+      "baselineCounts": {
+        "Killed": 870,
+        "Survived": 112,
+        "NoCoverage": 7,
+        "Timeout": 5,
+        "RuntimeError": 18
+      },
+      "matchedMutants": 942,
+      "unmatchedBefore": 70,
+      "unmatchedAfter": 103,
+      "baselineRevision": "b7bb98ee71c2ae266f52464781606c7f27e873c8",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-lifecycle-boundaries/",
+      "profiles": [
+        "app-composition",
+        "app-execution",
+        "app-startup",
+        "app-shutdown",
+        "app-shutdown-coordination",
+        "app-execution-context",
+        "app-catalog",
+        "app-contracts"
+      ],
+      "afterSeconds": {
+        "app-composition": 153,
+        "app-execution": 88,
+        "app-startup": 104,
+        "app-shutdown": 100,
+        "app-shutdown-coordination": 282,
+        "app-execution-context": 143,
+        "app-catalog": 148,
+        "app-contracts": 59
+      },
+      "analysis": "mutation_testing_lifecycle_boundaries.md",
+      "limits": "Disjoint application profiles cover the entire component. Residual diagnostic and defensive variants and import-time errors are documented in the review."
+    },
+    {
+      "id": "di-lifecycle-review",
+      "date": "2026-11-12",
+      "components": [
+        "di"
+      ],
+      "extent": "All 5 candidate sources in di/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 328,
+        "Survived": 15,
+        "Timeout": 5,
+        "NoCoverage": 1
+      },
+      "baselineCounts": {
+        "Killed": 290,
+        "Survived": 33,
+        "NoCoverage": 7,
+        "Timeout": 6
+      },
+      "matchedMutants": 271,
+      "unmatchedBefore": 65,
+      "unmatchedAfter": 78,
+      "baselineRevision": "b7bb98ee71c2ae266f52464781606c7f27e873c8",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-lifecycle-boundaries/",
+      "profiles": [
+        "component-di"
+      ],
+      "afterSeconds": {
+        "component-di": 418
+      },
+      "analysis": "mutation_testing_lifecycle_boundaries.md",
+      "limits": "The review records remaining defensive or representation variants and separate progress-limit detections."
+    },
+    {
+      "id": "background-lifecycle-review",
+      "date": "2026-11-12",
+      "components": [
+        "background"
+      ],
+      "extent": "All 4 candidate sources in background/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 137,
+        "Timeout": 1,
+        "Survived": 2
+      },
+      "baselineCounts": {
+        "Killed": 134,
+        "Survived": 10,
+        "Timeout": 1
+      },
+      "matchedMutants": 120,
+      "unmatchedBefore": 25,
+      "unmatchedAfter": 20,
+      "baselineRevision": "b7bb98ee71c2ae266f52464781606c7f27e873c8",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-lifecycle-boundaries/",
+      "profiles": [
+        "component-background"
+      ],
+      "afterSeconds": {
+        "component-background": 60
+      },
+      "analysis": "mutation_testing_lifecycle_boundaries.md",
+      "limits": "Two equivalent supervision variants and one parser progress-limit detection remain."
+    },
+    {
+      "id": "concurrency-lifecycle-review",
+      "date": "2026-11-12",
+      "components": [
+        "concurrency"
+      ],
+      "extent": "All 4 candidate sources in concurrency/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 379,
+        "Timeout": 17,
+        "Survived": 19
+      },
+      "baselineCounts": {
+        "Killed": 333,
+        "Timeout": 17,
+        "Survived": 43
+      },
+      "matchedMutants": 345,
+      "unmatchedBefore": 48,
+      "unmatchedAfter": 70,
+      "baselineRevision": "b7bb98ee71c2ae266f52464781606c7f27e873c8",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-lifecycle-boundaries/",
+      "profiles": [
+        "component-concurrency"
+      ],
+      "afterSeconds": {
+        "component-concurrency": 374
+      },
+      "analysis": "mutation_testing_lifecycle_boundaries.md",
+      "limits": "The review distinguishes behavioral results, defensive variants and execution-limit detections."
+    },
+    {
+      "id": "events-lifecycle-review",
+      "date": "2026-11-12",
+      "components": [
+        "events"
+      ],
+      "extent": "All 4 candidate sources in events/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 203,
+        "Timeout": 6,
+        "RuntimeError": 4,
+        "Survived": 4
+      },
+      "baselineCounts": {
+        "Killed": 154,
+        "Timeout": 5,
+        "Survived": 47,
+        "RuntimeError": 4,
+        "NoCoverage": 1
+      },
+      "matchedMutants": 137,
+      "unmatchedBefore": 74,
+      "unmatchedAfter": 80,
+      "baselineRevision": "b7bb98ee71c2ae266f52464781606c7f27e873c8",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-lifecycle-boundaries/",
+      "profiles": [
+        "component-events"
+      ],
+      "afterSeconds": {
+        "component-events": 261
+      },
+      "analysis": "mutation_testing_lifecycle_boundaries.md",
+      "limits": "Residual bookkeeping variants and import-time errors are classified in the review."
+    },
+    {
+      "id": "configuration-lifecycle-review",
+      "date": "2026-11-12",
+      "components": [
+        "configuration"
+      ],
+      "extent": "All 1 candidate sources in configuration/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 1,
+        "Killed": 451,
+        "Survived": 10,
+        "Timeout": 1,
+        "RuntimeError": 3
+      },
+      "baselineCounts": {
+        "NoCoverage": 2,
+        "Survived": 79,
+        "Killed": 368,
+        "Timeout": 1,
+        "RuntimeError": 3
+      },
+      "matchedMutants": 447,
+      "unmatchedBefore": 6,
+      "unmatchedAfter": 19,
+      "baselineRevision": "b7bb98ee71c2ae266f52464781606c7f27e873c8",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-lifecycle-boundaries/",
+      "profiles": [
+        "component-configuration"
+      ],
+      "afterSeconds": {
+        "component-configuration": 282
+      },
+      "analysis": "mutation_testing_lifecycle_boundaries.md",
+      "limits": "Residual defensive, representation and redundant lookup variants are documented in the review."
+    },
+    {
+      "id": "definitions-lifecycle-review",
+      "date": "2026-11-12",
+      "components": [
+        "definitions"
+      ],
+      "extent": "All 5 candidate sources in definitions/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 86,
+        "Survived": 4
+      },
+      "baselineCounts": {
+        "Killed": 71,
+        "Survived": 10
+      },
+      "matchedMutants": 64,
+      "unmatchedBefore": 17,
+      "unmatchedAfter": 26,
+      "baselineRevision": "b7bb98ee71c2ae266f52464781606c7f27e873c8",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-lifecycle-boundaries/",
+      "profiles": [
+        "component-definitions"
+      ],
+      "afterSeconds": {
+        "component-definitions": 88
+      },
+      "analysis": "mutation_testing_lifecycle_boundaries.md",
+      "limits": "Four equivalent survivors concern hidden identity indexing and omitted validation-mode defaults."
     }
   ]
 }
