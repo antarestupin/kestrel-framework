@@ -8,7 +8,7 @@ import { uuidV7 } from "../utils/uuid.js";
 import type { AuthenticationConfig } from "./configuration.js";
 import type { AuthenticationDefinition } from "./definition.js";
 import {
-  assertTrustedAuthenticationProof,
+  trustedAuthenticationSecurityVersion,
   type AuthenticationProof,
 } from "./proof.js";
 import type {
@@ -76,12 +76,16 @@ export class AuthenticationManager<
     proof: AuthenticationProof,
     metadata: AuthenticationAttemptMetadata = {},
   ): Promise<SessionGrant<Claims> | undefined> {
-    assertTrustedAuthenticationProof(proof);
+    const verifiedSecurityVersion = trustedAuthenticationSecurityVersion(proof);
     const account = await this.dependencies.accountStore.findById(
       proof.accountId,
     );
 
-    if (account === undefined || account.state !== "active") {
+    if (
+      account === undefined
+      || account.state !== "active"
+      || (verifiedSecurityVersion !== undefined && account.securityVersion !== verifiedSecurityVersion)
+    ) {
       return undefined;
     }
 
@@ -120,8 +124,17 @@ export class AuthenticationManager<
         now,
         this.config.session.absoluteTtlSeconds,
       ),
-      ...metadata,
+      // Transport metadata can carry additional properties at runtime.
+      ...(metadata.ipAddress === undefined ? {} : { ipAddress: metadata.ipAddress }),
+      ...(metadata.userAgent === undefined ? {} : { userAgent: metadata.userAgent }),
     });
+
+    // Claims generation and the storage write can both overlap an account change.
+    const currentAccount = await this.dependencies.accountStore.findById(account.id);
+    if (currentAccount?.state !== "active" || currentAccount.securityVersion !== account.securityVersion) {
+      await this.revokeSession(session.id, "account-changed");
+      return undefined;
+    }
 
     return {
       token,
@@ -172,14 +185,12 @@ export class AuthenticationManager<
       return undefined;
     }
 
-    const activeSession = await this.touchIfNeeded(
-      { ...session, claims },
-      now,
-    );
+    const activeSession = await this.touchIfNeeded(session, now);
 
+    // The storage update returns persisted claims, which may predate the current schema.
     return activeSession === undefined
       ? undefined
-      : createPrincipal(account, activeSession);
+      : createPrincipal(account, { ...activeSession, claims });
   }
 
   public revokeSession(sessionId: string, reason = "logout"): Promise<boolean> {

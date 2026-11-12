@@ -24,7 +24,7 @@ async function setup(options: { combined?: boolean; maxClaimsBytes?: number; abs
   const adapter = new MemoryAuthenticationAdapter<Claims>({ now: () => now, createId: () => `id-${++sequence}` });
   const account = await adapter.createAccount({ subjectId: "subject-1" });
   const subjectProvider = { findById: vi.fn(async (id: string): Promise<{ id: string } | null> => ({ id })) };
-  const createClaims = vi.fn((): Claims => ({ label: "member" }));
+  const createClaims = vi.fn<() => Claims | Promise<Claims>>(() => ({ label: "member" }));
   const combined = vi.fn(async (digest: Uint8Array) => {
     const session = await adapter.findByTokenDigest(digest);
     const current = session === undefined ? undefined : await adapter.findById(session.accountId);
@@ -77,17 +77,114 @@ describe("AuthenticationManager account and session contracts", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it("revokes a newly persisted session if account security changes while producing claims", async () => {
+    const { adapter, account, manager, proof, createClaims } = await setup();
+    createClaims.mockImplementationOnce(async () => {
+      // A password reset can commit while application claim creation is awaiting data.
+      await adapter.incrementSecurityVersion(account.id);
+      return { label: "member" };
+    });
+
+    await expect(manager.complete(proof())).resolves.toBeUndefined();
+    expect(await adapter.listForAccount(account.id)).toMatchObject([{
+      accountSecurityVersion: account.securityVersion, revokedAt: epoch, revokeReason: "account-changed",
+    }]);
+  });
+
+  it.each(["disabled", "missing"] as const)(
+    "refuses a stored grant when the final account read reports the account %s",
+    async (state) => {
+      const { adapter, account, manager, proof } = await setup();
+      const createSession = adapter.createSession.bind(adapter);
+      const findAccount = vi.spyOn(adapter, "findById");
+      vi.spyOn(adapter, "createSession").mockImplementationOnce(async (input) => {
+        const stored = await createSession(input);
+        // Separate stores may see a state change while persisting the new session.
+        findAccount.mockResolvedValue(state === "disabled" ? { ...account, state } : undefined);
+        return stored;
+      });
+
+      await expect(manager.complete(proof())).resolves.toBeUndefined();
+      expect(await adapter.listForAccount(account.id)).toMatchObject([{
+        accountSecurityVersion: account.securityVersion, revokedAt: epoch, revokeReason: "account-changed",
+      }]);
+    },
+  );
+
+  it("propagates an account recheck or stale-session revocation failure without granting access", async () => {
+    const { adapter, account, manager, proof } = await setup();
+    const failure = new Error("Storage unavailable");
+    const findAccount = vi.spyOn(adapter, "findById")
+      .mockResolvedValueOnce(account)
+      .mockRejectedValueOnce(failure);
+    await expect(manager.complete(proof())).rejects.toBe(failure);
+
+    findAccount.mockResolvedValueOnce(account).mockResolvedValueOnce(undefined);
+    vi.spyOn(adapter, "revoke").mockRejectedValueOnce(failure);
+    await expect(manager.complete(proof())).rejects.toBe(failure);
+  });
+
+  it("uses proof-bound account and claims when attempt metadata has unrelated keys", async () => {
+    const { adapter, account, manager, proof } = await setup();
+    const other = await adapter.createAccount({ subjectId: "other-subject" });
+    const metadata = {
+      ipAddress: "203.0.113.10",
+      accountId: other.id,
+      accountSecurityVersion: 99,
+      claims: { label: "administrator" },
+      tokenDigest: new Uint8Array(32),
+    };
+
+    const grant = (await manager.complete(proof(), metadata))!;
+    expect(grant.principal).toMatchObject({ accountId: account.id, claims: { label: "member" } });
+    await expect(manager.resolve(grant.token)).resolves.toEqual(grant.principal);
+    expect((await adapter.listForAccount(account.id))[0])
+      .toMatchObject({ ipAddress: metadata.ipAddress, accountSecurityVersion: account.securityVersion });
+    await expect(adapter.listForAccount(other.id)).resolves.toEqual([]);
+  });
+
+  it("returns only validated claims even when resolving a session that needs a touch", async () => {
+    const { adapter, manager, proof, advance } = await setup();
+    const grant = (await manager.complete(proof()))!;
+    const stored = (await adapter.listForAccount(grant.principal.accountId))[0]!;
+    const token = Buffer.alloc(32, 88).toString("base64url");
+    const persistedClaims = { label: "member", legacyAdministrator: true };
+    // A claim removed from the schema can still be present in the persisted snapshot.
+    await adapter.createSession({
+      ...stored, id: "legacy-session", tokenDigest: createHash("sha256").update(token).digest(), claims: persistedClaims,
+    });
+
+    const touch = vi.spyOn(adapter, "touch");
+    expect((await manager.resolve(token))?.claims).toEqual({ label: "member" });
+    expect(touch).not.toHaveBeenCalled();
+    advance(11_000);
+    expect((await manager.resolve(token))?.claims).toEqual({ label: "member" });
+    expect(touch).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "legacy-session" }));
+  });
+
   for (const combined of [false, true]) {
     describe(combined ? "combined account/session lookup" : "separate account/session lookups", () => {
       it("refuses an existing session after its account is disabled", async () => {
         const { adapter, account, manager, proof, advance } = await setup({ combined });
         const grant = (await manager.complete(proof()))!;
-        await adapter.setState({ accountId: account.id, state: "disabled" });
+        // Independently supplied account stores may expose disabled state before a version changes.
+        vi.spyOn(adapter, "findById").mockResolvedValue({ ...account, state: "disabled" });
         advance(11_000);
         const touch = vi.spyOn(adapter, "touch");
         expect(await manager.resolve(grant.token)).toBeUndefined();
         expect(touch).not.toHaveBeenCalled();
         expect((await adapter.listForAccount(account.id))[0]?.revokedAt).toBeUndefined();
+      });
+
+      it("does not revive old sessions after a disabled account is re-enabled", async () => {
+        const { adapter, account, manager, proof } = await setup({ combined });
+        const old = (await manager.complete(proof()))!;
+        await adapter.setState({ accountId: account.id, state: "disabled" });
+        await adapter.setState({ accountId: account.id, state: "active" });
+        const fresh = (await manager.complete(proof()))!;
+
+        await expect(manager.resolve(old.token)).resolves.toBeUndefined();
+        await expect(manager.resolve(fresh.token)).resolves.toEqual(fresh.principal);
       });
 
       it("refuses an existing session after its account security version changes", async () => {
@@ -161,13 +258,19 @@ describe("AuthenticationManager account and session contracts", () => {
   });
 
   // A malformed bearer must be refused before storage access, even when its decoded bytes match.
-  for (const variant of ["padded", "short", "invalid"] as const) {
+  for (const variant of ["padded", "short", "invalid", "non-string"] as const) {
     it(`rejects a ${variant} token before querying session storage`, async () => {
       const { adapter, manager, proof } = await setup();
       const grant = (await manager.complete(proof()))!;
-      const token = variant === "padded" ? `${grant.token}=` : variant === "short" ? Buffer.alloc(31).toString("base64url") : "!";
+      const invalid = {
+        padded: `${grant.token}=`,
+        short: Buffer.alloc(31).toString("base64url"),
+        invalid: "!",
+        // JavaScript consumers can call the public manager without the TypeScript contract.
+        "non-string": undefined as unknown as string,
+      };
       const lookup = vi.spyOn(adapter, "findByTokenDigest");
-      expect(await manager.resolve(token)).toBeUndefined();
+      expect(await manager.resolve(invalid[variant])).toBeUndefined();
       expect(lookup).not.toHaveBeenCalled();
     });
   }

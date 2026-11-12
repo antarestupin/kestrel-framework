@@ -67,6 +67,8 @@ await tokens.revokeForSubject(invitation, "member-1");
 
 Normally resolve settings through `tokensConfigBase` and inject `tokenManagerDependency` into services. Use `PostgresTokenStorageAdapter` with the scoped database manager for persistence. It can join the protected domain mutation's transaction, so token consumption and the mutation commit or roll back together. `issueMany` batches issuance; schedule bounded `prune` calls through application maintenance.
 
+Each `prune` call requires valid `expiredBefore` and `inactiveBefore` dates and a positive safe integer `limit`.
+
 ## Configure signed and hybrid representations
 
 Choose signed tokens when recipients need a verifiable payload, or hybrid tokens when you also need stored revocation or single-use state. The application supplies the keyring and verification policy.
@@ -100,7 +102,7 @@ The definition's `strategy` selects its manager entry. Retain old verification k
 
 ## Explicit provider adapters
 
-`TokenProvider(config, adapter, options?)` accepts `postgresTokens(manager, table?)`, `memoryTokens(sharedState)` or an external scoped storage definition. Stateless configurations explicitly pass `undefined` and disable the stored strategy. Storage and token representation remain separate contracts.
+`TokenProvider(config, adapter, options?)` accepts `postgresTokens(manager, table?)`, `memoryTokens(sharedState)` or an external scoped storage definition. Set `stored: false` to disable bundled opaque tokens. Pass `undefined` for a stateless configuration, or supply an adapter when a strategy factory needs the store.
 
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
 

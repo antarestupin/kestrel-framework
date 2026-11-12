@@ -70,8 +70,10 @@ describe("AuthenticationThrottlingGuard", () => {
   });
 
   it("applies the default username quota without an IP and preserves operation errors", async () => {
+    const throttling = createThrottlingManager();
+    const run = vi.spyOn(throttling, "run");
     const guard = new AuthenticationThrottlingGuard({
-      throttling: createThrottlingManager(),
+      throttling,
       usernameNormalizer: new DefaultUsernameNormalizer(),
     }, { keySecret: new Uint8Array(32).fill(1) });
     const input = { credentials: { username: "User", password: "password" } };
@@ -86,6 +88,7 @@ describe("AuthenticationThrottlingGuard", () => {
     const blockedOperation = vi.fn(async () => "unexpected");
     await expect(guard.run(input, blockedOperation)).rejects.toBeInstanceOf(AuthenticationRateLimitedError);
     expect(blockedOperation).not.toHaveBeenCalled();
+    expect(run).toHaveBeenCalledTimes(6);
   });
 
   it("validates key length in bytes for text and binary secrets", () => {

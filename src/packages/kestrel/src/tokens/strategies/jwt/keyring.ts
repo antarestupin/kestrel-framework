@@ -56,15 +56,15 @@ export class JwtTokenKeyring {
     this.active = freezeKey(options.active);
 
     for (const key of options.verification) {
-      validateKey(key);
+      const snapshot = freezeKey(key);
 
-      if (this.verification.has(key.id)) {
+      if (this.verification.has(snapshot.id)) {
         throw new TypeError(
-          `JWT verification key ID "${key.id}" is registered more than once.`,
+          `JWT verification key ID "${snapshot.id}" is registered more than once.`,
         );
       }
 
-      this.verification.set(key.id, freezeKey(key));
+      this.verification.set(snapshot.id, snapshot);
     }
 
     const activeVerifier = this.verification.get(this.active.id);
@@ -98,9 +98,10 @@ export class JwtTokenKeyring {
 }
 
 function freezeKey(key: JwtTokenKey): JwtTokenKey {
-  validateKey(key);
-
-  return Object.freeze({ ...key });
+  // Read the public fields once, including accessors on a descriptor's prototype.
+  const snapshot = { id: key.id, algorithm: key.algorithm, key: key.key };
+  validateKey(snapshot);
+  return Object.freeze(snapshot);
 }
 
 function validateKey(key: JwtTokenKey): void {

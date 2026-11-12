@@ -1,9 +1,8 @@
-import { setTimeout as sleep } from "node:timers/promises";
-
 import {
   DeferredTasks,
   DeferredTasksClosedError,
 } from "../concurrency/index.js";
+import { abortableDelay } from "../scheduling/abortable_delay.js";
 import type {
   ActualCostReconciliationMode,
   AdmissionPolicyDefinition,
@@ -355,36 +354,19 @@ export class ThrottlingManager implements Throttling {
       },
     };
     const permit = await this.acquire(definition, options);
+    const complete = (outcome: ThrottlingPermitCompletion["outcome"]) => permit.complete({
+      outcome,
+      ...(reportedActualCost === undefined ? {} : { actualCost: reportedActualCost }),
+      ...(reportedFeedback === undefined ? {} : { feedback: reportedFeedback }),
+    });
 
+    let result: Value;
     try {
-      const result = await handler(context);
-      await permit.complete({
-        outcome: "success",
-        ...(reportedActualCost === undefined
-          ? {}
-          : { actualCost: reportedActualCost }),
-        ...(reportedFeedback === undefined
-          ? {}
-          : { feedback: reportedFeedback }),
-      });
-      return result;
+      result = await handler(context);
     } catch (operationError) {
       try {
-        await permit.complete({
-          outcome: "failure",
-          ...(reportedActualCost === undefined
-            ? {}
-            : { actualCost: reportedActualCost }),
-          ...(reportedFeedback === undefined
-            ? {}
-            : { feedback: reportedFeedback }),
-        });
+        await complete("failure");
       } catch (completionError) {
-        // A completion error after successful completion is not aggregated.
-        if (completionError instanceof ThrottlingPermitCompletedError) {
-          throw operationError;
-        }
-
         throw new AggregateError(
           [operationError, completionError],
           `Throttled operation and permit completion both failed for "${policy.id}".`,
@@ -393,6 +375,10 @@ export class ThrottlingManager implements Throttling {
 
       throw operationError;
     }
+
+    // Complete outside the handler's catch so a completion failure is never retried.
+    await complete("success");
+    return result;
   }
 
   public async inspect(
@@ -414,10 +400,6 @@ export class ThrottlingManager implements Throttling {
     }
 
     if (policy.rates.length > 0) {
-      if (this.adapter.inspectMany === undefined) {
-        throw new ThrottlingAdapterCapabilityError("advisory inspection");
-      }
-
       const requests = this.createRateRequests(policy, estimatedCost);
 
       if (requests.length === 0) {
@@ -427,6 +409,12 @@ export class ThrottlingManager implements Throttling {
           : { state: "available", reasons: [] };
       }
 
+      if (this.adapter.inspectMany === undefined) {
+        throw new ThrottlingAdapterCapabilityError("advisory inspection");
+      }
+
+      // Zero-cost dimensions never contact storage and cannot be its unknown result.
+      const requestedRates = policy.rates.filter((rate) => estimatedCost[rate.unit]! > 0);
       try {
         const results = await this.adapter.inspectMany(requests);
 
@@ -437,13 +425,11 @@ export class ThrottlingManager implements Throttling {
         }
 
         results.forEach((result, index) => {
-          const constraint = policy.rates.filter(
-            (rate) => estimatedCost[rate.unit]! > 0,
-          )[index];
+          const constraint = requestedRates[index]!;
 
           if (result.source === "emergency-local") degraded = true;
 
-          if (!result.available && constraint !== undefined) {
+          if (!result.available) {
             reasons.push({
               constraintId: constraint.id,
               kind: "rate",
@@ -461,7 +447,7 @@ export class ThrottlingManager implements Throttling {
           state: "unknown",
           reasons: [
             ...reasons,
-            ...policy.rates.map((constraint) => ({
+            ...requestedRates.map((constraint) => ({
               constraintId: constraint.id,
               kind: "rate" as const,
             })),
@@ -487,21 +473,23 @@ export class ThrottlingManager implements Throttling {
   public close(): Promise<void> {
     if (this.closePromise !== undefined) return this.closePromise;
 
+    // Waking a queue aborts its sleeper, whose listener may call close again.
+    const closing = Promise.withResolvers<void>();
+    this.closePromise = closing.promise;
     this.closed = true;
 
-    for (const queue of this.waitQueues.values()) this.wakeQueue(queue);
-    this.resourcePressureMonitor?.close();
+    void (async () => {
+      for (const queue of this.waitQueues.values()) this.wakeQueue(queue);
+      this.resourcePressureMonitor?.close();
 
-    this.closePromise = Promise.all([
-      ...[...this.waitQueues.values()]
-        .map((queue) => queue.drainPromise)
-        .filter((promise): promise is Promise<void> => promise !== undefined),
-      this.deferredReconciliations.close(),
-    ])
-      .then(() => this.options.closeAdapter === false ? undefined : this.adapter.close?.())
-      .then(() => undefined);
+      await Promise.all([
+        ...[...this.waitQueues.values()].map((queue) => queue.drainPromise),
+        this.deferredReconciliations.close(),
+      ]);
+      if (this.options.closeAdapter !== false) await this.adapter.close?.();
+    })().then(closing.resolve, closing.reject);
 
-    return this.closePromise;
+    return closing.promise;
   }
 
   private async acquireInternal(
@@ -587,8 +575,14 @@ export class ThrottlingManager implements Throttling {
 
     this.throwIfUnavailable(policy.id, signal);
     this.throwIfDeadlineElapsed(policy.id, deadlineMs);
-    const queue = this.waitQueues.get(policy.id)
-      ?? this.createWaitQueue(policy.id, attempt);
+    const queue: WaitQueue = this.waitQueues.get(policy.id) ?? {
+      key: policy.id,
+      waiters: [],
+      nextAttemptAtMs: Number.POSITIVE_INFINITY,
+      blockedByConcurrency: false,
+    };
+    // A finishing drain keeps the empty queue alive; the new denial sets its blocker.
+    if (queue.waiters.length === 0) this.setQueueBlocker(queue, attempt);
 
     return this.enqueue(
       queue,
@@ -914,35 +908,30 @@ export class ThrottlingManager implements Throttling {
       queue.waiters.push(waiter);
     });
 
+    // A rejected enqueue must not leave a queue with an obsolete retry time.
+    this.waitQueues.set(queue.key, queue);
     this.wakeQueue(queue);
     this.startDraining(queue);
     return result;
   }
 
-  private createWaitQueue(
-    key: string,
-    attempt: DeniedAttempt,
-  ): WaitQueue {
-    const queue: WaitQueue = {
-      key,
-      waiters: [],
-      nextAttemptAtMs: attempt.nextAttemptAtMs
-        ?? attempt.retryAt?.getTime()
-        ?? Number.POSITIVE_INFINITY,
-      blockedByConcurrency: attempt.blockedBy === "concurrency",
-      ...(attempt.blockedBy === "circuit"
-        ? { blockedCircuitId: attempt.circuitId }
-        : {}),
-      ...(attempt.blockedBy === "pressure"
-        ? {
-            blockedPressureConstraintId: attempt.pressureConstraintId,
-            blockedPressureSignalIds: attempt.pressureSignalIds,
-          }
-        : {}),
-    };
-
-    this.waitQueues.set(key, queue);
-    return queue;
+  private setQueueBlocker(queue: WaitQueue, attempt: DeniedAttempt): void {
+    queue.nextAttemptAtMs = attempt.nextAttemptAtMs
+      ?? attempt.retryAt?.getTime()
+      ?? Number.POSITIVE_INFINITY;
+    queue.blockedByConcurrency = attempt.blockedBy === "concurrency";
+    if (attempt.blockedBy === "circuit") {
+      queue.blockedCircuitId = attempt.circuitId!;
+    } else {
+      delete queue.blockedCircuitId;
+    }
+    if (attempt.blockedBy === "pressure") {
+      queue.blockedPressureConstraintId = attempt.pressureConstraintId!;
+      queue.blockedPressureSignalIds = attempt.pressureSignalIds ?? [];
+    } else {
+      delete queue.blockedPressureConstraintId;
+      delete queue.blockedPressureSignalIds;
+    }
   }
 
   private startDraining(queue: WaitQueue): void {
@@ -999,22 +988,7 @@ export class ThrottlingManager implements Throttling {
         delete queue.blockedPressureSignalIds;
         this.resolveWaiter(queue, waiter, attempt);
       } else {
-        queue.nextAttemptAtMs = attempt.nextAttemptAtMs
-          ?? attempt.retryAt?.getTime()
-          ?? Number.POSITIVE_INFINITY;
-        queue.blockedByConcurrency = attempt.blockedBy === "concurrency";
-        if (attempt.blockedBy === "circuit") {
-          queue.blockedCircuitId = attempt.circuitId!;
-        } else {
-          delete queue.blockedCircuitId;
-        }
-        if (attempt.blockedBy === "pressure") {
-          queue.blockedPressureConstraintId = attempt.pressureConstraintId!;
-          queue.blockedPressureSignalIds = attempt.pressureSignalIds ?? [];
-        } else {
-          delete queue.blockedPressureConstraintId;
-          delete queue.blockedPressureSignalIds;
-        }
+        this.setQueueBlocker(queue, attempt);
       }
     }
   }
@@ -1493,7 +1467,12 @@ export class ThrottlingManager implements Throttling {
 
     try {
       // Circuit health changes synchronously and never waits on cost storage.
-      this.applyCircuitFeedback(circuitReservations, feedback, completion);
+      if (feedback === "cancelled") {
+        // Cancellation returns a probe without classifying dependency health.
+        this.releaseCircuitReservations(circuitReservations);
+      } else {
+        this.applyCircuitFeedback(circuitReservations, feedback, completion);
+      }
 
       if (completion.actualCost !== undefined) {
         actualCost = validateActualCost(policy, completion.actualCost);
@@ -1538,9 +1517,7 @@ export class ThrottlingManager implements Throttling {
     const completedAt = this.measureTime();
     this.recordInstrumentation({
       type: "completion",
-      outcome: reconciliationError === undefined
-        ? completion.outcome
-        : "failure",
+      outcome: reconciliation === "failed" ? "failure" : completion.outcome,
       durationMs: getDuration(startedAt, completedAt),
       data: {
         key: policy.id,
@@ -1556,7 +1533,7 @@ export class ThrottlingManager implements Throttling {
       },
     });
 
-    if (reconciliationError !== undefined) throw reconciliationError;
+    if (reconciliation === "failed") throw reconciliationError;
   }
 
   private scheduleReconciliation(
@@ -1985,7 +1962,8 @@ function validateFeedback(feedback: ThrottlingFeedback): ThrottlingFeedback {
   }
 
   if (
-    feedback.kind !== "permanent"
+    feedback.kind !== "cancelled"
+    && feedback.kind !== "permanent"
     && feedback.kind !== "throttled"
     && feedback.kind !== "timeout"
     && feedback.kind !== "transient"
@@ -2060,9 +2038,10 @@ function getDuration(startedAt: number, completedAt: number): number {
   return Math.max(0, completedAt - startedAt);
 }
 
-async function defaultSleep(
+function defaultSleep(
   delayMs: number,
   signal: AbortSignal,
 ): Promise<void> {
-  await sleep(delayMs, undefined, { signal });
+  // A retry deadline can outlast the maximum duration of one native timer.
+  return abortableDelay(delayMs, signal, { ref: true });
 }

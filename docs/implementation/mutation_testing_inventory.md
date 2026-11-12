@@ -23,7 +23,7 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `actions` | 9 | Reviewed | All nine current source candidates assessed; 12 diagnostic/optional-metadata residuals classified; re-review after contract changes | `actions-crud-pagination`, `actions-component` |
 | `app` | 11 | Reviewed | Composition, startup, scope teardown, transport draining, catalog and diagnostic contracts reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#application) |
 | `atlas` | 53 | Partial / selected evidence | Portable collection URL helper reviewed; other client/server, routing, rendering and adapter scopes pending | `atlas-collection-query` |
-| `authentication` | 44 | Assessment complete; review pending | Review remaining survivors, including production PostgreSQL provider and migration wiring | [Coverage reassessment](mutation_testing_coverage_reassessment.md#authentication) · [Follow-up](mutation_testing_gap_followup.md#authentication) |
+| `authentication` | 44 | Reviewed | Accounts, password proofs, session lifecycle, HTTP cookies and adapter contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#authentication) |
 | `authorization` | 23 | Reviewed | Requirement evaluation, scoped composition, denial semantics and role stores reviewed | [Boundary review](mutation_testing_http_boundaries.md#authorization) |
 | `background` | 4 | Reviewed | Selection, startup and steady-state polling, rollback and transport drain reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#background-workloads) |
 | `cache` | 24 | Reviewed | Capacity, pruning, coordination, adapter ownership and all storage contracts reviewed | [Storage review](mutation_testing_storage_boundaries.md#cache) |
@@ -44,19 +44,19 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `log` | 13 | Not assessed | Redaction, formatting, filtering and transport ownership | — |
 | `middleware` | 2 | Reviewed | Entry, replay, dependency resolution and unwind failure behavior reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
 | `observability` | 15 | Not assessed | Context, buffering, redaction and flush/disposal | — |
-| `outbound_http` | 17 | Assessment complete; review pending | Review remaining survivors and define caller-cancellation circuit feedback | [Coverage reassessment](mutation_testing_coverage_reassessment.md#outbound-http) · [Follow-up](mutation_testing_gap_followup.md#outbound-http) |
+| `outbound_http` | 17 | Reviewed | Routing, cancellation, stream ownership, retry, caching and throttling feedback reviewed | [Security and resilience review](mutation_testing_security_resilience.md#outbound-http) |
 | `scheduled_tasks` | 19 | Reviewed | Scheduler ownership and shutdown, adapter parity and operator contracts | [Component review](mutation_testing_scheduled_tasks.md#november-11-review) |
 | `scheduling` | 4 | Reviewed | Timer limits, abort handling, lease extensions and polling budgets | [Component review](mutation_testing_scheduling_review.md) |
 | `studio` | 99 | Not assessed | Server/extensions, client state, routing and rendering | — |
 | `testing` | 1 | Assessment complete; review pending | Public HTTP policy helper; PostgreSQL/Redis fixtures excluded | `testing-component` |
-| `throttling` | 34 | Assessment complete; review pending | Review residual queue and lease progress detections, storage wiring, and schema contracts | [Coverage reassessment](mutation_testing_coverage_reassessment.md#throttling) · [Follow-up](mutation_testing_gap_followup.md#throttling) |
-| `tokens` | 31 | Assessment complete; review pending | Review remaining survivors and PostgreSQL provider wiring | [Coverage reassessment](mutation_testing_coverage_reassessment.md#tokens) · [Follow-up](mutation_testing_gap_followup.md#tokens) |
+| `throttling` | 34 | Reviewed | Admission, waiting, circuit feedback, lease coordination and storage contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#throttling) |
+| `tokens` | 31 | Reviewed | Token lifecycle, signing, key resolution, batch atomicity and adapter contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#tokens) |
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
 | `utils` | 5 | Not assessed | Codecs, identifiers, catalog and boundary validation | — |
 | `workers` | 23 | Reviewed | Scheduler admission and ownership, delivery, publication, adapters and contracts | [Component review](mutation_testing_workers_complete_review.md) |
 | `workflows` | 38 | Reviewed | Runtime, replay, operator commands and adapter contracts | [Component review](mutation_testing_workflows_complete_review.md) |
 
-The current total is 8 not-assessed lots, 1 partially assessed lot, 20 reviewed lots, 5 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
+The current total is 8 not-assessed lots, 1 partially assessed lot, 24 reviewed lots, 1 completed assessment awaiting review, and 1 lot without candidate sources. These are manual assessment states.
 
 ## Evidence ledger
 
@@ -245,6 +245,19 @@ All completed comparisons retain static and hybrid mutants. The disjoint profile
 | `definitions` | 64 | 71 / 10 / 0 → 86 / 4 / 0 | 0 / 0 → 0 / 0 | 87.65% → 95.56% |
 
 Local reports, exact comparisons and input hashes are archived under `artifacts/mutation/nov12-lifecycle-boundaries/`.
+
+## November 12 security and resilience review
+
+All completed comparisons retain static and hybrid mutants. The disjoint profiles account for the full mutation set in 126 candidate sources. The [security and resilience review](mutation_testing_security_resilience.md) records the confirmed bugs, remaining mutations, and the execution budget for each profile.
+
+| Component | Matched mutants | Killed / Survived / NoCoverage | Timeout / RuntimeError | Stryker score |
+| --- | ---: | --- | --- | --- |
+| `authentication` | 1544 | 1326 / 228 / 14 → 1575 / 48 / 0 | 0 / 46 → 0 / 46 | 84.57% → 97.04% |
+| `tokens` | 1221 | 1108 / 166 / 6 → 1249 / 36 / 2 | 0 / 17 → 0 / 17 | 86.56% → 97.05% |
+| `throttling` | 4292 | 3699 / 702 / 29 → 4162 / 268 / 17 | 23 / 35 → 26 / 35 | 83.58% → 93.63% |
+| `outbound_http` | 1013 | 973 / 149 / 6 → 1112 / 52 / 1 | 1 / 0 → 1 / 0 | 86.27% → 95.45% |
+
+Local reports, exact comparisons and input hashes are archived under `artifacts/mutation/nov12-security-resilience/`.
 
 ## Historical global campaign
 

@@ -62,7 +62,7 @@ app.container.registerValue("authenticationSubjectProvider", {
 app.register(new AuthenticationProvider(config.authentication, memoryAuthentication(adapter), definition, hasher));
 ```
 
-Add `HttpRuntimeProvider` as in [application composition](./app.md). The default routes are POST `/authentication/password/sign-in`, POST `/authentication/sign-out` and GET `/authentication/session`. Sign-in/out enforce trusted origins; successful sign-in sets the configured session cookie.
+Add `HttpRuntimeProvider` as in [application composition](./app.md). The default routes are POST `/authentication/password/sign-in`, POST `/authentication/sign-out` and GET `/authentication/session`. Sign-in and sign-out enforce trusted origins. Successful sign-in sets the configured session cookie. The current-session endpoint sends `Cache-Control: no-store` to keep session information out of HTTP caches.
 
 For PostgreSQL, pass `postgresAuthentication(managerDependency)` to the provider, using the scoped `PostgresDrizzleManager`, export the authentication schema into migrations and supply the same subject provider. Stores may also be registered separately by capability; see the [store composition contract](../implementation/authentication.md#adapter-composition).
 
@@ -86,6 +86,8 @@ async function provisionMember(username: string, password: string) {
 ```
 
 This storage-level recipe assumes application validation has already enforced the configured password policy and username uniqueness. Use the same username normalizer as password authentication. In a persistent application, coordinate subject creation, account creation and credentials in one transaction.
+
+When adding password reset, replace the credential and increment the account's security version in the same transaction. This invalidates older sessions and prevents an in-flight verification from creating a session for a retired password.
 
 ## Require a session on a route
 

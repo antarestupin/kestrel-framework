@@ -228,6 +228,8 @@ export interface TokenStorageAdapter {
 
 `createMany()` is atomic across replacement and insertion. `findValid()` never returns expired, consumed, revoked, or wrong-definition rows. `consume()` applies the same predicates and marks the row consumed in one atomic mutation. Revocation only counts active, unexpired rows. Subject deletion removes every matching lifecycle state. Pruning is bounded, orders eligible rows deterministically, and may remove expired rows immediately while retaining consumed and revoked rows until `inactiveBefore`.
 
+The manager and built-in stores validate both pruning dates and require a positive safe integer limit before removing records. The memory store clones the complete batch before changing retained state. PostgreSQL uses each replacement's creation time as the corresponding revocation time and batches replacements that share an issuance instant in one update.
+
 The memory and PostgreSQL adapters implement the same contract. PostgreSQL joins an existing `PostgresDrizzleManager` transaction, allowing token consumption and the protected application mutation to commit or roll back together.
 
 ## Stored model
@@ -335,6 +337,8 @@ app
 
 Applications using only signed definitions can omit PostgreSQL and set `stored: false` in `TokenProvider` options. Key material remains application-owned: Kestrel never reads environment values or files to discover it.
 
+JWT issuance and verification use nonnegative whole-second timestamps in the JavaScript `Date` range. The keyring reads the ID, algorithm, and key once from each supplied descriptor and freezes that snapshot.
+
 ### Hybrid JWT usage
 
 Hybrid definitions select the `hybrid` strategy and may use every lifecycle guarantee:
@@ -413,6 +417,8 @@ See the [shared composition convention](../implementation/app.md#provider-adapte
 `RedisTokenStorageAdapter` implements the complete existing storage contract without changing opaque or hybrid token strategies. `redisTokens(connection, settings)` creates a synchronously ready execution-scoped adapter over a borrowed native node-redis client. It requires no asynchronous adapter initialization.
 
 Five fixed, same-slot keys under `<keyPrefix>{tokens}:` hold a records hash, digest-to-ID hash, lexicographically indexed definition/subject membership sorted set, expiration sorted set and inactivity sorted set. Lua receives all keys explicitly and validates record/index types before writes. Batch creation checks uniqueness before replacement or insertion. Subject replacement and single-use consumption serialize on the primary. Application payloads are serialized separately and remain opaque to Lua, preserving empty arrays and numeric precision. Timestamps and token digests retain their full representation.
+
+Bearer operations verify that the digest index resolves to the requested record. Subject replacement checks that every indexed record belongs to the requested definition and subject during batch preflight. An inconsistent index aborts the operation before another token's state can change.
 
 Pruning reads at most `limit` candidates from each expiration/inactivity index and deletes at most `limit` records, updating every index in the same script. Expiration candidates precede inactive candidates, each ordered by score and ID; adapters do not promise identical physical deletion order. Subject replacement, revocation and deletion necessarily visit the selected subject's retained records. Admission limits for very large subject histories remain a future evolution; callers should prune regularly.
 

@@ -53,6 +53,17 @@ describe("Argon2id password resource and secret contracts", () => {
     await expect(peppered.verify(password, plain)).resolves.toBe(false);
   });
 
+  it("retains its configured pepper after the application clears its input buffer", async () => {
+    const pepper = Buffer.from("temporary application secret buffer");
+    const hasher = new Argon2idPasswordHasher({ ...inexpensive, createSalt: fixedSalt, pepper });
+    const encoded = await hasher.hash(password);
+
+    // Clearing the caller's copy must leave existing credentials usable.
+    pepper.fill(0);
+    await expect(hasher.verify(password, encoded)).resolves.toBe(true);
+    await expect(hasher.hash(password)).resolves.toBe(encoded);
+  });
+
   it("requires the complete encoded hash without extra prefixes or suffixes", async () => {
     const hasher = new Argon2idPasswordHasher({ ...inexpensive, createSalt: fixedSalt });
     const encoded = await hasher.hash(password);
@@ -107,7 +118,8 @@ describe("Argon2id password resource and secret contracts", () => {
   for (const parameter of ["memoryKiB", "passes", "parallelism", "saltBytes", "tagBytes"] as const) {
     for (const value of [0, -1, 1.5]) {
       it(`rejects invalid generation ${parameter} ${value}`, () => {
-        expect(() => new Argon2idPasswordHasher({ ...inexpensive, [parameter]: value })).toThrow(TypeError);
+        expect(() => new Argon2idPasswordHasher({ ...inexpensive, [parameter]: value }))
+          .toThrow(`${parameter} must be a positive integer.`);
       });
     }
   }
@@ -119,15 +131,17 @@ describe("Argon2id password resource and secret contracts", () => {
   }
 
   it("requires enough memory per lane while accepting the exact minimum", async () => {
-    expect(() => new Argon2idPasswordHasher({ ...inexpensive, memoryKiB: 15, parallelism: 2 })).toThrow(TypeError);
+    expect(() => new Argon2idPasswordHasher({ ...inexpensive, memoryKiB: 15, parallelism: 2 }))
+      .toThrow("Argon2id memory is too small for its parallelism.");
     const hasher = new Argon2idPasswordHasher({ ...inexpensive, memoryKiB: 16, parallelism: 2, createSalt: fixedSalt });
     const encoded = await hasher.hash(password);
     await expect(hasher.verify(password, encoded)).resolves.toBe(true);
   });
 
-  for (const parameter of ["saltBytes", "tagBytes"] as const) {
+  for (const [parameter, label] of [["saltBytes", "salts"], ["tagBytes", "tags"]] as const) {
     it(`rejects generation with an undersized ${parameter}`, () => {
-      expect(() => new Argon2idPasswordHasher({ ...inexpensive, [parameter]: 15 })).toThrow(TypeError);
+      expect(() => new Argon2idPasswordHasher({ ...inexpensive, [parameter]: 15 }))
+        .toThrow(`Argon2id ${label} must contain at least 16 bytes.`);
     });
   }
 

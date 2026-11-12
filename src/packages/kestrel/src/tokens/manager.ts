@@ -1,4 +1,5 @@
 import type { TokenDefinition } from "./definition.js";
+import { validateTokenPruneOptions } from "./lifetime.js";
 import type {
   IssueTokenOptions,
   TokenGrant,
@@ -144,7 +145,7 @@ export class TokenManager {
 
   /** Prunes each distinct state store once, even when strategies share it. */
   public async prune(options: TokenPruneOptions): Promise<number> {
-    validatePruneOptions(options);
+    validateTokenPruneOptions(options);
     const strategies = new Set(Object.values(this.strategies));
     const prunedScopes = new Set<object>();
     let removed = 0;
@@ -166,7 +167,8 @@ export class TokenManager {
     definition: TokenDefinition<Payload>,
   ): TokenStrategy {
     const name = definition.strategy || this.defaultStrategy;
-    const strategy = this.strategies[name];
+    // Strategy names select an explicitly registered entry, including prototype-named keys.
+    const strategy = Object.hasOwn(this.strategies, name) ? this.strategies[name] : undefined;
 
     if (strategy === undefined) {
       throw new TypeError(
@@ -302,16 +304,4 @@ function validateSubject(subject: string | undefined): string {
   }
 
   return subject;
-}
-
-function validatePruneOptions(options: TokenPruneOptions): void {
-  if (!Number.isInteger(options.limit) || options.limit <= 0) {
-    throw new TypeError("Token prune limit must be a positive integer.");
-  }
-  if (
-    Number.isNaN(options.expiredBefore.getTime())
-    || Number.isNaN(options.inactiveBefore.getTime())
-  ) {
-    throw new TypeError("Token prune dates must be valid dates.");
-  }
 }

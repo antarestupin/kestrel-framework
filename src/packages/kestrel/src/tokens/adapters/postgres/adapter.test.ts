@@ -1,13 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
-import {
-  boolean,
-  customType,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { pgSchema } from "drizzle-orm/pg-core";
 import type { Pool, PoolClient } from "pg";
 import {
   afterAll,
@@ -19,60 +12,45 @@ import {
 } from "vitest";
 
 import { PostgresDrizzleManager } from "../../../db/index.js";
+import { applyDatabaseSchemaContributions } from "../../../db/schema_contributions/apply.js";
+import { createDependencyContainer, dep, registerScopedAdapter } from "../../../di/index.js";
 import { createPostgresTestPool } from "../../../testing/postgres.js";
-import type { CreateStoredToken } from "../../types.js";
+import type { CreateStoredToken, TokenStorageAdapter } from "../../types.js";
 import { PostgresTokenStorageAdapter } from "./adapter.js";
+import { postgresTokens } from "./definition.js";
+import { createPostgresTokenTable } from "./schema.js";
 
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({
-  dataType: () => "bytea",
-});
-const testTokens = pgTable("token_test", {
-  id: uuid("id").primaryKey(),
-  definition: text("definition").notNull(),
-  subject: text("subject"),
-  subjectExclusive: boolean("subject_exclusive").default(false).notNull(),
-  digest: bytea("digest").notNull(),
-  payload: jsonb("payload").$type<unknown>().notNull(),
-  expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true })
-    .notNull(),
-  consumedAt: timestamp("consumed_at", { mode: "date", withTimezone: true }),
-  revokedAt: timestamp("revoked_at", { mode: "date", withTimezone: true }),
-  createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
-    .notNull(),
-});
+const namespace = pgSchema(`token_test_${randomUUID().replaceAll("-", "").slice(0, 16)}`);
+const testTokens = createPostgresTokenTable(namespace, { tableName: "token_test" });
 const now = new Date("2026-01-01T00:00:00.000Z");
 
 let pool: Pool;
 let client: PoolClient;
 let store: PostgresTokenStorageAdapter;
+let manager: PostgresDrizzleManager;
 
 beforeAll(async () => {
   pool = createPostgresTestPool();
   client = await pool.connect();
-  await client.query(`
-    CREATE TEMPORARY TABLE token_test (
-      id uuid PRIMARY KEY,
-      definition text NOT NULL,
-      subject text,
-      subject_exclusive boolean NOT NULL DEFAULT false,
-      digest bytea NOT NULL UNIQUE,
-      payload jsonb NOT NULL,
-      expires_at timestamp with time zone NOT NULL,
-      consumed_at timestamp with time zone,
-      revoked_at timestamp with time zone,
-      created_at timestamp with time zone NOT NULL
-    ) ON COMMIT PRESERVE ROWS;
-    CREATE UNIQUE INDEX token_test_active_subject_unique
-      ON token_test (definition, subject)
-      WHERE subject_exclusive AND consumed_at IS NULL AND revoked_at IS NULL
-  `);
+  // Deploy the exported Drizzle declaration and its comments in this suite's owned namespace.
+  const { generateDrizzleJson, generateMigration } = await import("drizzle-kit/api");
+  const schema = { namespace, testTokens };
+  const statements = await generateMigration(generateDrizzleJson({}), generateDrizzleJson(schema));
+  await client.query("BEGIN");
+  try {
+    for (const statement of statements) await client.query(statement);
+    await applyDatabaseSchemaContributions(schema, (statement) => client.query(statement));
+    await client.query(`SET search_path TO "${namespace.schemaName}", public`);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  }
   const database = drizzle(client);
-  store = new PostgresTokenStorageAdapter(
-    new PostgresDrizzleManager({
-      database: database as ConstructorParameters<typeof PostgresDrizzleManager>[0]["database"],
-    }),
-    testTokens,
-  );
+  manager = new PostgresDrizzleManager({
+    database: database as ConstructorParameters<typeof PostgresDrizzleManager>[0]["database"],
+  });
+  store = new PostgresTokenStorageAdapter(manager, testTokens);
 });
 
 beforeEach(async () => {
@@ -80,11 +58,42 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  client.release();
-  await pool.end();
+  try {
+    await client?.query(`DROP SCHEMA IF EXISTS "${namespace.schemaName}" CASCADE`);
+  } finally {
+    client?.release(true);
+    await pool?.end();
+  }
 });
 
 describe("PostgresTokenStorageAdapter", () => {
+  it("uses the selected deployable table and borrows the scoped manager's transaction", async () => {
+    const container = createDependencyContainer({});
+    const scope = container.createScope();
+    const database = dep<PostgresDrizzleManager>("scopedTokenDatabase");
+    const adapter = dep<TokenStorageAdapter>("tokens");
+    scope.registerValue(database.id, manager);
+    registerScopedAdapter(container, adapter.id, postgresTokens(database, testTokens), undefined);
+    const token = createLifecycleToken(1);
+    const aborted = new Error("abort the caller's transaction");
+
+    try {
+      const scopedStore = scope.resolve(adapter);
+      // Nested issuance joins the manager's transaction, so no token escapes rollback.
+      await expect(manager.transaction(async () => {
+        await scopedStore.createMany([token]);
+        await expect(scopedStore.findValid({ definition: token.definition, digest: token.digest, now }))
+          .resolves.toMatchObject({ id: token.id });
+        throw aborted;
+      })).rejects.toBe(aborted);
+      await expect(scopedStore.findValid({ definition: token.definition, digest: token.digest, now }))
+        .resolves.toBeUndefined();
+    } finally {
+      await scope.dispose();
+      await container.dispose();
+    }
+    await expect(client.query("SELECT 1")).resolves.toMatchObject({ rowCount: 1 });
+  });
   it("persists lifecycle-only marker payloads for hybrid tokens", async () => {
     await store.createMany([createToken(
       "00000000-0000-4000-8000-000000000001",
@@ -101,6 +110,7 @@ describe("PostgresTokenStorageAdapter", () => {
       now,
     })).resolves.toMatchObject({
       payload: { tokenRepresentation: "hybrid-jwt" },
+      subject: "account-1",
     });
   });
 
@@ -141,6 +151,8 @@ describe("PostgresTokenStorageAdapter", () => {
     const found = await store.findValid(lookup);
     expect(found).toMatchObject({ id: token.id, payload: token.payload });
     expect(found).not.toHaveProperty("subject");
+    expect(found).not.toHaveProperty("consumedAt");
+    expect(found).not.toHaveProperty("revokedAt");
     await expect(store.findValid({ ...lookup, definition: "other.token" }))
       .resolves.toBeUndefined();
     await expect(store.findValid({ ...lookup, now: token.expiresAt }))
@@ -168,6 +180,29 @@ describe("PostgresTokenStorageAdapter", () => {
     await expect(store.findValid(lookup)).resolves.toMatchObject({ id: original.id });
     await expect(store.findValid({ ...lookup, digest: replacement.digest }))
       .resolves.toBeUndefined();
+  });
+
+  it("revokes each subject at its own replacement's creation time", async () => {
+    const originalA = createLifecycleToken(1, { subject: "account-1" });
+    const originalB = createLifecycleToken(2, { subject: "account-2" });
+    const firstTime = new Date(now.getTime() + 1_000);
+    const secondTime = new Date(now.getTime() + 2_000);
+    const first = createLifecycleToken(3, { subject: "account-1", createdAt: firstTime, replaceExistingForSubject: true });
+    const second = createLifecycleToken(4, { subject: "account-2", createdAt: secondTime, replaceExistingForSubject: true });
+    const nonReplacement = createLifecycleToken(5, { subject: "account-3" });
+    const retained = createLifecycleToken(6, { subject: "account-3" });
+    const originalC = createLifecycleToken(7, { subject: "account-4" });
+    const sharedTime = createLifecycleToken(8, { subject: "account-4", createdAt: firstTime, replaceExistingForSubject: true });
+
+    // Different subjects can share an issuance time within the same batch.
+    await store.createMany([originalA, originalB, retained, originalC]);
+    await store.createMany([first, second, nonReplacement, sharedTime]);
+    const { rows } = await client.query("SELECT id, revoked_at FROM token_test WHERE revoked_at IS NOT NULL ORDER BY id");
+    expect(rows).toEqual([
+      { id: originalA.id, revoked_at: firstTime },
+      { id: originalB.id, revoked_at: secondTime },
+      { id: originalC.id, revoked_at: firstTime },
+    ]);
   });
 
   it("revokes only the active bearer value for the requested definition", async () => {
@@ -285,6 +320,14 @@ describe("PostgresTokenStorageAdapter", () => {
     expect(result.rows).toEqual([
       { id: "00000000-0000-4000-8000-000000000004" },
     ]);
+  });
+
+  it("rejects invalid prune limits without deleting eligible rows", async () => {
+    await store.createMany([1, 2].map((digest) => createLifecycleToken(digest, { expiresAt: now })));
+    const options = { expiredBefore: now, inactiveBefore: now };
+    await expect(store.prune({ ...options, limit: Number.NaN })).rejects.toThrow("positive");
+    await expect(store.prune({ ...options, limit: -1 })).rejects.toThrow("positive");
+    await expect(store.prune({ ...options, limit: 2 })).resolves.toBe(2);
   });
 });
 

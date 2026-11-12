@@ -20,10 +20,12 @@ import {
 } from "vitest";
 
 import { PostgresDrizzleManager } from "../../../db/index.js";
+import { createDependencyContainer, dep, registerScopedAdapter } from "../../../di/index.js";
 import { createPostgresTestPool } from "../../../testing/postgres.js";
-import type { CreateStoredSession } from "../../stores.js";
+import type { AuthenticationAdapter, CreateStoredSession } from "../../stores.js";
 import type { AuthenticationAccount } from "../../types.js";
 import { PostgresAuthenticationAdapter } from "./adapter.js";
+import { postgresAuthentication } from "./definition.js";
 import type { PostgresAuthenticationTables } from "./tables.js";
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
@@ -47,6 +49,8 @@ const testPasswordCredentials = pgTable("authentication_password_credentials", {
   username: text("username").notNull(),
   normalizedUsername: text("normalized_username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  // A custom schema can contain fields that must stay outside the public credential.
+  providerPrivateNote: text("provider_private_note").default("application only").notNull(),
   passwordChangedAt: timestamp("password_changed_at", {
     mode: "date",
     withTimezone: true,
@@ -139,6 +143,7 @@ beforeAll(async () => {
       username text NOT NULL,
       normalized_username text NOT NULL UNIQUE,
       password_hash text NOT NULL,
+      provider_private_note text NOT NULL DEFAULT 'application only',
       password_changed_at timestamp with time zone NOT NULL DEFAULT now(),
       created_at timestamp with time zone NOT NULL DEFAULT now(),
       updated_at timestamp with time zone NOT NULL DEFAULT now()
@@ -190,6 +195,141 @@ afterAll(async () => {
 });
 
 describe("PostgresAuthenticationAdapter", () => {
+  it("resolves the bundled mapping against PostgreSQL in an execution scope", async () => {
+    const root = createDependencyContainer({});
+    const scope = root.createScope();
+    await client.query("BEGIN");
+    try {
+      // Materialize the public table names independently so the SQL adapter must use the bundled mapping.
+      await client.query(`
+        CREATE SCHEMA authentication;
+        CREATE TABLE authentication.account (LIKE authentication_account INCLUDING ALL);
+        ALTER TABLE authentication.account ALTER COLUMN subject_id TYPE text;
+        CREATE TABLE authentication.password_credentials
+          (LIKE authentication_password_credentials INCLUDING ALL);
+        ALTER TABLE authentication.password_credentials ADD FOREIGN KEY (account_id)
+          REFERENCES authentication.account (id) ON DELETE CASCADE;
+        CREATE TABLE authentication.session (LIKE authentication_session INCLUDING ALL);
+        ALTER TABLE authentication.session ADD FOREIGN KEY (account_id)
+          REFERENCES authentication.account (id) ON DELETE CASCADE
+      `);
+      const databaseManager = dep<PostgresDrizzleManager>("authenticationDatabase");
+      root.registerValue(databaseManager.id, new PostgresDrizzleManager({ database: drizzle(client) }));
+      registerScopedAdapter(root, "authentication", postgresAuthentication<{ role: string }>(databaseManager), undefined);
+      const scoped = scope.resolve(dep<AuthenticationAdapter<{ role: string }>>("authentication"));
+      const account = await scoped.createAccount({ subjectId: "domain/member:one" });
+      expect(account).toEqual({
+        id: expect.stringMatching(/^[\da-f]{8}-[\da-f]{4}-7[\da-f]{3}-[\da-f]{4}-[\da-f]{12}$/),
+        subjectId: "domain/member:one",
+        state: "active",
+        securityVersion: 1,
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+      const credential = await scoped.createPasswordCredential({
+        accountId: account.id, username: "Member", normalizedUsername: "member", passwordHash: "hash",
+      });
+      expect(credential).toMatchObject({
+        accountId: account.id,
+        passwordChangedAt: expect.any(Date),
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+      const stored = await scoped.createSession(sessionInput(account, 1));
+      await expect(scoped.findByTokenDigest(stored.tokenDigest)).resolves.toStrictEqual(stored);
+      for (const optional of ["revokedAt", "revokeReason", "ipAddress", "userAgent"]) {
+        expect(stored).not.toHaveProperty(optional);
+      }
+
+      // Application account deletion must remove both kinds of owned records.
+      await client.query('DELETE FROM "authentication"."account" WHERE id = $1', [account.id]);
+      await expect(scoped.findByNormalizedUsername("member")).resolves.toBeUndefined();
+      await expect(scoped.findByTokenDigest(stored.tokenDigest)).resolves.toBeUndefined();
+    } finally {
+      try {
+        await scope.dispose();
+        await root.dispose();
+      } finally {
+        await client.query("ROLLBACK");
+      }
+    }
+  });
+
+  it("preserves imported revocation data and keeps the session inactive", async () => {
+    const account = await adapter.createAccount({ subjectId });
+    const revokedAt = new Date("2026-01-01T00:15:00.000Z");
+    const stored = await adapter.createSession(sessionInput(account, 1, {
+      revokedAt, revokeReason: "imported-revocation",
+    }));
+
+    expect(stored).toMatchObject({ revokedAt, revokeReason: "imported-revocation" });
+    await expect(adapter.touch({
+      id: stored.id, now: revokedAt, lastSeenAt: revokedAt, idleExpiresAt: stored.idleExpiresAt,
+    })).resolves.toBeUndefined();
+    await expect(adapter.findByTokenDigest(stored.tokenDigest)).resolves.toEqual(stored);
+  });
+
+  it("preserves database defaults for absent revocation metadata in custom tables", async () => {
+    const account = await adapter.createAccount({ subjectId });
+    const revokedAt = new Date("2026-01-01T00:15:00.000Z");
+    await client.query("BEGIN");
+    try {
+      // Application-owned mappings can supply their own initial revocation policy.
+      await client.query(`
+        ALTER TABLE authentication_session
+          ALTER COLUMN revoked_at SET DEFAULT '2026-01-01T00:15:00.000Z',
+          ALTER COLUMN revoke_reason SET DEFAULT 'custom-storage-policy'
+      `);
+      const stored = await adapter.createSession(sessionInput(account, 1));
+      expect(stored).toMatchObject({ revokedAt, revokeReason: "custom-storage-policy" });
+    } finally {
+      await client.query("ROLLBACK");
+    }
+  });
+
+  it("preserves the latest activity when a stale touch completes after a fresh touch", async () => {
+    const account = await adapter.createAccount({ subjectId });
+    const stored = await adapter.createSession(sessionInput(account, 1));
+    const latest = new Date("2026-01-01T00:30:00.000Z");
+    const fresh = await adapter.touch({
+      id: stored.id, now: latest, lastSeenAt: latest, idleExpiresAt: new Date("2026-01-03T00:00:00.000Z"),
+    });
+
+    // Apply the earlier activity after the fresher write to exercise the SQL update.
+    const older = new Date("2026-01-01T00:15:00.000Z");
+    await expect(adapter.touch({
+      id: stored.id, now: older, lastSeenAt: older, idleExpiresAt: new Date("2026-01-01T01:15:00.000Z"),
+    })).resolves.toEqual(fresh);
+    expect(fresh).toMatchObject({ lastSeenAt: latest, idleExpiresAt: stored.absoluteExpiresAt });
+  });
+
+  it("reports a storage failure if a custom insertion trigger suppresses the write", async () => {
+    const account = await adapter.createAccount({ subjectId });
+    await client.query("BEGIN");
+    try {
+      // A PostgreSQL BEFORE INSERT trigger can legally suppress a row and leave RETURNING empty.
+      await client.query(`
+        CREATE FUNCTION pg_temp.skip_authentication_insert() RETURNS trigger LANGUAGE plpgsql
+          AS 'BEGIN RETURN NULL; END';
+        CREATE TRIGGER skip_authentication_account BEFORE INSERT ON authentication_account
+          FOR EACH ROW EXECUTE FUNCTION pg_temp.skip_authentication_insert();
+        CREATE TRIGGER skip_authentication_credential BEFORE INSERT ON authentication_password_credentials
+          FOR EACH ROW EXECUTE FUNCTION pg_temp.skip_authentication_insert();
+        CREATE TRIGGER skip_authentication_session BEFORE INSERT ON authentication_session
+          FOR EACH ROW EXECUTE FUNCTION pg_temp.skip_authentication_insert()
+      `);
+      await expect(adapter.createAccount({ subjectId: otherSubjectId }))
+        .rejects.toThrow("PostgreSQL did not return the created account.");
+      await expect(adapter.createPasswordCredential({
+        accountId: account.id, username: "Member", normalizedUsername: "member", passwordHash: "hash",
+      })).rejects.toThrow("PostgreSQL did not return the created credential.");
+      await expect(adapter.createSession(sessionInput(account, 1)))
+        .rejects.toThrow("PostgreSQL did not return the created session.");
+    } finally {
+      await client.query("ROLLBACK");
+    }
+  });
+
   it("creates accounts and conditionally replaces password hashes", async () => {
     const account = await adapter.createAccount({
       subjectId,
@@ -202,6 +342,11 @@ describe("PostgresAuthenticationAdapter", () => {
       passwordHash: "old-hash",
     });
 
+    expect(credential).toEqual({
+      id: expect.any(String), accountId: account.id, username: "TestUser", normalizedUsername: "testuser",
+      passwordHash: "old-hash", passwordChangedAt: expect.any(Date), createdAt: expect.any(Date), updatedAt: expect.any(Date),
+    });
+    await expect(adapter.findByNormalizedUsername("testuser")).resolves.toStrictEqual(credential);
     await expect(adapter.findBySubjectId(account.subjectId))
       .resolves.toEqual(account);
     expect(account.state).toBe("disabled");

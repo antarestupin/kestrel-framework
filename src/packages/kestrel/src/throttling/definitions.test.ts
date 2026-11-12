@@ -290,4 +290,52 @@ describe("throttling definitions", () => {
       ...options, coordination: { strategy: "unknown" },
     }])).toThrow("Unsupported throttling coordination strategy");
   });
+
+  it("keeps distinct validation errors for malformed identifiers and numeric thresholds", () => {
+    const rate = { id: "valid-rate", unit: "requests", limit: 1, per: seconds(1) };
+    const circuit = { id: "valid-circuit", failureThreshold: 1, cooldown: seconds(1) };
+    const limit = concurrencyLimit({ id: "limit", limit: 1 });
+    const pressure = { id: "valid-pressure", signals: { cpu: { degradedAt: 0.5, limitedAt: 1 } } };
+    for (const [build, diagnostic] of [
+      [() => rateLimit({ ...rate, id: " " }), "Rate limit identifiers cannot be empty"],
+      [() => rateLimit({ ...rate, unit: " " }), "Rate limit unit identifiers cannot be empty"],
+      [() => rateLimit({ ...rate, limit: Infinity }), "limit must be a positive finite number"],
+      [() => rateLimit({ ...rate, burst: 0 }), "burst must be a positive finite number"],
+      [() => defineRateLimit({ id: "simple", requests: 1, per: seconds(1), burst: 0.5 }), "burst must allow the default cost of one request"],
+      [() => concurrencyLimit({ id: " ", limit: 1 }), "Concurrency limit identifiers cannot be empty"],
+      [() => concurrencyLimit({ id: "limit", limit: 0 }), "limit must be a positive integer"],
+      [() => circuitBreaker({ ...circuit, id: " " }), "Circuit breaker identifiers cannot be empty"],
+      [() => circuitBreaker({ ...circuit, failureThreshold: 0 }), "failureThreshold must be a positive integer"],
+      [() => circuitBreaker({ ...circuit, halfOpen: { maxConcurrentProbes: 0 } }), "maxConcurrentProbes must be a positive integer"],
+      [() => localResourcePressure({ ...pressure, id: " " }), "Local resource pressure identifiers cannot be empty"],
+      [() => localResourcePressure({ ...pressure, signals: { " ": { degradedAt: 0.5, limitedAt: 1 } } }), "Local resource pressure signal identifiers cannot be empty"],
+      [() => localResourcePressure({ ...pressure, signals: { cpu: { degradedAt: 0, limitedAt: Infinity } } }), "limitedAt must be a positive finite number"],
+      [() => localResourcePressure({ ...pressure, signals: { cpu: { degradedAt: 1, limitedAt: 1 } } }), "degradedAt must be smaller"],
+      [() => defineAdmissionPolicy({ id: " ", limits: [limit] }), "Admission policy identifiers cannot be empty"],
+    ] as const) expect(build).toThrow(diagnostic);
+  });
+
+  it("revalidates untyped definitions and accepts exact lease bounds and zero guard band", () => {
+    const simple = defineRateLimit({ id: "rate", requests: 1, per: seconds(1) });
+    for (const [patch, diagnostic] of [
+      [{ id: " " }, "Rate limit identifiers cannot be empty"],
+      [{ limit: 0 }, "limit must be a positive finite number"],
+      [{ periodMs: Infinity }, "periodMs must be a positive finite number"],
+      [{ burst: NaN }, "burst must be a positive finite number"],
+    ] as const) expect(() => validateThrottlingDefinition({ ...simple, ...patch })).toThrow(diagnostic);
+
+    const rate = { id: "boundary", unit: "requests", limit: 5, per: seconds(1), burst: 5 };
+    const coordination = { strategy: "leased", maxLeaseUnits: 5, leaseMs: 1_000, maxOutstandingUnits: 5, guardBandUnits: 0 } as const;
+    const constraint = rateLimit({ ...rate, coordination });
+    expect(constraint.coordination).toEqual(coordination);
+    expect(Object.isFrozen(constraint.coordination)).toBe(true);
+    for (const [patch, diagnostic] of [
+      [{ maxLeaseUnits: 0 }, "maxLeaseUnits must be a positive finite number"],
+      [{ leaseMs: 0 }, "leaseMs must be a positive finite number"],
+      [{ maxOutstandingUnits: Infinity }, "maxOutstandingUnits must be a positive finite number"],
+      [{ guardBandUnits: -1 }, "guardBandUnits must be a non-negative finite number"],
+    ] as const) expect(() => rateLimit({ ...rate, coordination: { ...coordination, ...patch } })).toThrow(diagnostic);
+    expect(throttlingDurationToMs({ seconds: 1, milliseconds: 0 })).toBe(1_000);
+    expect(() => throttlingDurationToMs({ seconds: 0 })).toThrow("A throttling duration must be positive and finite");
+  });
 });

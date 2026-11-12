@@ -15,8 +15,22 @@ it("rejects invalid token definitions at declaration time", () => {
     .toThrow("requires a subject resolver");
   expect(() => defineToken({ name: "Member.Invitation", payload }))
     .toThrow("Token name");
+  expect(() => defineToken({ name: "member.invitation!", payload }))
+    .toThrow("Token name");
   expect(() => defineToken({ name: "member.invitation", payload, strategy: "a".repeat(129) }))
     .toThrow("Token strategy name");
+});
+
+it("preserves names at the inclusive length limit and defaults to reusable stored tokens", () => {
+  const name = "a".repeat(128);
+  const payload = z.string();
+  expect(defineToken({ name, payload })).toStrictEqual({
+    name,
+    payloadSchema: payload,
+    usage: "multiple",
+    strategy: "stored",
+    replacement: "none",
+  });
 });
 
 describe("TokenManager", () => {
@@ -188,6 +202,9 @@ describe("TokenManager", () => {
       payload: replacement.payloadSchema,
       subject: ({ subject }) => subject,
     });
+    await expect(fixture.manager.issue(subjectOptional, { subject: "  " }, options))
+      .rejects.toThrow("subjects must not be empty");
+    expect(createMany).not.toHaveBeenCalled();
     const grant = await fixture.manager.issue(subjectOptional, {}, options);
     await expect(fixture.manager.verify(subjectOptional, grant.token)).resolves.toEqual({});
   });
@@ -298,6 +315,38 @@ describe("TokenManager", () => {
     expect(deleteForSubject).not.toHaveBeenCalled();
   });
 
+  it.each(["revoke", "revokeForSubject"] as const)(
+    "rejects advertised lifecycle support when a strategy implements only %s",
+    async (implementedMethod) => {
+      const manager = new TokenManager({
+        stored: {
+          capabilities: { pruning: true, revocation: true, singleUse: true, subjectDeletion: true },
+          issue: async () => [],
+          verify: async () => undefined,
+          [implementedMethod]: vi.fn(),
+        },
+      }, { maxPayloadBytes: 32 });
+      const definition = defineToken({
+        name: "account.confirmation",
+        payload: z.string(),
+        subject: (value) => value,
+        usage: "single",
+      });
+
+      // Capabilities cannot provide lifecycle guarantees if a required method is absent.
+      await expect(manager.issue(definition, "account-1", { ttlSeconds: 60 }))
+        .rejects.toThrow("does not support single-use");
+      expect(() => manager.revoke(definition, "bearer")).toThrow("does not support revocation");
+      expect(() => manager.revokeForSubject(definition, "account-1")).toThrow("does not support revocation");
+      expect(() => manager.deleteForSubject(definition, "account-1")).toThrow("does not support subject deletion");
+      await expect(manager.prune({
+        expiredBefore: new Date("2026-01-01T00:00:00.000Z"),
+        inactiveBefore: new Date("2025-12-01T00:00:00.000Z"),
+        limit: 1,
+      })).resolves.toBe(0);
+    },
+  );
+
   it("prunes each eligible store once across several strategies", async () => {
     const pruningScope = {};
     const prune = vi.fn().mockResolvedValue(2);
@@ -351,6 +400,8 @@ describe("TokenManager", () => {
 
     await expect(fixture.manager.prune({ ...options, limit: 0 }))
       .rejects.toThrow("limit must be a positive integer");
+    await expect(fixture.manager.prune({ ...options, limit: Number.MAX_SAFE_INTEGER + 1 }))
+      .rejects.toThrow("limit must be a positive integer");
     await expect(fixture.manager.prune({ ...options, expiredBefore: new Date(NaN) }))
       .rejects.toThrow("dates must be valid");
     await expect(fixture.manager.prune({ ...options, inactiveBefore: new Date(NaN) }))
@@ -368,12 +419,36 @@ describe("TokenManager", () => {
     }, { maxPayloadBytes: 1_024 });
     const payload = z.string();
     const unregistered = defineToken({ name: "test.unregistered", payload, strategy: "missing" });
+    const inherited = defineToken({ name: "test.inherited", payload, strategy: "constructor" });
     const empty = defineToken({ name: "test.empty", payload });
 
     await expect(manager.issue(unregistered, "value", { ttlSeconds: 60 }))
       .rejects.toThrow('strategy "missing" required by "test.unregistered" is not registered');
+    await expect(manager.issue(inherited, "value", { ttlSeconds: 60 }))
+      .rejects.toThrow('strategy "constructor" required by "test.inherited" is not registered');
     await expect(manager.issue(empty, "value", { ttlSeconds: 60 }))
       .rejects.toThrow("did not return the issued token");
+  });
+
+  it("routes an unspecified strategy to the manager default, including explicitly registered prototype names", async () => {
+    const strategy = {
+      capabilities: { pruning: false, revocation: false, singleUse: false, subjectDeletion: false },
+      issue: async () => [],
+      verify: vi.fn().mockResolvedValue({ payload: "account-1", expiresAt: new Date(1_000) }),
+    } satisfies TokenStrategy;
+    const definition = { ...defineToken({ name: "test.default", payload: z.string() }), strategy: "" };
+    const ordinary = new TokenManager({ stored: strategy }, { maxPayloadBytes: 32 });
+    const configured = new TokenManager(
+      { constructor: strategy },
+      { defaultStrategy: "constructor", maxPayloadBytes: 32 },
+    );
+
+    await expect(ordinary.verify(definition, "default-bearer")).resolves.toBe("account-1");
+    await expect(configured.verify(definition, "configured-bearer")).resolves.toBe("account-1");
+    expect(strategy.verify.mock.calls).toEqual([
+      [definition, "default-bearer"],
+      [definition, "configured-bearer"],
+    ]);
   });
 });
 

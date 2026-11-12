@@ -84,6 +84,10 @@ elseif mode == 'touch' or mode == 'revoke' then
   if mode == 'revoke' then return 1 end
   return cjson.encode(session)
 end
+-- Unknown operations must fail before reaching account-wide revocation.
+if mode ~= 'list' and mode ~= 'revokeAccount' then
+  return redis.error_reply('Invalid Redis session operation')
+end
 local index = accountIndex(input.accountId)
 local sessions = {}
 -- Preload before revoking so a malformed record cannot cause partial revocation.

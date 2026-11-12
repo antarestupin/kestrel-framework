@@ -75,7 +75,7 @@ async function generate(call: () => Promise<{ text: string; tokens: number }>) {
 
 Every rate dimension needs an estimate. The default cost accounting records actual usage without adjusting quota; this recipe explicitly enables synchronous reconciliation. Asynchronous reconciliation returns earlier but may be lost on a crash. Concurrency and circuit state are process-local even with shared rate storage.
 
-Call `reportFeedback({ kind: "timeout" | "transient" | "permanent" | "throttled" })` once when you can classify the outcome. Throttled feedback may include `retryAt`. A circuit breaker changes health admission, independently of rate tokens.
+Call `reportFeedback({ kind: "timeout" | "transient" | "permanent" | "throttled" | "cancelled" })` once when you can classify the outcome. Throttled feedback may include `retryAt`. Use `cancelled` when an admitted caller abandons its operation and the outcome gives no evidence about dependency health. Completion still releases concurrency and preserves rate accounting.
 
 ## Defer worker jobs when a dependency is busy
 

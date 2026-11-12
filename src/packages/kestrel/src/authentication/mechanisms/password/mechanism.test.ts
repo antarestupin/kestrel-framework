@@ -98,6 +98,63 @@ describe("PasswordMechanism", () => {
     expect(needsRehash).not.toHaveBeenCalled();
   });
 
+  it.each(["active", "disabled", "missing"] as const)(
+    "verifies an unchanged hash once and checks a %s account before issuing proof",
+    async (state) => {
+      const adapter = new MemoryAuthenticationAdapter();
+      const account = await adapter.createAccount({
+        subjectId: "subject-1", state: state === "disabled" ? "disabled" : "active",
+      });
+      await adapter.createPasswordCredential({
+        accountId: account.id, username: "Member", normalizedUsername: "member", passwordHash: "new:correct-password",
+      });
+      if (state === "missing") vi.spyOn(adapter, "findById").mockResolvedValue(undefined);
+      const passwordHasher = new FakePasswordHasher();
+      const rehash = vi.spyOn(passwordHasher, "needsRehash");
+      const mechanism = new PasswordMechanism({
+        accountStore: adapter,
+        credentialStore: adapter,
+        passwordHasher,
+        usernameNormalizer: new DefaultUsernameNormalizer(),
+      }, config);
+
+      const result = await mechanism.authenticate({ username: "member", password: "correct-password" });
+      expect(result.status).toBe(state === "active" ? "verified" : "rejected");
+      // Re-reading a stable credential must not repeat the expensive verifier.
+      expect(passwordHasher.verifiedHashes).toEqual(["new:correct-password"]);
+      expect(rehash).toHaveBeenCalledTimes(state === "active" ? 1 : 0);
+    },
+  );
+
+  it.each(["deleted", "replaced", "reassigned"] as const)(
+    "rejects a credential that was %s between verification and proof creation",
+    async (change) => {
+      const adapter = new MemoryAuthenticationAdapter();
+      const account = await adapter.createAccount({ subjectId: "subject-1" });
+      const credential = await adapter.createPasswordCredential({
+        accountId: account.id, username: "Member", normalizedUsername: "member", passwordHash: "new:correct-password",
+      });
+      const current = {
+        deleted: undefined,
+        replaced: { ...credential, id: "replacement-credential" },
+        reassigned: { ...credential, accountId: "another-account" },
+      };
+      // The storage contract permits application-owned adapters and credential migrations.
+      vi.spyOn(adapter, "findByNormalizedUsername")
+        .mockResolvedValueOnce(credential)
+        .mockResolvedValueOnce(current[change]);
+      const mechanism = new PasswordMechanism({
+        accountStore: adapter,
+        credentialStore: adapter,
+        passwordHasher: new FakePasswordHasher(),
+        usernameNormalizer: new DefaultUsernameNormalizer(),
+      }, config);
+
+      await expect(mechanism.authenticate({ username: "member", password: "correct-password" }))
+        .resolves.toEqual({ status: "rejected" });
+    },
+  );
+
   it("verifies stored passwords shorter than the current creation policy", async () => {
     const adapter = new MemoryAuthenticationAdapter();
     const account = await adapter.createAccount({ subjectId: "subject-1" });

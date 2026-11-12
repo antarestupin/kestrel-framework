@@ -5,7 +5,7 @@ import {
   type TagAwareCache,
   type TagAwareCacheRememberOptions,
 } from "../../../cache/index.js";
-import { OutboundHttpResponseTooLargeError } from "../../errors.js";
+import { OutboundHttpAbortedError, OutboundHttpResponseTooLargeError } from "../../errors.js";
 import { defineOutboundHttpMiddleware } from "../../middleware.js";
 import {
   outboundHttpMiddlewarePriorities,
@@ -56,12 +56,12 @@ interface CachedHttpResponse {
   readonly bodyAbsent?: true;
 }
 
-class UncacheableResponse extends Error {
+class UnshareableCacheLoad extends Error {
   public constructor(
-    public readonly response: Response,
-    public readonly owner: Request,
+    public readonly owner: symbol,
+    public readonly result: { readonly response: Response } | { readonly error: unknown },
   ) {
-    super("The outbound HTTP response is not cacheable.");
+    super("The outbound HTTP cache load belongs to its initiating request.");
   }
 }
 
@@ -116,19 +116,30 @@ function createCacheMiddleware(options: RuntimeCacheOptions): OutboundHttpMiddle
         throw new TypeError("Outbound HTTP cache tags require a TagAwareCache.");
       }
 
+      // Replayed continuations may use the same native Request.
+      const owner = Symbol();
       try {
         const loader = async (): Promise<CachedHttpResponse> => {
-          context.request.signal.throwIfAborted();
-          const response = await next();
-          // Error diagnostics are truncated by the client, never buffered by cache.
-          if (!response.ok) throw new UncacheableResponse(response, context.request);
-          const serialized = await serializeResponse(
-            response,
-            policy.headers ?? defaultHeaders,
-          );
+          try {
+            context.request.signal.throwIfAborted();
+            const response = await next();
+            // The client owns error diagnostics and their one-shot response body.
+            if (!response.ok) throw new UnshareableCacheLoad(owner, { response });
+            const serialized = await serializeResponse(
+              response,
+              policy.headers ?? defaultHeaders,
+            );
 
-          context.request.signal.throwIfAborted();
-          return serialized;
+            context.request.signal.throwIfAborted();
+            return serialized;
+          } catch (error) {
+            if (context.request.signal.aborted
+              || error instanceof OutboundHttpAbortedError
+              || error instanceof OutboundHttpResponseTooLargeError) {
+              throw new UnshareableCacheLoad(owner, { error });
+            }
+            throw error;
+          }
         };
         const writeOptions: CacheRememberOptions = {
           ...(policy.ttlSeconds === undefined ? {} : { ttlSeconds: policy.ttlSeconds }),
@@ -143,12 +154,14 @@ function createCacheMiddleware(options: RuntimeCacheOptions): OutboundHttpMiddle
 
         return restoreResponse(cached, context);
       } catch (error: unknown) {
-        if (error instanceof UncacheableResponse) {
-          // A coalesced waiter cannot consume the load owner's one-shot error stream.
-          return error.owner === context.request ? error.response : next();
+        if (!(error instanceof UnshareableCacheLoad)) throw error;
+        if (error.owner !== owner) {
+          // A waiter has its own signal and byte budget. Give it a separate attempt.
+          context.request.signal.throwIfAborted();
+          return next();
         }
-
-        throw error;
+        if ("response" in error.result) return error.result.response;
+        throw error.result.error;
       }
     },
   });

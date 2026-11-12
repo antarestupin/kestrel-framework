@@ -13,6 +13,8 @@ import { dep } from "../../../di/index.js";
 import { z } from "zod";
 import type { StoredSession } from "../../stores.js";
 import { RedisSessionStorageAdapter } from "./adapter.js";
+import { redisSessionsConfigBase } from "./configuration.js";
+import { sessionScript } from "./scripts.js";
 import { App } from "../../../app/index.js";
 import { defineHttpAccessPolicy, HttpControllerManager } from "../../../http/index.js";
 import { AuthenticationProvider } from "../../provider.js";
@@ -43,8 +45,8 @@ describe("RedisSessionStorageAdapter", () => {
       const first = new RedisSessionStorageAdapter<Claims>(redis.client, { keyPrefix: redis.keyPrefix });
       const second = new RedisSessionStorageAdapter<Claims>(other.client, { keyPrefix: redis.keyPrefix });
       const stored = session();
-      await expect(first.createSession(stored)).resolves.toEqual(stored);
-      await expect(second.findByTokenDigest(stored.tokenDigest)).resolves.toEqual(stored);
+      await expect(first.createSession(stored)).resolves.toStrictEqual(stored);
+      await expect(second.findByTokenDigest(stored.tokenDigest)).resolves.toStrictEqual(stored);
       for (const [name, field] of [["records", stored.id], ["digests", Buffer.from(stored.tokenDigest).toString("base64url")], ["accounts", stored.accountId]]) {
         expect(await redis.client.sendCommand(["HPEXPIRETIME", `${redis.keyPrefix}{sessions}:${name}`, "FIELDS", "1", field!])).toEqual([stored.absoluteExpiresAt.getTime()]);
       }
@@ -77,7 +79,8 @@ describe("RedisSessionStorageAdapter", () => {
   it("retains imported revocation and client metadata without renewing the session", async ({ redis }) => {
     const adapter = new RedisSessionStorageAdapter<Claims>(redis.client, { keyPrefix: redis.keyPrefix });
     const input = session("imported", {
-      revokedAt: new Date(),
+      // Use a value beyond Lua JSON's numeric precision to exercise string encoding.
+      revokedAt: new Date(8_000_000_000_000_123),
       revokeReason: "security",
       ipAddress: "192.0.2.10",
       userAgent: "Kestrel test client",
@@ -92,6 +95,20 @@ describe("RedisSessionStorageAdapter", () => {
     await expect(adapter.listForAccount(input.accountId)).resolves.toEqual([input]);
   });
 
+  it("rejects an unknown script operation without revoking the account's sessions", async ({ redis }) => {
+    const adapter = new RedisSessionStorageAdapter<Claims>(redis.client, { keyPrefix: redis.keyPrefix });
+    const stored = await adapter.createSession(session());
+    const keys = ["records", "digests", "accounts"].map((name) => `${redis.keyPrefix}{sessions}:${name}`);
+
+    await expect(redis.client.eval(sessionScript, {
+      keys,
+      arguments: ["unknown", JSON.stringify({
+        accountId: stored.accountId, revokedAt: Date.now(), reason: "unsupported-command",
+      })],
+    })).rejects.toThrow("Invalid Redis session operation");
+    await expect(adapter.findByTokenDigest(stored.tokenDigest)).resolves.toEqual(stored);
+  });
+
   it("rejects invalid key prefixes, digests and deadline ordering before reaching Redis", async () => {
     const client = { eval: vi.fn() };
     const adapter = new RedisSessionStorageAdapter<Claims>(client);
@@ -104,6 +121,15 @@ describe("RedisSessionStorageAdapter", () => {
     await expect(adapter.createSession({ ...stored, absoluteExpiresAt: stored.createdAt }))
       .rejects.toThrow("Idle expiration cannot exceed absolute expiration");
     expect(client.eval).not.toHaveBeenCalled();
+    const keyPrefix = "application:authentication:";
+    expect(redisSessionsConfigBase.schema.parse({ keyPrefix })).toEqual({ keyPrefix });
+  });
+
+  it("allows idle and absolute deadlines to coincide", async ({ redis }) => {
+    const adapter = new RedisSessionStorageAdapter<Claims>(redis.client, { keyPrefix: redis.keyPrefix });
+    const stored = session();
+    const input = { ...stored, idleExpiresAt: stored.absoluteExpiresAt };
+    await expect(adapter.createSession(input)).resolves.toStrictEqual(input);
   });
 
   it("distinguishes malformed Redis responses from a missing session or successful revocation", async () => {
@@ -117,6 +143,9 @@ describe("RedisSessionStorageAdapter", () => {
       .rejects.toThrow("Invalid Redis session list result");
     await expect(adapter.revoke({ id: stored.id, revokedAt: stored.createdAt, reason: "logout" }))
       .rejects.toThrow("Invalid Redis session revocation result");
+    client.eval.mockResolvedValue(-1);
+    await expect(adapter.revokeAllForAccount({ accountId: stored.accountId, revokedAt: stored.createdAt, reason: "logout" }))
+      .rejects.toThrow();
   });
 
   it("extends activity monotonically and never exceeds absolute expiration", async ({ redis }) => {

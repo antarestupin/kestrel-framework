@@ -78,3 +78,18 @@ export function runOutboundHttpMiddleware(
 
   return dispatch(0, context);
 }
+
+/** Parses Retry-After as decimal delay-seconds or an HTTP date. */
+export function parseRetryAfter(value: string | null, nowMs: number): number | undefined {
+  const header = value?.trim();
+  if (!header) return undefined;
+  if (/^\d+$/u.test(header)) {
+    const timestamp = nowMs + Number(header) * 1_000;
+    return Number.isFinite(timestamp) ? timestamp : undefined;
+  }
+
+  // Date.parse also accepts bare signed numbers and other non-HTTP formats.
+  if (!/^[a-z]{3,9}[, ]/iu.test(header) || !/\d{2}:\d{2}:\d{2}/u.test(header)) return undefined;
+  const timestamp = Date.parse(header.includes(",") ? header : `${header} GMT`);
+  return Number.isNaN(timestamp) ? undefined : timestamp;
+}

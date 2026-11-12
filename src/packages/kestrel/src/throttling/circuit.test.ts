@@ -154,6 +154,46 @@ describe("process-local circuit breaking", () => {
     await manager.close();
   });
 
+  it("keeps prior closed-state failures without adding a failure for cancellation", async () => {
+    const clock = new CircuitClock();
+    const manager = createManager(clock);
+    const policy = circuitPolicy({ failureThreshold: 2 });
+    const cancelled = new DOMException("caller cancelled", "AbortError");
+
+    await completeFailure(manager, policy);
+    await expect(manager.run(policy, (context) => {
+      context.reportFeedback({ kind: "cancelled" });
+      throw cancelled;
+    })).rejects.toBe(cancelled);
+    await expect(manager.inspect(policy)).resolves.toEqual({ state: "available", reasons: [] });
+
+    // Cancellation must not erase an earlier dependency failure either.
+    await completeFailure(manager, policy);
+    await expect(manager.acquire(policy)).rejects.toBeInstanceOf(ThrottlingCircuitOpenError);
+  });
+
+  it("returns a cancelled half-open slot without reopening or advancing recovery", async () => {
+    const clock = new CircuitClock();
+    const manager = createManager(clock);
+    const policy = circuitPolicy({ failureThreshold: 1, successThreshold: 2 });
+    await completeFailure(manager, policy);
+    await clock.advance(1_000);
+    const abandoned = await manager.acquire(policy);
+    await abandoned.complete({ outcome: "failure", feedback: { kind: "cancelled" } });
+
+    const firstSuccess = await manager.acquire(policy);
+    await expect(manager.acquire(policy)).rejects.toBeInstanceOf(ThrottlingCircuitOpenError);
+    await firstSuccess.complete({ outcome: "success" });
+    const finalProbe = await manager.acquire(policy);
+    // Counting the cancelled probe as success would already have closed the circuit.
+    await expect(manager.acquire(policy)).rejects.toBeInstanceOf(ThrottlingCircuitOpenError);
+    await finalProbe.complete({ outcome: "success" });
+
+    const closed = await manager.acquire(policy);
+    const concurrent = await manager.acquire(policy);
+    await Promise.all([closed.complete({ outcome: "success" }), concurrent.complete({ outcome: "success" })]);
+  });
+
   it("checks circuits before consuming authoritative rate capacity", async () => {
     const clock = new CircuitClock();
     let rateReservations = 0;
@@ -500,7 +540,8 @@ describe("process-local circuit breaking", () => {
 
   it("reschedules existing waiters to the new cooldown when a probe reopens the circuit", async () => {
     const clock = new CircuitClock();
-    const manager = createManager(clock);
+    const events: ThrottlingInstrumentationEvent[] = [];
+    const manager = createManager(clock, events);
     const policy = circuitPolicy({ failureThreshold: 1 });
     await completeFailure(manager, policy);
     await clock.advance(1_000);
@@ -517,6 +558,7 @@ describe("process-local circuit breaking", () => {
     expect(waiting.settled).toBe(false);
     await clock.advance(1);
     expect(waiting.permit).toBeDefined();
+    expect(events.at(-1)).toMatchObject({ type: "acquisition", outcome: "success", data: { attempts: 2 } });
     await waiting.permit!.complete({ outcome: "success" });
   });
 

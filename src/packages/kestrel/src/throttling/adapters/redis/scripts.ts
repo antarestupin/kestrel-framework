@@ -79,7 +79,9 @@ if retryDelay == 0 and (mode == 'reserve' or mode == 'allocate') then
       local outstanding = 0
       for _, lease in pairs(state.leases) do outstanding = outstanding + lease.units end
       local headroom = math.max(0, coordination.maxOutstandingUnits - outstanding)
-      if state.tokens > coordination.guardBandUnits + request.cost + 0.0000000000000002
+      -- A leased block must cover the current reservation on its own.
+      if request.cost <= coordination.maxLeaseUnits
+          and state.tokens > coordination.guardBandUnits + request.cost + 0.0000000000000002
           and headroom + 0.0000000000000002 >= request.cost then
         units = math.min(coordination.maxLeaseUnits, headroom, math.max(request.cost, state.tokens - coordination.guardBandUnits))
         allocation = {mode = 'lease', leaseId = request.leaseId, units = units, expiresAt = now + coordination.leaseMs}

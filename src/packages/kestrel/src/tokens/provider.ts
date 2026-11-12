@@ -67,7 +67,7 @@ export class TokenProvider<Config> implements Provider<Config> {
           );
 
     return {
-      ...(tokenStore === undefined
+      ...(tokenStore === undefined || this.options.stored === false
         ? {}
         : {
             stored: new StoredTokenStrategy(tokenStore, {

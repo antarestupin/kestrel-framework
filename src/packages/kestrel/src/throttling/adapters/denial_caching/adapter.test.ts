@@ -68,6 +68,54 @@ describe("DenialCachingRateLimitAdapter", () => {
     expect(reserve.mock.calls).toEqual([[request], [changed]]);
   });
 
+  it("keeps cached single denials independent of returned retry dates", async () => {
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValue({ admitted: false, remaining: 0, retryAt: new Date(1_000) });
+    const adapter = new DenialCachingRateLimitAdapter({ reserve }, fixedClock);
+
+    const original = await adapter.reserve(request);
+    if (original.admitted) throw new Error("Expected an authoritative denial.");
+    original.retryAt.setTime(99_000);
+
+    const cached = await adapter.reserve(request);
+    if (cached.admitted) throw new Error("Expected a cached denial.");
+    expect(cached.retryAt).toEqual(new Date(1_000));
+    cached.retryAt.setTime(80_000);
+
+    const [inspection] = await adapter.inspectMany([request]);
+    expect(inspection?.retryAt).toEqual(new Date(1_000));
+    inspection?.retryAt?.setTime(70_000);
+    await expect(adapter.reserve(request)).resolves.toMatchObject({ retryAt: new Date(1_000) });
+    expect(reserve).toHaveBeenCalledOnce();
+  });
+
+  it("keeps cached batch denials independent of caller-owned retry dates and remaining amounts", async () => {
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>();
+    const amounts = { [request.key]: 0.25, [otherRequest.key]: 0 };
+    const originalDate = new Date(1_000);
+    const reserveMany = vi.fn<NonNullable<RateLimitAdapter["reserveMany"]>>()
+      .mockResolvedValue({ admitted: false, remaining: amounts, retryAt: originalDate });
+    const adapter = new DenialCachingRateLimitAdapter({ reserve, reserveMany }, fixedClock);
+    const batch = [request, otherRequest];
+
+    await adapter.reserveMany(batch);
+    amounts[request.key] = 10;
+    originalDate.setTime(99_000);
+
+    const cached = await adapter.reserveMany(batch);
+    if (cached.admitted) throw new Error("Expected a cached batch denial.");
+    expect(cached).toEqual({
+      admitted: false, retryAt: new Date(1_000), remaining: { [request.key]: 0.25, [otherRequest.key]: 0 },
+      source: "denial-cache",
+    });
+    cached.retryAt.setTime(90_000);
+    Object.assign(cached.remaining, { [request.key]: 20 });
+    await expect(adapter.reserveMany(batch)).resolves.toMatchObject({
+      retryAt: new Date(1_000), remaining: { [request.key]: 0.25, [otherRequest.key]: 0 },
+    });
+    expect(reserveMany).toHaveBeenCalledOnce();
+  });
+
   it("coalesces concurrent denials but never shares successful admissions", async () => {
     let deniedCalls = 0;
     const denied = new DenialCachingRateLimitAdapter({
@@ -111,6 +159,65 @@ describe("DenialCachingRateLimitAdapter", () => {
     expect(admittedCalls).toBe(3);
     expect(admissions.map((result) => result.remaining)).toEqual([9, 8, 7]);
   });
+
+  it.each(["single", "batch"] as const)(
+    "serializes a %s key without blocking independent requests",
+    async (kind) => {
+      const releaseFirst = Promise.withResolvers<void>();
+      const releaseSecond = Promise.withResolvers<void>();
+      const firstStarted = Promise.withResolvers<void>();
+      const secondStarted = Promise.withResolvers<void>();
+      const seen: string[] = [];
+      let sharedCount = 0;
+      const wait = async (key: string) => {
+        seen.push(key);
+        if (key !== request.key) return;
+        sharedCount += 1;
+        if (sharedCount === 1) {
+          firstStarted.resolve();
+          await releaseFirst.promise;
+        } else if (sharedCount === 2) {
+          secondStarted.resolve();
+          await releaseSecond.promise;
+        }
+      };
+      const adapter = new DenialCachingRateLimitAdapter({
+        reserve: async ({ key }) => {
+          await wait(key);
+          return { admitted: true, remaining: 0 };
+        },
+        reserveMany: async ([first]) => {
+          await wait(first!.key);
+          return { admitted: true, remaining: {} };
+        },
+      }, fixedClock);
+      const attempt = (value: RateLimitReservationRequest) => kind === "single"
+        ? adapter.reserve(value)
+        : adapter.reserveMany([value, otherRequest]);
+
+      const first = attempt(request);
+      await firstStarted.promise;
+      const second = attempt(request);
+      const independent = attempt({ ...request, key: "test:independent" });
+      const pending = [first, second, independent];
+      try {
+        // Drain pending continuations while the first matching backend call is held.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(seen).toEqual([request.key, "test:independent"]);
+        releaseFirst.resolve();
+        await secondStarted.promise;
+        const third = attempt(request);
+        pending.push(third);
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(seen).toEqual([request.key, "test:independent", request.key]);
+      } finally {
+        releaseFirst.resolve();
+        releaseSecond.resolve();
+        await Promise.allSettled(pending);
+      }
+      expect(sharedCount).toBe(3);
+    },
+  );
 
   it("caches batches by their complete request signature", async () => {
     let calls = 0;
@@ -177,7 +284,7 @@ describe("DenialCachingRateLimitAdapter", () => {
     const reserve = vi.fn<RateLimitAdapter["reserve"]>()
       .mockResolvedValueOnce({ admitted: true, remaining: 1, source: "authoritative" })
       .mockResolvedValueOnce({ admitted: true, remaining: 0 })
-      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt });
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt, source: "authoritative" });
     const adapter = new DenialCachingRateLimitAdapter({ reserve }, fixedClock);
 
     await expect(adapter.reserveMany([request])).resolves.toEqual({
@@ -187,13 +294,34 @@ describe("DenialCachingRateLimitAdapter", () => {
       admitted: true, remaining: { [request.key]: 0 },
     });
     await expect(adapter.reserveMany([request])).resolves.toEqual({
-      admitted: false, remaining: { [request.key]: 0 }, retryAt,
+      admitted: false, remaining: { [request.key]: 0 }, retryAt, source: "authoritative",
     });
     await expect(adapter.reserveMany([request])).resolves.toEqual({
       admitted: false, remaining: { [request.key]: 0 }, retryAt, source: "denial-cache",
     });
     expect(reserve).toHaveBeenCalledTimes(3);
   });
+
+  it.each(["single", "batch"] as const)(
+    "calculates a %s denial's duration from a nonzero wall clock",
+    async (kind) => {
+      let monotonicMs = 700;
+      const deadline = new Date(11_000);
+      const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+        .mockResolvedValue({ admitted: false, remaining: 0, retryAt: deadline, source: "authoritative" });
+      const reserveMany = vi.fn<NonNullable<RateLimitAdapter["reserveMany"]>>()
+        .mockResolvedValue({ admitted: false, remaining: {}, retryAt: deadline, source: "authoritative" });
+      const adapter = new DenialCachingRateLimitAdapter({ reserve, reserveMany }, {
+        now: () => new Date(10_000), monotonicNow: () => monotonicMs,
+      });
+      const attempt = () => kind === "single" ? adapter.reserve(request) : adapter.reserveMany([request, otherRequest]);
+      await expect(attempt()).resolves.toMatchObject({ source: "authoritative", retryAt: deadline });
+      monotonicMs = 1_699;
+      await expect(attempt()).resolves.toMatchObject({ source: "denial-cache", retryAt: deadline });
+      monotonicMs = 1_700;
+      await expect(attempt()).resolves.toMatchObject({ source: "authoritative", retryAt: deadline });
+    },
+  );
 
   it("combines cached denials and fresh inspections in request order", async () => {
     const storage = new MemoryRateLimitAdapter({ now: fixedClock.now });
@@ -294,6 +422,28 @@ describe("DenialCachingRateLimitAdapter", () => {
     expect(reserveMany).toHaveBeenCalledTimes(2);
   });
 
+  it.each([
+    ["single", new Date(10_000)],
+    ["single", new Date(NaN)],
+    ["batch", new Date(9_999)],
+    ["batch", new Date(NaN)],
+  ] as const)("keeps a useful denial when a %s denial has no future deadline (%s)", async (kind, deadline) => {
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(11_000) })
+      .mockResolvedValue({ admitted: false, remaining: 0, retryAt: deadline });
+    const reserveMany = vi.fn<NonNullable<RateLimitAdapter["reserveMany"]>>()
+      .mockResolvedValue({ admitted: false, remaining: {}, retryAt: deadline });
+    const adapter = new DenialCachingRateLimitAdapter({ reserve, reserveMany }, {
+      now: () => new Date(10_000), monotonicNow: () => 1_000, maxEntries: 1,
+    });
+
+    await adapter.reserve(request);
+    if (kind === "single") await adapter.reserve(otherRequest);
+    else await adapter.reserveMany([otherRequest, { ...otherRequest, key: "test:third" }]);
+    await expect(adapter.reserve(request)).resolves.toMatchObject({ source: "denial-cache" });
+    expect(reserve).toHaveBeenCalledTimes(kind === "single" ? 2 : 1);
+  });
+
   it.each(["wall", "monotonic"] as const)("releases a reservation after an invalid %s clock reading", async (clock) => {
     let valid = false;
     const reserve = vi.fn<RateLimitAdapter["reserve"]>().mockResolvedValue({ admitted: false, remaining: 0, retryAt });
@@ -359,6 +509,23 @@ describe("DenialCachingRateLimitAdapter", () => {
     await expect(attempt("test:newer")).resolves.toMatchObject({ source: "denial-cache" });
     await expect(attempt("test:earlier")).resolves.not.toHaveProperty("source");
     expect(kind === "single" ? reserve : reserveMany).toHaveBeenCalledTimes(3);
+  });
+
+  it("prunes a recently inserted expired single entry before evicting a long-lived denial", async () => {
+    let monotonicMs = 0;
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(10_000) })
+      .mockResolvedValue({ admitted: false, remaining: 0, retryAt });
+    const adapter = new DenialCachingRateLimitAdapter({ reserve }, {
+      ...fixedClock, monotonicNow: () => monotonicMs, maxEntries: 2,
+    });
+
+    await adapter.reserve(request);
+    await adapter.reserve(otherRequest);
+    monotonicMs = 1_000;
+    await adapter.reserve({ ...request, key: "test:new" });
+    await expect(adapter.reserve(request)).resolves.toMatchObject({ source: "denial-cache" });
+    expect(reserve).toHaveBeenCalledTimes(3);
   });
 
   it.each(["single", "batch"] as const)(

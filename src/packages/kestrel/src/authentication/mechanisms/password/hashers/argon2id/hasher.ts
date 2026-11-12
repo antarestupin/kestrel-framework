@@ -77,7 +77,8 @@ export class Argon2idPasswordHasher implements PasswordHasher {
       parallelism: options.parallelism ?? 1,
       saltBytes: options.saltBytes ?? 16,
       tagBytes: options.tagBytes ?? 32,
-      ...(options.pepper === undefined ? {} : { pepper: options.pepper }),
+      // Snapshot the supplied secret so the caller can release or clear its buffer.
+      ...(options.pepper === undefined ? {} : { pepper: Uint8Array.from(options.pepper) }),
     };
     this.verificationLimits = {
       maxEncodedHashChars: options.verificationLimits?.maxEncodedHashChars
@@ -226,17 +227,13 @@ function parseHash(
   };
 
   try {
+    // The encoded field limits already bound the decoded byte lengths.
     validateOptions(options);
-    if (
-      options.saltBytes > limits.maxSaltBytes
-      || options.tagBytes > limits.maxTagBytes
-    ) {
-      return undefined;
-    }
-    return { options, salt, tag };
   } catch {
     return undefined;
   }
+
+  return { options, salt, tag };
 }
 
 function validateVerificationLimits(

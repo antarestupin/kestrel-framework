@@ -30,6 +30,7 @@ interface AuthenticationProviderDependencies<Subject extends AuthenticationSubje
 }
 
 interface PasswordMechanismProviderDependencies {
+  accountStore: AccountStorageAdapter;
   passwordCredentialStore: PasswordCredentialStorageAdapter;
   passwordHasher: PasswordHasher;
   usernameNormalizer: DefaultUsernameNormalizer;
@@ -96,6 +97,7 @@ export class AuthenticationProvider<
       (dependencies: PasswordMechanismProviderDependencies) =>
         new PasswordMechanism(
           {
+            accountStore: dependencies.accountStore,
             credentialStore: dependencies.passwordCredentialStore,
             passwordHasher: dependencies.passwordHasher,
             usernameNormalizer: dependencies.usernameNormalizer,

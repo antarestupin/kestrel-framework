@@ -13,6 +13,7 @@ import type {
 import type { LocalResourcePressureState } from "./resource_pressure/index.js";
 
 export type ThrottlingClassifiedFeedback =
+  | "cancelled"
   | "permanent"
   | "success"
   | "throttled"

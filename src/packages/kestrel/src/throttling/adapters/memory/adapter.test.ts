@@ -105,7 +105,7 @@ describe("MemoryRateLimitAdapter", () => {
       periodMs: 1_000,
       burst: 1,
       cost: 1,
-    })).rejects.toThrow(TypeError);
+    })).rejects.toThrow("keys cannot be empty");
 
     await expect(adapter.reserve({
       key: "app:api",
@@ -130,6 +130,29 @@ describe("MemoryRateLimitAdapter", () => {
       { ...invalid, actualCost: -1, estimatedCost: 1 },
     ])).rejects.toThrow("actualCost must be a non-negative finite number");
     await expect(adapter.reserve(singleUnit)).resolves.toEqual({ admitted: true, remaining: 0 });
+  });
+
+  it("reports every batch dimension and the longest refill wait without consuming the free bucket", async () => {
+    let now = 1_000;
+    const adapter = new MemoryRateLimitAdapter({ now: () => new Date(now) });
+    const fast = { ...singleUnit, key: "fast", periodMs: 400 };
+    const slow = { ...singleUnit, key: "slow", periodMs: 800 };
+    const free = { ...singleUnit, key: "free" };
+    await adapter.reserveMany([fast, slow]);
+    now += 200;
+
+    await expect(adapter.reserveMany([fast, free, slow])).resolves.toEqual({
+      admitted: false, remaining: { fast: 0.5, free: 1, slow: 0.25 },
+      retryAt: new Date(1_800), source: "local",
+    });
+    await expect(adapter.inspectMany([fast, free, slow])).resolves.toEqual([
+      { available: false, remaining: 0.5, retryAt: new Date(1_400), source: "local" },
+      { available: true, remaining: 1, source: "local" },
+      { available: false, remaining: 0.25, retryAt: new Date(1_800), source: "local" },
+    ]);
+    await expect(adapter.reserve(free)).resolves.toEqual({ admitted: true, remaining: 0 });
+    await expect(adapter.inspectMany([fast, { ...slow, cost: 0 }])).rejects.toThrow("cost must be a positive finite number");
+    await expect(adapter.reconcile([{ ...fast, cost: 0, actualCost: 1, estimatedCost: 1 }])).rejects.toThrow("cost must be a positive finite number");
   });
 
   it("leaves buckets unchanged when the clock cannot supply a valid timestamp", async () => {

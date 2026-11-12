@@ -31,7 +31,7 @@ interface LocalLease {
 interface CachedLeaseDenial {
   readonly expiresAtMs: number;
   readonly remaining: Readonly<Record<string, number>>;
-  readonly retryAt: Date;
+  readonly retryAtMs: number;
 }
 
 export interface LeasedRateLimitAdapterOptions {
@@ -241,9 +241,14 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
     if (this.closePromise !== undefined) return this.closePromise;
     this.closed = true;
     // A reservation already in flight can add a grant. Drain it before returning local capacity.
-    this.closePromise = Promise.allSettled(this.pendingReservations)
-      .then(() => this.returnLocalLeases())
-      .finally(() => this.authoritative.close?.());
+    this.closePromise = Promise.allSettled(this.pendingReservations).then(async () => {
+      const errors: unknown[] = [];
+      try { await this.returnLocalLeases(); } catch (error) { errors.push(error); }
+      // A failed return still releases the backend, while both failures remain observable.
+      try { await this.authoritative.close?.(); } catch (error) { errors.push(error); }
+      if (errors.length === 1) throw errors[0];
+      if (errors.length > 1) throw new AggregateError(errors, "Leased throttling adapter teardown failed.");
+    });
     return this.closePromise;
   }
 
@@ -257,8 +262,8 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
     if (cached !== undefined) {
       return {
         admitted: false,
-        remaining: cached.remaining,
-        retryAt: cached.retryAt,
+        remaining: { ...cached.remaining },
+        retryAt: new Date(cached.retryAtMs),
         source: "leased",
       };
     }
@@ -280,13 +285,16 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
 
       if (!allocation.admitted) {
         const retryAt = this.addRetryJitter(allocation.retryAt);
-        const denial = {
-          expiresAtMs: this.getMonotonicNow()
-            + Math.max(0, retryAt.getTime() - this.getNowMs()),
-          remaining: allocation.remaining,
-          retryAt,
-        };
-        this.cacheDenial(signature, denial);
+        const retryAtMs = retryAt.getTime();
+        const waitMs = retryAtMs - this.getNowMs();
+        // Only authoritative denials apply to later calls after storage recovers.
+        if (source !== "emergency-local" && waitMs > 0) {
+          this.cacheDenial(signature, {
+            expiresAtMs: this.getMonotonicNow() + waitMs,
+            remaining: { ...allocation.remaining },
+            retryAtMs,
+          });
+        }
         for (const current of missing) {
           this.recordLease(current.key, "reject", current.cost, {
             remaining: allocation.remaining[current.key] ?? 0,

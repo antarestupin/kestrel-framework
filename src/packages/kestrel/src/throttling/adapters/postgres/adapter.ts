@@ -639,6 +639,7 @@ export class PostgresRateLimitAdapter implements
     database: PostgresRateLimitDatabase,
     leases: readonly RateLimitLeaseReturn[],
   ): Promise<number> {
+    // A return may wait while the lock holder advances the bucket's refill clock.
     const result = await database.execute(sql`
       WITH input AS MATERIALIZED (
         SELECT *
@@ -698,7 +699,8 @@ export class PostgresRateLimitAdapter implements
                 )) * 1000
               ) * ${this.table.limit} / ${this.table.periodMs}
             ) + refunds.units
-          ) AS remaining
+          ) AS remaining,
+          GREATEST(${this.table.refilledAt}, statement_timestamp()) AS refilled_at
         FROM ${this.table}
         JOIN refunds ON refunds.key = ${this.table.key}
         ORDER BY ${this.table.key}
@@ -707,8 +709,8 @@ export class PostgresRateLimitAdapter implements
         UPDATE ${this.table}
         SET
           ${sql.identifier("tokens")} = calculated.remaining,
-          ${sql.identifier("refilled_at")} = statement_timestamp(),
-          ${sql.identifier("full_at")} = statement_timestamp() + (
+          ${sql.identifier("refilled_at")} = calculated.refilled_at,
+          ${sql.identifier("full_at")} = calculated.refilled_at + (
             ((${this.table.burst} - calculated.remaining)
               * ${this.table.periodMs} / ${this.table.limit})
             * interval '1 millisecond'
@@ -1168,8 +1170,9 @@ function createLeaseDecision(
     0,
     request.coordination.maxOutstandingUnits - capacity.outstanding,
   );
-  const exact = capacity.available
-      <= request.coordination.guardBandUnits + request.cost + Number.EPSILON
+  // A leased block must be large enough for the current reservation on its own.
+  const exact = request.cost > request.coordination.maxLeaseUnits
+    || capacity.available <= request.coordination.guardBandUnits + request.cost + Number.EPSILON
     || headroom + Number.EPSILON < request.cost;
 
   if (exact) {
@@ -1347,7 +1350,8 @@ function validateLeaseRequests(
   const requestKeys = new Set(requests.map(({ key }) => key));
 
   for (const lease of completedLeases) {
-    if (!requestKeys.has(lease.key)) {
+    // A return-only operation has no new request keys to match.
+    if (requestKeys.size > 0 && !requestKeys.has(lease.key)) {
       throw new TypeError(
         "Completed leases must belong to the allocation request keys.",
       );

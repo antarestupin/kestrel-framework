@@ -17,14 +17,14 @@ import type {
 interface SingleDenial {
   readonly expiresAtMs: number;
   readonly remaining: number;
-  readonly retryAt: Date;
+  readonly retryAtMs: number;
   readonly signature: string;
 }
 
 interface BatchDenial {
   readonly expiresAtMs: number;
   readonly remaining: Readonly<Record<string, number>>;
-  readonly retryAt: Date;
+  readonly retryAtMs: number;
 }
 
 export interface DenialCachingRateLimitAdapterOptions {
@@ -81,7 +81,7 @@ implements LeasableRateLimitAdapter {
         return {
           admitted: false,
           remaining: cached.remaining,
-          retryAt: cached.retryAt,
+          retryAt: new Date(cached.retryAtMs),
           source: "denial-cache",
         };
       }
@@ -127,8 +127,8 @@ implements LeasableRateLimitAdapter {
       if (cached !== undefined) {
         return {
           admitted: false,
-          remaining: cached.remaining,
-          retryAt: cached.retryAt,
+          remaining: { ...cached.remaining },
+          retryAt: new Date(cached.retryAtMs),
           source: "denial-cache",
         };
       }
@@ -184,7 +184,7 @@ implements LeasableRateLimitAdapter {
         results[index] = {
           available: false,
           remaining: cached.remaining,
-          retryAt: cached.retryAt,
+          retryAt: new Date(cached.retryAtMs),
           source: "denial-cache",
         };
       }
@@ -245,14 +245,16 @@ implements LeasableRateLimitAdapter {
     request: RateLimitReservationRequest,
     result: Extract<RateLimitReservationResult, { admitted: false }>,
   ): void {
-    const expiresAtMs = this.getExpiration(result.retryAt);
+    // Keep the cached deadline independent of the result returned to callers.
+    const retryAtMs = result.retryAt.getTime();
+    const expiresAtMs = this.getExpiration(retryAtMs);
 
     if (expiresAtMs === undefined) return;
     this.makeSpace();
     this.singleDenials.set(request.key, {
       expiresAtMs,
       remaining: result.remaining,
-      retryAt: result.retryAt,
+      retryAtMs,
       signature: requestSignature(request),
     });
   }
@@ -261,14 +263,15 @@ implements LeasableRateLimitAdapter {
     signature: string,
     result: Extract<RateLimitBatchReservationResult, { admitted: false }>,
   ): void {
-    const expiresAtMs = this.getExpiration(result.retryAt);
+    const retryAtMs = result.retryAt.getTime();
+    const expiresAtMs = this.getExpiration(retryAtMs);
 
     if (expiresAtMs === undefined) return;
     this.makeSpace();
     this.batchDenials.set(signature, {
       expiresAtMs,
-      remaining: result.remaining,
-      retryAt: result.retryAt,
+      remaining: { ...result.remaining },
+      retryAtMs,
     });
   }
 
@@ -300,8 +303,8 @@ implements LeasableRateLimitAdapter {
     return undefined;
   }
 
-  private getExpiration(retryAt: Date): number | undefined {
-    const waitMs = retryAt.getTime() - this.getNowMs();
+  private getExpiration(retryAtMs: number): number | undefined {
+    const waitMs = retryAtMs - this.getNowMs();
 
     return Number.isFinite(waitMs) && waitMs > 0
       ? this.getMonotonicNow() + waitMs

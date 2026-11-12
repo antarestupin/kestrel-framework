@@ -4,6 +4,7 @@ import type {
   CreateStoredToken, StoredToken, StoredTokenLookup, StoredTokenRevocation,
   StoredTokenSubjectMutation, TokenPruneOptions, TokenStorageAdapter,
 } from "../../types.js";
+import { validateTokenPruneOptions } from "../../lifetime.js";
 import { redisTokensConfigBase, type RedisTokensConfig } from "./configuration.js";
 import { tokenScript } from "./scripts.js";
 
@@ -77,7 +78,7 @@ export class RedisTokenStorageAdapter implements TokenStorageAdapter {
   }
 
   public async prune(options: TokenPruneOptions): Promise<number> {
-    if (!Number.isSafeInteger(options.limit) || options.limit <= 0) throw new TypeError("Token prune limits must be positive safe integers.");
+    validateTokenPruneOptions(options);
     return this.count("prune", { expiredBefore: validTime(options.expiredBefore), inactiveBefore: validTime(options.inactiveBefore), limit: options.limit });
   }
 

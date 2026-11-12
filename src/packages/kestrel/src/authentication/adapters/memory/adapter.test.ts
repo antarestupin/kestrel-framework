@@ -26,6 +26,9 @@ describe("MemoryAuthenticationAdapter", () => {
     const adapter = new MemoryAuthenticationAdapter();
     const account = await adapter.createAccount({ subjectId: "subject", state: "disabled" });
 
+    // The default clock supplies usable audit timestamps.
+    expect(Number.isFinite(account.createdAt.getTime())).toBe(true);
+    expect(account.updatedAt).toEqual(account.createdAt);
     await expect(adapter.findBySubjectId("subject")).resolves.toEqual(account);
     await expect(adapter.findBySubjectId("missing")).resolves.toBeUndefined();
     await expect(adapter.findById("missing")).resolves.toBeUndefined();
@@ -118,6 +121,48 @@ describe("MemoryAuthenticationAdapter", () => {
     await expect(adapter.findById(other.id)).resolves.toEqual(other);
   });
 
+  it("invalidates the previous security version when an account changes state", async () => {
+    const adapter = new MemoryAuthenticationAdapter();
+    const account = await adapter.createAccount({ subjectId: "subject" });
+
+    await expect(adapter.setState({ accountId: account.id, state: "disabled" }))
+      .resolves.toMatchObject({ state: "disabled", securityVersion: account.securityVersion + 1 });
+    await expect(adapter.setState({ accountId: account.id, state: "active" }))
+      .resolves.toMatchObject({ state: "active", securityVersion: account.securityVersion + 2 });
+  });
+
+  it("keeps session claims detached from input and output objects", async () => {
+    const adapter = new MemoryAuthenticationAdapter<{ role: { name: string } }>();
+    const account = await adapter.createAccount({ subjectId: "subject" });
+    const claims = { role: { name: "member" } };
+    const stored = await adapter.createSession({ ...sessionInput(account), claims });
+    claims.role.name = "owner";
+    stored.claims.role.name = "admin";
+
+    const listed = await adapter.listForAccount(account.id);
+    expect(listed[0]?.claims).toEqual({ role: { name: "member" } });
+    listed[0]!.claims.role.name = "administrator";
+    await expect(adapter.findByTokenDigest(stored.tokenDigest))
+      .resolves.toMatchObject({ claims: { role: { name: "member" } } });
+  });
+
+  it("preserves the latest activity when a stale touch completes after a fresh touch", async () => {
+    const adapter = new MemoryAuthenticationAdapter();
+    const account = await adapter.createAccount({ subjectId: "subject" });
+    const session = await adapter.createSession(sessionInput(account));
+    const latest = new Date(epoch + 500);
+    const fresh = await adapter.touch({
+      id: session.id, now: latest, lastSeenAt: latest, idleExpiresAt: new Date(epoch + 3_000),
+    });
+
+    // A request that began earlier can write after a more recent one.
+    const older = new Date(epoch + 200);
+    await expect(adapter.touch({
+      id: session.id, now: older, lastSeenAt: older, idleExpiresAt: new Date(epoch + 1_200),
+    })).resolves.toEqual(fresh);
+    expect(fresh).toMatchObject({ lastSeenAt: latest, idleExpiresAt: session.absoluteExpiresAt });
+  });
+
   it("does not renew missing, expired or revoked sessions", async () => {
     const adapter = new MemoryAuthenticationAdapter();
     const account = await adapter.createAccount({ subjectId: "subject" });
@@ -131,14 +176,38 @@ describe("MemoryAuthenticationAdapter", () => {
 
     // Use an earlier clock value to exercise the revocation check independently of expiration.
     const revokedAt = new Date(epoch + 500);
+    await expect(adapter.revoke({ id: "missing", revokedAt, reason: "logout" })).resolves.toBe(false);
     await expect(adapter.revoke({ id: stored.id, revokedAt, reason: "logout" })).resolves.toBe(true);
     await expect(adapter.touch({ ...touch, now: revokedAt, lastSeenAt: revokedAt }))
       .resolves.toBeUndefined();
-    await expect(adapter.findByTokenDigest(stored.tokenDigest)).resolves.toEqual({
+    const revoked = await adapter.findByTokenDigest(stored.tokenDigest);
+    expect(revoked).toEqual({
       ...stored,
       revokedAt,
       revokeReason: "logout",
     });
+    revoked?.revokedAt?.setTime(epoch);
+    expect((await adapter.findByTokenDigest(stored.tokenDigest))?.revokedAt).toEqual(new Date(epoch + 500));
+  });
+
+  it("keeps stored revocation times independent from caller-owned dates", async () => {
+    const adapter = new MemoryAuthenticationAdapter();
+    const account = await adapter.createAccount({ subjectId: "subject" });
+    const single = await adapter.createSession(sessionInput(account));
+    const bulk = await adapter.createSession({
+      ...sessionInput(account), id: "bulk", tokenDigest: new Uint8Array([8]),
+    });
+    const singleRevokedAt = new Date(epoch + 100);
+    const bulkRevokedAt = new Date(epoch + 200);
+    await expect(adapter.revoke({ id: single.id, revokedAt: singleRevokedAt, reason: "logout" })).resolves.toBe(true);
+    await expect(adapter.revokeAllForAccount({
+      accountId: account.id, revokedAt: bulkRevokedAt, reason: "account-compromised",
+    })).resolves.toBe(1);
+
+    singleRevokedAt.setTime(0);
+    bulkRevokedAt.setTime(1);
+    expect((await adapter.findByTokenDigest(single.tokenDigest))?.revokedAt).toEqual(new Date(epoch + 100));
+    expect((await adapter.findByTokenDigest(bulk.tokenDigest))?.revokedAt).toEqual(new Date(epoch + 200));
   });
 
   it("does not renew a stored session at its absolute expiry even with later idle expiry", async () => {

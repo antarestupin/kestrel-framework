@@ -7,6 +7,7 @@ import type {
   TokenPruneOptions,
   TokenStorageAdapter,
 } from "../../types.js";
+import { validateTokenPruneOptions } from "../../lifetime.js";
 
 /** Process-local token storage with the same lifecycle semantics as PostgreSQL. */
 export class MemoryTokenStorageAdapter implements TokenStorageAdapter {
@@ -47,7 +48,9 @@ export class MemoryTokenStorageAdapter implements TokenStorageAdapter {
       digests.add(digest);
     }
 
-    for (const token of tokens) {
+    // Clone every proposed token before changing state. A later payload may fail cloning.
+    const prepared = tokens.map((token) => cloneToken(token));
+    for (const token of prepared) {
       if (token.replaceExistingForSubject) {
         for (const [id, existing] of this.tokens) {
           if (
@@ -64,7 +67,7 @@ export class MemoryTokenStorageAdapter implements TokenStorageAdapter {
         }
       }
 
-      this.tokens.set(token.id, cloneToken(token));
+      this.tokens.set(token.id, token);
     }
   }
 
@@ -144,6 +147,7 @@ export class MemoryTokenStorageAdapter implements TokenStorageAdapter {
   }
 
   public async prune(options: TokenPruneOptions): Promise<number> {
+    validateTokenPruneOptions(options);
     const candidates = [...this.tokens.values()]
       .filter((token) => isPrunable(token, options))
       .sort((left, right) =>
@@ -190,7 +194,7 @@ function isPrunable(token: StoredToken, options: TokenPruneOptions): boolean {
     );
 }
 
-function cloneToken(token: StoredToken): StoredToken {
+function cloneToken<Token extends StoredToken>(token: Token): Token {
   return {
     ...token,
     digest: new Uint8Array(token.digest),

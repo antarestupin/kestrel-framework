@@ -12,6 +12,8 @@ describe("NodeLocalResourcePressureSource", () => {
   it("reports heap and RSS in their documented units and ignores unknown signals", () => {
     const source = new NodeLocalResourcePressureSource();
     try {
+      expect(processHeapPressureSignal).toBe("process.heap");
+      expect(processRssPressureSignal).toBe("process.rss-bytes");
       expect(source.supports(processHeapPressureSignal)).toBe(true);
       expect(source.supports(processRssPressureSignal)).toBe(true);
       const heapFraction = source.read(processHeapPressureSignal)!;
@@ -57,6 +59,7 @@ describe("NodeLocalResourcePressureSource", () => {
   it("starts event-loop sampling lazily and clears the sample on read or close", async () => {
     const source = new NodeLocalResourcePressureSource();
     try {
+      expect(processEventLoopDelayPressureSignal).toBe("process.event-loop-delay-p99-ms");
       expect(source.supports(processEventLoopDelayPressureSignal)).toBe(true);
       expect(source.read(processEventLoopDelayPressureSignal)).toBe(0);
       expect(source.read(processEventLoopDelayPressureSignal)).toBe(0);
@@ -65,6 +68,8 @@ describe("NodeLocalResourcePressureSource", () => {
         const delay = source.read(processEventLoopDelayPressureSignal)!;
         expect(Number.isFinite(delay)).toBe(true);
         expect(delay).toBeGreaterThan(0);
+        // A native histogram samples every 20 ms and reports nanoseconds before normalization.
+        expect(delay).toBeLessThan(30_000);
       }, { interval: 20, timeout: 1_000 });
       expect(source.read(processEventLoopDelayPressureSignal)).toBe(0);
       source.close();

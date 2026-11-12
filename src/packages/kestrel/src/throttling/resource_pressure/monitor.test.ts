@@ -150,6 +150,55 @@ describe("LocalResourcePressureMonitor", () => {
     }
   });
 
+  it("applies inclusive pressure thresholds and the earliest deadline across distinct signals", () => {
+    let time = 0;
+    const cpu = new MutablePressureSource("cpu", 0.25);
+    const heap = new MutablePressureSource("heap", 0);
+    const options = { degradedAt: 0.5, limitedAt: 1, recoveryRatio: 0.5 };
+    const signals = [{ id: "cpu", ...options }, { id: "heap", ...options }];
+    const monitor = new LocalResourcePressureMonitor([cpu, heap], {
+      now: () => new Date(time), monotonicNow: () => time,
+      healthyIntervalMs: 40, nearThresholdIntervalMs: 20, pressuredIntervalMs: 10, nearThresholdRatio: 0.5,
+    });
+    try {
+      // Equality enters each state and retains it at its recovery threshold.
+      for (const [at, value, state, refreshAt] of [
+        [0, 0.25, "healthy", 20],
+        [20, 0.5, "degraded", 30],
+        [30, 0.25, "degraded", 40],
+        [40, 1, "limited", 50],
+        [50, 0.5, "limited", 60],
+        [60, 0.4, "degraded", 70],
+        [70, 0.24, "healthy", 80],
+      ] as const) {
+        time = at;
+        cpu.value = value;
+        expect(monitor.evaluate("process", signals, "reject")).toMatchObject({
+          state, refreshAt: new Date(refreshAt), signals: [
+            { signalId: "cpu", state, value }, { signalId: "heap", state: "healthy", value: 0 },
+          ],
+        });
+      }
+    } finally {
+      monitor.close();
+    }
+  });
+
+  it("accepts zero as a near-threshold ratio and reports unregistered signals without readings", () => {
+    const monitor = new LocalResourcePressureMonitor([], {
+      now: () => new Date(100), monotonicNow: () => 0, nearThresholdRatio: 0,
+    });
+    try {
+      const signal = { id: "absent", degradedAt: 0.5, limitedAt: 1, recoveryRatio: 0.5 };
+      expect(monitor.evaluate("process", [signal], "reject")).toEqual({
+        state: "unknown", signals: [{ signalId: "absent", state: "unknown" }], refreshAt: new Date(350),
+      });
+      expect(monitor.supports(signal.id)).toBe(false);
+    } finally {
+      monitor.close();
+    }
+  });
+
   it("validates the ordering of configurable sampling intervals", () => {
     expect(() => new LocalResourcePressureMonitor([], {
       healthyIntervalMs: 100,
@@ -204,6 +253,7 @@ describe("LocalResourcePressureMonitor", () => {
     expect(monitor.evaluate("process", [signal], "ignore")).toEqual({
       state: "unknown", signals: [{ signalId: "cpu", state: "unknown" }], refreshAt: new Date(250),
     });
+    expect(monitor.evaluate("process", [signal], "reject").signals).toEqual([{ signalId: "cpu", state: "unknown" }]);
     expect(read).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
   });

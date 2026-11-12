@@ -32,7 +32,7 @@ describe("OutboundHttpProvider", () => {
     expect(observer.record).toHaveBeenCalledTimes(2);
     expect(observer.record).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ name: "http.client.attempt" }),
+      expect.objectContaining({ name: "http.client.attempt", category: "http.client" }),
       expect.objectContaining({
         client: "partner",
         operation: "partner.GET./health",
@@ -41,7 +41,7 @@ describe("OutboundHttpProvider", () => {
     );
     expect(observer.record).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ name: "http.client.request" }),
+      expect.objectContaining({ name: "http.client.request", category: "http.client" }),
       expect.objectContaining({ attempts: 1 }),
       expect.objectContaining({ outcome: "success" }),
     );
@@ -53,6 +53,7 @@ describe("OutboundHttpProvider", () => {
       new OutboundHttpProvider(),
     );
     const factory = app.container.resolve(outboundHttpClientFactoryDependency);
+    expect(app.container.resolve(outboundHttpClientFactoryDependency)).toBe(factory);
     const client = factory.create({
       name: "partner",
       baseUrl: "https://partner.example",
@@ -63,6 +64,21 @@ describe("OutboundHttpProvider", () => {
 
     await expect(client.get("/health")).resolves.toBeInstanceOf(Response);
     await app.dispose();
+  });
+
+  it("keeps explicit telemetry and HTTP functional when optional observer resolution throws", async () => {
+    const app = new App({});
+    const record = vi.fn();
+    app.container.registerFactory("observerContext", () => { throw new Error("observer factory failed"); });
+    app.register(new OutboundHttpProvider());
+    try {
+      const client = app.container.resolve(outboundHttpClientFactoryDependency).create({
+        name: "partner", baseUrl: "https://partner.example",
+        fetch: async () => new Response(null, { status: 204 }), instrumentation: { record },
+      });
+      await expect(client.get("/health")).resolves.toMatchObject({ status: 204 });
+      expect(record).toHaveBeenCalledTimes(2);
+    } finally { await app.dispose(); }
   });
 
   it("records through both sinks and isolates their failures from the request", async () => {

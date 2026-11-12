@@ -3,7 +3,7 @@ import {
   OutboundHttpTimeoutError,
   OutboundHttpTransportError,
 } from "../../errors.js";
-import { defineOutboundHttpMiddleware } from "../../middleware.js";
+import { defineOutboundHttpMiddleware, parseRetryAfter } from "../../middleware.js";
 import {
   outboundHttpMiddlewarePriorities,
   type OutboundHttpMiddleware,
@@ -71,8 +71,8 @@ export function retryRequests(
         const delayMs = retryAfterDelay(response)
           ?? jitteredDelay(initialDelayMs, maxDelayMs, attempt, jitterRatio, random);
 
-        // Cancel the rejected attempt body so fetch can release its resources.
-        await response.body?.cancel().catch(() => {});
+        // Request disposal immediately even when the source cannot finish cancelling yet.
+        void response.body?.cancel().catch(() => {});
         await sleep(Math.min(maxDelayMs, delayMs), context.request.signal);
       }
 
@@ -87,17 +87,9 @@ function isRetryableError(error: unknown): boolean {
 }
 
 function retryAfterDelay(response: Response): number | undefined {
-  const value = response.headers.get("retry-after")?.trim();
-
-  if (value === undefined || value === "") return undefined;
-
-  const seconds = Number(value);
-
-  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
-
-  const instant = Date.parse(value);
-
-  return Number.isNaN(instant) ? undefined : Math.max(0, instant - Date.now());
+  const nowMs = Date.now();
+  const instant = parseRetryAfter(response.headers.get("retry-after"), nowMs);
+  return instant === undefined ? undefined : Math.max(0, instant - nowMs);
 }
 
 function jitteredDelay(

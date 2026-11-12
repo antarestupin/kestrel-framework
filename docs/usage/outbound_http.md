@@ -30,7 +30,7 @@ async function forecast(city: string) {
 }
 ```
 
-Structured routes must resolve to the configured base URL's origin. Path values are encoded as individual segments, and `.` and `..` are rejected as path values. Query arrays become repeated parameters. Use `post(path, { json: payload, response: json(schema) })` for JSON requests. `text`, `bytes` and `nativeResponse` select other decoders. Structured methods throw `OutboundHttpResponseError` for unsuccessful responses; low-level `fetch` accepts explicit absolute destinations and retains native response semantics.
+Structured routes use paths relative to the configured base URL. Authority prefixes, backslashes and ASCII control characters are rejected. Path values are encoded as individual segments, and `.` and `..` are rejected as path values. Query arrays become repeated parameters. Use `post(path, { json: payload, response: json(schema) })` for JSON requests. `text`, `bytes` and `nativeResponse` select other decoders. Structured methods throw `OutboundHttpResponseError` for unsuccessful responses; low-level `fetch` accepts explicit absolute destinations and retains native response semantics.
 
 ## Bound time, memory and cancellation
 
@@ -116,7 +116,9 @@ function cachedForecast(cache: Cache, city: string) {
 
 Include every value affecting the response in the cache key, including any account-specific context. Only successful responses are cached. Cache misses are bounded before base64 serialization; hits are checked against the current call's byte limit before decoding base64. A cache backend may have a smaller entry limit, including serialization overhead. Tags require a `TagAwareCache`.
 
-`throttleRequests` integrates [throttling](./throttling.md) per attempt. Middleware orders cache before retry before throttling, so cache hits avoid both admission and network work. The total timeout includes waits and retries. An admission signal supplied through `acquire` adds a cancellation boundary to the request signal. Unsafe methods are not retried by default; enabling retries requires an application idempotency policy. Inject `fetch` in tests to avoid network calls.
+When the request that starts a shared cache load is cancelled or exceeds its own response byte limit, waiting callers can fetch under their own signals and byte limits.
+
+`throttleRequests` integrates [throttling](./throttling.md) per attempt. Middleware orders cache before retry before throttling, so cache hits avoid both admission and network work. The total timeout includes waits and retries. An admission signal supplied through `acquire` adds a cancellation boundary to the request signal. Caller cancellation releases admitted capacity and leaves circuit health unchanged. Unsafe methods are not retried by default; enabling retries requires an application idempotency policy. Inject `fetch` in tests to avoid network calls.
 
 ## Use cases still to document
 
@@ -124,6 +126,6 @@ Include every value affecting the response in the cache key, including any accou
 - Compose throttling with retries so each network attempt acquires admission.
 - Cache multiple response types with scoped keys and tag invalidation.
 
-Retry backoff respects `maxDelayMs` after applying jitter for transport failures as well as retryable HTTP responses. `Retry-After` delays are capped by the same maximum; a configured logical deadline still bounds the complete operation.
+Retry backoff respects `maxDelayMs` after applying jitter for transport failures as well as retryable HTTP responses. A `Retry-After` header can supply a nonnegative integer number of seconds or an HTTP date. Its delay is capped by the same maximum. A configured logical deadline still bounds the complete operation.
 
 Long retry delays are split into Node-compatible timer intervals without shortening the logical backoff. Caller cancellation releases the current interval and prevents another attempt.

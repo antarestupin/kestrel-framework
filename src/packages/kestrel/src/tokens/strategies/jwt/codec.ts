@@ -19,6 +19,8 @@ const TOKEN_DEFINITION_CLAIM = "token_definition";
 const TOKEN_PAYLOAD_CLAIM = "token_payload";
 const DEFAULT_TYPE = "token+jwt";
 const DEFAULT_MAX_TOKEN_LENGTH = 16_384;
+// NumericDate uses seconds, while the ECMAScript Date range is measured in milliseconds.
+const MAX_NUMERIC_DATE = 8_640_000_000_000;
 
 export interface JwtTokenCodecOptions {
   readonly issuer: string;
@@ -101,8 +103,11 @@ export class JwtTokenCodec {
     options: IssueTokenOptions,
   ): Promise<readonly IssuedJwtToken[]> {
     const now = this.now();
-    const requestedExpiration = resolveTokenExpiration(options, now);
     const issuedAt = toNumericDate(now);
+    if (!isNumericDate(issuedAt)) {
+      throw new TypeError("JWT issuance time must be a representable NumericDate.");
+    }
+    const requestedExpiration = resolveTokenExpiration(options, now);
     const expiration = toNumericDate(requestedExpiration);
 
     if (expiration <= issuedAt) {
@@ -268,7 +273,8 @@ function subjectMatches<Payload>(
 function isNumericDate(value: unknown): value is number {
   return typeof value === "number"
     && Number.isSafeInteger(value)
-    && value >= 0;
+    && value >= 0
+    && value <= MAX_NUMERIC_DATE;
 }
 
 function toNumericDate(value: Date): number {

@@ -21,7 +21,10 @@ import {
 } from "vitest";
 
 import { createPostgresTestPool } from "../../../testing/postgres.js";
-import { ThrottlingBackendUnavailableError } from "../../errors.js";
+import {
+  ThrottlingBackendUnavailableError,
+  ThrottlingDefinitionConflictError,
+} from "../../errors.js";
 import {
   throttlingRateLimitLeases,
   throttlingRateLimits,
@@ -229,6 +232,23 @@ describe("PostgresRateLimitAdapter", () => {
     expect(leases.rows).toEqual([{ returned_at: expect.any(Date), returned_units: 0 }]);
   });
 
+  it("returns completed capacity even when there are no new lease requests", async () => {
+    const adapter = createAdapter();
+    const allocated = await adapter.allocateLeases("worker-a", [leasedRequest]);
+    if (!allocated.admitted) throw new Error("Expected an initial grant.");
+    const grant = allocated.allocations[leasedRequest.key];
+    if (grant?.mode !== "lease") throw new Error("Expected a block allocation.");
+    await holdBucketRefill(leasedRequest.key);
+    const returned = { key: leasedRequest.key, leaseId: grant.leaseId, remaining: 5 };
+
+    await expect(adapter.allocateLeases("worker-a", [], [returned])).resolves.toEqual({ admitted: true, allocations: {} });
+    await expect(adapter.returnLeases([returned])).resolves.toBe(0);
+    await holdBucketRefill(leasedRequest.key);
+    await expect(adapter.inspectMany([leasedRequest])).resolves.toEqual([
+      { available: true, remaining: 85, source: "authoritative" },
+    ]);
+  });
+
   it("charges expired leases against the same prune budget as full buckets", async () => {
     const adapter = createAdapter();
     await adapter.allocateLeases("worker-a", [leasedRequest]);
@@ -254,7 +274,15 @@ describe("PostgresRateLimitAdapter", () => {
       await expect(adapter.reserveMany([baseRequest, baseRequest])).rejects.toThrow("is duplicated");
       await expect(adapter.reconcile([{ ...baseRequest, estimatedCost: 1, actualCost: -1 }]))
         .rejects.toThrow("actualCost must be a non-negative finite number");
+      await expect(adapter.reconcile([{ ...baseRequest, cost: 0, estimatedCost: 1, actualCost: 0 }]))
+        .rejects.toThrow("cost must be a positive finite number");
+      await expect(adapter.inspectMany([{ ...baseRequest, key: "" }])).rejects.toThrow("keys cannot be empty");
       await expect(adapter.allocateLeases(" ", [leasedRequest])).rejects.toThrow("owner id cannot be empty");
+      await expect(adapter.allocateLeases("owner", [{ ...leasedRequest, key: "" }])).rejects.toThrow("keys cannot be empty");
+      await expect(adapter.allocateLeases("owner", [leasedRequest], [{ ...returned, leaseId: "" }]))
+        .rejects.toThrow("lease identifiers cannot be empty");
+      await expect(Reflect.apply(adapter.allocateLeases, adapter, ["owner", [{ ...leasedRequest, coordination: { strategy: "exact" } }]]))
+        .rejects.toThrow("Lease allocation requires leased coordination");
       await expect(adapter.allocateLeases("owner", [leasedRequest], [{ ...returned, key: "unrelated" }]))
         .rejects.toThrow("Completed leases must belong to the allocation request keys");
       for (const [coordination, message] of [
@@ -267,6 +295,7 @@ describe("PostgresRateLimitAdapter", () => {
           ...leasedRequest, coordination: { ...leasedRequest.coordination, ...coordination },
         }])).rejects.toThrow(message);
       }
+      await expect(adapter.returnLeases([{ ...returned, key: "" }])).rejects.toThrow("lease identifiers cannot be empty");
       await expect(adapter.returnLeases([{ ...returned, leaseId: "" }])).rejects.toThrow("lease identifiers cannot be empty");
       await expect(adapter.returnLeases([{ ...returned, remaining: -1 }])).rejects.toThrow("remaining units must be non-negative");
       await expect(adapter.returnLeases([returned, returned])).rejects.toThrow("is duplicated");
@@ -281,6 +310,7 @@ describe("PostgresRateLimitAdapter", () => {
     [{ maxConcurrentReservations: 0 }, "maxConcurrentReservations must be a positive integer"],
     [{ maxPendingReservations: -1 }, "maxPendingReservations must be a non-negative integer"],
     [{ storageWaitTimeoutMs: Number.POSITIVE_INFINITY }, "storageWaitTimeoutMs must be positive and finite"],
+    [{ storageWaitTimeoutMs: 0 }, "storageWaitTimeoutMs must be positive and finite"],
   ] as const)("rejects invalid storage queue settings (%j)", (options, message) => {
     expect(() => createAdapter(options)).toThrow(message);
   });
@@ -377,6 +407,22 @@ describe("PostgresRateLimitAdapter", () => {
     const result = adapter.reserve(baseRequest);
     await expect(result).rejects.toBeInstanceOf(ThrottlingBackendUnavailableError);
     await expect(result).rejects.toHaveProperty("cause", storageFailure);
+  });
+
+  it("normalizes backend errors for returns and pruning, and rejects an invalid retry clock", async () => {
+    const cause = new Error("backend disconnected");
+    const failedBackend = { execute: vi.fn().mockRejectedValue(cause), transaction: vi.fn().mockRejectedValue(cause) };
+    const disconnected = new PostgresRateLimitAdapter(failedBackend as unknown as PostgresRateLimitDatabase);
+    await expect(disconnected.returnLeases([{ key: "quota", leaseId: "grant", remaining: 0 }]))
+      .rejects.toMatchObject({ name: "ThrottlingBackendUnavailableError", cause });
+    await expect(disconnected.prune({})).rejects.toMatchObject({ name: "ThrottlingBackendUnavailableError", cause });
+
+    const adapter = createAdapter({ now: () => new Date(NaN), maxPendingReservations: 0 });
+    await expect(adapter.reserve(baseRequest)).resolves.toEqual({ admitted: true, remaining: 1, source: "authoritative" });
+    await holdBucketRefill(baseRequest.key);
+    await expect(adapter.reserve({ ...baseRequest, cost: 2 })).rejects.toMatchObject({
+      name: "ThrottlingBackendUnavailableError", cause: expect.objectContaining({ message: "The throttling clock returned an invalid date." }),
+    });
   });
 
   it("serializes concurrent admissions for one global burst", async () => {
@@ -505,7 +551,57 @@ describe("PostgresRateLimitAdapter", () => {
     await expect(adapter.reserveMany([first, second])).resolves.toMatchObject({
       admitted: true,
       remaining: { "test:first": 1, "test:second": 1 },
+      source: "authoritative",
     });
+  });
+
+  it("uses the persisted exact coordination mode across deployments", async () => {
+    const adapter = createAdapter();
+    // Seed the schema's default without going through the adapter being tested.
+    await database.insert(testRateLimits).values({
+      ...baseRequest,
+      tokens: 1,
+      refilledAt: new Date("2100-01-01T00:00:00Z"),
+      fullAt: new Date("2100-01-01T00:01:00Z"),
+      lastAdmitted: true,
+    });
+
+    await expect(adapter.reserveMany([baseRequest])).resolves.toEqual({
+      admitted: true, remaining: { [baseRequest.key]: 0 }, source: "authoritative",
+    });
+    await expect(adapter.reserve(baseRequest)).resolves.toMatchObject({
+      admitted: false, remaining: 0, source: "authoritative",
+    });
+  });
+
+  it("rejects singleton reconciliation against an incompatible stored policy", async () => {
+    const adapter = createAdapter();
+    await adapter.reserve(baseRequest);
+    await holdBucketRefill(baseRequest.key);
+    await expect(adapter.reconcile([{
+      ...baseRequest, limit: 2, estimatedCost: 1, actualCost: 2,
+    }])).rejects.toMatchObject({
+      name: ThrottlingDefinitionConflictError.name, key: baseRequest.key,
+    });
+    await expect(adapter.inspectMany([baseRequest])).resolves.toMatchObject([{ remaining: 1 }]);
+  });
+
+  it("returns each reconciled dimension's own committed capacity", async () => {
+    const adapter = createAdapter();
+    const first = { ...baseRequest, key: "test:usage:first" };
+    const second = { ...baseRequest, key: "test:usage:second" };
+    await adapter.reserveMany([first, second]);
+    await holdBucketRefill(first.key);
+    await holdBucketRefill(second.key);
+
+    const remaining = await adapter.reconcile([
+      { ...second, estimatedCost: 1, actualCost: 1.5 },
+      { ...first, estimatedCost: 1, actualCost: 0 },
+    ]);
+    expect(remaining).toEqual({ [first.key]: 2, [second.key]: 0.5 });
+    await expect(adapter.inspectMany([first, second])).resolves.toMatchObject([
+      { remaining: 2 }, { remaining: 0.5 },
+    ]);
   });
 
   it("creates debt when actual cost exceeds the estimate", async () => {
@@ -618,6 +714,37 @@ describe("PostgresRateLimitAdapter", () => {
       });
   });
 
+  it("charges the full request exactly when it costs more than a lease can hold", async () => {
+    const adapter = createAdapter();
+    const request = {
+      ...leasedRequest,
+      cost: 25,
+      coordination: { ...leasedRequest.coordination, maxOutstandingUnits: 40 },
+    };
+
+    await expect(adapter.allocateLeases("worker-a", [request])).resolves.toEqual({
+      admitted: true,
+      allocations: { [request.key]: { mode: "exact", remaining: 75 } },
+    });
+    const grants = await client.query("SELECT id FROM throttling_rate_limit_lease");
+    expect(grants.rows).toEqual([]);
+  });
+
+  it("accepts cost equal to available units, lease size equal to burst, and a zero guard band", async () => {
+    const adapter = createAdapter();
+    const exact = { ...baseRequest, cost: 2 };
+    const fullBlock = { ...leasedRequest, cost: 20, coordination: { ...leasedRequest.coordination, guardBandUnits: 0 } };
+    const capped = { ...leasedRequest, key: "test:cap", burst: 20, cost: 20, coordination: { ...leasedRequest.coordination, guardBandUnits: 0 } };
+
+    await expect(adapter.inspectMany([exact])).resolves.toEqual([{ available: true, remaining: 2, source: "authoritative" }]);
+    await expect(adapter.allocateLeases("worker-a", [fullBlock, capped])).resolves.toMatchObject({
+      admitted: true,
+      allocations: { [fullBlock.key]: { mode: "lease", units: 20, remaining: 80 }, [capped.key]: { mode: "exact", remaining: 0 } },
+    });
+    await adapter.reconcile([{ ...exact, estimatedCost: 2, actualCost: 0 }]);
+    await expect(adapter.inspectMany([exact])).resolves.toEqual([{ available: true, remaining: 2, source: "authoritative" }]);
+  });
+
   it("uses exact allocation at the guard-band boundary and leases just above it", async () => {
     const adapter = createAdapter();
     const boundary = { ...leasedRequest, key: "test:guard-boundary" };
@@ -641,23 +768,8 @@ describe("PostgresRateLimitAdapter", () => {
   });
 
   it("reads active lease capacity after waiting for a different connection's row lock", async () => {
-    const schema = `throttling_race_${randomUUID().replaceAll("-", "")}`;
-    let owner: PoolClient | undefined;
-    let peer: PoolClient | undefined;
-    let pending: Promise<PromiseSettledResult<Awaited<ReturnType<PostgresRateLimitAdapter["allocateLeases"]>>>> | undefined;
-    await client.query(`CREATE SCHEMA "${schema}"`);
-
-    try {
-      // Clone the fixture into ordinary tables visible to both test connections.
-      for (const table of ["throttling_rate_limit", "throttling_rate_limit_lease"]) {
-        await client.query(`CREATE TABLE "${schema}".${table} (LIKE pg_temp.${table} INCLUDING ALL)`);
-      }
-      owner = await pool.connect();
-      peer = await pool.connect();
-      for (const connection of [owner, peer]) {
-        await connection.query(`SET search_path TO "${schema}"`);
-        await connection.query("SET statement_timeout = '2s'");
-      }
+    await withSharedLeaseTables(async (owner, peer) => {
+      let pending: Promise<PromiseSettledResult<Awaited<ReturnType<PostgresRateLimitAdapter["allocateLeases"]>>>> | undefined;
       const [ownerPid, peerPid] = await Promise.all([owner, peer].map(async (connection) =>
         (await connection.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid));
       const ownerDb = drizzle(owner);
@@ -674,41 +786,90 @@ describe("PostgresRateLimitAdapter", () => {
         tokens: burst, refilledAt, fullAt: refilledAt, lastAdmitted: true,
       });
 
-      const blockedStatement = await ownerDb.transaction(async (transaction) => {
-        // Lock the pre-existing row before the peer reads capacity. Its snapshot must follow this commit.
-        await transaction.execute(sql`SELECT key FROM throttling_rate_limit WHERE key = ${key} FOR UPDATE`);
-        let settled = false;
-        pending = Promise.allSettled([adapter.allocateLeases("peer", [leasedRequest])]).then(([result]) => {
-          settled = true;
-          return result!;
-        });
-        const statement = await observeBlockedStatement(ownerPid!, peerPid!, () => settled);
-        await transaction.update(testRateLimits).set({ tokens: burst - coordination.maxLeaseUnits })
-          .where(sql`${testRateLimits.key} = ${key}`);
-        await transaction.insert(testRateLimitLeases).values({
-          id: "owner-grant", rateLimitKey: key, ownerId: "owner", units: coordination.maxLeaseUnits,
-          expiresAt: refilledAt, createdAt: new Date(),
-        });
-        return statement;
-      });
-
-      // Waiting on a later UPDATE would be too late because the allocation decision would already be stale.
-      expect(blockedStatement).toMatch(/FOR UPDATE OF/i);
-      await expect(pending).resolves.toEqual({
-        status: "fulfilled",
-        value: { admitted: true, allocations: { [key]: { mode: "exact", remaining: 79 } } },
-      });
-      const active = await owner.query("SELECT owner_id, units FROM throttling_rate_limit_lease");
-      expect(active.rows).toEqual([{ owner_id: "owner", units: coordination.maxLeaseUnits }]);
-    } finally {
       try {
-        await pending;
+        const blockedStatement = await ownerDb.transaction(async (transaction) => {
+          // Lock the pre-existing row before the peer reads capacity. Its snapshot must follow this commit.
+          await transaction.execute(sql`SELECT key FROM throttling_rate_limit WHERE key = ${key} FOR UPDATE`);
+          let settled = false;
+          pending = Promise.allSettled([adapter.allocateLeases("peer", [leasedRequest])]).then(([result]) => {
+            settled = true;
+            return result!;
+          });
+          const statement = await observeBlockedStatement(ownerPid!, peerPid!, () => settled);
+          await transaction.update(testRateLimits).set({ tokens: burst - coordination.maxLeaseUnits })
+            .where(sql`${testRateLimits.key} = ${key}`);
+          await transaction.insert(testRateLimitLeases).values({
+            id: "owner-grant", rateLimitKey: key, ownerId: "owner", units: coordination.maxLeaseUnits,
+            expiresAt: refilledAt, createdAt: new Date(),
+          });
+          return statement;
+        });
+
+        // Waiting on a later UPDATE would be too late because the allocation decision would already be stale.
+        expect(blockedStatement).toMatch(/FOR UPDATE OF/i);
+        await expect(pending).resolves.toEqual({
+          status: "fulfilled",
+          value: { admitted: true, allocations: { [key]: { mode: "exact", remaining: 79 } } },
+        });
+        const active = await owner.query("SELECT owner_id, units FROM throttling_rate_limit_lease");
+        expect(active.rows).toEqual([{ owner_id: "owner", units: coordination.maxLeaseUnits }]);
       } finally {
-        peer?.release(true);
-        owner?.release(true);
-        await client.query(`DROP SCHEMA "${schema}" CASCADE`);
+        await pending;
       }
-    }
+    });
+  });
+
+  it("preserves the latest refill clock when a lease return waits for a bucket update", async () => {
+    await withSharedLeaseTables(async (owner, peer) => {
+      const ownerDb = drizzle(owner);
+      const adapter = createAdapter({}, drizzle(peer) as PostgresRateLimitDatabase);
+      const { key, burst, periodMs, limit } = leasedRequest;
+      const allocation = await adapter.allocateLeases("peer", [leasedRequest]);
+      const grant = allocation.admitted ? allocation.allocations[key] : undefined;
+      if (grant?.mode !== "lease") throw new Error("Expected a leased grant.");
+      const [ownerPid, peerPid] = await Promise.all([owner, peer].map(async (connection) =>
+        (await connection.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid));
+      let pending: Promise<PromiseSettledResult<number>> | undefined;
+
+      try {
+        const latest = await ownerDb.transaction(async (transaction) => {
+          await transaction.execute(sql`SELECT key FROM throttling_rate_limit WHERE key = ${key} FOR UPDATE`);
+          let settled = false;
+          pending = Promise.allSettled([adapter.returnLeases([
+            { key, leaseId: grant.leaseId, remaining: 2 },
+          ])]).then(([result]) => {
+            settled = true;
+            return result!;
+          });
+          expect(await observeBlockedStatement(ownerPid!, peerPid!, () => settled)).toMatch(/FOR UPDATE OF/i);
+
+          // The owner advances the refill clock in a later statement while holding the lock.
+          const writer = createAdapter({}, transaction as unknown as PostgresRateLimitDatabase);
+          const balance = await writer.reconcile([{ ...leasedRequest, estimatedCost: 1, actualCost: 2 }]);
+          const { rows } = await transaction.execute(sql`
+            SELECT refilled_at::text FROM throttling_rate_limit WHERE key = ${key}
+          `);
+          return { balance: balance[key]!, refilledAt: rows[0]!.refilled_at };
+        });
+
+        await expect(pending).resolves.toEqual({ status: "fulfilled", value: 1 });
+        const { rows } = await owner.query<{
+          refilled_at: string;
+          tokens: number;
+          milliseconds_until_full: string;
+        }>(`
+          SELECT refilled_at::text, tokens,
+            EXTRACT(EPOCH FROM (full_at - refilled_at)) * 1000 AS milliseconds_until_full
+          FROM throttling_rate_limit WHERE key = $1
+        `, [key]);
+        expect(rows[0]?.refilled_at).toBe(latest.refilledAt);
+        expect(rows[0]?.tokens).toBeCloseTo(latest.balance + 2, 8);
+        expect(Number(rows[0]?.milliseconds_until_full))
+          .toBeCloseTo((burst - latest.balance - 2) * periodMs / limit, 2);
+      } finally {
+        await pending;
+      }
+    });
   });
 
   it("returns unused lease units once and rejects incompatible lease definitions", async () => {
@@ -800,6 +961,33 @@ async function holdBucketRefill(key: string): Promise<void> {
     SET refilled_at = statement_timestamp() + interval '1 day'
     WHERE key = $1
   `, [key]);
+}
+
+/** Gives both connections access to the same tables in an owned test schema. */
+async function withSharedLeaseTables(
+  use: (owner: PoolClient, peer: PoolClient) => Promise<void>,
+): Promise<void> {
+  const schema = `throttling_race_${randomUUID().replaceAll("-", "")}`;
+  let owner: PoolClient | undefined;
+  let peer: PoolClient | undefined;
+  await client.query(`CREATE SCHEMA "${schema}"`);
+
+  try {
+    for (const table of ["throttling_rate_limit", "throttling_rate_limit_lease"]) {
+      await client.query(`CREATE TABLE "${schema}".${table} (LIKE pg_temp.${table} INCLUDING ALL)`);
+    }
+    owner = await pool.connect();
+    peer = await pool.connect();
+    for (const connection of [owner, peer]) {
+      await connection.query(`SET search_path TO "${schema}"`);
+      await connection.query("SET statement_timeout = '2s'");
+    }
+    await use(owner, peer);
+  } finally {
+    peer?.release(true);
+    owner?.release(true);
+    await client.query(`DROP SCHEMA "${schema}" CASCADE`);
+  }
 }
 
 /** Samples the exact owner and waiter connection state without ordering the race by elapsed time. */

@@ -21,7 +21,11 @@ describe("outbound HTTP client", () => {
     "/\\untrusted.example/collect",
     "\\\\untrusted.example/collect",
     "/\t/untrusted.example/collect",
-  ])("rejects a structured route that resolves outside the configured origin (%j)", async (route) => {
+    "/\\partner.example/collect",
+    "/\t/partner.example/collect",
+    "ht\ttps://partner.example/collect",
+    "\u0000//partner.example/collect",
+  ])("rejects a structured route that disguises an absolute URL (%j)", async (route) => {
     const headers = vi.fn(() => ({ authorization: "Bearer partner-token" }));
     const fetch = vi.fn(async () => new Response(null, { status: 204 }));
     const client = createOutboundHttpClient({ name: "partner", baseUrl: "https://partner.example", headers, fetch });
@@ -30,6 +34,25 @@ describe("outbound HTTP client", () => {
     await expect(client.get(route)).rejects.toThrow("relative to its client baseUrl");
     expect(headers).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects an interpolated network path even when the authority equals the client origin", async () => {
+    const fetch = vi.fn(async () => new Response(null, { status: 204 }));
+    const client = createOutboundHttpClient({ name: "partner", baseUrl: "https://partner.example", fetch });
+
+    await expect(client.get("/:tenant/partner.example", { path: { tenant: "" } }))
+      .rejects.toThrow("relative to its client baseUrl");
+    await expect(client.get("/resources/:id", { path: { id: "" } })).resolves.toMatchObject({ status: 204 });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("accepts an HTTP client base and a literal colon inside a relative path", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      expect((input as Request).url).toBe("http://partner.example/base/resources/report:public");
+      return new Response(null, { status: 204 });
+    });
+    const client = createOutboundHttpClient({ name: "partner", baseUrl: "http://partner.example/base/", fetch });
+    await expect(client.get("resources/report:public")).resolves.toMatchObject({ status: 204 });
   });
 
   it("requires explicit path parameters even when their names match inherited properties", async () => {
@@ -190,8 +213,23 @@ describe("outbound HTTP client", () => {
 
     await expect(client.get("/resource", { path: { unused: 1 } })).rejects.toThrow('parameter "unused" does not exist');
     await expect(client.post("/resource", { body: "text", json: {} })).rejects.toThrow("cannot define both body and json");
-    await expect(raw("/resource")).rejects.toThrow("requires a configured baseUrl");
+    await expect(raw("/resource")).rejects.toMatchObject({
+      message: expect.stringContaining("requires a configured baseUrl"),
+      cause: expect.any(TypeError),
+    });
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("passes a native text body and its media type through structured requests", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      expect(request.headers.get("content-type")).toBe("text/plain;charset=UTF-8");
+      await expect(request.text()).resolves.toBe("native body");
+      return new Response(null, { status: 204 });
+    });
+    const client = createOutboundHttpClient({ name: "partner", baseUrl: "https://partner.example", fetch });
+    await expect(client.post("/upload", { body: "native body" })).resolves.toMatchObject({ status: 204 });
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
   it.each<{ options: OutboundHttpFetchOptions; message: string }>([
@@ -347,6 +385,35 @@ describe("outbound HTTP client", () => {
     })).rejects.toBeInstanceOf(OutboundHttpDecodeError);
   });
 
+  it.each([
+    ["Application/JSON", '{"problem":true}', { problem: true }],
+    ["Application/Problem+JSON; charset=utf-8", '{"problem":true}', { problem: true }],
+    ["application/problem+json ; charset=utf-8", '{"problem":true}', { problem: true }],
+    ["application/jsonp", '{"problem":true}', '{"problem":true}'],
+    ['text/plain; hint="application/json"', '{"problem":true}', '{"problem":true}'],
+    ["application/problem+json", "malformed", "malformed"],
+    ["application/json", "", ""],
+  ])("interprets error content using the media type %s", async (contentType, body, expected) => {
+    const client = createOutboundHttpClient({
+      name: "partner", baseUrl: "https://partner.example",
+      fetch: async () => new Response(body, { status: 400, headers: { "content-type": contentType } }),
+    });
+    await expect(client.get("/resource")).rejects.toMatchObject({ status: 400, body: expected });
+  });
+
+  it("keeps an error without a Content-Type as text", async () => {
+    const body = '{"problem":true}';
+    const fetch = async () => {
+      const response = new Response(body, { status: 400 });
+      response.headers.delete("content-type");
+      return response;
+    };
+    const client = createOutboundHttpClient({ name: "partner", baseUrl: "https://partner.example", fetch });
+    await expect(client.get("/resource")).rejects.toMatchObject({
+      name: "OutboundHttpResponseError", status: 400, body,
+    });
+  });
+
   it("bounds the complete logical request with one deadline", async () => {
     const client = createOutboundHttpClient({
       name: "slow",
@@ -358,6 +425,34 @@ describe("outbound HTTP client", () => {
 
     await expect(client.get("/resource", { timeoutMs: 5 }))
       .rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+  });
+
+  it("does not enter later client middleware after the owning request is aborted", async () => {
+    const abort = new AbortController();
+    const reason = new Error("owner stopped");
+    const passedAbort = vi.fn();
+    const fetch = vi.fn(async () => new Response(null, { status: 204 }));
+    const client = createOutboundHttpClient({
+      name: "partner", baseUrl: "https://partner.example", fetch,
+      middleware: [
+        defineOutboundHttpMiddleware("abort", {
+          handler: async (_context, next) => {
+            abort.abort(reason);
+            return next();
+          },
+        }),
+        defineOutboundHttpMiddleware("downstream", {
+          handler: async (_context, next) => {
+            passedAbort();
+            return next();
+          },
+        }),
+      ],
+    });
+    await expect(client.get("/resource", { signal: abort.signal }))
+      .rejects.toMatchObject({ name: "OutboundHttpAbortedError", cause: reason });
+    expect(passedAbort).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
@@ -383,6 +478,39 @@ describe("outbound middleware helpers", () => {
     }, terminal)).resolves.toBe(response);
     expect(terminal).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       request: expect.objectContaining({ url: replacement.url }), attempt: 2, maxResponseBytes: 32,
+    }));
+  });
+
+  it("checks cancellation again before dispatching a downstream handler", async () => {
+    const failure = new Error("middleware deadline expired");
+    const abort = new AbortController();
+    const request = new Request("https://partner.example/first", { signal: abort.signal });
+    const terminal = vi.fn(async () => new Response(null, { status: 204 }));
+    const middleware = defineOutboundHttpMiddleware("cancel", {
+      handler: async (_context, next) => {
+        abort.abort(failure);
+        return next();
+      },
+    });
+
+    await expect(runOutboundHttpMiddleware([middleware], {
+      client: "partner", operation: "operation", route: "request", request, attempt: 3, maxResponseBytes: 32,
+    }, terminal, undefined, () => request.signal.throwIfAborted())).rejects.toBe(failure);
+    expect(terminal).not.toHaveBeenCalled();
+  });
+
+  it("preserves the current attempt when downstream options only change the request", async () => {
+    const request = new Request("https://partner.example/first");
+    const replacement = new Request("https://partner.example/second");
+    const terminal = vi.fn(async () => new Response(null, { status: 204 }));
+    const middleware = defineOutboundHttpMiddleware("replace", {
+      handler: async (_context, next) => next({ request: replacement }),
+    });
+    await runOutboundHttpMiddleware([middleware], {
+      client: "partner", operation: "operation", route: "request", request, attempt: 3, maxResponseBytes: 32,
+    }, terminal);
+    expect(terminal).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      attempt: 3, request: expect.objectContaining({ url: replacement.url }),
     }));
   });
 

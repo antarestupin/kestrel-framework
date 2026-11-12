@@ -58,11 +58,14 @@ const componentPartitions = {
   throttling: [
     "throttling-admission", "throttling-queues", "throttling-circuits", "throttling-completion",
     "throttling-postgres-admission", "throttling-postgres-leases", "throttling-leased",
-    "throttling-adapter-wrappers", "throttling-storage", "throttling-contracts", "throttling-provider",
+    "throttling-adapter-wrappers", "throttling-storage", "throttling-provider",
+    "throttling-definitions-factories", "throttling-definitions-validation",
+    "throttling-schema", "throttling-public-contracts",
   ],
   tokens: ["tokens-adapters", "tokens-strategies", "tokens-contracts"],
   authentication: [
-    "authentication-sessions", "password-verification", "authentication-adapters",
+    "authentication-sessions", "password-verification",
+    "authentication-adapters-postgres-schema", "authentication-adapters-runtime",
     "authentication-http", "authentication-contracts",
   ],
   db: [

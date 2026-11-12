@@ -9,7 +9,7 @@ import {
   OutboundHttpTimeoutError,
   OutboundHttpTransportError,
 } from "../../errors.js";
-import { defineOutboundHttpMiddleware } from "../../middleware.js";
+import { defineOutboundHttpMiddleware, parseRetryAfter } from "../../middleware.js";
 import {
   outboundHttpMiddlewarePriorities,
   type OutboundHttpMiddleware,
@@ -57,10 +57,7 @@ export function throttleRequests(
 
           return response;
         } catch (error: unknown) {
-          const feedback = classifyError(error);
-
-          if (feedback !== undefined) permit.reportFeedback(feedback);
-
+          permit.reportFeedback(classifyError(error));
           throw error;
         }
       });
@@ -85,28 +82,19 @@ function classifyResponse(response: Response): ThrottlingFeedback | undefined {
   return response.ok ? undefined : { kind: "permanent" };
 }
 
-function classifyError(error: unknown): ThrottlingFeedback | undefined {
+function classifyError(error: unknown): ThrottlingFeedback {
   if (error instanceof OutboundHttpTimeoutError) return { kind: "timeout" };
   if (error instanceof OutboundHttpTransportError) return { kind: "transient" };
-  if (error instanceof OutboundHttpAbortedError) return undefined;
+  // A caller abandoning its own request provides no evidence about dependency health.
+  if (error instanceof OutboundHttpAbortedError) return { kind: "cancelled" };
 
   return { kind: "permanent" };
 }
 
 function getRetryAt(response: Response): Date | undefined {
-  const value = response.headers.get("retry-after")?.trim();
-
-  if (value === undefined || value === "") return undefined;
-
-  const seconds = Number(value);
-
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    const retryAt = new Date(Date.now() + seconds * 1_000);
-    // A malformed delay must not mask the actual 429 with an invalid feedback date.
-    return Number.isNaN(retryAt.getTime()) ? undefined : retryAt;
-  }
-
-  const instant = Date.parse(value);
-
-  return Number.isNaN(instant) ? undefined : new Date(instant);
+  const instant = parseRetryAfter(response.headers.get("retry-after"), Date.now());
+  if (instant === undefined) return undefined;
+  const retryAt = new Date(instant);
+  // A large delay must still fit within the Date range used by the feedback API.
+  return Number.isNaN(retryAt.getTime()) ? undefined : retryAt;
 }

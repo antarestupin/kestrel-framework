@@ -76,6 +76,20 @@ describe("RedisRateLimitAdapter", () => {
     expect(inspected[0]!.remaining).toBeCloseTo(4, 3);
   });
 
+  it("charges the full request exactly when it costs more than a lease can hold", async ({ redis }) => {
+    const adapter = new RedisRateLimitAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+    const oversized = leased("quota", { cost: 6 });
+
+    await expect(adapter.allocateLeases("one", [oversized])).resolves.toEqual({
+      admitted: true,
+      allocations: { quota: { mode: "exact", remaining: 4 } },
+    });
+    expect((await adapter.inspectMany([oversized]))[0]).toMatchObject({
+      available: false,
+      remaining: expect.closeTo(4, 3),
+    });
+  });
+
   it("refunds completed grants even when replenishment is denied", async ({ redis }) => {
     const adapter = new RedisRateLimitAdapter(redis.client, { keyPrefix: redis.keyPrefix });
     const result = await adapter.allocateLeases("one", [leased()]);

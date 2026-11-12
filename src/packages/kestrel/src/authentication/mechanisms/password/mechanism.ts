@@ -1,6 +1,6 @@
 import type { AuthenticationConfig } from "../../configuration.js";
 import { createAuthenticationProof } from "../../proof.js";
-import type { PasswordCredentialStorageAdapter } from "../../stores.js";
+import type { AccountStorageAdapter, PasswordCredentialStorageAdapter } from "../../stores.js";
 import type {
   PasswordAuthenticationResult,
   PasswordCredentialsInput,
@@ -9,6 +9,7 @@ import type {
 } from "./types.js";
 
 export interface PasswordMechanismDependencies {
+  readonly accountStore?: Pick<AccountStorageAdapter, "findById">;
   readonly credentialStore: PasswordCredentialStorageAdapter;
   readonly passwordHasher: PasswordHasher;
   readonly usernameNormalizer: UsernameNormalizer;
@@ -59,14 +60,35 @@ export class PasswordMechanism {
       return { status: "rejected" };
     }
 
-    if (this.dependencies.passwordHasher.needsRehash(hash)) {
+    let currentCredential = credential;
+    let securityVersion: number | undefined;
+    if (this.dependencies.accountStore !== undefined) {
+      // Read the account version before confirming the credential so a reset cannot pair
+      // a stale hash with the version of the new password.
+      const account = await this.dependencies.accountStore.findById(credential.accountId);
+      if (account?.state !== "active") {
+        return { status: "rejected" };
+      }
+      securityVersion = account.securityVersion;
+      const current = await this.dependencies.credentialStore.findByNormalizedUsername(normalizedUsername);
+      if (
+        current?.id !== credential.id
+        || current.accountId !== credential.accountId
+        || (current.passwordHash !== hash && !await this.dependencies.passwordHasher.verify(input.password, current.passwordHash))
+      ) {
+        return { status: "rejected" };
+      }
+      currentCredential = current;
+    }
+
+    if (this.dependencies.passwordHasher.needsRehash(currentCredential.passwordHash)) {
       const changedAt = this.now();
       const passwordHash = await this.dependencies.passwordHasher.hash(
         input.password,
       );
       await this.dependencies.credentialStore.replaceHash({
-        id: credential.id,
-        previousHash: hash,
+        id: currentCredential.id,
+        previousHash: currentCredential.passwordHash,
         passwordHash,
         changedAt,
       });
@@ -76,11 +98,11 @@ export class PasswordMechanism {
 
     return {
       status: "verified",
-      proof: createAuthenticationProof(credential.accountId, {
+      proof: createAuthenticationProof(currentCredential.accountId, {
         method: "password",
         factors: ["knowledge"],
         authenticatedAt,
-      }),
+      }, securityVersion),
     };
   }
 }

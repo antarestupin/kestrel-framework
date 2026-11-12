@@ -70,7 +70,7 @@ describe("authentication policy constraints", () => {
     });
 
     expect(result.success).toBe(false);
-    expect(result.error?.issues).toEqual([expect.objectContaining({ path, message })]);
+    expect(result.error?.issues).toEqual([expect.objectContaining({ code: "custom", path, message })]);
   });
 
   it("accepts equal expiry and password boundaries and an explicit local cookie", () => {
@@ -83,5 +83,16 @@ describe("authentication policy constraints", () => {
     expect(policy.session).toMatchObject({ idleTtlSeconds: 60, absoluteTtlSeconds: 60, touchIntervalSeconds: 60 });
     expect(policy.mechanisms.password).toEqual({ minLength: 20, maxLength: 20 });
     expect(policy.http.cookie).toMatchObject({ name: "local-session", secure: false });
+  });
+
+  it("accepts stronger tokens and more than one trusted client origin", () => {
+    const trustedOrigins = ["https://app.example", "https://admin.example"];
+    const policy = authenticationConfigBase.schema.parse({
+      session: { tokenBytes: "48" },
+      mechanisms: { password: {} },
+      http: { cookie: {}, trustedOrigins },
+    });
+    expect(policy.session.tokenBytes).toBe(48);
+    expect(policy.http.trustedOrigins).toEqual(trustedOrigins);
   });
 });

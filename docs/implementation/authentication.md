@@ -181,6 +181,8 @@ export interface AuthenticationAccount {
 
 `securityVersion` is monotonically incremented for events that must invalidate every existing session, including password replacement, account disablement, confirmed compromise, and an administrative revoke-all operation. Each session stores the version from its creation. A mismatch invalidates the session without requiring a synchronous update of every session row.
 
+The bundled account stores increment the version when changing account state. Re-enabling a disabled account leaves sessions issued under its earlier version invalid.
+
 Temporary attempt throttling and IP exclusions do not belong on the account record. They are admission controls with different keys, expiration, and storage behavior. A later deliberate account-locking feature can introduce explicit lock state without overloading `disabled`.
 
 ### Authentication proof and assurance
@@ -441,7 +443,7 @@ These ceilings are resource-admission limits, not recommendations for newly crea
 
 Other implementations, such as scrypt or PBKDF2 for a required compliance profile, can implement the same contract. Hashes use a self-describing encoded format so existing passwords remain verifiable after a configuration change. Successful authentication calls `needsRehash()` and conditionally replaces an obsolete hash without changing the public sign-in result.
 
-The hasher is asynchronous. Synchronous password hashing must not block the Node.js event loop. Pepper material, when used, is supplied by an application secret dependency, is not stored beside hashes, and supports an explicit rotation strategy. Algorithm identifiers and parameters may be observed; passwords, hashes, salts, peppers, and derived keys may not.
+The hasher is asynchronous. Synchronous password hashing must not block the Node.js event loop. The built-in hasher copies the supplied pepper bytes during construction, so callers may clear their own buffer afterward. Pepper material comes from an application secret dependency, stays out of the credential store, and requires an explicit rotation strategy. Algorithm identifiers and parameters may be observed. Passwords, hashes, salts, peppers, and derived keys must stay out of observations.
 
 The initial recommended Argon2id settings must meet or exceed the current OWASP baseline of 19 MiB memory, two passes, and parallelism one, then be calibrated. This is a default policy recommendation, not a restriction in the core interface.
 
@@ -455,6 +457,8 @@ Password authentication follows these rules:
 - a successful password check does not create a session until account and subject policies pass;
 - a hash upgrade is conditional so it cannot overwrite a concurrent password change;
 - passwords and encoded hashes never enter errors, logs, observations, execution context, Action output exposed to clients, or throttling keys.
+
+After successful secret verification, the password mechanism reads the active account version and confirms the current credential. It checks the supplied password against a concurrently replaced hash before issuing a proof. The manager checks the proof's version before creating a session. It also checks the account again after persisting the session, so a reset during claim creation or storage revokes the stale row before any token is returned. `AuthenticationProvider` supplies the account store automatically. Pass `accountStore` when constructing `PasswordMechanism` directly to bind proofs to the account version. An application password reset should replace the credential and increment the account security version atomically in the account and credential backend.
 
 Password creation policy is application-configurable and distinct from hashing. Minimum length is enforced when provisioning or changing a credential, not while verifying an existing stored hash: sign-in accepts any non-empty password up to the configured verification bound so legacy credentials and explicit local seed credentials remain usable. The initial creation policy should favor sufficient length, allow password-manager-generated values and Unicode, reject known-compromised values when such a service is configured, and avoid arbitrary composition rules.
 
@@ -523,7 +527,7 @@ Every session has:
 - an optional freshness limit used by future sensitive-operation middleware;
 - revocation state retained according to the selected adapter's policy.
 
-The session store is not written on every request. `lastSeenAt` and idle expiration are touched only after a configurable update interval. Touching is conditional and cannot revive a revoked, absolutely expired, or security-version-mismatched session.
+The session store is written only after the configured update interval. Touching preserves the latest `lastSeenAt` and idle deadline when requests finish out of order, and caps idle expiry at the absolute deadline. Resolution uses the claims validated against the current schema even when a touch returns the persisted snapshot. Conditional touching and the manager's account-version check prevent revoked, expired, or invalidated sessions from resolving.
 
 All expiration decisions use adapter-authoritative time where practical for distributed stores. Manager clocks remain injectable for memory tests. A storage failure while resolving or touching a session fails closed rather than authenticating with stale unverifiable state.
 
@@ -558,7 +562,7 @@ The recommended production cookie has:
 Local non-HTTPS behavior is enabled only by explicit application configuration such as `secure: false` or `devMode: true`; the library never infers it from `NODE_ENV` or another environment variable.
 
 
-Responses that create or rotate session tokens use `Cache-Control: no-store`. Logout revokes server state before clearing the cookie where possible; it still clears an invalid or already-revoked client cookie. Secure headers and trusted-proxy IP resolution remain HTTP runtime responsibilities configured by the application.
+The bundled sign-in, sign-out, and current-session responses use `Cache-Control: no-store`. The current-session response depends on the request's cookie and can contain private claims. Logout revokes server state before clearing the cookie where possible and clears an invalid or already-revoked client cookie. Secure headers and trusted-proxy IP resolution remain HTTP runtime responsibilities configured by the application.
 
 ### Session resolution
 

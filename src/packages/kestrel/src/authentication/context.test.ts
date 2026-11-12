@@ -20,6 +20,13 @@ describe("AuthenticationContext", () => {
 
     expect(context.value.state).toBe("authenticated");
     expect(context.getPrincipal()?.claims).toEqual({ role: "member" });
+    expect(context.getPrincipal()?.authentication).toEqual({
+      methods: ["password"],
+      factors: ["knowledge"],
+      authenticatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    expect(Object.isFrozen(context.getPrincipal()?.authentication.methods)).toBe(true);
+    expect(Object.isFrozen(context.getPrincipal()?.authentication.factors)).toBe(true);
     expect(Object.isFrozen(context.getPrincipal())).toBe(true);
     expect(() => context.resolveAnonymous()).toThrow(
       "Authentication context has already been resolved.",
@@ -30,6 +37,7 @@ describe("AuthenticationContext", () => {
     const context = new AuthenticationContext<Record<string, never>>();
 
     expect(context.value).toEqual({ state: "pending" });
+    expect(context.getPrincipal()).toBeUndefined();
     context.resolveAnonymous();
     expect(context.value).toEqual({ state: "anonymous" });
     expect(context.getPrincipal()).toBeUndefined();

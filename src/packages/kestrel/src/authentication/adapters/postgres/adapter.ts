@@ -126,6 +126,9 @@ export class PostgresAuthenticationAdapter<Claims = unknown>
         lastSeenAt: input.lastSeenAt,
         idleExpiresAt: input.idleExpiresAt,
         absoluteExpiresAt: input.absoluteExpiresAt,
+        // Keep the mapped table's defaults when an import omits revocation data.
+        revokedAt: input.revokedAt,
+        revokeReason: input.revokeReason,
         ipAddress: input.ipAddress ?? null,
         userAgent: input.userAgent ?? null,
       })
@@ -178,11 +181,13 @@ export class PostgresAuthenticationAdapter<Claims = unknown>
   public async touch(
     input: TouchStoredSession,
   ): Promise<StoredSession<Claims> | undefined> {
+    const { lastSeenAt, idleExpiresAt, absoluteExpiresAt } = this.tables.sessions;
     const [session] = await this.database
       .update(this.tables.sessions)
       .set({
-        lastSeenAt: input.lastSeenAt,
-        idleExpiresAt: input.idleExpiresAt,
+        // Compare against the current row so a delayed touch cannot move activity backwards.
+        lastSeenAt: sql`greatest(${lastSeenAt}, ${sql.param(input.lastSeenAt, lastSeenAt)})`,
+        idleExpiresAt: sql`least(${absoluteExpiresAt}, greatest(${idleExpiresAt}, ${sql.param(input.idleExpiresAt, idleExpiresAt)}))`,
       })
       .where(and(
         eq(this.tables.sessions.id, input.id),

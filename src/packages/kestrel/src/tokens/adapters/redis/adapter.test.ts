@@ -46,6 +46,38 @@ describe("RedisTokenStorageAdapter", () => {
     expect(await redis.client.hExists(`${redis.keyPrefix}{tokens}:records`, stored.id)).toBe(1);
   });
 
+  it("rejects a stale digest index before consuming another bearer", async ({ redis }) => {
+    const adapter = new RedisTokenStorageAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+    const stored = token();
+    const staleDigest = Buffer.from("unrelated").toString("base64url");
+    await adapter.createMany([stored]);
+    await redis.client.hSet(`${redis.keyPrefix}{tokens}:digests`, staleDigest, stored.id);
+
+    await expect(adapter.consume({ ...lookup(stored), digest: Buffer.from("unrelated") }))
+      .rejects.toThrow();
+    await expect(adapter.findValid(lookup(stored))).resolves.toMatchObject({ id: stored.id });
+  });
+
+  it("rejects a stale subject index before replacing another subject's bearer", async ({ redis }) => {
+    const adapter = new RedisTokenStorageAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+    const original = token();
+    const unrelated = token("other", { subject: "user:2" });
+    const replacement = token("replacement", { replaceExistingForSubject: true });
+    await adapter.createMany([original, unrelated]);
+    const staleMember = `${JSON.stringify([original.definition, original.subject])}\0${unrelated.id}`;
+    // Declare the only key touched by this fixture for the mutation runner's namespace guard.
+    await redis.client.eval("return redis.call('ZADD', KEYS[1], 0, ARGV[1])", {
+      keys: [`${redis.keyPrefix}{tokens}:subjects`],
+      arguments: [staleMember],
+    });
+
+    await expect(adapter.createMany([replacement])).rejects.toThrow("subject index");
+    for (const record of [original, unrelated]) {
+      await expect(adapter.findValid(lookup(record))).resolves.toMatchObject({ id: record.id });
+    }
+    await expect(adapter.findValid(lookup(replacement))).resolves.toBeUndefined();
+  });
+
   it("atomically replaces only the selected definition and subject", async ({ redis }) => {
     const adapter = new RedisTokenStorageAdapter(redis.client, { keyPrefix: redis.keyPrefix });
     const first = token(), otherSubject = token("two", { subject: "user:2" });

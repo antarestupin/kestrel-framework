@@ -92,6 +92,11 @@ export function createAuthenticationHttpControllers<
       access,
       middleware: [middleware.optionalSession],
       successStatusCode: 200,
+      handler: ({ action, input, reply }) => {
+        // The same URL can return a different principal for each session cookie.
+        reply.header("cache-control", "no-store");
+        return action.run(input);
+      },
     },
   );
 

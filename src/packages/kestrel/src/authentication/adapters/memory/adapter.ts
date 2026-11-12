@@ -90,6 +90,8 @@ export class MemoryAuthenticationAdapter<Claims = unknown>
     const updated = {
       ...account,
       state: input.state,
+      // Re-enabling an account must leave its previous sessions invalidated.
+      securityVersion: account.securityVersion + 1,
       updatedAt: this.now(),
     };
     this.accounts.set(account.id, updated);
@@ -142,8 +144,12 @@ export class MemoryAuthenticationAdapter<Claims = unknown>
 
     const updated = {
       ...session,
-      lastSeenAt: input.lastSeenAt,
-      idleExpiresAt: input.idleExpiresAt,
+      // A stale write may arrive after a newer touch.
+      lastSeenAt: new Date(Math.max(session.lastSeenAt.getTime(), input.lastSeenAt.getTime())),
+      idleExpiresAt: new Date(Math.min(
+        session.absoluteExpiresAt.getTime(),
+        Math.max(session.idleExpiresAt.getTime(), input.idleExpiresAt.getTime()),
+      )),
     };
     this.sessions.set(session.id, updated);
 
@@ -159,7 +165,8 @@ export class MemoryAuthenticationAdapter<Claims = unknown>
 
     this.sessions.set(session.id, {
       ...session,
-      revokedAt: input.revokedAt,
+      // Revocation times belong to the stored session after this call.
+      revokedAt: new Date(input.revokedAt),
       revokeReason: input.reason,
     });
     return true;
@@ -174,7 +181,7 @@ export class MemoryAuthenticationAdapter<Claims = unknown>
       if (session.accountId === input.accountId && session.revokedAt === undefined) {
         this.sessions.set(session.id, {
           ...session,
-          revokedAt: input.revokedAt,
+          revokedAt: new Date(input.revokedAt),
           revokeReason: input.reason,
         });
         revoked += 1;
@@ -321,6 +328,8 @@ function cloneSession<Claims>(
     ? undefined
     : {
         ...session,
+        // Claims are snapshots and cannot share references with application code.
+        claims: structuredClone(session.claims),
         tokenDigest: Uint8Array.from(session.tokenDigest),
         evidence: {
           ...session.evidence,

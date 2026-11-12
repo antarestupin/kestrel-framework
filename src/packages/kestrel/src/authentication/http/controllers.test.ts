@@ -109,6 +109,7 @@ describe("authentication HTTP controllers", () => {
       headers: { cookie },
     });
     expect(current.statusCode).toBe(200);
+    expect(current.headers["cache-control"]).toBe("no-store");
     expect(current.json()).toMatchObject({
       authenticated: true,
       principal: { subjectId: "subject-1" },
@@ -132,6 +133,7 @@ describe("authentication HTTP controllers", () => {
       headers: { cookie },
     });
     expect(anonymous.statusCode).toBe(200);
+    expect(anonymous.headers["cache-control"]).toBe("no-store");
     expect(anonymous.json()).toEqual({ authenticated: false });
 
     // Retrying with a revoked cookie still clears it and succeeds anonymously.
@@ -277,6 +279,26 @@ describe("authentication HTTP controllers", () => {
     });
   });
 
+  it("stores the transport user agent when a client supplies it", async () => {
+    const { adapter, server } = await createHttpAuthentication();
+    const account = await adapter.createAccount({ subjectId: "browser-user" });
+    await adapter.createPasswordCredential({
+      accountId: account.id, username: "browser", normalizedUsername: "browser",
+      passwordHash: "hash:correct-password",
+    });
+
+    const response = await server.inject({
+      method: "POST", url: "/authentication/password/sign-in",
+      headers: { origin: "http://app.test", "user-agent": "Test browser" },
+      payload: { username: "browser", password: "correct-password" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(await adapter.listForAccount(account.id)).toEqual([
+      expect.objectContaining({ userAgent: "Test browser" }),
+    ]);
+  });
+
   it("returns the same HTTP rejection for a wrong password and an unknown username", async () => {
     const { adapter, server } = await createHttpAuthentication();
     const account = await adapter.createAccount({ subjectId: "known-subject" });
@@ -340,6 +362,8 @@ describe("authentication HTTP controllers", () => {
     undefined,
     "null",
     "ftp://app.test",
+    "http://user@app.test",
+    "http://:password@app.test",
     "http://user:password@app.test",
     "http://app.test/path",
     "http://app.test/?query=value",
@@ -444,6 +468,22 @@ describe("authentication HTTP controllers", () => {
     expect((await signIn("https://first.test")).statusCode).toBe(401);
     expect((await signIn("https://second.test")).statusCode).toBe(401);
     expect((await signIn("https://other.test")).statusCode).toBe(403);
+  });
+
+  it("rejects non-HTTP origin values even when a client setting contains one", async () => {
+    const origin = "ftp://app.test";
+    const { adapter, server } = await createHttpAuthentication({
+      ...config, http: { ...config.http, trustedOrigins: [origin] },
+    });
+    const lookup = vi.spyOn(adapter, "findByNormalizedUsername");
+
+    const response = await server.inject({
+      method: "POST", url: "/authentication/password/sign-in", headers: { origin },
+      payload: { username: "member", password: "password" },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(lookup).not.toHaveBeenCalled();
   });
 
   it.each(["authentication", "/authentication/"])("rejects invalid controller prefix %s", async (prefix) => {

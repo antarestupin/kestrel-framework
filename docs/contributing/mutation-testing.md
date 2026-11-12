@@ -67,6 +67,8 @@ For the full storage boundary review, run `test:mutation:focus` with `db-provide
 
 For the complete application lifecycle assessment, run `test:mutation:focus` with `app-composition`, `app-startup`, `app-execution`, `app-shutdown`, `app-shutdown-coordination`, `app-execution-context`, `app-catalog` and `app-contracts`. Use `test:mutation:component` for `di`, `background`, `concurrency`, `events`, `configuration` and `definitions`. The [lifecycle boundary review](../implementation/mutation_testing_lifecycle_boundaries.md) records the per-profile comparisons and classifications.
 
+The [security and resilience review](../implementation/mutation_testing_security_resilience.md#profile-executions) lists the profiles that partition `authentication`, `tokens`, `throttling` and `outbound_http`. Run each named profile with `npm run test:mutation:focus -- <profile>`. The dedicated `test:mutation:authentication-sessions` script selects the session manager. The profiles retain static mutants and apply the ten-minute budget independently.
+
 From the repository root, prepare the dedicated PostgreSQL and Redis test infrastructure, then validate the instrumented test run before starting a complete mutation assessment:
 
 ```sh

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  circuitBreaker,
+  concurrencyLimit,
+  defineAdmissionPolicy,
   defineRateLimit,
   MemoryRateLimitAdapter,
   seconds,
@@ -47,11 +50,13 @@ describe("outbound HTTP throttling", () => {
     const selectDefinition = vi.fn<Exclude<ThrottleOutboundHttpOptions["definition"], ThrottlingDefinition>>(() => definition);
     const selectOptions = vi.fn(() => ({ rateKey: "tenant", estimatedCost: { requests: 2 }, maxWaitMs: 20 }));
     const fetch = vi.fn(async () => new Response(null, { status: 204 }));
+    const middleware = throttleRequests({ throttling, definition: selectDefinition, acquire: selectOptions, priority: 700 });
     const client = createOutboundHttpClient({
       name: "partner", baseUrl: "https://partner.example", fetch,
-      middleware: [throttleRequests({ throttling, definition: selectDefinition, acquire: selectOptions, priority: 700 })],
+      middleware: [middleware],
     });
 
+    expect(middleware.priority).toBe(700);
     const response = await client.get("/resource/:id", { path: { id: 15 } });
     expect(response.status).toBe(204);
     const context = selectDefinition.mock.calls[0]![0];
@@ -68,6 +73,8 @@ describe("outbound HTTP throttling", () => {
     { retryAfter: "", expected: undefined },
     { retryAfter: "2", expected: new Date("2026-01-01T00:00:02.000Z") },
     { retryAfter: "Thu, 01 Jan 2026 00:00:05 GMT", expected: new Date("2026-01-01T00:00:05.000Z") },
+    { retryAfter: "0", expected: new Date("2026-01-01T00:00:00.000Z") },
+    { retryAfter: "-1", expected: undefined },
     { retryAfter: "malformed", expected: undefined },
   ])("classifies a 429 with Retry-After $retryAfter", async ({ retryAfter, expected }) => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -83,9 +90,9 @@ describe("outbound HTTP throttling", () => {
       });
 
       await expect(client.get("/resource")).rejects.toMatchObject({ status: 429, body: "limited" });
-      expect(reportFeedback).toHaveBeenCalledExactlyOnceWith({
+      expect(reportFeedback.mock.calls).toStrictEqual([[{
         kind: "throttled", ...(expected === undefined ? {} : { retryAt: expected }),
-      });
+      }]]);
     } finally {
       vi.useRealTimers();
     }
@@ -126,7 +133,7 @@ describe("outbound HTTP throttling", () => {
   it.each([
     { error: new OutboundHttpTimeoutError("operation", 20), kind: "timeout" },
     { error: new OutboundHttpTransportError("operation"), kind: "transient" },
-    { error: new OutboundHttpAbortedError("operation"), kind: undefined },
+    { error: new OutboundHttpAbortedError("operation"), kind: "cancelled" },
     { error: new TypeError("invalid downstream options"), kind: "permanent" },
   ])("classifies downstream $error.name without losing the original failure", async ({ error, kind }) => {
     const { throttling, reportFeedback } = createProbe();
@@ -139,8 +146,50 @@ describe("outbound HTTP throttling", () => {
     });
 
     await expect(client.get("/resource")).rejects.toBe(error);
-    if (kind === undefined) expect(reportFeedback).not.toHaveBeenCalled();
-    else expect(reportFeedback).toHaveBeenCalledExactlyOnceWith({ kind });
+    expect(reportFeedback).toHaveBeenCalledExactlyOnceWith({ kind });
+  });
+
+  it("returns admission capacity without counting a caller cancellation toward circuit health", async () => {
+    const completed = vi.fn();
+    const throttling = new ThrottlingManager(new MemoryRateLimitAdapter(), {
+      namespace: "outbound-cancellation", instrumentation: { record(event) {
+        if (event.type === "completion") completed(event.data);
+      } },
+    });
+    const policy = defineAdmissionPolicy({ id: "partner-call", limits: [
+      circuitBreaker({ id: "health", failureThreshold: 2, cooldown: seconds(60) }),
+      concurrencyLimit({ id: "slots", limit: 1 }),
+    ] });
+    const blocked = Promise.withResolvers<Response>();
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockImplementationOnce(() => blocked.promise)
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    const client = createOutboundHttpClient({
+      name: "partner", baseUrl: "https://partner.example", fetch,
+      middleware: [throttleRequests({ throttling, definition: policy })],
+    });
+    const owner = new AbortController();
+    try {
+      await expect(client.get("/health")).rejects.toMatchObject({ status: 503 });
+      const pending = expect(client.get("/health", { signal: owner.signal })).rejects.toBeInstanceOf(OutboundHttpAbortedError);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(fetch).toHaveBeenCalledTimes(2);
+      owner.abort();
+      await pending;
+      // The outer abort can settle before middleware returns the permit.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(completed).toHaveBeenLastCalledWith(expect.objectContaining({ feedback: "cancelled" }));
+      expect(await throttling.inspect(policy)).toMatchObject({ state: "available" });
+
+      await expect(client.get("/health")).rejects.toMatchObject({ status: 503 });
+      expect(await throttling.inspect(policy)).toMatchObject({ state: "limited", reasons: [{ constraintId: "health", kind: "circuit" }] });
+      expect(fetch).toHaveBeenCalledTimes(3);
+    } finally {
+      owner.abort();
+      blocked.resolve(new Response(null, { status: 204 }));
+      await throttling.close();
+    }
   });
 
   it("cancels a queued admission on request expiry even with an explicit admission signal", async () => {

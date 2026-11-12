@@ -224,7 +224,7 @@ export class OutboundHttpClient {
     const path = interpolatePath(pathTemplate, pathParameters);
     const url = appendQuery(this.resolveUrl(path), query);
     // WHATWG URL resolution can normalize separators into a network path.
-    if (url.origin !== this.baseUrl?.origin) {
+    if (path.trimStart().startsWith("//") || url.origin !== this.baseUrl?.origin) {
       throw new TypeError("A structured outbound HTTP path template must be relative to its client baseUrl.");
     }
     const operation = normalizeOperation(
@@ -538,7 +538,8 @@ function validatePathTemplate(template: string): void {
     throw new TypeError("Outbound HTTP query and fragment values must not be embedded in a path template.");
   }
 
-  if (normalized.startsWith("//") || /^[a-z][a-z\d+.-]*:/i.test(normalized)) {
+  // The URL parser can reinterpret backslashes and strip ASCII control characters.
+  if (/[\\\x00-\x1f]/u.test(template) || normalized.startsWith("//") || /^[a-z][a-z\d+.-]*:/i.test(normalized)) {
     throw new TypeError("A structured outbound HTTP path template must be relative to its client baseUrl.");
   }
 }
@@ -576,9 +577,10 @@ function serializeScalar(value: boolean | Date | number | string): string {
 async function readErrorBody(response: Response, bodies: OutboundHttpBodies): Promise<unknown> {
   const text = await response.text();
   const truncated = bodies.truncated(response);
-  const contentType = response.headers.get("content-type") ?? "";
   if (truncated) return { truncated: true, text };
-  if (text !== "" && (contentType.includes("application/json") || contentType.includes("+json"))) {
+  // Media type matching is case insensitive and excludes parameters and partial matches.
+  const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (text !== "" && (mediaType === "application/json" || mediaType?.endsWith("+json") === true)) {
     try {
       return JSON.parse(text) as unknown;
     } catch {

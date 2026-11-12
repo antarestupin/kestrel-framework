@@ -2,7 +2,7 @@ import type {
   Provider,
   ProviderCompositionApp,
 } from "../app/index.js";
-import { observerContextDependency } from "../observability/index.js";
+import { observerContextDependency, type ObserverContext } from "../observability/index.js";
 import { outboundHttpConfigBase, type OutboundHttpConfig } from "./configuration.js";
 import { OutboundHttpClient } from "./client.js";
 import {
@@ -34,15 +34,20 @@ export class OutboundHttpProvider<Config> implements Provider<Config> {
   protected createFactory(
     app: ProviderCompositionApp<Config>,
   ): OutboundHttpClientFactory {
-    const observerContext = app.container.hasRegistration("observerContext")
-      ? app.container.resolve(observerContextDependency)
-      : undefined;
+    let observerContext: ObserverContext | undefined;
+    try {
+      if (app.container.hasRegistration(observerContextDependency.id)) {
+        observerContext = app.container.resolve(observerContextDependency);
+      }
+    } catch {
+      // Optional diagnostics can fail during dependency resolution as well as recording.
+    }
     const ambientInstrumentation: OutboundHttpInstrumentation | undefined =
       observerContext === undefined
         ? undefined
         : {
             record: (event) => {
-              const observer = observerContext.get();
+              const observer = observerContext?.get();
 
               if (observer !== undefined) {
                 recordOutboundHttpInstrumentation(observer, event);

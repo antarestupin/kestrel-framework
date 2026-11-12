@@ -161,6 +161,23 @@ const focusedProfiles = {
     ["throttling/postgres_schema.ts"],
     ["throttling/types.ts"],
   ],
+  // These disjoint profiles cover the contract files with a smaller static-mutant budget.
+  "throttling-definitions-factories": [
+    ["throttling/definitions.ts", "", "export function validateThrottlingDefinition("],
+  ],
+  "throttling-definitions-validation": [
+    ["throttling/definitions.ts", "export function validateThrottlingDefinition("],
+  ],
+  "throttling-schema": [["throttling/postgres_schema.ts"]],
+  "throttling-public-contracts": [
+    ["throttling/adapter_definition.ts"],
+    ["throttling/configuration.ts"],
+    ["throttling/dependencies.ts"],
+    ["throttling/duration.ts"],
+    ["throttling/errors.ts"],
+    ["throttling/index.ts"],
+    ["throttling/types.ts"],
+  ],
   "throttling-provider": [
     ["throttling/observations.ts"],
     ["throttling/provider.ts"],
@@ -168,6 +185,13 @@ const focusedProfiles = {
   ],
   // The existing session and Argon2id profiles supply the remaining authentication files.
   "authentication-adapters": [["authentication/adapters/**/*.ts"]],
+  // The bundled PostgreSQL declarations contain only static mutants and dominate the adapter run.
+  "authentication-adapters-postgres-schema": [["authentication/adapters/postgres/schema.ts"]],
+  "authentication-adapters-runtime": [
+    ["authentication/adapters/index.ts"],
+    ["authentication/adapters/{composed,memory,redis}/**/*.ts"],
+    ["authentication/adapters/postgres/{adapter,definition,index,tables}.ts"],
+  ],
   "authentication-http": [
     ["authentication/attempt_guard.ts"],
     ["authentication/guards/**/*.ts"],

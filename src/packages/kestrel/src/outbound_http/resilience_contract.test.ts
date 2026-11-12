@@ -5,7 +5,7 @@ import { OutboundHttpDeadline } from "./deadline.js";
 import { OutboundHttpBodies } from "./body.js";
 import { OutboundHttpAbortedError, OutboundHttpResponseTooLargeError, OutboundHttpTimeoutError, OutboundHttpTransportError } from "./errors.js";
 import { createOutboundHttpClient } from "./client.js";
-import { defineOutboundHttpMiddleware } from "./middleware.js";
+import { defineOutboundHttpMiddleware, parseRetryAfter } from "./middleware.js";
 import { retryRequests, type RetryOutboundHttpOptions } from "./middleware/retry/index.js";
 import type { OutboundHttpMiddlewareContext, OutboundHttpNext } from "./types.js";
 
@@ -15,9 +15,24 @@ const context = (method = "GET", signal?: AbortSignal): OutboundHttpMiddlewareCo
 });
 const emptyResponse = (status = 200, headers?: HeadersInit) => new Response(null, { status, ...(headers === undefined ? {} : { headers }) });
 
-afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+afterEach(() => {
+  // Restore spies on fake clock methods before reinstalling the real clock.
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 
 describe("outbound retry contracts", () => {
+  it.each([
+    [null, undefined],
+    ["   ", undefined],
+    [" 12 ", 22_000],
+    ["01 Jan 2026 00:00:00 GMT", undefined],
+    ["Thu, 01 Jan 2026 0:00:00 GMT", undefined],
+    ["Thu, 01 Jan 2026 00:00:0 GMT", undefined],
+  ] as const)("interprets the Retry-After field %j", (header, expected) => {
+    expect(parseRetryAfter(header, 10_000)).toBe(expected);
+  });
+
   for (const method of ["DELETE", "GET", "HEAD", "OPTIONS", "PUT"]) {
     it(`retries ${method} by default`, async () => {
       const next = vi.fn<OutboundHttpNext>().mockResolvedValueOnce(emptyResponse(503)).mockResolvedValueOnce(emptyResponse());
@@ -41,6 +56,18 @@ describe("outbound retry contracts", () => {
     expect((await retryRequests({ sleep, random: () => 0.5 }).handler(context(), next)).status).toBe(503);
     expect(next.mock.calls.map(([options]) => options?.attempt)).toEqual([1, 2, 3]);
     expect(sleep.mock.calls.map(([delay]) => delay)).toEqual([100, 200]);
+  });
+
+  it("passes consecutive attempt numbers to the downstream handler", async () => {
+    let expected = 1;
+    const response = emptyResponse(503);
+    const next: OutboundHttpNext = async (options) => {
+      expect(options?.attempt).toBe(expected);
+      expected += 1;
+      return response;
+    };
+    await expect(retryRequests({ sleep: async () => {} }).handler(context(), next)).resolves.toBe(response);
+    expect(expected).toBe(4);
   });
   it("normalizes explicitly enabled methods and replays fresh body clones", async () => {
     const ctx = { ...context("POST"), request: new Request("https://partner.test/item", { method: "POST", body: "original" }) };
@@ -84,7 +111,12 @@ describe("outbound retry contracts", () => {
   });
   for (const [label, header, delay] of [
     ["seconds", " 2 ", 2_000], ["zero", "0", 0], ["future date", "Thu, 01 Jan 2026 00:00:03 GMT", 3_000],
-    ["past date", "Wed, 31 Dec 2025 23:59:59 GMT", 0], ["negative seconds", "-1", 0], ["invalid", "nonsense", 100], ["empty", "", 100],
+    ["obsolete RFC date", "Thursday, 01-Jan-26 00:00:03 GMT", 3_000],
+    ["asctime UTC date", "Thu Jan  1 00:00:03 2026", 3_000],
+    ["past date", "Wed, 31 Dec 2025 23:59:59 GMT", 0], ["negative seconds", "-1", 100],
+    ["hexadecimal seconds", "0x10", 100], ["fractional seconds", "1.5", 100],
+    ["non-HTTP date", "2026-01-01T00:00:03Z", 100], ["invalid date", "Thu, 01 Foo 2026 00:00:03 GMT", 100],
+    ["unrepresentable delay", "9".repeat(310), 100], ["invalid", "nonsense", 100], ["empty", "", 100],
   ] as const) {
     it(`handles Retry-After ${label}`, async () => {
       vi.useFakeTimers(); vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
@@ -128,6 +160,24 @@ describe("outbound retry contracts", () => {
     const next = vi.fn<OutboundHttpNext>().mockResolvedValueOnce(response).mockResolvedValueOnce(emptyResponse());
     await retryRequests({ sleep: async () => { expect(cancel).toHaveBeenCalledOnce(); } }).handler(context(), next);
     expect(response.body?.locked).toBe(false);
+  });
+
+  it("continues retrying while disposal of a discarded response is pending", async () => {
+    const disposal = Promise.withResolvers<void>();
+    const cancel = vi.fn(() => disposal.promise);
+    const first = new Response(new ReadableStream({ cancel }, { highWaterMark: 0 }), { status: 503 });
+    const next = vi.fn<OutboundHttpNext>().mockResolvedValueOnce(first).mockResolvedValueOnce(emptyResponse(204));
+    const settled = vi.fn();
+    const pending = retryRequests({ sleep: async () => {} }).handler(context(), next);
+    void pending.then(settled, settled);
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ status: 204 }));
+    } finally {
+      disposal.resolve();
+      await Promise.allSettled([pending]);
+    }
   });
   it("uses real cancellable backoff and clears its timer on abort", async () => {
     vi.useFakeTimers();
@@ -192,6 +242,27 @@ describe("outbound retry contracts", () => {
     expect(next).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it("unrefs each retry interval so backoff cannot keep the process alive", async () => {
+    vi.useFakeTimers();
+    const schedule = vi.spyOn(globalThis, "setTimeout");
+    const abort = new AbortController();
+    const reason = new Error("finish timer test");
+    const next = vi.fn<OutboundHttpNext>().mockImplementation(async () => emptyResponse(503));
+    const operation = retryRequests({
+      initialDelayMs: 2_147_483_650, maxDelayMs: 2_147_483_650, jitterRatio: 0,
+    }).handler(context("GET", abort.signal), next);
+    const rejected = expect(operation).rejects.toBe(reason);
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(schedule.mock.results[0]?.value.hasRef()).toBe(false);
+      await vi.advanceTimersByTimeAsync(2_147_483_647);
+      expect(schedule.mock.results[1]?.value.hasRef()).toBe(false);
+    } finally {
+      abort.abort(reason);
+      await rejected;
+    }
+  });
   it("refuses an already aborted attempt without invoking downstream code", async () => {
     const abort = new AbortController(); abort.abort("cancelled");
     const next = vi.fn<OutboundHttpNext>();
@@ -220,7 +291,9 @@ describe("outbound retry contracts", () => {
     vi.useFakeTimers();
     const abort = new AbortController();
     const operation = retryRequests().handler(context("GET", abort.signal), async () => emptyResponse(503));
-    const outcome = expect(operation).rejects.toMatchObject({ cause: "caller stopped" });
+    const outcome = expect(operation).rejects.toMatchObject({
+      operation: "retry backoff", cause: "caller stopped",
+    });
     await vi.advanceTimersByTimeAsync(0);
     abort.abort("caller stopped");
     await outcome;
@@ -246,12 +319,21 @@ describe("outbound retry contracts", () => {
       expect(vi.getTimerCount()).toBe(0);
     } finally { await vi.runAllTimersAsync(); }
   });
-  for (const options of [
-    { maxAttempts: 0 }, { maxAttempts: -1 }, { maxAttempts: 1.5 }, { initialDelayMs: -1 }, { initialDelayMs: Infinity },
-    { maxDelayMs: Infinity }, { maxDelayMs: 99 }, { jitterRatio: -0.1 }, { jitterRatio: 1.1 }, { jitterRatio: NaN }, { methods: [" "] },
-  ] satisfies RetryOutboundHttpOptions[]) {
+  for (const [options, message] of [
+    [{ maxAttempts: 0 }, "Retry maxAttempts must be a positive integer."],
+    [{ maxAttempts: -1 }, "Retry maxAttempts must be a positive integer."],
+    [{ maxAttempts: 1.5 }, "Retry maxAttempts must be a positive integer."],
+    [{ initialDelayMs: -1 }, "Retry delays must be finite and maxDelayMs must cover initialDelayMs."],
+    [{ initialDelayMs: Infinity }, "Retry delays must be finite and maxDelayMs must cover initialDelayMs."],
+    [{ maxDelayMs: Infinity }, "Retry delays must be finite and maxDelayMs must cover initialDelayMs."],
+    [{ maxDelayMs: 99 }, "Retry delays must be finite and maxDelayMs must cover initialDelayMs."],
+    [{ jitterRatio: -0.1 }, "Retry jitterRatio must be between zero and one."],
+    [{ jitterRatio: 1.1 }, "Retry jitterRatio must be between zero and one."],
+    [{ jitterRatio: NaN }, "Retry jitterRatio must be between zero and one."],
+    [{ methods: [" "] }, "A retryable HTTP method cannot be empty."],
+  ] satisfies Array<[RetryOutboundHttpOptions, string]>) {
     it(`rejects invalid retry configuration ${JSON.stringify(options)}`, () => {
-      expect(() => retryRequests(options)).toThrow(TypeError);
+      expect(() => retryRequests(options)).toThrow(new TypeError(message));
     });
   }
 });
@@ -264,10 +346,24 @@ describe("outbound deadline and body contracts", () => {
   });
   it("does not allocate a timer without a timeout budget", async () => {
     vi.useFakeTimers();
+    const clock = vi.spyOn(performance, "now");
     const deadline = new OutboundHttpDeadline("unlimited", undefined, undefined);
     try {
       await expect(deadline.run(async () => "done")).resolves.toBe("done");
       expect(vi.getTimerCount()).toBe(0);
+      expect(clock).not.toHaveBeenCalled();
+    } finally { deadline.close(); }
+  });
+
+  it("unrefs the deadline timer and removes its observer after abort", async () => {
+    vi.useFakeTimers();
+    const schedule = vi.spyOn(globalThis, "setTimeout");
+    const deadline = new OutboundHttpDeadline("unref", 20, undefined);
+    try {
+      expect(schedule.mock.results[0]?.value.hasRef()).toBe(false);
+      await vi.advanceTimersByTimeAsync(20);
+      expect(deadline.signal.aborted).toBe(true);
+      expect(getEventListeners(deadline.signal, "abort")).toHaveLength(0);
     } finally { deadline.close(); }
   });
   it("preserves caller cancellation and prevents operation side effects", async () => {
@@ -363,9 +459,16 @@ describe("outbound deadline and body contracts", () => {
       const deadline = new OutboundHttpDeadline("late", undefined, abort.signal);
       const bodies = new OutboundHttpBodies("late", deadline, 16, undefined);
       try {
-        if (state === "aborted") abort.abort("stopped");
-        else bodies.close();
-        await expect(bodies.protect(new Response("late")).text()).rejects.toBeInstanceOf(Error);
+        if (state === "aborted") {
+          abort.abort("stopped");
+          await expect(bodies.protect(new Response("late")).text()).rejects.toMatchObject({
+            name: "OutboundHttpAbortedError", cause: "stopped",
+          });
+        } else {
+          bodies.close();
+          await expect(bodies.protect(new Response("late")).text())
+            .rejects.toThrow("The outbound HTTP operation has completed.");
+        }
       } finally { bodies.close(); deadline.close(); }
     });
   }
@@ -392,7 +495,7 @@ describe("outbound deadline and body contracts", () => {
     expect(vi.getTimerCount()).toBe(0);
     const closed = new OutboundHttpDeadline("closed", undefined, undefined);
     closed.close();
-    await expect(closed.run(async () => "late")).rejects.toThrow(Error);
+    await expect(closed.run(async () => "late")).rejects.toThrow("The outbound HTTP operation has completed.");
   });
   it("retains transport metadata and protects wrappers of the same body only once", async () => {
     const deadline = new OutboundHttpDeadline("metadata", undefined, undefined);
@@ -408,6 +511,30 @@ describe("outbound deadline and body contracts", () => {
       expect(bodies.protect(wrapper)).toBe(wrapper);
       expect(await wrapper.text()).toBe("data");
     } finally { bodies.close(); deadline.close(); }
+  });
+
+  it("closes a truncated error stream without an empty chunk at its byte limit", async () => {
+    const deadline = new OutboundHttpDeadline("truncate", undefined, undefined);
+    const bodies = new OutboundHttpBodies("truncate", deadline, 16, 4);
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3, 4]));
+        controller.enqueue(new Uint8Array([5]));
+        controller.close();
+      },
+    });
+    const response = bodies.protect(new Response(stream, { status: 500 }));
+    const reader = response.body!.getReader();
+    try {
+      await expect(reader.read()).resolves.toEqual({ value: new Uint8Array([1, 2, 3, 4]), done: false });
+      await expect(reader.read()).resolves.toEqual({ value: undefined, done: true });
+      expect(bodies.truncated(response)).toBe(true);
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+      bodies.close();
+      deadline.close();
+    }
   });
   for (const length of [4, 5]) {
     it(`marks error response truncation only beyond the exact byte boundary ${length}`, async () => {

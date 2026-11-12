@@ -50,6 +50,9 @@ if mode == 'create' then
         for _, id in ipairs(added) do table.insert(ids, id) end
         for _, id in ipairs(ids) do
           local existing = staged[id] or load(id)
+          if existing and existing.subjectIndex ~= token.subjectIndex then
+            return redis.error_reply('Invalid Redis token subject index')
+          end
           if existing and not existing.consumedAt and not existing.revokedAt then
             existing.revokedAt = token.createdAt
             staged[id] = existing
@@ -70,6 +73,8 @@ if mode == 'create' then
 elseif mode == 'find' or mode == 'consume' or mode == 'revoke' then
   local id = redis.call('HGET', digests, input.digest)
   local token = id and load(id)
+  -- Check indexed identity before any consumption or revocation can change another token.
+  if token and token.digest ~= input.digest then return redis.error_reply('Invalid Redis token digest index') end
   if not valid(token) then return false end
   if mode == 'consume' then token.consumedAt = string.format('%.0f', input.now); save(token) end
   if mode == 'revoke' then token.revokedAt = string.format('%.0f', input.revokedAt); save(token); return 1 end

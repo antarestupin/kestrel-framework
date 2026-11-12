@@ -99,6 +99,28 @@ describe("ThrottlingManager", () => {
     await manager.close();
   });
 
+  it("waits for a long retry deadline without overflowing the default Node timer", async () => {
+    const retryAt = new Date(2_147_483_648);
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>().mockResolvedValue({ admitted: false, remaining: 0, retryAt });
+    const warning = vi.spyOn(process, "emitWarning");
+    const manager = new ThrottlingManager({ reserve }, { namespace: "test", now: () => new Date(0) });
+    const controller = new AbortController();
+    const waiting = manager.acquire(onePerSecond, { maxWaitMs: retryAt.getTime() + 1_000, signal: controller.signal });
+    void waiting.catch(() => {});
+    try {
+      await setImmediate();
+      // An overflowing native timeout is coerced to one millisecond and would keep retrying.
+      expect(warning.mock.calls.some(([message]) => String(message).includes("does not fit into a 32-bit signed integer"))).toBe(false);
+      expect(reserve).toHaveBeenCalledOnce();
+      controller.abort();
+      await expect(waiting).rejects.toBeInstanceOf(ThrottlingAcquisitionAbortedError);
+    } finally {
+      warning.mockRestore();
+      controller.abort();
+      await manager.close();
+    }
+  });
+
   it("times out and aborts queued acquisitions without leaking listeners", async () => {
     const clock = new ControlledClock();
     const manager = createManager(clock);
@@ -369,16 +391,111 @@ describe("ThrottlingManager", () => {
 
   it("enforces the global pending acquisition bound", async () => {
     const clock = new ControlledClock();
-    const manager = createManager(clock, { maxPendingAcquisitions: 1 });
+    const record = vi.fn<(event: ThrottlingInstrumentationEvent) => void>();
+    const manager = createManager(clock, { maxPendingAcquisitions: 1, instrumentation: { record } });
 
     await manager.acquire(onePerSecond);
     const waiting = manager.acquire(onePerSecond, { maxWaitMs: 2_000 });
+    void waiting.catch(() => {});
+    await settleMicrotasks();
 
     await expect(manager.acquire(onePerSecond, { maxWaitMs: 2_000 }))
       .rejects.toBeInstanceOf(ThrottlingQueueFullError);
+    expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "acquisition", outcome: "failure", data: {
+      key: onePerSecond.id, mode: "wait", result: "queue-full", cost: 1,
+      estimatedCost: { requests: 1 }, constraints: 1, attempts: 0, waitTimeoutMs: 2_000,
+    } }));
 
     await manager.close();
     await expect(waiting).rejects.toBeInstanceOf(ThrottlingClosedError);
+    expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "acquisition", outcome: "failure",
+      data: expect.objectContaining({ result: "closed", waitTimeoutMs: 2_000 }),
+    }));
+  });
+
+  it.each(["abort", "timeout"] as const)("keeps %s ahead of queue saturation when a pending reserve is denied", async (event) => {
+    const clock = new ControlledClock();
+    const controller = new AbortController();
+    const reserve = Promise.withResolvers<Awaited<ReturnType<RateLimitAdapter["reserve"]>>>();
+    const record = vi.fn<(event: ThrottlingInstrumentationEvent) => void>();
+    const manager = new ThrottlingManager({ reserve: () => reserve.promise }, {
+      namespace: "test", now: clock.now, sleep: clock.sleep, maxPendingAcquisitions: 0, instrumentation: { record },
+    });
+    try {
+      const pending = manager.acquire(onePerSecond, { maxWaitMs: 25, signal: controller.signal });
+      void pending.catch(() => {});
+      await settleMicrotasks();
+      if (event === "abort") controller.abort();
+      else await clock.advance(25);
+      reserve.resolve({ admitted: false, remaining: 0, retryAt: new Date(50) });
+
+      await expect(pending).rejects.toBeInstanceOf(event === "abort" ? ThrottlingAcquisitionAbortedError : ThrottlingAcquisitionTimeoutError);
+      expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "acquisition", outcome: "failure",
+        data: expect.objectContaining({ result: event === "abort" ? "aborted" : "timeout", waitTimeoutMs: 25, attempts: 1 }),
+      }));
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it("starts a fresh queue after another policy was rejected at the global queue bound", async () => {
+    const clock = new ControlledClock();
+    const controller = new AbortController();
+    const other = defineRateLimit({ id: "other", requests: 1, per: seconds(1) });
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(1_000) })
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(9_000) })
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(10) })
+      .mockResolvedValueOnce({ admitted: true, remaining: 0 });
+    const manager = new ThrottlingManager({ reserve }, {
+      namespace: "test", now: clock.now, sleep: clock.sleep, maxPendingAcquisitions: 1,
+    });
+
+    try {
+      const occupying = manager.acquire(onePerSecond, { maxWaitMs: 2_000, signal: controller.signal });
+      void occupying.catch(() => {});
+      await settleMicrotasks();
+      await expect(manager.acquire(other, { maxWaitMs: 2_000 })).rejects.toBeInstanceOf(ThrottlingQueueFullError);
+      controller.abort();
+      await expect(occupying).rejects.toBeInstanceOf(ThrottlingAcquisitionAbortedError);
+
+      const admitted = vi.fn();
+      const waiting = manager.acquire(other, { maxWaitMs: 2_000 });
+      void waiting.then(admitted, () => {});
+      await settleMicrotasks();
+      await clock.advance(10);
+      await settleMicrotasks();
+      expect(admitted).toHaveBeenCalledOnce();
+      await (await waiting).complete({ outcome: "success" });
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it("publishes the close promise before an aborting sleeper can reenter close", async () => {
+    const clock = new ControlledClock();
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValue({ admitted: false, remaining: 0, retryAt: new Date(1_000) });
+    const close = vi.fn(async () => undefined);
+    let reentrantClose: Promise<void> | undefined;
+    const manager = new ThrottlingManager({ reserve, close }, {
+      namespace: "test", now: clock.now,
+      sleep: (_delay, signal) => new Promise((_, reject) => {
+        signal.addEventListener("abort", () => {
+          reentrantClose = manager.close();
+          reject(new DOMException("Aborted", "AbortError"));
+        }, { once: true });
+      }),
+    });
+
+    const waiting = manager.acquire(onePerSecond, { maxWaitMs: 2_000 });
+    void waiting.catch(() => {});
+    await settleMicrotasks();
+    const closing = manager.close();
+    await Promise.all([closing, reentrantClose]);
+    await expect(waiting).rejects.toBeInstanceOf(ThrottlingClosedError);
+    expect(reentrantClose).toBe(closing);
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it("keeps immediate callers behind a rate waiter and releases the queue on sleep failure", async () => {
@@ -407,6 +524,100 @@ describe("ThrottlingManager", () => {
       expect(reserve).toHaveBeenCalledTimes(2);
     } finally {
       failedSleep.resolve();
+      await manager.close();
+    }
+  });
+
+  it("keeps a queued operation waiting for the latest blocking resource and reports its final quota", async () => {
+    const clock = new ControlledClock();
+    const quota = rateLimit({ id: "queued-quota", unit: "requests", limit: 5, per: seconds(1) });
+    const slots = concurrencyLimit({ id: "queued-slot", limit: 1 });
+    const policy = defineAdmissionPolicy({ id: "queued-composite", limits: [quota, slots] });
+    const slotOnly = defineAdmissionPolicy({ id: "slot-only", limits: [slots] });
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(10), source: "authoritative" })
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(30), source: "authoritative" })
+      .mockResolvedValue({ admitted: true, remaining: 3, source: "authoritative" });
+    const record = vi.fn<(event: ThrottlingInstrumentationEvent) => void>();
+    const manager = new ThrottlingManager({ reserve }, {
+      namespace: "test", now: clock.now, sleep: clock.sleep, monotonicNow: () => 0, instrumentation: { record },
+    });
+    try {
+      const settled = vi.fn();
+      const waiting = manager.acquire(policy, { maxWaitMs: 100, estimatedCost: { requests: 2 } });
+      void waiting.then(settled, settled);
+      await settleMicrotasks();
+      const occupying = await manager.acquire(slotOnly);
+      await clock.advance(10);
+      await settleMicrotasks();
+      expect(reserve).toHaveBeenCalledOnce();
+
+      // The retry is blocked by concurrency now and must retry when the slot returns.
+      await occupying.complete({ outcome: "success" });
+      await settleMicrotasks();
+      expect(reserve).toHaveBeenCalledTimes(2);
+      expect(settled).not.toHaveBeenCalled();
+
+      const other = await manager.acquire(slotOnly);
+      await other.complete({ outcome: "success" });
+      await settleMicrotasks();
+      // Rate storage supplied a later deadline, so another slot release cannot retry it early.
+      expect(reserve).toHaveBeenCalledTimes(2);
+      await clock.advance(20);
+      await settleMicrotasks();
+      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ definitionId: policy.id }));
+      expect(record).toHaveBeenLastCalledWith({ type: "acquisition", durationMs: 0, outcome: "success", data: {
+        key: policy.id, mode: "wait", result: "acquired", cost: 2, estimatedCost: { requests: 2 },
+        constraints: 2, attempts: 4, remaining: 3, source: "authoritative", waitTimeoutMs: 100,
+      } });
+      await (await waiting).complete({ outcome: "success" });
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it("replaces a queued rate denial with a pressure rejection and clears it after recovery", async () => {
+    const clock = new ControlledClock();
+    let load = 0;
+    const monitor = new LocalResourcePressureMonitor([{ supports: (id) => id === "cpu", read: () => load }], {
+      now: clock.now, monotonicNow: () => clock.now().getTime(),
+      healthyIntervalMs: 10, nearThresholdIntervalMs: 10, pressuredIntervalMs: 10,
+    });
+    const pressure = localResourcePressure({ id: "host", signals: { cpu: { degradedAt: 0.8, limitedAt: 0.9 } } });
+    const quota = rateLimit({ id: "pressure-quota", unit: "requests", limit: 5, per: seconds(1) });
+    const policy = defineAdmissionPolicy({ id: "pressured-queue", limits: [pressure, quota] });
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(10) })
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(30) })
+      .mockResolvedValue({ admitted: true, remaining: 4 });
+    const manager = new ThrottlingManager({ reserve }, {
+      namespace: "test", now: clock.now, sleep: clock.sleep, resourcePressureMonitor: monitor,
+    });
+    const estimatedCost = { requests: 1 };
+    try {
+      const settled = vi.fn();
+      const waiting = manager.acquire(policy, { maxWaitMs: 100, estimatedCost });
+      void waiting.then(settled, settled);
+      await settleMicrotasks();
+      load = 1;
+      await clock.advance(10);
+      await expect(manager.acquire(policy, { estimatedCost })).rejects.toMatchObject({
+        name: "ThrottlingResourcePressureError", constraintId: pressure.id, signalIds: ["cpu"],
+      });
+      expect(reserve).toHaveBeenCalledOnce();
+
+      load = 0;
+      await clock.advance(10);
+      await settleMicrotasks();
+      await expect(manager.acquire(policy, { estimatedCost })).rejects.toMatchObject({
+        name: "ThrottlingRejectedError", retryAt: new Date(30),
+      });
+      expect(reserve).toHaveBeenCalledTimes(2);
+      await clock.advance(10);
+      await settleMicrotasks();
+      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ definitionId: policy.id }));
+      await (await waiting).complete({ outcome: "success" });
+    } finally {
       await manager.close();
     }
   });

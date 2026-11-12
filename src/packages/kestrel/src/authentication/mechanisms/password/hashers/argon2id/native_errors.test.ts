@@ -48,3 +48,22 @@ for (const operation of ["hash", "verify", "getDummyHash"] as const) {
     expect(await restored.verify("correct-password", await restored.hash("correct-password"))).toBe(true);
   });
 }
+
+it("rejects a malformed tag returned by the native provider without throwing", async () => {
+  const encoded = await new Argon2idPasswordHasher(options).hash("correct-password");
+  vi.resetModules();
+  vi.doMock("node:crypto", async (importOriginal) => ({
+    ...await importOriginal<typeof import("node:crypto")>(),
+    argon2: ((_algorithm, _parameters, callback) => {
+      // The constant-time comparison requires equal-sized buffers.
+      callback(null, Buffer.alloc(1));
+    }) satisfies typeof argon2,
+  }));
+  try {
+    const { Argon2idPasswordHasher: FaultedHasher } = await import("./hasher.js");
+    await expect(new FaultedHasher(options).verify("correct-password", encoded)).resolves.toBe(false);
+  } finally {
+    vi.doUnmock("node:crypto");
+    vi.resetModules();
+  }
+});

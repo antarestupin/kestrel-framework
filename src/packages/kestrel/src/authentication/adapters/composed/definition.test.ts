@@ -62,7 +62,8 @@ it("composes external definitions per scope and disposes each created child once
 
 it("retains cleanup ownership when a child fails to construct or dispose", async () => {
   const base = new MemoryAuthenticationAdapter();
-  const dispose = vi.fn(async () => { throw new Error("cleanup failed"); });
+  const failure = new Error("cleanup failed");
+  const dispose = vi.fn(async () => { throw failure; });
   const recipe = withAuthenticationSessions(
     defineAuthenticationAdapter({ dependencies: {}, capabilities: {}, create: () => base, dispose }),
     defineSessionStorageAdapter({ dependencies: {}, capabilities: {}, create: () => { throw new Error("session construction failed"); } }),
@@ -70,7 +71,10 @@ it("retains cleanup ownership when a child fails to construct or dispose", async
   const adapter = recipe.create(() => { throw new Error("No dependencies expected."); }, undefined);
   await adapter.findById("missing");
   expect(() => adapter.listForAccount("account")).toThrow("session construction failed");
-  await expect(recipe.dispose!(adapter)).rejects.toThrow("cleanup failed");
+  await expect(recipe.dispose!(adapter)).rejects.toMatchObject({
+    message: "Authentication adapter cleanup failed.",
+    errors: [failure],
+  });
   await recipe.dispose!(adapter);
   expect(dispose).toHaveBeenCalledOnce();
 });
@@ -85,12 +89,22 @@ it("routes security-version changes to the base and session mutations to the ses
   const adapter = recipe.create(() => { throw new Error("No dependencies expected."); }, undefined);
   try {
     const account = await adapter.createAccount({ subjectId: "subject" });
-    expect(await adapter.incrementSecurityVersion(account.id)).toBe(account.securityVersion + 1);
-    expect(await base.findById(account.id)).toMatchObject({ securityVersion: account.securityVersion + 1 });
+    await expect(adapter.findBySubjectId("subject")).resolves.toEqual(account);
+    await expect(adapter.setState({ accountId: account.id, state: "disabled" }))
+      .resolves.toMatchObject({ state: "disabled", securityVersion: account.securityVersion + 1 });
+    const credential = await adapter.createPasswordCredential({
+      accountId: account.id, username: "Member", normalizedUsername: "member", passwordHash: "original",
+    });
     const start = new Date("2026-01-01T00:00:00.000Z");
+    await expect(adapter.replaceHash({
+      id: credential.id, previousHash: "original", passwordHash: "replacement", changedAt: start,
+    })).resolves.toBe(true);
+    await expect(base.findByNormalizedUsername("member")).resolves.toMatchObject({ passwordHash: "replacement" });
+    expect(await adapter.incrementSecurityVersion(account.id)).toBe(account.securityVersion + 2);
+    expect(await base.findById(account.id)).toMatchObject({ securityVersion: account.securityVersion + 2 });
     const session = await adapter.createSession({
       id: "session", accountId: account.id, tokenDigest: new Uint8Array([1]),
-      claims: {}, accountSecurityVersion: account.securityVersion + 1,
+      claims: {}, accountSecurityVersion: account.securityVersion + 2,
       evidence: { method: "password", factors: ["knowledge"], authenticatedAt: start },
       createdAt: start, lastSeenAt: start,
       idleExpiresAt: new Date(start.getTime() + 10_000),

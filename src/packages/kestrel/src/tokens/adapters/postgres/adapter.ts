@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm";
 
 import type { PostgresDrizzleManager } from "../../../db/index.js";
+import { validateTokenPruneOptions } from "../../lifetime.js";
 import type {
   CreateStoredToken,
   StoredToken,
@@ -30,21 +31,17 @@ export class PostgresTokenStorageAdapter implements TokenStorageAdapter {
 
   public async createMany(tokens: readonly CreateStoredToken[]): Promise<void> {
     if (tokens.length === 0) return;
-    validateReplacementBatch(tokens);
+    const replacements = groupReplacementsByTime(tokens);
 
     await this.databaseManager.transaction(async () => {
-      const replacements = tokens.filter(
-        (token) => token.replaceExistingForSubject,
-      );
-
-      if (replacements.length > 0) {
+      for (const [createdAt, group] of replacements) {
         await this.database
           .update(this.table)
-          .set({ revokedAt: replacements[0]!.createdAt })
+          .set({ revokedAt: new Date(createdAt) })
           .where(and(
             isNull(this.table.consumedAt),
             isNull(this.table.revokedAt),
-            or(...replacements.map((token) => and(
+            or(...group.map((token) => and(
               eq(this.table.definition, token.definition),
               eq(this.table.subject, token.subject!),
             ))),
@@ -133,6 +130,7 @@ export class PostgresTokenStorageAdapter implements TokenStorageAdapter {
   }
 
   public async prune(options: TokenPruneOptions): Promise<number> {
+    validateTokenPruneOptions(options);
     const candidates = await this.database
       .select({ id: this.table.id })
       .from(this.table)
@@ -159,8 +157,12 @@ export class PostgresTokenStorageAdapter implements TokenStorageAdapter {
   }
 }
 
-function validateReplacementBatch(tokens: readonly CreateStoredToken[]): void {
-  const replacements = new Set<string>();
+/** Retain each replacement's timestamp while batching updates for a common issuance instant. */
+function groupReplacementsByTime(
+  tokens: readonly CreateStoredToken[],
+): Map<number, CreateStoredToken[]> {
+  const subjects = new Set<string>();
+  const replacements = new Map<number, CreateStoredToken[]>();
 
   for (const token of tokens) {
     if (!token.replaceExistingForSubject) continue;
@@ -170,13 +172,18 @@ function validateReplacementBatch(tokens: readonly CreateStoredToken[]): void {
 
     const replacement = `${token.definition}\0${token.subject}`;
 
-    if (replacements.has(replacement)) {
+    if (subjects.has(replacement)) {
       throw new TypeError(
         "A token batch cannot replace the same definition and subject more than once.",
       );
     }
-    replacements.add(replacement);
+    subjects.add(replacement);
+    const timestamp = token.createdAt.getTime();
+    const group = replacements.get(timestamp) ?? [];
+    group.push(token);
+    replacements.set(timestamp, group);
   }
+  return replacements;
 }
 
 function tokenSelection(table: PostgresTokenTable) {

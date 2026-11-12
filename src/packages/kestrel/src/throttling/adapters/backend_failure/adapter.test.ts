@@ -72,11 +72,13 @@ describe("BackendFailureRateLimitAdapter", () => {
     const adapter = new BackendFailureRateLimitAdapter({ reserve }, emergencyPolicy);
 
     await expect(adapter.reserveMany([request])).rejects.toBeInstanceOf(ThrottlingAdapterCapabilityError);
+    await expect(adapter.reserveMany([request])).rejects.toMatchObject({ capability: "atomic batch reservation" });
     await expect(adapter.inspectMany([request])).rejects.toBeInstanceOf(ThrottlingAdapterCapabilityError);
+    await expect(adapter.inspectMany([request])).rejects.toMatchObject({ capability: "advisory inspection" });
     await expect(adapter.reconcile([{ ...request, estimatedCost: 1, actualCost: 0 }]))
-      .rejects.toBeInstanceOf(ThrottlingAdapterCapabilityError);
-    await expect(adapter.allocateLeases("worker-a", [leaseRequest])).rejects.toBeInstanceOf(ThrottlingAdapterCapabilityError);
-    expect(() => adapter.returnLeases([])).toThrow(ThrottlingAdapterCapabilityError);
+      .rejects.toMatchObject({ capability: "cost reconciliation" });
+    await expect(adapter.allocateLeases("worker-a", [leaseRequest])).rejects.toMatchObject({ capability: "leased coordination" });
+    expect(() => adapter.returnLeases([])).toThrow("does not support leased coordination");
     expect(reserve).not.toHaveBeenCalled();
     expect(adapter.prune).toBeUndefined();
     await expect(adapter.close()).resolves.toBeUndefined();
@@ -146,6 +148,7 @@ describe("BackendFailureRateLimitAdapter", () => {
 
     await expect(adapter.reserveMany(requests)).resolves.toMatchObject({
       admitted: true,
+      remaining: { [request.key]: 0, "test:tokens": 0 },
       source: "emergency-local",
     });
     await expect(adapter.inspectMany?.(requests)).resolves.toMatchObject([
@@ -207,6 +210,32 @@ describe("BackendFailureRateLimitAdapter", () => {
     await expect(adapter.reconcile([authoritativeRefund])).resolves.toEqual({ [other.key]: 100 });
   });
 
+  it("preserves emergency batch amounts and refunds without invoking the other source", async () => {
+    const authoritative = failingAdapter(new ThrottlingBackendUnavailableError({ cause: new Error("offline") }));
+    const authoritativeReconcile = vi.spyOn(authoritative, "reconcile");
+    const fallback = new MemoryRateLimitAdapter({ now: () => new Date(0) });
+    const fallbackReconcile = vi.spyOn(fallback, "reconcile");
+    const adapter = new BackendFailureRateLimitAdapter(authoritative, emergencyPolicy, { fallback });
+    const other = { ...request, key: "test:other", cost: 0.5 };
+    await expect(adapter.reserveMany([request, other])).resolves.toEqual({
+      admitted: true, source: "emergency-local", remaining: { [request.key]: 1, [other.key]: 1.5 },
+    });
+    await expect(adapter.inspectMany([{ ...request, cost: emergencyPolicy.capacity }])).resolves.toMatchObject([
+      { available: false, remaining: 1, source: "emergency-local" },
+    ]);
+
+    await expect(adapter.reconcile([{
+      ...request, reservationSource: "emergency-local", estimatedCost: 1, actualCost: 0.5,
+    }])).resolves.toEqual({ [request.key]: 1.5 });
+    expect(fallbackReconcile).toHaveBeenCalledExactlyOnceWith([{
+      key: `emergency:${request.key}`, cost: 1, limit: 2, burst: 2, periodMs: 60_000,
+      reservationSource: "emergency-local", estimatedCost: 1, actualCost: 0.5,
+    }]);
+    await expect(adapter.reconcile([])).resolves.toEqual({});
+    expect(fallbackReconcile).toHaveBeenCalledOnce();
+    expect(authoritativeReconcile).not.toHaveBeenCalled();
+  });
+
   it("rejects oversized requests before consuming any capacity from a fallback batch", async () => {
     const oversized = { ...leaseRequest, key: "test:oversized", cost: 3 };
     const adapter = new BackendFailureRateLimitAdapter(
@@ -241,6 +270,11 @@ describe("BackendFailureRateLimitAdapter", () => {
     await expect(adapter.allocateLeases("worker-b", [leaseRequest])).resolves.toMatchObject({ admitted: true });
     await expect(adapter.allocateLeases("worker-b", [leaseRequest])).resolves.toEqual({
       admitted: false, remaining: { [request.key]: 0 }, retryAt: new Date(30_000), source: "emergency-local",
+    });
+    const untouched = { ...leaseRequest, key: "test:untouched" };
+    await expect(adapter.allocateLeases("worker-b", [leaseRequest, untouched])).resolves.toEqual({
+      admitted: false, remaining: { [request.key]: 0, [untouched.key]: 2 },
+      retryAt: new Date(30_000), source: "emergency-local",
     });
     await expect(adapter.returnLeases([{ key: request.key, leaseId: "previous-lease", remaining: 1 }]))
       .rejects.toBe(error);

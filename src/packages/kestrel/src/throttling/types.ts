@@ -161,6 +161,7 @@ export type ThrottlingRunOptions = ThrottlingAcquireOptions;
 export type ThrottlingPermitOutcome = "failure" | "success";
 
 export type ThrottlingFeedback =
+  | { readonly kind: "cancelled" }
   | { readonly kind: "permanent" }
   | { readonly kind: "throttled"; readonly retryAt?: Date }
   | { readonly kind: "timeout" }

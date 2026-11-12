@@ -3,13 +3,17 @@ import { z } from "zod";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { defineAction } from "../actions/index.js";
-import { authenticationContextDependency, currentUser, optionalCurrentUser } from "./dependencies.js";
-import { AuthenticationRequiredError } from "./errors.js";
+import {
+  authenticationAdapterDependency, authenticationContextDependency, authenticationManagerDependency,
+  currentUser, optionalCurrentUser, passwordHasherDependency, passwordMechanismDependency,
+} from "./dependencies.js";
+import { AuthenticationRequiredError, InvalidCredentialsError } from "./errors.js";
 import type { AuthenticatedPrincipal, AuthenticationSubject } from "./types.js";
 import { App } from "../app/index.js";
-import { createAuthenticationActions } from "./actions.js";
+import { createAuthenticationActions, passwordSignInHttpInputSchema } from "./actions.js";
 import { MemoryAuthenticationAdapter } from "./adapters/memory/index.js";
-import type { AuthenticationAttemptInput } from "./attempt_guard.js";
+import { AllowAuthenticationAttemptGuard, type AuthenticationAttemptGuard, type AuthenticationAttemptInput } from "./attempt_guard.js";
+import { dep } from "../di/index.js";
 import { defineAuthentication } from "./definition.js";
 import type { PasswordHasher } from "./mechanisms/password/index.js";
 import { requireAuthentication } from "./middleware.js";
@@ -69,7 +73,7 @@ describe("AuthenticationProvider", () => {
     app.register(
       new AuthenticationProvider(
         config,
-        memoryAuthentication(stores),
+        memoryAuthentication(new MemoryAuthenticationAdapter<Record<string, never>>()),
         definition,
         new TestPasswordHasher(),
       ),
@@ -114,7 +118,7 @@ describe("AuthenticationProvider", () => {
     const agentSession = sessions.find(({ id }) => id === agentGrant.principal.sessionId);
 
     // Each attempt and stored session keeps only the metadata supplied to that action.
-    expect(attempt.mock.calls.map(([input]) => input.metadata)).toEqual([ipMetadata, agentMetadata]);
+    expect(attempt.mock.calls.map(([input]) => input.metadata)).toStrictEqual([ipMetadata, agentMetadata]);
     expect(ipSession).toHaveProperty("ipAddress", ipMetadata.ipAddress);
     expect(ipSession).not.toHaveProperty("userAgent");
     expect(agentSession).toHaveProperty("userAgent", agentMetadata.userAgent);
@@ -142,6 +146,102 @@ describe("AuthenticationProvider", () => {
       }
     }
   });
+
+  it("resolves public dependencies and shares authentication services within one execution", async () => {
+    const { container } = createCurrentUserApp();
+    const first = container.createScope();
+    const second = container.createScope();
+    try {
+      for (const service of [authenticationManagerDependency(), passwordMechanismDependency] as const) {
+        const resolved = first.resolve(service);
+        expect(first.resolve(service)).toBe(resolved);
+        expect(second.resolve(service)).not.toBe(resolved);
+      }
+      const guard = dep<AuthenticationAttemptGuard>("authenticationAttemptGuard");
+      const defaultGuard = first.resolve(guard);
+      expect(defaultGuard).toBeInstanceOf(AllowAuthenticationAttemptGuard);
+      expect(first.resolve(guard)).toBe(defaultGuard);
+      expect(second.resolve(guard)).not.toBe(defaultGuard);
+      expect(first.resolve(authenticationAdapterDependency)).toBeInstanceOf(MemoryAuthenticationAdapter);
+      expect(first.resolve(passwordHasherDependency)).toBeInstanceOf(TestPasswordHasher);
+      expect(first.resolve(passwordHasherDependency)).toBe(second.resolve(passwordHasherDependency));
+    } finally {
+      await second.dispose();
+      await first.dispose();
+    }
+  });
+
+  it("exposes the action descriptions and excludes transport metadata from the HTTP input schema", () => {
+    const definition = defineAuthentication({ sessionClaims: { schema: z.object({}), create: () => ({}) } });
+    const { actions } = createAuthenticationActions(definition);
+    const credentials = { username: "member", password: "correct-password" };
+
+    // Public HTTP schemas never advertise client-controlled session metadata.
+    expect(passwordSignInHttpInputSchema.parse({ ...credentials, metadata: { ipAddress: "192.0.2.1" } }))
+      .toEqual(credentials);
+    expect(actions.signInWithPassword.description).toBe("Authenticate an account with a username and password.");
+    expect(actions.signOut.description).toBe("Revoke the current session when one is available.");
+    expect(actions.getCurrentSession.description).toBe("Return the current authenticated principal when available.");
+  });
+
+  it.each(["during verification", "after proof issuance", "during a compatible rehash"] as const)(
+    "rechecks password and account state if a hash is replaced %s",
+    async (timing) => {
+      const adapter = new MemoryAuthenticationAdapter<Record<string, never>>();
+      const account = await adapter.createAccount({ subjectId: "member" });
+      const credential = await adapter.createPasswordCredential({
+        accountId: account.id, username: "Member", normalizedUsername: "member", passwordHash: "hash:old-password",
+      });
+      const compatible = timing === "during a compatible rehash";
+      const replace = async () => {
+        // A password reset replaces the hash and invalidates earlier sessions as one workflow.
+        expect(await adapter.replaceHash({
+          id: credential.id, previousHash: credential.passwordHash,
+          passwordHash: compatible ? "rehash:old-password" : "hash:new-password", changedAt: new Date(),
+        })).toBe(true);
+        if (!compatible) await adapter.incrementSecurityVersion(account.id);
+      };
+      const hasher = new TestPasswordHasher();
+      const verify = vi.spyOn(hasher, "verify").mockImplementation(async (password, encoded) =>
+        encoded === `hash:${password}` || encoded === `rehash:${password}`);
+      if (timing !== "after proof issuance") {
+        verify.mockImplementationOnce(async (password, encoded) => {
+          await replace();
+          return encoded === `hash:${password}`;
+        });
+      }
+      let firstAttempt = true;
+      const guard: AuthenticationAttemptGuard = {
+        async run<Value>(_input: AuthenticationAttemptInput, operation: () => Promise<Value>) {
+          const result = await operation();
+          if (timing === "after proof issuance" && firstAttempt) await replace();
+          firstAttempt = false;
+          return result;
+        },
+      };
+      const definition = defineAuthentication({
+        sessionClaims: { schema: z.object({}), create: () => ({}) },
+      });
+      const { actions } = createAuthenticationActions(definition);
+      app = new App({});
+      app.container.registerValue("authenticationAttemptGuard", guard);
+      app.container.registerValue("authenticationSubjectProvider", { findById: async (id: string) => ({ id }) });
+      app.register(new AuthenticationProvider(config, memoryAuthentication(adapter), definition, hasher));
+      const signIn = (password: string) => app!.get(actions.signInWithPassword).run({ username: "member", password });
+
+      if (compatible) {
+        await expect(signIn("old-password")).resolves.toMatchObject({ principal: { accountId: account.id } });
+        expect(verify.mock.calls).toEqual([
+          ["old-password", "hash:old-password"], ["old-password", "rehash:old-password"],
+        ]);
+      } else {
+        await expect(signIn("old-password")).rejects.toBeInstanceOf(InvalidCredentialsError);
+        await expect(adapter.listForAccount(account.id)).resolves.toEqual([]);
+        await expect(signIn("new-password")).resolves.toMatchObject({ principal: { accountId: account.id } });
+        expect(await adapter.listForAccount(account.id)).toMatchObject([{ accountSecurityVersion: account.securityVersion + 1 }]);
+      }
+    },
+  );
 });
 
 // The provider resolves application users rather than adding them to principals.

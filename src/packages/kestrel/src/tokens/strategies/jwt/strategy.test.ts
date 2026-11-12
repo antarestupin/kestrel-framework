@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { defineToken } from "../../definition.js";
 import { TokenManager } from "../../manager.js";
-import { JwtTokenKeyring } from "./keyring.js";
+import { JwtTokenKeyring, type JwtTokenAlgorithm, type JwtTokenKey } from "./keyring.js";
 import { JwtTokenStrategy, type JwtTokenStrategyOptions } from "./strategy.js";
 
 const issuer = "https://issuer.example";
@@ -82,21 +82,24 @@ describe("JwtTokenStrategy", () => {
     const fixture = await createFixture();
     const definition = createDefinition("member.access");
     const now = 1_767_225_600;
-    const token = await new SignJWT({
+    const sign = (memberId: string, subject: string) => new SignJWT({
       token_definition: definition.name,
-      token_payload: { memberId: "member-1", roles: [] },
+      token_payload: { memberId, roles: [] },
     })
       .setProtectedHeader({ alg: "ES256", kid: "current-key", typ: type })
       .setIssuer(issuer)
       .setAudience(audience)
-      .setSubject("member-2")
+      .setSubject(subject)
       .setJti("mismatched-subject")
       .setIssuedAt(now)
       .setNotBefore(now)
       .setExpirationTime(now + 60)
       .sign(fixture.privateKey);
 
-    await expect(fixture.manager.verify(definition, token))
+    await expect(fixture.manager.verify(definition, await sign("member-1", "member-2")))
+      .resolves.toBeUndefined();
+    // A matching signed claim must still name a non-empty application subject.
+    await expect(fixture.manager.verify(definition, await sign(" ", " ")))
       .resolves.toBeUndefined();
   });
 
@@ -162,6 +165,64 @@ describe("JwtTokenStrategy", () => {
     await expect(fixture.manager.verify(definition, overLimit)).resolves.toBeUndefined();
   });
 
+  it("rejects a signed expiration outside the runtime Date range", async () => {
+    const fixture = await createFixture();
+    const definition = createDefinition("member.access");
+    const payload = { memberId: "member-1", roles: [] };
+    const [grant] = await fixture.strategy.issue(definition, [payload], { ttlSeconds: 60 });
+    const claims = decodeJwt(grant!.token);
+    const sign = (exp: number) => new SignJWT({ ...claims, exp })
+      .setProtectedHeader({ alg: "ES256", kid: "current-key", typ: type })
+      .sign(fixture.privateKey);
+
+    // A trusted signature still cannot express a lifecycle outside the runtime's clock domain.
+    const lastDate = 8_640_000_000_000;
+    await expect(fixture.strategy.verify(definition, await sign(lastDate))).resolves.toEqual({
+      payload, expiresAt: new Date(lastDate * 1_000),
+    });
+    await expect(fixture.strategy.verify(definition, await sign(lastDate + 1)))
+      .resolves.toBeUndefined();
+  });
+
+  it("fails closed if the verification clock cannot establish whether a token is expired", async () => {
+    const fixture = await createFixture();
+    const definition = createDefinition("member.access");
+    const payload = { memberId: "member-1", roles: [] };
+    const grant = await fixture.manager.issue(definition, payload, { ttlSeconds: 60 });
+    await expect(fixture.manager.verify(definition, grant.token)).resolves.toEqual(payload);
+
+    // An unavailable clock must never allow an expired bearer through JWT validation.
+    fixture.setNow(grant.expiresAt);
+    await expect(fixture.manager.verify(definition, grant.token)).resolves.toBeUndefined();
+    fixture.setNow(new Date(NaN));
+    await expect(fixture.manager.verify(definition, grant.token)).resolves.toBeUndefined();
+  });
+
+  it("requires the signed application payload even if the schema has a default", async () => {
+    const fixture = await createFixture();
+    const definition = defineToken({
+      name: "member.access",
+      strategy: "jwt",
+      payload: z.string().default("member-1"),
+    });
+    const grant = await fixture.manager.issue(definition, "member-1", { ttlSeconds: 60 });
+    const { token_payload: _omitted, ...claims } = decodeJwt(grant.token);
+    const signed = await new SignJWT(claims)
+      .setProtectedHeader({ alg: "ES256", kid: "current-key", typ: type })
+      .sign(fixture.privateKey);
+
+    await expect(fixture.manager.verify(definition, grant.token)).resolves.toBe("member-1");
+    await expect(fixture.manager.verify(definition, signed)).resolves.toBeUndefined();
+  });
+
+  it("rejects issuance from before the supported JWT clock domain", async () => {
+    const fixture = await createFixture();
+    fixture.setNow(new Date(-1_000));
+    await expect(fixture.strategy.issue(createDefinition("member.access"), [
+      { memberId: "member-1", roles: [] },
+    ], { ttlSeconds: 60 })).rejects.toThrow("JWT issuance time");
+  });
+
   it("accepts a subjectless token for either configured audience until it expires", async () => {
     const fixture = await createFixture();
     const definition = defineToken({
@@ -170,9 +231,12 @@ describe("JwtTokenStrategy", () => {
       strategy: "jwt",
     });
     const audiences = [audience, "second-api"];
+    const configuredAudiences = [...audiences];
     const strategy = new JwtTokenStrategy({
-      issuer, audience: audiences, keyring: fixture.keyring,
+      issuer, audience: configuredAudiences, keyring: fixture.keyring,
     });
+    // Mutating the caller's array after configuration must not change the signed audience.
+    configuredAudiences.push("other-api");
     const payload = { scope: "read" };
 
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -252,6 +316,8 @@ describe("JwtTokenStrategy", () => {
   });
 
   it.each([
+    { options: { issuer: "" }, error: "JWT issuer must not be empty" },
+    { options: { type: " " }, error: "JWT type must not be empty" },
     { options: { audience: [] }, error: "audience must contain at least one value" },
     { options: { audience: [audience, audience] }, error: "audience values must be unique" },
     { options: { audience: [" "] }, error: "audience must not be empty" },
@@ -259,6 +325,7 @@ describe("JwtTokenStrategy", () => {
     { options: { maxTokenLength: 1.5 }, error: "maxTokenLength must be a positive safe integer" },
     { options: { clockToleranceSeconds: -1 }, error: "clockToleranceSeconds must be a non-negative safe integer" },
     { options: { clockToleranceSeconds: 0.5 }, error: "clockToleranceSeconds must be a non-negative safe integer" },
+    { options: { maximumTokenLifetimeSeconds: 0 }, error: "JWT maximumTokenLifetimeSeconds must be a positive safe integer" },
   ] satisfies { options: Partial<JwtTokenStrategyOptions>; error: string }[])(
     "rejects invalid profile options $options",
     async ({ options, error }) => {
@@ -311,6 +378,9 @@ describe("JwtTokenStrategy", () => {
 
   it("rejects unsupported stateful semantics and excessive lifetimes", async () => {
     const fixture = await createFixture({ maximumTokenLifetimeSeconds: 60 });
+    expect(fixture.strategy.capabilities).toEqual({
+      pruning: false, revocation: false, singleUse: false, subjectDeletion: false,
+    });
     const singleUse = defineToken({
       name: "account.password-reset",
       payload: z.object({ accountId: z.string() }),
@@ -341,6 +411,18 @@ describe("JwtTokenStrategy", () => {
       { memberId: "member-1", roles: [] },
       { ttlSeconds: 61 },
     )).rejects.toThrow("exceeds 60 seconds");
+  });
+
+  it("rejects blank application subjects and blank generated IDs during signing", async () => {
+    const fixture = await createFixture();
+    const blankSubject = createDefinition("member.access");
+    await expect(fixture.strategy.issue(blankSubject, [{ memberId: " ", roles: [] }], { ttlSeconds: 60 }))
+      .rejects.toThrow("JWT subject must not be empty.");
+    const blankId = new JwtTokenStrategy({
+      issuer, audience, keyring: fixture.keyring, now: fixture.now, createId: () => "\t",
+    });
+    await expect(blankId.issue(blankSubject, [{ memberId: "member-1", roles: [] }], { ttlSeconds: 60 }))
+      .rejects.toThrow("JWT ID must not be empty.");
   });
 });
 
@@ -394,6 +476,31 @@ describe("JwtTokenKeyring", () => {
     expect(keyring.resolve(undefined, "ES256")).toBeUndefined();
     expect(keyring.resolve("current-key", undefined)).toBeUndefined();
     expect(keyring.resolve("current-key", "ES384")).toBeUndefined();
+    expect(keyring.resolve("unknown", "ES256")).toBeUndefined();
+  });
+
+  it("snapshots getter-backed key descriptors before signing and lookup", async () => {
+    const pair = await generateKeyPair("ES256");
+    class KeyDescriptor implements JwtTokenKey {
+      public constructor(private readonly input: JwtTokenKey["key"]) {}
+      public get id(): string { return "k".repeat(128); }
+      public get algorithm(): JwtTokenAlgorithm { return "ES256"; }
+      public get key(): JwtTokenKey["key"] { return this.input; }
+    }
+    const active = new KeyDescriptor(pair.privateKey);
+    const keyring = new JwtTokenKeyring({ active, verification: [new KeyDescriptor(pair.publicKey)] });
+    expect(keyring.getActive()).toEqual({ id: active.id, algorithm: "ES256", key: pair.privateKey });
+    expect(keyring.resolve(active.id, "ES256")).toEqual({ id: active.id, algorithm: "ES256", key: pair.publicKey });
+  });
+
+  it.each([
+    "EdDSA", "Ed25519", "ES256", "ES384", "ES512", "HS256", "HS384", "HS512",
+    "PS256", "PS384", "PS512", "RS256", "RS384", "RS512",
+  ] as const)("recognizes the explicitly supported %s key descriptor", (algorithm) => {
+    // Key selection is independent of the crypto backend's later validation of key material.
+    const descriptor = { id: "registered-key", algorithm, key: new Uint8Array(64) };
+    const keyring = new JwtTokenKeyring({ active: descriptor, verification: [descriptor] });
+    expect(keyring.resolve(descriptor.id, algorithm)).toEqual(descriptor);
   });
 
   it.each([undefined, null])("rejects missing signing material (%s) at construction", (key) => {

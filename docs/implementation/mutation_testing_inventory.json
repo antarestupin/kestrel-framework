@@ -57,14 +57,15 @@
       "id": "authentication",
       "scope": "authentication/**/*",
       "sourceFiles": 44,
-      "state": "assessment-complete-review-pending",
-      "focus": "Review remaining survivors, including production PostgreSQL provider and migration wiring",
+      "state": "reviewed",
+      "focus": "Accounts, password proofs, session lifecycle, HTTP cookies and adapter contracts reviewed",
       "evidence": [
         "configuration-sample",
         "authentication-sessions",
         "password-verification",
         "authentication-coverage-reassessment",
-        "authentication-gap-followup"
+        "authentication-gap-followup",
+        "authentication-security-resilience-review"
       ]
     },
     {
@@ -265,12 +266,13 @@
       "id": "outbound_http",
       "scope": "outbound_http/**/*",
       "sourceFiles": 17,
-      "state": "assessment-complete-review-pending",
-      "focus": "Review remaining survivors and define caller-cancellation circuit feedback",
+      "state": "reviewed",
+      "focus": "Routing, cancellation, stream ownership, retry, caching and throttling feedback reviewed",
       "evidence": [
         "outbound-resilience",
         "outbound-http-coverage-reassessment",
-        "outbound-http-gap-followup"
+        "outbound-http-gap-followup",
+        "outbound_http-security-resilience-review"
       ]
     },
     {
@@ -322,25 +324,27 @@
       "id": "throttling",
       "scope": "throttling/**/*",
       "sourceFiles": 34,
-      "state": "assessment-complete-review-pending",
-      "focus": "Review residual queue and lease progress detections, storage wiring, and schema contracts",
+      "state": "reviewed",
+      "focus": "Admission, waiting, circuit feedback, lease coordination and storage contracts reviewed",
       "evidence": [
         "configuration-sample",
         "adapter-circuit-pilot",
         "throttling-inspection",
         "throttling-coverage-reassessment",
-        "throttling-gap-followup"
+        "throttling-gap-followup",
+        "throttling-security-resilience-review"
       ]
     },
     {
       "id": "tokens",
       "scope": "tokens/**/*",
       "sourceFiles": 31,
-      "state": "assessment-complete-review-pending",
-      "focus": "Review remaining survivors and PostgreSQL provider wiring",
+      "state": "reviewed",
+      "focus": "Token lifecycle, signing, key resolution, batch atomicity and adapter contracts reviewed",
       "evidence": [
         "tokens-coverage-reassessment",
-        "tokens-gap-followup"
+        "tokens-gap-followup",
+        "tokens-security-resilience-review"
       ]
     },
     {
@@ -2120,6 +2124,199 @@
       },
       "analysis": "mutation_testing_lifecycle_boundaries.md",
       "limits": "Four equivalent survivors concern hidden identity indexing and omitted validation-mode defaults."
+    },
+    {
+      "id": "authentication-security-resilience-review",
+      "date": "2026-11-12",
+      "components": [
+        "authentication"
+      ],
+      "extent": "All 44 candidate sources in authentication/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1575,
+        "Survived": 48,
+        "RuntimeError": 46
+      },
+      "baselineCounts": {
+        "NoCoverage": 14,
+        "Killed": 1326,
+        "Survived": 228,
+        "RuntimeError": 46
+      },
+      "matchedMutants": 1544,
+      "unmatchedBefore": 70,
+      "unmatchedAfter": 125,
+      "baselineRevision": "2cbdab651d1949dccf5ce10371d91d9f00ae229c",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-security-resilience/",
+      "profiles": [
+        "authentication-sessions",
+        "password-verification",
+        "authentication-adapters-postgres-schema",
+        "authentication-adapters-runtime",
+        "authentication-http",
+        "authentication-contracts"
+      ],
+      "afterSeconds": {
+        "authentication-sessions": 154,
+        "password-verification": 79,
+        "authentication-adapters-postgres-schema": 239,
+        "authentication-adapters-runtime": 352,
+        "authentication-http": 344,
+        "authentication-contracts": 483
+      },
+      "analysis": "mutation_testing_security_resilience.md",
+      "limits": "The review records bounded password work variants, defensive guards, diagnostic variants and module initialization outcomes."
+    },
+    {
+      "id": "tokens-security-resilience-review",
+      "date": "2026-11-12",
+      "components": [
+        "tokens"
+      ],
+      "extent": "All 31 candidate sources in tokens/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1249,
+        "NoCoverage": 2,
+        "Survived": 36,
+        "RuntimeError": 17
+      },
+      "baselineCounts": {
+        "Killed": 1108,
+        "Survived": 166,
+        "NoCoverage": 6,
+        "RuntimeError": 17
+      },
+      "matchedMutants": 1221,
+      "unmatchedBefore": 76,
+      "unmatchedAfter": 83,
+      "baselineRevision": "2cbdab651d1949dccf5ce10371d91d9f00ae229c",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-security-resilience/",
+      "profiles": [
+        "tokens-adapters",
+        "tokens-strategies",
+        "tokens-contracts"
+      ],
+      "afterSeconds": {
+        "tokens-adapters": 272,
+        "tokens-strategies": 170,
+        "tokens-contracts": 300
+      },
+      "analysis": "mutation_testing_security_resilience.md",
+      "limits": "The review records backend representation, generated schema and defensive decoding variants."
+    },
+    {
+      "id": "throttling-security-resilience-review",
+      "date": "2026-11-12",
+      "components": [
+        "throttling"
+      ],
+      "extent": "All 34 candidate sources in throttling/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 17,
+        "Killed": 4162,
+        "Survived": 268,
+        "Timeout": 26,
+        "RuntimeError": 35
+      },
+      "baselineCounts": {
+        "NoCoverage": 29,
+        "Killed": 3699,
+        "Survived": 702,
+        "Timeout": 23,
+        "RuntimeError": 35
+      },
+      "matchedMutants": 4292,
+      "unmatchedBefore": 196,
+      "unmatchedAfter": 216,
+      "baselineRevision": "2cbdab651d1949dccf5ce10371d91d9f00ae229c",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-security-resilience/",
+      "profiles": [
+        "throttling-admission",
+        "throttling-queues",
+        "throttling-circuits",
+        "throttling-completion",
+        "throttling-postgres-admission",
+        "throttling-postgres-leases",
+        "throttling-leased",
+        "throttling-adapter-wrappers",
+        "throttling-storage",
+        "throttling-provider",
+        "throttling-definitions-factories",
+        "throttling-definitions-validation",
+        "throttling-schema",
+        "throttling-public-contracts"
+      ],
+      "afterSeconds": {
+        "throttling-admission": 205,
+        "throttling-queues": 162,
+        "throttling-circuits": 112,
+        "throttling-completion": 193,
+        "throttling-postgres-admission": 329,
+        "throttling-postgres-leases": 331,
+        "throttling-leased": 236,
+        "throttling-adapter-wrappers": 188,
+        "throttling-storage": 530,
+        "throttling-provider": 350,
+        "throttling-definitions-factories": 193,
+        "throttling-definitions-validation": 391,
+        "throttling-schema": 123,
+        "throttling-public-contracts": 51
+      },
+      "analysis": "mutation_testing_security_resilience.md",
+      "limits": "The review records the differences between runtime, static, storage protocol and timing evidence."
+    },
+    {
+      "id": "outbound_http-security-resilience-review",
+      "date": "2026-11-12",
+      "components": [
+        "outbound_http"
+      ],
+      "extent": "All 17 candidate sources in outbound_http/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1112,
+        "Survived": 52,
+        "NoCoverage": 1,
+        "Timeout": 1
+      },
+      "baselineCounts": {
+        "Killed": 973,
+        "Survived": 149,
+        "NoCoverage": 6,
+        "Timeout": 1
+      },
+      "matchedMutants": 1013,
+      "unmatchedBefore": 116,
+      "unmatchedAfter": 153,
+      "baselineRevision": "2cbdab651d1949dccf5ce10371d91d9f00ae229c",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-security-resilience/",
+      "profiles": [
+        "outbound-resilience",
+        "outbound-client",
+        "outbound-contracts"
+      ],
+      "afterSeconds": {
+        "outbound-resilience": 162,
+        "outbound-client": 146,
+        "outbound-contracts": 118
+      },
+      "analysis": "mutation_testing_security_resilience.md",
+      "limits": "The review records defensive runtime and diagnostic variants and the scope of injected-fetch verification."
     }
   ]
 }
