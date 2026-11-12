@@ -53,6 +53,21 @@ describe("DenialCachingRateLimitAdapter", () => {
     expect(calls).toBe(2);
   });
 
+  it("rechecks a cached key when the requested cost changes", async () => {
+    const changed = { ...request, cost: 0.5 };
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValueOnce({ admitted: false, remaining: 0.5, retryAt })
+      .mockResolvedValueOnce({ admitted: true, remaining: 0, source: "authoritative" });
+    const adapter = new DenialCachingRateLimitAdapter({ reserve }, fixedClock);
+
+    await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: false, retryAt });
+    // The smaller cost can fit now, while the earlier and larger request remains ineligible.
+    await expect(adapter.reserve(changed)).resolves.toEqual({
+      admitted: true, remaining: 0, source: "authoritative",
+    });
+    expect(reserve.mock.calls).toEqual([[request], [changed]]);
+  });
+
   it("coalesces concurrent denials but never shares successful admissions", async () => {
     let deniedCalls = 0;
     const denied = new DenialCachingRateLimitAdapter({
@@ -99,6 +114,7 @@ describe("DenialCachingRateLimitAdapter", () => {
 
   it("caches batches by their complete request signature", async () => {
     let calls = 0;
+    let monotonicMs = 0;
     const second = { ...request, key: "test:second" };
     const underlying: RateLimitAdapter = {
       reserve: async () => ({ admitted: true, remaining: 1 }),
@@ -114,17 +130,27 @@ describe("DenialCachingRateLimitAdapter", () => {
     };
     const adapter = new DenialCachingRateLimitAdapter(underlying, {
       now: () => new Date(0),
-      monotonicNow: () => 0,
+      monotonicNow: () => monotonicMs,
     });
 
     await adapter.reserveMany([request, second]);
     const cached = await adapter.reserveMany([second, request]);
 
     expect(calls).toBe(1);
-    expect(cached.source).toBe("denial-cache");
+    expect(cached).toEqual({
+      admitted: false,
+      remaining: { [request.key]: 0, [second.key]: 0 },
+      retryAt,
+      source: "denial-cache",
+    });
 
     await adapter.reserveMany([{ ...request, cost: 0.5 }, second]);
     expect(calls).toBe(2);
+
+    // A matching batch must consult storage again at the exact expiration boundary.
+    monotonicMs = 1_000;
+    await expect(adapter.reserveMany([request, second])).resolves.toMatchObject({ source: "authoritative" });
+    expect(calls).toBe(3);
   });
 
   it("keeps delimiter-bearing keys separate from other request batches", async () => {

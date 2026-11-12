@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { App } from "../app/index.js";
 import { dep } from "../di/index.js";
+import { loggerDependency } from "../log/index.js";
 import { AsyncLocalObserverContext, type Observer } from "../observability/index.js";
 import { memoryThrottling, MemoryRateLimitAdapter, postgresThrottling } from "./adapters/index.js";
 import type { ThrottlingConfig } from "./configuration.js";
@@ -65,6 +66,10 @@ describe("ThrottlingProvider", () => {
       task: {
         id: "maintenance.throttling-prune",
         groups: ["maintenance"],
+        // Every replica contributes the same task, with storage-owned scheduling and overlap control.
+        overlap: "skip",
+        runtime: { state: "persistent", coordination: "distributed" },
+        dependencies: { logger: loggerDependency, throttlingResource: dep("throttlingResource") },
         executionLog: false,
         observe: false,
       },

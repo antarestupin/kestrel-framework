@@ -88,6 +88,36 @@ describe("MemoryAuthenticationAdapter", () => {
     await expect(adapter.listForAccount(account.id)).resolves.toEqual([stored]);
   });
 
+  it("lists only the requested account's sessions in newest-first order", async () => {
+    const adapter = new MemoryAuthenticationAdapter();
+    const account = await adapter.createAccount({ subjectId: "subject" });
+    const other = await adapter.createAccount({ subjectId: "other" });
+    const older = await adapter.createSession(sessionInput(account));
+    const newer = await adapter.createSession({
+      ...sessionInput(account), id: "newer", tokenDigest: new Uint8Array([2]),
+      createdAt: new Date(epoch + 100),
+    });
+    const unrelated = await adapter.createSession({
+      ...sessionInput(other), id: "unrelated", tokenDigest: new Uint8Array([3]),
+      createdAt: new Date(epoch + 200),
+    });
+
+    // Interleaving another account's record checks the ownership filter independently of sorting.
+    await expect(adapter.listForAccount(account.id)).resolves.toEqual([newer, older]);
+    await expect(adapter.listForAccount(other.id)).resolves.toEqual([unrelated]);
+  });
+
+  it("persists each security-version increment independently per account", async () => {
+    const adapter = new MemoryAuthenticationAdapter();
+    const account = await adapter.createAccount({ subjectId: "subject" });
+    const other = await adapter.createAccount({ subjectId: "other" });
+
+    await expect(adapter.incrementSecurityVersion(account.id)).resolves.toBe(account.securityVersion + 1);
+    await expect(adapter.incrementSecurityVersion(account.id)).resolves.toBe(account.securityVersion + 2);
+    await expect(adapter.findById(account.id)).resolves.toMatchObject({ securityVersion: account.securityVersion + 2 });
+    await expect(adapter.findById(other.id)).resolves.toEqual(other);
+  });
+
   it("does not renew missing, expired or revoked sessions", async () => {
     const adapter = new MemoryAuthenticationAdapter();
     const account = await adapter.createAccount({ subjectId: "subject" });
@@ -109,5 +139,18 @@ describe("MemoryAuthenticationAdapter", () => {
       revokedAt,
       revokeReason: "logout",
     });
+  });
+
+  it("does not renew a stored session at its absolute expiry even with later idle expiry", async () => {
+    const adapter = new MemoryAuthenticationAdapter();
+    const account = await adapter.createAccount({ subjectId: "subject" });
+    const input = sessionInput(account);
+    // Storage can receive imported records whose idle and absolute deadlines are independent.
+    const stored = await adapter.createSession({ ...input, idleExpiresAt: new Date(epoch + 3_000) });
+    const now = stored.absoluteExpiresAt;
+
+    await expect(adapter.touch({ id: stored.id, now, lastSeenAt: now, idleExpiresAt: stored.idleExpiresAt }))
+      .resolves.toBeUndefined();
+    await expect(adapter.findByTokenDigest(stored.tokenDigest)).resolves.toEqual(stored);
   });
 });

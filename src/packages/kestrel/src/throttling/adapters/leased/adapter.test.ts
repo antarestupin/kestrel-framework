@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ThrottlingAdapterCapabilityError, ThrottlingBackendUnavailableError } from "../../errors.js";
@@ -43,29 +44,45 @@ function createAdapter(
 
 describe("LeasedRateLimitAdapter", () => {
   it("finishes in-flight allocation before returning unused capacity and closing its backend", async () => {
-    const entered = Promise.withResolvers<void>();
     const grant = Promise.withResolvers<RateLimitLeaseBatchResult>();
     const backend = {
       ...createAuthoritative(),
-      allocateLeases: vi.fn(() => { entered.resolve(); return grant.promise; }),
+      allocateLeases: vi.fn(() => grant.promise),
       close: vi.fn(async () => {}),
     };
     const adapter = createAdapter(backend, { now: () => new Date(1_000), monotonicNow: () => 0 });
-    const reservation = adapter.reserve(request);
-    await entered.promise;
-    const closing = adapter.close();
-    await expect(adapter.reserve(request)).rejects.toBeInstanceOf(ThrottlingBackendUnavailableError);
-    expect(backend.close).not.toHaveBeenCalled();
-
-    // A started reservation may finish, but shutdown owns the resulting lease.
-    grant.resolve({ admitted: true, allocations: {
+    const result = { admitted: true, allocations: {
       [request.key]: { mode: "lease", leaseId: "in-flight", expiresAt: new Date(6_000), units: 10, remaining: 90 },
-    } });
-    await expect(reservation).resolves.toMatchObject({ admitted: true, remaining: 9 });
-    await closing;
-    expect(backend.returnLeases).toHaveBeenCalledExactlyOnceWith([{ key: request.key, leaseId: "in-flight", remaining: 9 }]);
-    expect(backend.close).toHaveBeenCalledOnce();
-    expect(backend.returnLeases).toHaveBeenCalledBefore(backend.close);
+    } } as const;
+    const reserved = vi.fn();
+    const rejected = vi.fn();
+    const closed = vi.fn();
+    try {
+      void adapter.reserve(request).then(reserved, reserved);
+      await setImmediate();
+      expect(backend.allocateLeases).toHaveBeenCalledOnce();
+      expect(reserved).not.toHaveBeenCalled();
+
+      const closing = adapter.close();
+      void closing.then(closed, closed);
+      expect(adapter.close()).toBe(closing);
+      void adapter.reserve(request).then(rejected, rejected);
+      await setImmediate();
+      // Observe admission and close while the lease is held without blocking the fixture.
+      expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingBackendUnavailableError));
+      expect(closed).not.toHaveBeenCalled();
+      expect(backend.close).not.toHaveBeenCalled();
+
+      grant.resolve(result);
+      await setImmediate();
+      expect(reserved).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true, remaining: 9 }));
+      expect(closed).toHaveBeenCalledExactlyOnceWith(undefined);
+      expect(backend.returnLeases).toHaveBeenCalledExactlyOnceWith([{ key: request.key, leaseId: "in-flight", remaining: 9 }]);
+      expect(backend.close).toHaveBeenCalledOnce();
+      expect(backend.returnLeases).toHaveBeenCalledBefore(backend.close);
+    } finally {
+      grant.resolve(result);
+    }
   });
 
   it("still returns existing capacity if an in-flight allocation fails during close", async () => {
@@ -130,6 +147,34 @@ describe("LeasedRateLimitAdapter", () => {
 
     expect(results.every((result) => result.admitted)).toBe(true);
     expect(authoritative.allocateLeases).toHaveBeenCalledTimes(1);
+  });
+
+  it("admits overlapping batches with reversed input order without deadlocking", async () => {
+    const backend = createAuthoritative();
+    const adapter = new LeasedRateLimitAdapter(backend);
+    const second = { ...request, key: "test:second" };
+    const forward = vi.fn();
+    const reverse = vi.fn();
+
+    try {
+      void adapter.reserveMany([request, second]).then(forward, forward);
+      void adapter.reserveMany([second, request]).then(reverse, reverse);
+      await setImmediate();
+
+      // Both requests must settle even though they name the same keys in opposite order.
+      expect(forward).toHaveBeenCalledExactlyOnceWith({
+        admitted: true, remaining: { [request.key]: 9, [second.key]: 9 }, source: "leased",
+      });
+      expect(reverse).toHaveBeenCalledExactlyOnceWith({
+        admitted: true, remaining: { [request.key]: 8, [second.key]: 8 }, source: "leased",
+      });
+      expect(backend.allocateLeases).toHaveBeenCalledOnce();
+    } finally {
+      // Under a lock-order regression, pending promises own no external resources.
+      const closing = adapter.close();
+      if (forward.mock.calls.length > 0 && reverse.mock.calls.length > 0) await closing;
+      else void closing.catch(() => undefined);
+    }
   });
 
   it("does not partially consume an existing dimension when a batch is rejected", async () => {

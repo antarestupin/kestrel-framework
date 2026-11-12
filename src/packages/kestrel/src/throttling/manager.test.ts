@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -125,6 +126,81 @@ describe("ThrottlingManager", () => {
     await manager.close();
   });
 
+  it("expires a later waiter at its own earlier deadline", async () => {
+    const clock = new ControlledClock();
+    const manager = createManager(clock);
+    const first = vi.fn();
+    const second = vi.fn();
+
+    try {
+      await manager.acquire(onePerSecond);
+      void manager.acquire(onePerSecond, { maxWaitMs: 900 }).then(first, first);
+      await setImmediate();
+      void manager.acquire(onePerSecond, { maxWaitMs: 100 }).then(second, second);
+      await setImmediate();
+
+      // The second request expires while the FIFO head and backend delay are still live.
+      await clock.advance(100);
+      await setImmediate();
+      expect(second).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionTimeoutError));
+      expect(first).not.toHaveBeenCalled();
+
+      const closing = manager.close();
+      await setImmediate();
+      expect(first).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingClosedError));
+      await closing;
+    } finally {
+      const closing = manager.close();
+      // Exhaust the test's deadlines even if a regression leaves the queue open on close.
+      await clock.advance(900);
+      await closing;
+    }
+  });
+
+  it("reclaims queue slots and detaches the caller's listener on every settlement", async () => {
+    const clock = new ControlledClock();
+    const manager = createManager(clock, { maxPendingAcquisitions: 1 });
+    const aborting = new AbortController();
+    const admitted = new AbortController();
+    const removeAborted = vi.spyOn(aborting.signal, "removeEventListener");
+    const removeAdmitted = vi.spyOn(admitted.signal, "removeEventListener");
+    const abortedResult = vi.fn();
+    const admittedResult = vi.fn();
+    const laterResult = vi.fn();
+
+    try {
+      await manager.acquire(onePerSecond);
+      void manager.acquire(onePerSecond, { maxWaitMs: 2_000, signal: aborting.signal }).then(abortedResult, abortedResult);
+      await setImmediate();
+      aborting.abort();
+      await setImmediate();
+      expect(abortedResult).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionAbortedError));
+      expect(removeAborted).toHaveBeenCalledWith("abort", expect.any(Function));
+
+      // Cancellation must free the sole pending slot for the next caller.
+      void manager.run(onePerSecond, { maxWaitMs: 2_000, signal: admitted.signal }, () => "admitted")
+        .then(admittedResult, admittedResult);
+      await setImmediate();
+      expect(admittedResult).not.toHaveBeenCalled();
+      await clock.advance(1_000);
+      await setImmediate();
+      expect(admittedResult).toHaveBeenCalledExactlyOnceWith("admitted");
+      expect(removeAdmitted).toHaveBeenCalledWith("abort", expect.any(Function));
+
+      // Successful settlement must free the same slot again.
+      void manager.run(onePerSecond, { maxWaitMs: 2_000 }, () => "later").then(laterResult, laterResult);
+      await setImmediate();
+      expect(laterResult).not.toHaveBeenCalled();
+      await clock.advance(1_000);
+      await setImmediate();
+      expect(laterResult).toHaveBeenCalledExactlyOnceWith("later");
+    } finally {
+      await manager.close();
+      removeAborted.mockRestore();
+      removeAdmitted.mockRestore();
+    }
+  });
+
   it("includes the first adapter attempt in the waiting deadline", async () => {
     const clock = new ControlledClock();
     const manager = new ThrottlingManager(
@@ -186,7 +262,6 @@ describe("ThrottlingManager", () => {
 
   it("returns an unused half-open probe when the initial adapter call is aborted", async () => {
     const clock = new ControlledClock();
-    const started = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
     const controller = new AbortController();
     const events: ThrottlingInstrumentationEvent[] = [];
@@ -194,13 +269,11 @@ describe("ThrottlingManager", () => {
     const circuit = defineAdmissionPolicy({ id: "only-circuit", limits: [breaker] });
     const quota = rateLimit({ id: "partner-quota", unit: "requests", limit: 10, per: seconds(1) });
     const composed = defineAdmissionPolicy({ id: "external-operation", limits: [breaker, quota] });
-    const manager = new ThrottlingManager({
-      reserve: async () => {
-        started.resolve();
-        await release.promise;
-        return { admitted: true, remaining: 9 };
-      },
-    }, {
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>(async () => {
+      await release.promise;
+      return { admitted: true, remaining: 9 };
+    });
+    const manager = new ThrottlingManager({ reserve }, {
       namespace: "test", now: clock.now, instrumentation: { record: (event) => events.push(event) },
     });
 
@@ -208,12 +281,17 @@ describe("ThrottlingManager", () => {
       const permit = await manager.acquire(circuit);
       await permit.complete({ outcome: "failure" });
       await clock.advance(1_000);
-      const pending = manager.acquire(composed, { estimatedCost: { requests: 1 }, signal: controller.signal });
-      const rejection = expect(pending).rejects.toBeInstanceOf(ThrottlingAcquisitionAbortedError);
-      await started.promise;
+      const outcome = vi.fn();
+      void manager.acquire(composed, { estimatedCost: { requests: 1 }, signal: controller.signal })
+        .then(outcome, outcome);
+      // A half-open probe must reach the backend before this test cancels it.
+      await setImmediate();
+      expect(reserve).toHaveBeenCalledOnce();
+      expect(outcome).not.toHaveBeenCalled();
       controller.abort();
       release.resolve();
-      await rejection;
+      await setImmediate();
+      expect(outcome).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionAbortedError));
 
       // No operation ran, so returning the probe must not record feedback or close the circuit.
       expect(events.filter((event) => event.type === "circuit").slice(-3).map((event) => event.data)).toMatchObject([
@@ -231,18 +309,17 @@ describe("ThrottlingManager", () => {
 
   it.each(["timeout", "abort", "close"] as const)("handles %s during a queued reservation", async (event) => {
     const clock = new ControlledClock();
-    const started = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
     const controller = new AbortController();
+    const close = vi.fn(async () => {});
     const reserve = vi.fn<RateLimitAdapter["reserve"]>()
       .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(10) })
       .mockImplementationOnce(async () => {
-        started.resolve();
         await release.promise;
         return { admitted: true, remaining: 0 };
       })
       .mockResolvedValue({ admitted: true, remaining: 0 });
-    const manager = new ThrottlingManager({ reserve }, {
+    const manager = new ThrottlingManager({ reserve, close }, {
       namespace: "test", now: clock.now, sleep: clock.sleep,
     });
 
@@ -255,16 +332,26 @@ describe("ThrottlingManager", () => {
       const secondResult = second.catch((error: unknown) => error);
 
       await clock.advance(10);
-      await started.promise;
+      await setImmediate();
+      expect(reserve).toHaveBeenCalledTimes(2);
       if (event === "timeout") await clock.advance(90);
       else if (event === "abort") controller.abort();
-      else void manager.close();
+      else {
+        const closed = vi.fn();
+        void manager.close().then(closed, closed);
+        await setImmediate();
+        // The adapter remains available until the in-flight queue drain has settled.
+        expect(closed).not.toHaveBeenCalled();
+        expect(close).not.toHaveBeenCalled();
+      }
       release.resolve();
 
       if (event === "close") {
         await expect(firstResult).resolves.toBeInstanceOf(ThrottlingClosedError);
         await expect(secondResult).resolves.toBeInstanceOf(ThrottlingClosedError);
         expect(reserve).toHaveBeenCalledTimes(2);
+        await manager.close();
+        expect(close).toHaveBeenCalledOnce();
       } else {
         const expected = event === "timeout" ? ThrottlingAcquisitionTimeoutError : ThrottlingAcquisitionAbortedError;
         await expect(firstResult).resolves.toBeInstanceOf(expected);
@@ -354,6 +441,33 @@ describe("ThrottlingManager", () => {
       expect(clock.pendingSleeps).toBe(0);
       const next = await second;
       await next.complete({ outcome: "success" });
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it("returns the only half-open probe when a later concurrency constraint rejects", async () => {
+    const clock = new ControlledClock();
+    const manager = createManager(clock);
+    const breaker = circuitBreaker({ id: "probe", failureThreshold: 1, cooldown: seconds(1) });
+    const slots = concurrencyLimit({ id: "probe-slots", limit: 1 });
+    const circuitOnly = defineAdmissionPolicy({ id: "circuit", limits: [breaker] });
+    const concurrencyOnly = defineAdmissionPolicy({ id: "slots", limits: [slots] });
+    const combined = defineAdmissionPolicy({ id: "combined", limits: [breaker, slots] });
+    const outage = new Error("dependency failed");
+
+    try {
+      await expect(manager.run(circuitOnly, () => { throw outage; })).rejects.toBe(outage);
+      await clock.advance(1_000);
+
+      const held = await manager.acquire(concurrencyOnly);
+      try {
+        // Acquiring the circuit succeeds before the composed policy finds the busy slot.
+        await expect(manager.acquire(combined)).rejects.toMatchObject({ name: "ThrottlingRejectedError", source: "local" });
+      } finally {
+        await held.complete({ outcome: "success" });
+      }
+      await expect(manager.run(combined, () => "probe admitted")).resolves.toBe("probe admitted");
     } finally {
       await manager.close();
     }

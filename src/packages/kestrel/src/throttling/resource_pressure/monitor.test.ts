@@ -84,6 +84,72 @@ describe("LocalResourcePressureMonitor", () => {
     monitor.close();
   });
 
+  it("evaluates independent readers and refreshes at the earliest signal deadline", () => {
+    let nowMs = 0;
+    const cpu = new MutablePressureSource("cpu", 0.95);
+    const memory = new MutablePressureSource("memory", 0.1);
+    const pressure = localResourcePressure({
+      id: "mixed",
+      signals: {
+        cpu: { degradedAt: 0.8, limitedAt: 0.9 },
+        memory: { degradedAt: 0.8, limitedAt: 0.9 },
+      },
+    });
+    const monitor = new LocalResourcePressureMonitor([cpu, memory], {
+      now: () => new Date(nowMs), monotonicNow: () => nowMs,
+    });
+
+    try {
+      // Each signal is supported by exactly one reader and retains its own refresh interval.
+      expect(monitor.supports("cpu")).toBe(true);
+      expect(monitor.supports("memory")).toBe(true);
+      expect(monitor.supports("unknown")).toBe(false);
+      expect(monitor.evaluate("mixed", pressure.signals, "reject")).toEqual({
+        state: "limited", refreshAt: new Date(250),
+        signals: [
+          { signalId: "cpu", state: "limited", value: 0.95 },
+          { signalId: "memory", state: "healthy", value: 0.1 },
+        ],
+      });
+      nowMs = 250;
+      cpu.value = 0.8;
+      expect(monitor.evaluate("mixed", pressure.signals, "reject")).toMatchObject({
+        state: "degraded", refreshAt: new Date(500),
+      });
+      nowMs = 500;
+      cpu.value = undefined;
+      expect(monitor.evaluate("mixed", pressure.signals, "reject")).toMatchObject({
+        state: "unknown", refreshAt: new Date(750),
+      });
+      expect(monitor.evaluate("mixed", pressure.signals, "ignore").state).toBe("degraded");
+      expect(memory.reads).toBe(1);
+    } finally {
+      monitor.close();
+    }
+  });
+
+  it("keeps hysteresis independent when multiple constraints share a signal", () => {
+    let nowMs = 0;
+    const source = new MutablePressureSource("cpu", 0.95);
+    const recovering = [{ id: "cpu", degradedAt: 0.8, limitedAt: 0.9, recoveryRatio: 0.9 }];
+    const other = [{ id: "cpu", degradedAt: 0.8, limitedAt: 0.92, recoveryRatio: 0.9 }];
+    const monitor = new LocalResourcePressureMonitor([source], {
+      now: () => new Date(nowMs), monotonicNow: () => nowMs,
+    });
+
+    try {
+      expect(monitor.evaluate("recovering", recovering, "reject").state).toBe("limited");
+      nowMs = 250;
+      source.value = 0.86;
+      // The new constraint has no prior limit to hold, even though it uses the same cached reading.
+      expect(monitor.evaluate("other", other, "reject").state).toBe("degraded");
+      expect(monitor.evaluate("recovering", recovering, "reject").state).toBe("limited");
+      expect(source.reads).toBe(2);
+    } finally {
+      monitor.close();
+    }
+  });
+
   it("validates the ordering of configurable sampling intervals", () => {
     expect(() => new LocalResourcePressureMonitor([], {
       healthyIntervalMs: 100,

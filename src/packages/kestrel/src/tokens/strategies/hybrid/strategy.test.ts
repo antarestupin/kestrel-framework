@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryTokenStorageAdapter } from "../../adapters/memory/index.js";
 import { defineToken } from "../../definition.js";
 import { TokenManager } from "../../manager.js";
+import type { StoredToken } from "../../types.js";
 import { JwtTokenKeyring } from "../jwt/keyring.js";
 import { JwtTokenStrategy } from "../jwt/strategy.js";
 import { HybridTokenStrategy } from "./strategy.js";
@@ -131,6 +132,39 @@ describe("HybridTokenStrategy", () => {
     await expect(fixture.manager.verify(definition, grant!.token))
       .resolves.toBeUndefined();
   });
+
+  it.each([
+    { field: "expiry", changes: { expiresAt: new Date(initialNow.getTime() + 61_000) } },
+    { field: "issuance time", changes: { createdAt: new Date(initialNow.getTime() - 1_000) } },
+    { field: "subject", changes: { subject: "member-2" } },
+    { field: "representation", changes: { payload: { tokenRepresentation: "opaque" } } },
+    { field: "representation with extra data", changes: { payload: { tokenRepresentation: "hybrid-jwt", data: true } } },
+    { field: "missing representation", changes: { payload: { other: true } } },
+    { field: "null representation", changes: { payload: null } },
+    { field: "primitive representation", changes: { payload: "x" } },
+  ] satisfies { field: string; changes: Partial<StoredToken> }[])(
+    "rejects a signed JWT when its stored $field differs",
+    async ({ changes }) => {
+      const definition = createDefinition("member.access");
+      const payload = { memberId: "member-1", roles: [] };
+      const grant = await fixture.manager.issue(definition, payload, { ttlSeconds: 60 });
+      const lookup = {
+        definition: definition.name,
+        digest: digestId(decodeJwt(grant.token).jti!),
+        now: initialNow,
+      };
+      const state = await fixture.store.findValid(lookup);
+      expect(state).toBeDefined();
+      await expect(fixture.strategy.verify(definition, grant.token))
+        .resolves.toEqual({ payload, expiresAt: grant.expiresAt });
+
+      // Keep the signed JWT and its lookup key intact. Replace only the persisted field under test.
+      await fixture.store.deleteForSubject({ definition: definition.name, subject: payload.memberId, now: initialNow });
+      await fixture.store.createMany([{ ...state!, ...changes, replaceExistingForSubject: false }]);
+      await expect(fixture.store.findValid(lookup)).resolves.toMatchObject({ id: state!.id });
+      await expect(fixture.strategy.verify(definition, grant.token)).resolves.toBeUndefined();
+    },
+  );
 
   it("rejects an expired JWT before consuming or revoking server state", async () => {
     const definition = createDefinition("member.access");

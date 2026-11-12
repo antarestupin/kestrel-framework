@@ -183,4 +183,40 @@ describe("outbound HTTP throttling", () => {
       vi.useRealTimers();
     }
   });
+
+  it("cancels queued admission when only the configured admission signal aborts", async () => {
+    const custom = new AbortController();
+    const owner = new AbortController();
+    const reason = new Error("admission cancelled");
+    const queued = Promise.withResolvers<never>();
+    let admissionSignal: AbortSignal | undefined;
+    const throttling: Throttling = {
+      acquire: vi.fn(), close: vi.fn(), inspect: vi.fn(),
+      async run(_definition, optionsOrHandler): Promise<never> {
+        if (typeof optionsOrHandler === "function") throw new Error("Admission options are required.");
+        admissionSignal = optionsOrHandler.signal;
+        admissionSignal?.addEventListener("abort", () => queued.reject(admissionSignal?.reason), { once: true });
+        return queued.promise;
+      },
+    };
+    const next = vi.fn();
+    const middleware = throttleRequests({ throttling, definition, acquire: { signal: custom.signal } });
+    const request = new Request("https://partner.example/resource", { signal: owner.signal });
+    const outcome = middleware.handler({
+      request, client: "partner", operation: "GET resource", route: "/resource", attempt: 1, maxResponseBytes: 32,
+    }, next);
+    void outcome.catch(() => {});
+    try {
+      // Assert signal propagation before awaiting work that would otherwise stay queued.
+      expect(admissionSignal?.aborted).toBe(false);
+      custom.abort(reason);
+      expect(admissionSignal?.aborted).toBe(true);
+      await expect(outcome).rejects.toBe(reason);
+      expect(request.signal.aborted).toBe(false);
+      expect(next).not.toHaveBeenCalled();
+    } finally {
+      owner.abort();
+      queued.reject(reason);
+    }
+  });
 });

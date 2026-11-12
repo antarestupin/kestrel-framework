@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-11",
+  "updated": "2026-11-12",
   "sourceRoot": "src/packages/kestrel/src",
   "excludes": [
     "**/*.test.ts",
@@ -56,12 +56,14 @@
       "id": "authentication",
       "scope": "authentication/**/*",
       "sourceFiles": 44,
-      "state": "partial",
-      "focus": "Account/session manager and Argon2id hasher reviewed with documented limits; adapters, HTTP and other authentication sources pending",
+      "state": "assessment-complete-review-pending",
+      "focus": "Review remaining survivors, including production PostgreSQL provider and migration wiring",
       "evidence": [
         "configuration-sample",
         "authentication-sessions",
-        "password-verification"
+        "password-verification",
+        "authentication-coverage-reassessment",
+        "authentication-gap-followup"
       ]
     },
     {
@@ -145,7 +147,7 @@
     {
       "id": "db",
       "scope": "db/**/*",
-      "sourceFiles": 33,
+      "sourceFiles": 34,
       "state": "partial",
       "focus": "Provider, pools, repositories, history and counters; configuration sample assessed",
       "evidence": [
@@ -240,10 +242,12 @@
       "id": "outbound_http",
       "scope": "outbound_http/**/*",
       "sourceFiles": 17,
-      "state": "partial",
-      "focus": "Entire deadline/body/retry files assessed; remaining client/middleware/provider files and resource/interleaving residuals pending",
+      "state": "assessment-complete-review-pending",
+      "focus": "Review remaining survivors and define caller-cancellation circuit feedback",
       "evidence": [
-        "outbound-resilience"
+        "outbound-resilience",
+        "outbound-http-coverage-reassessment",
+        "outbound-http-gap-followup"
       ]
     },
     {
@@ -276,7 +280,7 @@
     {
       "id": "studio",
       "scope": "studio/**/*",
-      "sourceFiles": 95,
+      "sourceFiles": 97,
       "state": "not-assessed",
       "focus": "Server/extensions, client state, routing and rendering",
       "evidence": []
@@ -295,21 +299,26 @@
       "id": "throttling",
       "scope": "throttling/**/*",
       "sourceFiles": 34,
-      "state": "partial",
-      "focus": "Leased inspection/reconciliation reviewed; admission, other lease methods and adapters pending",
+      "state": "assessment-complete-review-pending",
+      "focus": "Review residual queue and lease progress detections, storage wiring, and schema contracts",
       "evidence": [
         "configuration-sample",
         "adapter-circuit-pilot",
-        "throttling-inspection"
+        "throttling-inspection",
+        "throttling-coverage-reassessment",
+        "throttling-gap-followup"
       ]
     },
     {
       "id": "tokens",
       "scope": "tokens/**/*",
       "sourceFiles": 31,
-      "state": "not-assessed",
-      "focus": "Issuance, lookup, expiry, revocation and adapter consistency",
-      "evidence": []
+      "state": "assessment-complete-review-pending",
+      "focus": "Review remaining survivors and PostgreSQL provider wiring",
+      "evidence": [
+        "tokens-coverage-reassessment",
+        "tokens-gap-followup"
+      ]
     },
     {
       "id": "ui",
@@ -424,7 +433,7 @@
       "report": "artifacts/mutation/authentication-sessions/mutation.json",
       "analysis": "mutation_testing_framework.md#authentication-account-and-session-review",
       "classification": "mutation_testing_authentication_sessions_classification.json",
-      "limits": "Four equivalent survivors retained; two uncovered decoder-catch mutants reviewed separately. One changes exceptional decoder failure behavior outside ordinary primitive-string decoding. Adapters, mechanisms, proof construction and HTTP are not mutated in this scope; authentication stays partial."
+      "limits": "Four equivalent survivors retained. Two uncovered decoder-catch mutants reviewed separately, including one that changes exceptional decoder failure behavior outside ordinary primitive-string decoding. This historical profile covers the authentication manager only."
     },
     {
       "id": "adapter-circuit-pilot",
@@ -1205,6 +1214,292 @@
       "analysis": "mutation_testing_workflows_complete_review.md",
       "session": "mutation_testing_workflow_review_session.json",
       "limits": "Twenty disjoint static-inclusive profiles; the three unchanged ownership and retry references were retained. TypeScript mutation and live SQL contracts provide distinct evidence. The session identifies test-deadline detections separately."
+    },
+    {
+      "id": "throttling-coverage-reassessment",
+      "date": "2026-11-12",
+      "components": [
+        "throttling"
+      ],
+      "extent": "All 34 candidate files across 11 disjoint profiles",
+      "assessment": "complete",
+      "review": "pending",
+      "counts": {
+        "Killed": 3633,
+        "Survived": 764,
+        "NoCoverage": 29,
+        "Timeout": 25,
+        "RuntimeError": 37
+      },
+      "sourceAndTestRevision": "52ea51d3c8920ac303786133a72ac98acfa08de2",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-coverage-reassessment/",
+      "profiles": [
+        "throttling-admission",
+        "throttling-queues",
+        "throttling-circuits",
+        "throttling-completion",
+        "throttling-postgres-admission",
+        "throttling-postgres-leases",
+        "throttling-leased",
+        "throttling-adapter-wrappers",
+        "throttling-storage",
+        "throttling-contracts",
+        "throttling-provider"
+      ],
+      "analysis": "mutation_testing_coverage_reassessment.md",
+      "limits": "The 97 Vitest deadline detections are included in Killed. Historical comparisons cover the matching selected scopes. Component-wide residual classification remains pending."
+    },
+    {
+      "id": "authentication-coverage-reassessment",
+      "date": "2026-11-12",
+      "components": [
+        "authentication"
+      ],
+      "extent": "All 44 candidate files across five disjoint profiles",
+      "assessment": "complete",
+      "review": "pending",
+      "counts": {
+        "Killed": 1295,
+        "Survived": 254,
+        "NoCoverage": 18,
+        "Timeout": 1,
+        "RuntimeError": 46
+      },
+      "sourceAndTestRevision": "52ea51d3c8920ac303786133a72ac98acfa08de2",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-coverage-reassessment/",
+      "profiles": [
+        "authentication-sessions",
+        "password-verification",
+        "authentication-adapters",
+        "authentication-http",
+        "authentication-contracts"
+      ],
+      "analysis": "mutation_testing_coverage_reassessment.md",
+      "limits": "The four Vitest deadline detections are included in Killed. The historical account/session and Argon2id profiles retain their statuses. Component-wide residual classification remains pending."
+    },
+    {
+      "id": "tokens-coverage-reassessment",
+      "date": "2026-11-12",
+      "components": [
+        "tokens"
+      ],
+      "extent": "All 31 candidate files across three disjoint profiles",
+      "assessment": "complete",
+      "review": "pending",
+      "counts": {
+        "Killed": 1044,
+        "Survived": 212,
+        "NoCoverage": 24,
+        "RuntimeError": 17
+      },
+      "sourceAndTestRevision": "52ea51d3c8920ac303786133a72ac98acfa08de2",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-coverage-reassessment/",
+      "profiles": [
+        "tokens-adapters",
+        "tokens-strategies",
+        "tokens-contracts"
+      ],
+      "analysis": "mutation_testing_coverage_reassessment.md",
+      "limits": "First complete component reference. The interrupted historical campaign provides selected observations. The run recorded zero Vitest deadline detections. Component-wide residual classification remains pending."
+    },
+    {
+      "id": "outbound-http-coverage-reassessment",
+      "date": "2026-11-12",
+      "components": [
+        "outbound_http"
+      ],
+      "extent": "All 17 candidate files across three disjoint profiles",
+      "assessment": "complete",
+      "review": "pending",
+      "counts": {
+        "Killed": 956,
+        "Survived": 166,
+        "NoCoverage": 6,
+        "Timeout": 1
+      },
+      "sourceAndTestRevision": "52ea51d3c8920ac303786133a72ac98acfa08de2",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/nov12-coverage-reassessment/",
+      "profiles": [
+        "outbound-resilience",
+        "outbound-client",
+        "outbound-contracts"
+      ],
+      "analysis": "mutation_testing_coverage_reassessment.md",
+      "limits": "The 43 Vitest deadline detections are included in Killed. The historical resilience profile covered only the deadline, body and retry files. Component-wide residual classification remains pending."
+    },
+    {
+      "id": "authentication-gap-followup",
+      "date": "2026-11-12",
+      "components": [
+        "authentication"
+      ],
+      "extent": "Selected 3 of 5 component profiles",
+      "assessment": "complete",
+      "review": "pending",
+      "baselineEvidence": "authentication-coverage-reassessment",
+      "baselineCounts": {
+        "Killed": 945,
+        "Survived": 230,
+        "NoCoverage": 15,
+        "Timeout": 1,
+        "RuntimeError": 46
+      },
+      "counts": {
+        "Killed": 976,
+        "Survived": 204,
+        "NoCoverage": 11,
+        "Timeout": 0,
+        "RuntimeError": 46
+      },
+      "matchedMutants": 1237,
+      "sourceRevision": "52ea51d3c8920ac303786133a72ac98acfa08de2",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "longestProfileSeconds": 238,
+      "reportRoot": "artifacts/mutation/nov12-gap-followup/",
+      "inputManifest": "artifacts/mutation/nov12-gap-followup/inputs.json",
+      "comparison": "artifacts/mutation/nov12-gap-followup/comparison.json",
+      "profiles": [
+        "authentication-adapters",
+        "authentication-http",
+        "authentication-contracts"
+      ],
+      "analysis": "mutation_testing_gap_followup.md",
+      "limits": "Selected scope. The account/session and Argon2id profiles retain the earlier complete assessment as their reference. PostgreSQL provider and migration wiring remain to review."
+    },
+    {
+      "id": "throttling-gap-followup",
+      "date": "2026-11-12",
+      "components": [
+        "throttling"
+      ],
+      "extent": "Selected 9 of 11 component profiles",
+      "assessment": "complete",
+      "review": "pending",
+      "baselineEvidence": "throttling-coverage-reassessment",
+      "baselineCounts": {
+        "Killed": 2954,
+        "Survived": 553,
+        "NoCoverage": 24,
+        "Timeout": 25,
+        "RuntimeError": 2
+      },
+      "counts": {
+        "Killed": 3020,
+        "Survived": 491,
+        "NoCoverage": 24,
+        "Timeout": 23,
+        "RuntimeError": 0
+      },
+      "matchedMutants": 3558,
+      "sourceRevision": "52ea51d3c8920ac303786133a72ac98acfa08de2",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "longestProfileSeconds": 261,
+      "reportRoot": "artifacts/mutation/nov12-gap-followup/",
+      "inputManifest": "artifacts/mutation/nov12-gap-followup/inputs.json",
+      "comparison": "artifacts/mutation/nov12-gap-followup/comparison.json",
+      "profiles": [
+        "throttling-admission",
+        "throttling-queues",
+        "throttling-circuits",
+        "throttling-completion",
+        "throttling-postgres-admission",
+        "throttling-postgres-leases",
+        "throttling-leased",
+        "throttling-adapter-wrappers",
+        "throttling-provider"
+      ],
+      "analysis": "mutation_testing_gap_followup.md",
+      "limits": "Selected scope. The storage and contract profiles retain their earlier reference. Queue and lease timing detections remain distinct from direct assertions."
+    },
+    {
+      "id": "tokens-gap-followup",
+      "date": "2026-11-12",
+      "components": [
+        "tokens"
+      ],
+      "extent": "All 31 candidate files across three disjoint profiles",
+      "assessment": "complete",
+      "review": "pending",
+      "baselineEvidence": "tokens-coverage-reassessment",
+      "baselineCounts": {
+        "Killed": 1044,
+        "Survived": 212,
+        "NoCoverage": 24,
+        "Timeout": 0,
+        "RuntimeError": 17
+      },
+      "counts": {
+        "Killed": 1108,
+        "Survived": 166,
+        "NoCoverage": 6,
+        "Timeout": 0,
+        "RuntimeError": 17
+      },
+      "matchedMutants": 1297,
+      "sourceRevision": "52ea51d3c8920ac303786133a72ac98acfa08de2",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "longestProfileSeconds": 136,
+      "reportRoot": "artifacts/mutation/nov12-gap-followup/",
+      "inputManifest": "artifacts/mutation/nov12-gap-followup/inputs.json",
+      "comparison": "artifacts/mutation/nov12-gap-followup/comparison.json",
+      "profiles": [
+        "tokens-adapters",
+        "tokens-strategies",
+        "tokens-contracts"
+      ],
+      "analysis": "mutation_testing_gap_followup.md",
+      "limits": "Complete component scope. PostgreSQL provider wiring and remaining strategy and adapter survivors still need review."
+    },
+    {
+      "id": "outbound-http-gap-followup",
+      "date": "2026-11-12",
+      "components": [
+        "outbound_http"
+      ],
+      "extent": "All 17 candidate files across three disjoint profiles",
+      "assessment": "complete",
+      "review": "pending",
+      "baselineEvidence": "outbound-http-coverage-reassessment",
+      "baselineCounts": {
+        "Killed": 956,
+        "Survived": 166,
+        "NoCoverage": 6,
+        "Timeout": 1,
+        "RuntimeError": 0
+      },
+      "counts": {
+        "Killed": 973,
+        "Survived": 149,
+        "NoCoverage": 6,
+        "Timeout": 1,
+        "RuntimeError": 0
+      },
+      "matchedMutants": 1129,
+      "sourceRevision": "52ea51d3c8920ac303786133a72ac98acfa08de2",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "longestProfileSeconds": 201,
+      "reportRoot": "artifacts/mutation/nov12-gap-followup/",
+      "inputManifest": "artifacts/mutation/nov12-gap-followup/inputs.json",
+      "comparison": "artifacts/mutation/nov12-gap-followup/comparison.json",
+      "profiles": [
+        "outbound-resilience",
+        "outbound-client",
+        "outbound-contracts"
+      ],
+      "analysis": "mutation_testing_gap_followup.md",
+      "limits": "Complete component scope. Caller-cancellation circuit feedback remains a contract question. Vitest deadlines are counted separately in the comparison."
     }
   ]
 }

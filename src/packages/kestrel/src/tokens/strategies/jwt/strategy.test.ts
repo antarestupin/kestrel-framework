@@ -3,6 +3,7 @@ import {
   decodeProtectedHeader,
   generateKeyPair,
   SignJWT,
+  type JWTPayload,
 } from "jose";
 import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
@@ -99,6 +100,68 @@ describe("JwtTokenStrategy", () => {
       .resolves.toBeUndefined();
   });
 
+  it("checks signed temporal claims and the JWT ID independently of the signature", async () => {
+    const fixture = await createFixture({ clockToleranceSeconds: 2 });
+    const definition = createDefinition("member.access");
+    const payload = { memberId: "member-1", roles: [] };
+    const grant = await fixture.manager.issue(definition, payload, { ttlSeconds: 60 });
+    const claims = decodeJwt(grant.token);
+    const issuedAt = claims.iat!;
+    const sign = (changes: JWTPayload) => new SignJWT({ ...claims, ...changes })
+      .setProtectedHeader({ alg: "ES256", kid: "current-key", typ: type })
+      .sign(fixture.privateKey);
+
+    // The allowed clock skew includes its upper boundary.
+    const withinTolerance = await sign({ iat: issuedAt + 2, nbf: issuedAt + 2 });
+    await expect(fixture.manager.verify(definition, withinTolerance)).resolves.toEqual(payload);
+    const invalidClaims = [
+      { jti: " \t " },
+      { nbf: issuedAt - 1 },
+      { iat: issuedAt - 0.5, nbf: issuedAt - 0.5 },
+      { exp: issuedAt + 0.5 },
+      // Tolerance can let JOSE accept a zero-length validity window.
+      { exp: issuedAt },
+      { iat: issuedAt + 3, nbf: issuedAt + 3 },
+    ];
+    for (const changes of invalidClaims) {
+      const token = await sign(changes);
+      await expect(fixture.manager.verify(definition, token)).resolves.toBeUndefined();
+    }
+  });
+
+  it("accepts the Unix epoch and rejects a negative signed NumericDate", async () => {
+    const fixture = await createFixture();
+    fixture.setNow(new Date(0));
+    const definition = createDefinition("member.access");
+    const payload = { memberId: "member-1", roles: [] };
+    const grant = await fixture.manager.issue(definition, payload, { ttlSeconds: 60 });
+    const claims = decodeJwt(grant.token);
+
+    expect(claims).toMatchObject({ iat: 0, nbf: 0, exp: 60 });
+    await expect(fixture.manager.verify(definition, grant.token)).resolves.toEqual(payload);
+
+    // Keep both start times equal so only their negative value breaks the profile.
+    const negative = await new SignJWT({ ...claims, iat: -1, nbf: -1 })
+      .setProtectedHeader({ alg: "ES256", kid: "current-key", typ: type })
+      .sign(fixture.privateKey);
+    await expect(fixture.manager.verify(definition, negative)).resolves.toBeUndefined();
+  });
+
+  it("enforces the inclusive maximum lifetime when signing and verifying", async () => {
+    const fixture = await createFixture({ maximumTokenLifetimeSeconds: 60 });
+    const definition = createDefinition("member.access");
+    const payload = { memberId: "member-1", roles: [] };
+    const grant = await fixture.manager.issue(definition, payload, { ttlSeconds: 60 });
+    await expect(fixture.manager.verify(definition, grant.token)).resolves.toEqual(payload);
+
+    // Sign an over-limit token outside the strategy to isolate verification.
+    const claims = decodeJwt(grant.token);
+    const overLimit = await new SignJWT({ ...claims, exp: claims.exp! + 1 })
+      .setProtectedHeader({ alg: "ES256", kid: "current-key", typ: type })
+      .sign(fixture.privateKey);
+    await expect(fixture.manager.verify(definition, overLimit)).resolves.toBeUndefined();
+  });
+
   it("accepts a subjectless token for either configured audience until it expires", async () => {
     const fixture = await createFixture();
     const definition = defineToken({
@@ -155,9 +218,17 @@ describe("JwtTokenStrategy", () => {
       createId: () => "jwt-1",
       maxTokenLength,
     });
+    const exactLimit = new JwtTokenStrategy({
+      issuer, audience, keyring: fixture.keyring, type, now: fixture.now,
+      createId: () => "jwt-1",
+      maxTokenLength: grant!.token.length,
+    });
 
     // Use a valid signature to isolate rejection by the configured length limit.
     await expect(fixture.strategy.verify(definition, grant!.token)).resolves.toMatchObject({ payload });
+    await expect(exactLimit.verify(definition, grant!.token)).resolves.toMatchObject({ payload });
+    await expect(exactLimit.issue(definition, [payload], { ttlSeconds: 60 }))
+      .resolves.toMatchObject([{ expiresAt: grant!.expiresAt }]);
     await expect(limited.verify(definition, grant!.token)).resolves.toBeUndefined();
     await expect(limited.verify(definition, "")).resolves.toBeUndefined();
     await expect(limited.issue(definition, [payload], { ttlSeconds: 60 }))
@@ -347,7 +418,7 @@ function createDefinition(name: string) {
 }
 
 async function createFixture(
-  overrides: { maximumTokenLifetimeSeconds?: number } = {},
+  overrides: Pick<JwtTokenStrategyOptions, "clockToleranceSeconds" | "maximumTokenLifetimeSeconds"> = {},
 ) {
   const pair = await generateKeyPair("ES256");
   let currentNow = new Date("2026-01-01T00:00:00.000Z");

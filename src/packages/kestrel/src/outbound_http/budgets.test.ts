@@ -1,3 +1,4 @@
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
@@ -27,29 +28,30 @@ function client(response: Response, options: Partial<OutboundHttpClientOptions> 
   });
 }
 
+/** Buffered test chunks are processed without waiting for an external I/O turn. */
+function settleBufferedChunks<Value>(result: Promise<Value>): Promise<Value> {
+  return Promise.race([result, nextTurn().then(() => {
+    throw new Error("Processing buffered response chunks did not settle.");
+  })]);
+}
+
 afterEach(() => vi.useRealTimers());
 
 describe("outbound HTTP budgets", () => {
   it("truncates when the next error chunk arrives after the budget was reached exactly", async () => {
-    const cancel = vi.fn();
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode("full"));
-        controller.enqueue(encoder.encode("extra"));
-      },
-      cancel,
-    });
-    const client = createOutboundHttpClient({
-      name: "partner", baseUrl: "https://partner.example", fetch: async () => new Response(stream, { status: 503 }),
-    });
+    const body = source(503);
+    body.send("full");
+    body.send("extra");
 
-    // An exact-sized prefix is retained without emitting an empty final chunk.
-    await expect(client.get("/failure", { maxErrorBodyBytes: 4 })).rejects.toMatchObject({
-      status: 503, body: { truncated: true, text: "full" },
-    });
-    expect(cancel).toHaveBeenCalledOnce();
-    expect(stream.locked).toBe(false);
+    try {
+      // Keep the source open: the consumer must stop on overflow without waiting for EOF.
+      await expect(settleBufferedChunks(client(body.response).get("/failure", { maxErrorBodyBytes: 4 })))
+        .rejects.toMatchObject({ status: 503, body: { truncated: true, text: "full" } });
+      expect(body.cancel).toHaveBeenCalledOnce();
+      expect(body.stream.locked).toBe(false);
+    } finally {
+      if (body.cancel.mock.calls.length === 0) body.end();
+    }
   });
 
   it.each([200, 500])("keeps the deadline alive for a stalled %s body", async (status) => {
@@ -59,15 +61,21 @@ describe("outbound HTTP budgets", () => {
     const result = client(body.response, {
       timeoutMs: 5, instrumentation: { record: (event) => events.push(event) },
     }).get("/slow", { response: text() });
-    const assertion = expect(result).rejects.toBeInstanceOf(OutboundHttpTimeoutError);
-    await vi.advanceTimersByTimeAsync(5);
-    await assertion;
-    expect(body.cancel).toHaveBeenCalledOnce();
-    expect(body.stream.locked).toBe(false);
-    expect(events.filter((event) => event.type === "request")).toEqual([
-      expect.objectContaining({ outcome: "failure", data: expect.objectContaining({ result: "timeout" }) }),
-    ]);
-    expect(vi.getTimerCount()).toBe(0);
+    const rejected = vi.fn();
+    void result.catch(rejected);
+    try {
+      await vi.advanceTimersByTimeAsync(5);
+      // Observe settlement at the simulated deadline even if a mutation removes its timer.
+      expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
+      expect(body.cancel).toHaveBeenCalledOnce();
+      expect(body.stream.locked).toBe(false);
+      expect(events.filter((event) => event.type === "request")).toEqual([
+        expect.objectContaining({ outcome: "failure", data: expect.objectContaining({ result: "timeout" }) }),
+      ]);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      if (body.cancel.mock.calls.length === 0) body.end();
+    }
   });
 
   it.each([200, 500])("does not reset the deadline for trickling %s bodies", async (status) => {
@@ -148,9 +156,14 @@ describe("outbound HTTP budgets", () => {
     const body = source();
     body.send("12345");
     const http = client(body.response, { maxResponseBytes: 4 });
-    await expect(http.get("/large", { response })).rejects.toBeInstanceOf(OutboundHttpResponseTooLargeError);
-    expect(body.cancel).toHaveBeenCalledOnce();
-    expect(body.stream.locked).toBe(false);
+    try {
+      await expect(settleBufferedChunks(http.get("/large", { response })))
+        .rejects.toBeInstanceOf(OutboundHttpResponseTooLargeError);
+      expect(body.cancel).toHaveBeenCalledOnce();
+      expect(body.stream.locked).toBe(false);
+    } finally {
+      if (body.cancel.mock.calls.length === 0) body.end();
+    }
   });
 
   it("counts bytes across chunks and ignores misleading content-length", async () => {

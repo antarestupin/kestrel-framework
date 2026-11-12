@@ -172,6 +172,8 @@ describe("outbound HTTP client", () => {
     ["/resource#fragment", "must not be embedded"],
     ["https://other.example/resource", "relative to its client baseUrl"],
     ["//other.example/resource", "relative to its client baseUrl"],
+    ["https://partner.example/resource", "relative to its client baseUrl"],
+    ["//partner.example/resource", "relative to its client baseUrl"],
     ["/resource/:id", 'path parameter "id" is required'],
   ])("rejects an invalid structured route (%j) before transport", async (route, message) => {
     const fetch = vi.fn();
@@ -383,4 +385,30 @@ describe("outbound middleware helpers", () => {
       request: expect.objectContaining({ url: replacement.url }), attempt: 2, maxResponseBytes: 32,
     }));
   });
+
+  it.each(["owner", "replacement"] as const)(
+    "propagates %s cancellation to a replacement request in the standalone runner",
+    async (source) => {
+      const owner = new AbortController();
+      const replacement = new AbortController();
+      const initial = new Request("https://partner.example/first", { signal: owner.signal });
+      const replacementRequest = new Request("https://partner.example/second", { signal: replacement.signal });
+      const middleware = defineOutboundHttpMiddleware("replace", {
+        handler: (_context, next) => next({ request: replacementRequest }),
+      });
+      const reason = new Error("cancel downstream work");
+      const terminal = vi.fn(async ({ request }: { request: Request }) => {
+        // Abort after dispatch so each signal must independently cancel active work.
+        expect(request.signal.aborted).toBe(false);
+        (source === "owner" ? owner : replacement).abort(reason);
+        request.signal.throwIfAborted();
+        return new Response(null, { status: 204 });
+      });
+
+      await expect(runOutboundHttpMiddleware([middleware], {
+        client: "partner", operation: "operation", route: "request", request: initial, attempt: 1, maxResponseBytes: 32,
+      }, terminal)).rejects.toBe(reason);
+      expect(terminal).toHaveBeenCalledOnce();
+    },
+  );
 });

@@ -61,6 +61,12 @@ describe("AuthenticationThrottlingGuard", () => {
     }, async () => "unexpected")).rejects.toBeInstanceOf(
       AuthenticationRateLimitedError,
     );
+
+    // A fresh username on a fresh IP must stay eligible after the first IP fills up.
+    await expect(guard.run({
+      credentials: { username: "Fourth", password: "password" },
+      metadata: { ipAddress: "192.0.2.2" },
+    }, async () => "other IP")).resolves.toBe("other IP");
   });
 
   it("applies the default username quota without an IP and preserves operation errors", async () => {

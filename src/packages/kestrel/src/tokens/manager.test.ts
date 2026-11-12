@@ -128,6 +128,40 @@ describe("TokenManager", () => {
     )).rejects.toThrow("same replacement subject");
   });
 
+  it.each([0, 1.5])("rejects a payload budget of %s bytes", (maxPayloadBytes) => {
+    expect(() => new TokenManager({}, { maxPayloadBytes }))
+      .toThrow("Token maxPayloadBytes must be a positive integer");
+  });
+
+  it("enforces the inclusive UTF-8 budget and rejects unencodable payloads before issuing", async () => {
+    const { manager, store } = createFixture({ maxPayloadBytes: 4 });
+    const createMany = vi.spyOn(store, "createMany");
+    const text = defineToken({ name: "test.text", payload: z.string() });
+    const bigint = defineToken({ name: "test.bigint", payload: z.bigint() });
+    const options = { ttlSeconds: 60 };
+
+    // JSON quotes count toward the budget, and a multibyte character is wider than one code unit.
+    await expect(manager.issue(text, "éa", options)).rejects.toThrow("exceeds 4 bytes");
+    await expect(manager.issue(bigint, 1n, options)).rejects.toThrow("payload must be JSON-compatible");
+    expect(createMany).not.toHaveBeenCalled();
+
+    const grant = await manager.issue(text, "é", options);
+    await expect(manager.verify(text, grant.token)).resolves.toBe("é");
+  });
+
+  it("fails closed when a strategy resolves a bearer to an invalid payload", async () => {
+    const strategy: TokenStrategy = {
+      capabilities: { pruning: false, revocation: false, singleUse: false, subjectDeletion: false },
+      issue: async () => [],
+      verify: async () => ({ payload: 123, expiresAt: new Date("2026-01-01T00:01:00.000Z") }),
+    };
+    const manager = new TokenManager({ stored: strategy }, { maxPayloadBytes: 32 });
+    const definition = defineToken({ name: "test.text", payload: z.string() });
+
+    // The adapter result still has to pass the definition's runtime schema.
+    await expect(manager.verify(definition, "stored-bearer")).resolves.toBeUndefined();
+  });
+
   it("does not issue a batch with an unencodable payload or an invalid subject", async () => {
     const fixture = createFixture();
     const createMany = vi.spyOn(fixture.store, "createMany");
@@ -228,6 +262,40 @@ describe("TokenManager", () => {
       .toThrow("does not support revocation");
     expect(() => manager.deleteForSubject(definition, "account-1"))
       .toThrow("does not support subject deletion");
+  });
+
+  it("requires advertised lifecycle guarantees before calling strategy methods", async () => {
+    const consume = vi.fn();
+    const revoke = vi.fn();
+    const revokeForSubject = vi.fn();
+    const deleteForSubject = vi.fn();
+    const manager = new TokenManager({
+      stored: {
+        capabilities: { pruning: false, revocation: false, singleUse: false, subjectDeletion: false },
+        issue: async () => [],
+        verify: async () => undefined,
+        consume,
+        revoke,
+        revokeForSubject,
+        deleteForSubject,
+      },
+    }, { maxPayloadBytes: 32 });
+    const definition = defineToken({
+      name: "account.confirmation",
+      payload: z.string(),
+      subject: (value) => value,
+      usage: "single",
+    });
+
+    // A method on a custom strategy does not by itself advertise the matching guarantee.
+    await expect(manager.consume(definition, "bearer")).rejects.toThrow("does not support single-use");
+    expect(() => manager.revoke(definition, "bearer")).toThrow("does not support revocation");
+    expect(() => manager.revokeForSubject(definition, "account-1")).toThrow("does not support revocation");
+    expect(() => manager.deleteForSubject(definition, "account-1")).toThrow("does not support subject deletion");
+    expect(consume).not.toHaveBeenCalled();
+    expect(revoke).not.toHaveBeenCalled();
+    expect(revokeForSubject).not.toHaveBeenCalled();
+    expect(deleteForSubject).not.toHaveBeenCalled();
   });
 
   it("prunes each eligible store once across several strategies", async () => {

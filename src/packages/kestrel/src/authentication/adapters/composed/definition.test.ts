@@ -74,3 +74,41 @@ it("retains cleanup ownership when a child fails to construct or dispose", async
   await recipe.dispose!(adapter);
   expect(dispose).toHaveBeenCalledOnce();
 });
+
+it("routes security-version changes to the base and session mutations to the session store", async () => {
+  const base = new MemoryAuthenticationAdapter();
+  const sessions = new MemoryAuthenticationAdapter();
+  const recipe = withAuthenticationSessions(
+    defineAuthenticationAdapter({ dependencies: {}, capabilities: {}, create: () => base }),
+    defineSessionStorageAdapter({ dependencies: {}, capabilities: {}, create: () => sessions }),
+  );
+  const adapter = recipe.create(() => { throw new Error("No dependencies expected."); }, undefined);
+  try {
+    const account = await adapter.createAccount({ subjectId: "subject" });
+    expect(await adapter.incrementSecurityVersion(account.id)).toBe(account.securityVersion + 1);
+    expect(await base.findById(account.id)).toMatchObject({ securityVersion: account.securityVersion + 1 });
+    const start = new Date("2026-01-01T00:00:00.000Z");
+    const session = await adapter.createSession({
+      id: "session", accountId: account.id, tokenDigest: new Uint8Array([1]),
+      claims: {}, accountSecurityVersion: account.securityVersion + 1,
+      evidence: { method: "password", factors: ["knowledge"], authenticatedAt: start },
+      createdAt: start, lastSeenAt: start,
+      idleExpiresAt: new Date(start.getTime() + 10_000),
+      absoluteExpiresAt: new Date(start.getTime() + 60_000),
+    });
+    const now = new Date(start.getTime() + 1_000);
+    const idleExpiresAt = new Date(start.getTime() + 11_000);
+
+    // Inspect both children to verify that touch and account-wide revocation reach the session owner.
+    expect(await adapter.touch({ id: session.id, now, lastSeenAt: now, idleExpiresAt }))
+      .toMatchObject({ lastSeenAt: now, idleExpiresAt });
+    expect(await adapter.revokeAllForAccount({ accountId: account.id, revokedAt: now, reason: "logout" }))
+      .toBe(1);
+    expect(await sessions.findByTokenDigest(session.tokenDigest)).toMatchObject({
+      lastSeenAt: now, idleExpiresAt, revokedAt: now, revokeReason: "logout",
+    });
+    expect(await base.listForAccount(account.id)).toEqual([]);
+  } finally {
+    await recipe.dispose!(adapter);
+  }
+});

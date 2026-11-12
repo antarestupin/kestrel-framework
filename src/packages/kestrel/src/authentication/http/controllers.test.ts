@@ -21,8 +21,10 @@ import {
 } from "../../http/index.js";
 import { MemoryAuthenticationAdapter } from "../adapters/memory/index.js";
 import { createAuthenticationActions } from "../actions.js";
+import type { AuthenticationAttemptGuard } from "../attempt_guard.js";
 import type { AuthenticationConfig } from "../configuration.js";
 import { defineAuthentication } from "../definition.js";
+import { AuthenticationRateLimitedError } from "../errors.js";
 import type { PasswordHasher } from "../mechanisms/password/index.js";
 import { AuthenticationProvider } from "../provider.js";
 import { createAuthenticationHttpControllers, type AuthenticationHttpControllerOptions } from "./controllers.js";
@@ -121,6 +123,7 @@ describe("authentication HTTP controllers", () => {
       },
     });
     expect(signOut.statusCode).toBe(204);
+    expect(signOut.headers["cache-control"]).toBe("no-store");
     expect(signOut.headers["set-cookie"]).toContain("Max-Age=0");
 
     const anonymous = await server.inject({
@@ -274,6 +277,65 @@ describe("authentication HTTP controllers", () => {
     });
   });
 
+  it("returns the same HTTP rejection for a wrong password and an unknown username", async () => {
+    const { adapter, server } = await createHttpAuthentication();
+    const account = await adapter.createAccount({ subjectId: "known-subject" });
+    await adapter.createPasswordCredential({
+      accountId: account.id,
+      username: "KnownUser",
+      normalizedUsername: "knownuser",
+      passwordHash: "hash:correct-password",
+    });
+
+    const createSession = vi.spyOn(adapter, "createSession");
+    const signIn = (username: string) => server.inject({
+      method: "POST",
+      url: "/authentication/password/sign-in",
+      headers: { origin: "http://app.test" },
+      payload: { username, password: "incorrect-password" },
+    });
+
+    const rejected = await signIn("KNOWNUSER");
+    const unknown = await signIn("missing");
+
+    // Account existence must not change any observable response fields except the server clock.
+    expect(rejected.statusCode).toBe(401);
+    expect(unknown.statusCode).toBe(rejected.statusCode);
+    expect(rejected.json()).toMatchObject({
+      error: "Unauthorized",
+      message: "The supplied credentials are invalid.",
+    });
+    expect(unknown.body).toBe(rejected.body);
+    expect({ ...unknown.headers, date: undefined }).toEqual({ ...rejected.headers, date: undefined });
+    expect(rejected.headers["set-cookie"]).toBeUndefined();
+    expect(createSession).not.toHaveBeenCalled();
+    expect(await adapter.listForAccount(account.id)).toEqual([]);
+  });
+
+  it("returns a generic 429 before looking up credentials when admission is denied", async () => {
+    const { adapter, server } = await createHttpAuthentication(config, undefined, {
+      async run() { throw new AuthenticationRateLimitedError(); },
+    });
+    const findCredential = vi.spyOn(adapter, "findByNormalizedUsername");
+
+    // Denied requests stop at the admission boundary before any password or session work.
+    const response = await server.inject({
+      method: "POST",
+      url: "/authentication/password/sign-in",
+      headers: { origin: "http://app.test" },
+      payload: { username: "member", password: "password" },
+    });
+
+    expect(response.statusCode).toBe(429);
+    expect(response.json()).toEqual({
+      statusCode: 429,
+      error: "Too Many Requests",
+      message: "Too many authentication attempts.",
+    });
+    expect(response.headers["set-cookie"]).toBeUndefined();
+    expect(findCredential).not.toHaveBeenCalled();
+  });
+
   it.each([
     undefined,
     "null",
@@ -366,6 +428,24 @@ describe("authentication HTTP controllers", () => {
     expect(crossOrigin.statusCode).toBe(403);
   });
 
+  it("accepts either configured client origin and rejects a different origin", async () => {
+    const { server } = await createHttpAuthentication({
+      ...config,
+      http: { ...config.http, trustedOrigins: ["https://first.test", "https://second.test"] },
+    });
+    const signIn = (origin: string) => server.inject({
+      method: "POST",
+      url: "/authentication/password/sign-in",
+      headers: { origin },
+      payload: { username: "missing", password: "incorrect-password" },
+    });
+
+    // Trusted origins reach credential verification, which rejects the unknown username.
+    expect((await signIn("https://first.test")).statusCode).toBe(401);
+    expect((await signIn("https://second.test")).statusCode).toBe(401);
+    expect((await signIn("https://other.test")).statusCode).toBe(403);
+  });
+
   it.each(["authentication", "/authentication/"])("rejects invalid controller prefix %s", async (prefix) => {
     // Invalid mount prefixes fail at controller definition time, before registering any routes.
     await expect(createHttpAuthentication(config, { prefix })).rejects.toThrow(
@@ -374,7 +454,11 @@ describe("authentication HTTP controllers", () => {
   });
 });
 
-async function createHttpAuthentication(httpConfig = config, options?: AuthenticationHttpControllerOptions): Promise<{
+async function createHttpAuthentication(
+  httpConfig = config,
+  options?: AuthenticationHttpControllerOptions,
+  attemptGuard?: AuthenticationAttemptGuard,
+): Promise<{
   adapter: MemoryAuthenticationAdapter<Record<string, never>>;
   server: FastifyInstance;
   app: App<Record<string, never>>;
@@ -400,6 +484,7 @@ async function createHttpAuthentication(httpConfig = config, options?: Authentic
   const server = Fastify();
 
   app.container.registerValue("authenticationAdapter", adapter);
+  if (attemptGuard) app.container.registerValue("authenticationAttemptGuard", attemptGuard);
   const findById = vi.fn(async (id: string): Promise<{ id: string } | null> => ({ id }));
   app.container.registerValue("authenticationSubjectProvider", { findById });
   app.register(new AuthenticationProvider(httpConfig, memoryAuthentication(adapter), definition, new TestPasswordHasher()));

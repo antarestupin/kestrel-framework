@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { setTimeout as pause } from "node:timers/promises";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
   boolean,
@@ -305,6 +308,61 @@ describe("PostgresRateLimitAdapter", () => {
     expect(backend.execute).toHaveBeenCalledTimes(2);
   });
 
+  it("hands capacity to a live waiter after an earlier waiter expires", async () => {
+    const first = Promise.withResolvers<{ rows: object[] }>();
+    const second = Promise.withResolvers<{ rows: object[] }>();
+    const row = { rows: [{ key: baseRequest.key, admitted: true, remaining: 1 }] };
+    const execute = vi.fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+      .mockResolvedValue(row);
+    const adapter = new PostgresRateLimitAdapter({ execute } as unknown as PostgresRateLimitDatabase, {
+      maxConcurrentReservations: 1, maxPendingReservations: 2, storageWaitTimeoutMs: 10,
+    });
+    const holder = vi.fn();
+    const expired = vi.fn();
+    const live = vi.fn();
+    const last = vi.fn();
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      void adapter.reserve(baseRequest).then(holder, holder);
+      void adapter.reserve(baseRequest).then(expired, expired);
+      await vi.advanceTimersByTimeAsync(5);
+      void adapter.reserve(baseRequest).then(live, live);
+      await vi.advanceTimersByTimeAsync(5);
+
+      expect(expired).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        cause: expect.objectContaining({ message: "Timed out waiting for throttling storage capacity." }),
+      }));
+      expect(live).not.toHaveBeenCalled();
+      expect(execute).toHaveBeenCalledTimes(1);
+
+      // The expired entry must not absorb the handoff, and the live waiter owns the only slot.
+      first.resolve(row);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(holder).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true }));
+      expect(execute).toHaveBeenCalledTimes(2);
+      void adapter.reserve(baseRequest).then(last, last);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(last).not.toHaveBeenCalled();
+      expect(execute).toHaveBeenCalledTimes(2);
+
+      second.resolve(row);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(live).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true }));
+      expect(last).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true }));
+    } finally {
+      first.resolve(row);
+      second.resolve(row);
+      try {
+        await vi.advanceTimersByTimeAsync(20);
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  });
+
   it("normalizes invalid query replies and database failures as backend unavailability", async () => {
     const backend = { execute: vi.fn() };
     const adapter = new PostgresRateLimitAdapter(backend as unknown as PostgresRateLimitDatabase);
@@ -408,21 +466,26 @@ describe("PostgresRateLimitAdapter", () => {
     expect(remaining.rows).toEqual([{ key: "test:active" }]);
   });
 
-  it("rolls back every dimension when one atomic reservation rejects", async () => {
-    const adapter = createAdapter();
-    const first = { ...baseRequest, key: "test:first", burst: 1 };
-    const exhausted = { ...baseRequest, key: "test:exhausted", burst: 1 };
+  it("rolls back every dimension and reports the latest retry for a rejected atomic reservation", async () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    const adapter = createAdapter({ now: () => now });
+    const fresh = { ...baseRequest, key: "test:fresh", burst: 1 };
+    const quick = { ...baseRequest, key: "test:quick", limit: 2, periodMs: 1_000 };
+    const slow = { ...baseRequest, key: "test:slow", limit: 3, periodMs: 3_001 };
+    for (const request of [quick, slow]) {
+      await adapter.reserve({ ...request, cost: 1.5 });
+      await holdBucketRefill(request.key);
+    }
 
-    await adapter.reserve(exhausted);
-
-    await expect(adapter.reserveMany([first, exhausted])).resolves.toMatchObject({
+    // The admitted dimension uses all its tentative capacity, but contributes no retry delay.
+    await expect(adapter.reserveMany([fresh, slow, quick])).resolves.toEqual({
       admitted: false,
+      remaining: { [fresh.key]: 0, [quick.key]: 0.5, [slow.key]: 0.5 },
+      retryAt: new Date(now.getTime() + 501),
       source: "authoritative",
     });
-    await expect(adapter.reserve(first)).resolves.toMatchObject({
-      admitted: true,
-      remaining: 0,
-    });
+    const snapshot = await client.query("SELECT key, tokens FROM throttling_rate_limit ORDER BY key");
+    expect(snapshot.rows).toEqual([{ key: quick.key, tokens: 0.5 }, { key: slow.key, tokens: 0.5 }]);
   });
 
   it("commits every dimension together and inspects without mutation", async () => {
@@ -555,6 +618,99 @@ describe("PostgresRateLimitAdapter", () => {
       });
   });
 
+  it("uses exact allocation at the guard-band boundary and leases just above it", async () => {
+    const adapter = createAdapter();
+    const boundary = { ...leasedRequest, key: "test:guard-boundary" };
+    const above = { ...leasedRequest, key: "test:above-guard" };
+    const threshold = leasedRequest.coordination.guardBandUnits + leasedRequest.cost;
+    await adapter.allocateLeases("initial", [boundary, above]);
+    // Remove the first grants so only available capacity governs the next allocation mode.
+    await client.query("DELETE FROM throttling_rate_limit_lease");
+    await client.query("UPDATE throttling_rate_limit SET tokens = $1 WHERE key = $2", [threshold, boundary.key]);
+    await client.query("UPDATE throttling_rate_limit SET tokens = $1 WHERE key = $2", [threshold + 0.5, above.key]);
+    await holdBucketRefill(boundary.key);
+    await holdBucketRefill(above.key);
+
+    await expect(adapter.allocateLeases("next", [boundary, above])).resolves.toMatchObject({
+      admitted: true,
+      allocations: {
+        [boundary.key]: { mode: "exact", remaining: 10 },
+        [above.key]: { mode: "lease", units: 1.5, remaining: 10 },
+      },
+    });
+  });
+
+  it("reads active lease capacity after waiting for a different connection's row lock", async () => {
+    const schema = `throttling_race_${randomUUID().replaceAll("-", "")}`;
+    let owner: PoolClient | undefined;
+    let peer: PoolClient | undefined;
+    let pending: Promise<PromiseSettledResult<Awaited<ReturnType<PostgresRateLimitAdapter["allocateLeases"]>>>> | undefined;
+    await client.query(`CREATE SCHEMA "${schema}"`);
+
+    try {
+      // Clone the fixture into ordinary tables visible to both test connections.
+      for (const table of ["throttling_rate_limit", "throttling_rate_limit_lease"]) {
+        await client.query(`CREATE TABLE "${schema}".${table} (LIKE pg_temp.${table} INCLUDING ALL)`);
+      }
+      owner = await pool.connect();
+      peer = await pool.connect();
+      for (const connection of [owner, peer]) {
+        await connection.query(`SET search_path TO "${schema}"`);
+        await connection.query("SET statement_timeout = '2s'");
+      }
+      const [ownerPid, peerPid] = await Promise.all([owner, peer].map(async (connection) =>
+        (await connection.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0]!.pid));
+      const ownerDb = drizzle(owner);
+      const adapter = createAdapter({}, drizzle(peer) as PostgresRateLimitDatabase);
+      const { key, limit, periodMs, burst, coordination } = leasedRequest;
+      const refilledAt = new Date("2100-01-01T00:00:00Z");
+      await ownerDb.insert(testRateLimits).values({
+        key, limit, periodMs, burst,
+        coordinationStrategy: coordination.strategy,
+        maxLeaseUnits: coordination.maxLeaseUnits,
+        leaseMs: coordination.leaseMs,
+        maxOutstandingUnits: coordination.maxOutstandingUnits,
+        guardBandUnits: coordination.guardBandUnits,
+        tokens: burst, refilledAt, fullAt: refilledAt, lastAdmitted: true,
+      });
+
+      const blockedStatement = await ownerDb.transaction(async (transaction) => {
+        // Lock the pre-existing row before the peer reads capacity. Its snapshot must follow this commit.
+        await transaction.execute(sql`SELECT key FROM throttling_rate_limit WHERE key = ${key} FOR UPDATE`);
+        let settled = false;
+        pending = Promise.allSettled([adapter.allocateLeases("peer", [leasedRequest])]).then(([result]) => {
+          settled = true;
+          return result!;
+        });
+        const statement = await observeBlockedStatement(ownerPid!, peerPid!, () => settled);
+        await transaction.update(testRateLimits).set({ tokens: burst - coordination.maxLeaseUnits })
+          .where(sql`${testRateLimits.key} = ${key}`);
+        await transaction.insert(testRateLimitLeases).values({
+          id: "owner-grant", rateLimitKey: key, ownerId: "owner", units: coordination.maxLeaseUnits,
+          expiresAt: refilledAt, createdAt: new Date(),
+        });
+        return statement;
+      });
+
+      // Waiting on a later UPDATE would be too late because the allocation decision would already be stale.
+      expect(blockedStatement).toMatch(/FOR UPDATE OF/i);
+      await expect(pending).resolves.toEqual({
+        status: "fulfilled",
+        value: { admitted: true, allocations: { [key]: { mode: "exact", remaining: 79 } } },
+      });
+      const active = await owner.query("SELECT owner_id, units FROM throttling_rate_limit_lease");
+      expect(active.rows).toEqual([{ owner_id: "owner", units: coordination.maxLeaseUnits }]);
+    } finally {
+      try {
+        await pending;
+      } finally {
+        peer?.release(true);
+        owner?.release(true);
+        await client.query(`DROP SCHEMA "${schema}" CASCADE`);
+      }
+    }
+  });
+
   it("returns unused lease units once and rejects incompatible lease definitions", async () => {
     const adapter = createAdapter();
     const allocation = await adapter.allocateLeases("worker-a", [leasedRequest]);
@@ -646,11 +802,30 @@ async function holdBucketRefill(key: string): Promise<void> {
   `, [key]);
 }
 
+/** Samples the exact owner and waiter connection state without ordering the race by elapsed time. */
+async function observeBlockedStatement(
+  ownerPid: number,
+  peerPid: number,
+  settled: () => boolean,
+): Promise<string> {
+  const deadline = performance.now() + 1_000;
+  while (performance.now() < deadline) {
+    if (settled()) return "settled";
+    const result = await pool.query<{ query: string }>(`
+      SELECT query FROM pg_stat_activity WHERE pid = $1 AND $2 = ANY (pg_blocking_pids(pid))
+    `, [peerPid, ownerPid]);
+    if (result.rows[0] !== undefined) return result.rows[0].query;
+    await pause(5);
+  }
+  throw new Error("The competing throttling transaction neither settled nor waited for the owner.");
+}
+
 function createAdapter(
   options: ConstructorParameters<typeof PostgresRateLimitAdapter>[1] = {},
+  connection = database,
 ): PostgresRateLimitAdapter {
   return new PostgresRateLimitAdapter(
-    database,
+    connection,
     { maxConcurrentReservations: 1, ...options },
     testRateLimits as unknown as typeof throttlingRateLimits,
     testRateLimitLeases as unknown as typeof throttlingRateLimitLeases,

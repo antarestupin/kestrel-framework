@@ -64,6 +64,28 @@ describe("StoredTokenStrategy", () => {
     expect(createMany).not.toHaveBeenCalled();
   });
 
+  it("advertises pruning and returns the count from the store", async () => {
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    const store = new MemoryTokenStorageAdapter();
+    const strategy = new StoredTokenStrategy(store, { tokenBytes: 32, now: () => now });
+    const [expired] = await strategy.issue(definition, [{ scope: "short" }], { ttlSeconds: 1 });
+    const [retained] = await strategy.issue(definition, [{ scope: "long" }], { ttlSeconds: 60 });
+
+    expect(strategy.capabilities.pruning).toBe(true);
+    await expect(strategy.prune({
+      expiredBefore: expired!.expiresAt,
+      inactiveBefore: now,
+      limit: 1,
+    })).resolves.toBe(1);
+
+    // Keep the read clock before the cutoff so absence proves that the row was removed.
+    await expect(strategy.verify(definition, expired!.token)).resolves.toBeUndefined();
+    await expect(strategy.verify(definition, retained!.token)).resolves.toEqual({
+      payload: { scope: "long" },
+      expiresAt: retained!.expiresAt,
+    });
+  });
+
   it("rejects empty, truncated and padded bearers before reaching storage", async () => {
     const store = new MemoryTokenStorageAdapter();
     const find = vi.spyOn(store, "findValid");
@@ -72,8 +94,10 @@ describe("StoredTokenStrategy", () => {
     const strategy = new StoredTokenStrategy(store, { tokenBytes: 32 });
     const [grant] = await strategy.issue(definition, [{ scope: "read" }], { ttlSeconds: 60 });
 
+    // Encode the short bearer independently to keep it canonical and isolate the byte-length guard.
+    const shortBearer = Buffer.alloc(31, 0xa5).toString("base64url");
     // Node can decode a padded alias, so rejection must also check the canonical encoding.
-    for (const bearer of ["", grant!.token.slice(1), `${grant!.token}=`]) {
+    for (const bearer of ["", shortBearer, `${grant!.token}=`]) {
       await expect(strategy.verify(definition, bearer)).resolves.toBeUndefined();
       await expect(strategy.consume(definition, bearer)).resolves.toBeUndefined();
       await expect(strategy.revoke(definition, bearer)).resolves.toBe(false);

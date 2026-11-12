@@ -14,6 +14,7 @@ import {
   ThrottlingCostExceedsBurstError,
   ThrottlingCostValidationError,
   ThrottlingManager,
+  ThrottlingRejectedError,
   type RateLimitAdapter,
   type ThrottlingInstrumentationEvent,
   type ThrottlingManagerOptions,
@@ -69,10 +70,12 @@ describe("ThrottlingManager inspection contracts", () => {
 
   it("retains a denial without a known retry time when another rate gives a deadline", async () => {
     const alternate = rateLimit({ id: "alternate-rate", unit: "requests", limit: 20, per: seconds(2) });
-    const policy = defineAdmissionPolicy({ id: "multiple-rates", limits: [quota, alternate] });
+    const shorter = rateLimit({ id: "shorter-rate", unit: "requests", limit: 40, per: seconds(1) });
+    const policy = defineAdmissionPolicy({ id: "multiple-rates", limits: [quota, alternate, shorter] });
     const inspectMany = vi.fn<NonNullable<RateLimitAdapter["inspectMany"]>>().mockResolvedValue([
       { available: false, remaining: 0 },
       { available: false, remaining: 0.5, retryAt: new Date(200) },
+      { available: false, remaining: 0, retryAt: new Date(100) },
     ]);
     const manager = createManager({ reserve: vi.fn<RateLimitAdapter["reserve"]>(), inspectMany });
 
@@ -82,8 +85,28 @@ describe("ThrottlingManager inspection contracts", () => {
       reasons: [
         { kind: "rate", constraintId: quota.id, remaining: 0 },
         { kind: "rate", constraintId: alternate.id, remaining: 0.5, retryAt: new Date(200) },
+        { kind: "rate", constraintId: shorter.id, remaining: 0, retryAt: new Date(100) },
       ],
     });
+  });
+
+  it("rejects another acquisition at capacity and keeps independent limits separate", async () => {
+    const manager = createManager(new MemoryRateLimitAdapter());
+    const independent = defineAdmissionPolicy({
+      id: "independent-work",
+      limits: [concurrencyLimit({ id: "independent-slots", limit: 2 })],
+    });
+    const blocked = vi.fn();
+    const held = await manager.acquire(concurrencyOnly);
+    try {
+      // Test the admission decision itself while its only slot is still occupied.
+      await expect(manager.run(concurrencyOnly, blocked)).rejects.toBeInstanceOf(ThrottlingRejectedError);
+      expect(blocked).not.toHaveBeenCalled();
+      await expect(manager.run(independent, () => "independent")).resolves.toBe("independent");
+    } finally {
+      await held.complete({ outcome: "success" });
+    }
+    await expect(manager.run(concurrencyOnly, () => "released")).resolves.toBe("released");
   });
 
   it("inspects zero cost locally while retaining concurrency and pressure reasons", async () => {

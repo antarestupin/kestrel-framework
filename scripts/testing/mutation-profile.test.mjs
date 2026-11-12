@@ -45,31 +45,51 @@ test("worker mutation profiles partition the scheduler without gaps or overlaps"
   }
 });
 
-test("bounded workflow profiles partition every selected workflow source line", async () => {
-  const root = fileURLToPath(new URL("../../", import.meta.url));
-  const workflowRoot = resolve(root, "src/packages/kestrel/src/workflows");
-  // The earlier cross-adapter ownership profile supplies the PostgreSQL retryTask range.
-  const modes = [...focusedProfileNames().filter((mode) => mode.startsWith("workflow-")), "postgres-ownership"];
-  const selectors = modes.flatMap((mode) => focusedPatterns(mode));
-  for (const entry of await readdir(workflowRoot, { recursive: true, withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    const absolute = resolve(entry.parentPath, entry.name);
-    const path = relative(root, absolute).replaceAll("\\", "/");
-    const selected = config.mutate.findLast((pattern) => matchesGlob(path, pattern.replace(/^!/u, "")));
-    if (!selected || selected.startsWith("!")) continue;
-    const lines = (await readFile(absolute, "utf8")).split("\n");
-    const coverage = lines.map(() => 0);
-    for (const selector of selectors) {
-      const [file, range] = selector.split(":");
-      if (!matchesGlob(path, file)) continue;
-      const [first, last] = range ? range.split("-").map(Number) : [1, lines.length];
-      for (let line = first; line <= last; line += 1) coverage[line - 1] += 1;
+// Historical comparison profiles also supply their original files to the complete partitions.
+const componentPartitions = {
+  workflows: [
+    ...focusedProfileNames().filter((mode) => mode.startsWith("workflow-")),
+    "postgres-ownership",
+  ],
+  throttling: [
+    "throttling-admission", "throttling-queues", "throttling-circuits", "throttling-completion",
+    "throttling-postgres-admission", "throttling-postgres-leases", "throttling-leased",
+    "throttling-adapter-wrappers", "throttling-storage", "throttling-contracts", "throttling-provider",
+  ],
+  tokens: ["tokens-adapters", "tokens-strategies", "tokens-contracts"],
+  authentication: [
+    "authentication-sessions", "password-verification", "authentication-adapters",
+    "authentication-http", "authentication-contracts",
+  ],
+  outbound_http: ["outbound-resilience", "outbound-client", "outbound-contracts"],
+};
+
+for (const [component, modes] of Object.entries(componentPartitions)) {
+  test(`bounded ${component} profiles partition every selected source line`, async () => {
+    const root = fileURLToPath(new URL("../../", import.meta.url));
+    const componentRoot = resolve(root, "src/packages/kestrel/src", component);
+    const selectors = modes.flatMap((mode) => mode === "authentication-sessions"
+      ? ["src/packages/kestrel/src/authentication/manager.ts"] : focusedPatterns(mode));
+    for (const entry of await readdir(componentRoot, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const absolute = resolve(entry.parentPath, entry.name);
+      const path = relative(root, absolute).replaceAll("\\", "/");
+      const selected = config.mutate.findLast((pattern) => matchesGlob(path, pattern.replace(/^!/u, "")));
+      if (!selected || selected.startsWith("!")) continue;
+      const lines = (await readFile(absolute, "utf8")).split("\n");
+      const coverage = lines.map(() => 0);
+      for (const selector of selectors) {
+        const [file, range] = selector.split(":");
+        if (!matchesGlob(path, file)) continue;
+        const [first, last] = range ? range.split("-").map(Number) : [1, lines.length];
+        for (let line = first; line <= last; line += 1) coverage[line - 1] += 1;
+      }
+      for (const [index, count] of coverage.entries()) {
+        assert.equal(count, 1, `${path}:${index + 1} must belong to exactly one profile`);
+      }
     }
-    for (const [index, count] of coverage.entries()) {
-      assert.equal(count, 1, `${path}:${index + 1} must belong to exactly one profile`);
-    }
-  }
-});
+  });
+}
 
 for (const [mode, scope] of [...focusedProfileNames().map((mode) => [mode, []]), ["static-sample", []], ["shutdown", []], ["authentication-sessions", []], ["fast", []], ["component", ["di"]]]) {
 test(`the ${mode} deadline checkpoints Stryker and still cleans owned resources`, async () => {

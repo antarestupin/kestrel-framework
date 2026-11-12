@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MemoryAuthenticationAdapter } from "../../adapters/memory/index.js";
 import type { AuthenticationConfig } from "../../configuration.js";
@@ -80,6 +80,24 @@ describe("PasswordMechanism", () => {
     expect(hasher.verifiedHashes).toEqual(["dummy", "dummy"]);
   });
 
+  it("requires a stored credential even if verification of the dummy hash succeeds", async () => {
+    const adapter = new MemoryAuthenticationAdapter();
+    const hasher = new FakePasswordHasher();
+    vi.spyOn(hasher, "verify").mockResolvedValue(true);
+    const needsRehash = vi.spyOn(hasher, "needsRehash");
+    const mechanism = new PasswordMechanism({
+      credentialStore: adapter,
+      passwordHasher: hasher,
+      usernameNormalizer: new DefaultUsernameNormalizer(),
+    }, config);
+
+    // A custom verifier can accept its dummy hash, but that cannot establish an account identity.
+    await expect(mechanism.authenticate({ username: "missing", password: "dummy-password" }))
+      .resolves.toEqual({ status: "rejected" });
+    expect(hasher.verify).toHaveBeenCalledExactlyOnceWith("dummy-password", "dummy");
+    expect(needsRehash).not.toHaveBeenCalled();
+  });
+
   it("verifies stored passwords shorter than the current creation policy", async () => {
     const adapter = new MemoryAuthenticationAdapter();
     const account = await adapter.createAccount({ subjectId: "subject-1" });
@@ -99,6 +117,37 @@ describe("PasswordMechanism", () => {
       username: "admin",
       password: "admin",
     })).resolves.toMatchObject({ status: "verified" });
+  });
+
+  it("verifies a password at the limit and bounds dummy verification above it", async () => {
+    const adapter = new MemoryAuthenticationAdapter();
+    const account = await adapter.createAccount({ subjectId: "member" });
+    const password = "a".repeat(config.mechanisms.password.maxLength);
+    await adapter.createPasswordCredential({
+      accountId: account.id,
+      username: "member",
+      normalizedUsername: "member",
+      passwordHash: `new:${password}`,
+    });
+    const hasher = new FakePasswordHasher();
+    const verify = vi.spyOn(hasher, "verify");
+    const replaceHash = vi.spyOn(adapter, "replaceHash");
+    const lookup = vi.spyOn(adapter, "findByNormalizedUsername");
+    const mechanism = new PasswordMechanism({
+      credentialStore: adapter,
+      passwordHasher: hasher,
+      usernameNormalizer: new DefaultUsernameNormalizer(),
+    }, config);
+
+    await expect(mechanism.authenticate({ username: "member", password }))
+      .resolves.toMatchObject({ status: "verified" });
+    await expect(mechanism.authenticate({ username: "member", password: `${password}x` }))
+      .resolves.toEqual({ status: "rejected" });
+
+    // The oversized input uses one bounded dummy verification and skips credential lookup.
+    expect(lookup).toHaveBeenCalledExactlyOnceWith("member");
+    expect(verify.mock.calls).toEqual([[password, `new:${password}`], [password, "dummy"]]);
+    expect(replaceHash).not.toHaveBeenCalled();
   });
 });
 

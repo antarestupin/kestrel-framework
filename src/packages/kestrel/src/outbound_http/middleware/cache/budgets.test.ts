@@ -154,13 +154,44 @@ describe("outbound response cache budgets", () => {
     expect(body.locked).toBe(false);
   });
 
-  it("checks a hit against the current call's limit before decoding base64", async () => {
+  it("applies the current call's budget to a cache hit", async () => {
     const fetch = vi.fn(async () => new Response("abcde"));
     const { http } = setup(fetch);
     await expect(http.get("/body", { maxResponseBytes: 5, response: text() })).resolves.toBe("abcde");
     await expect(http.get("/body", { maxResponseBytes: 4, response: text() }))
       .rejects.toBeInstanceOf(OutboundHttpResponseTooLargeError);
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["YQ==", "a"],
+    ["YWI=", "ab"],
+    ["YWJj", "abc"],
+  ])("uses the decoded byte length for cached base64 %s", async (bodyBase64, expected) => {
+    const { cache } = setup(vi.fn());
+    const middleware = cacheResponse({ cache, key: "body" });
+    const context = {
+      client: "cached", operation: "read", route: "/body", attempt: 1,
+      request: new Request("https://api.example/body"),
+    };
+    await cache.set("outbound-http:cached:body", {
+      schemaVersion: 1, status: 200, statusText: "OK", headers: {}, bodyBase64,
+    });
+    const next = vi.fn();
+
+    // Call the middleware directly so the client's downstream budget cannot mask a late check.
+    const response = await middleware.handler({ ...context, maxResponseBytes: expected.length }, next);
+    await expect(response.text()).resolves.toBe(expected);
+
+    const decode = vi.spyOn(Buffer, "from");
+    try {
+      await expect(middleware.handler({ ...context, maxResponseBytes: expected.length - 1 }, next))
+        .rejects.toBeInstanceOf(OutboundHttpResponseTooLargeError);
+      expect(decode).not.toHaveBeenCalledWith(bodyBase64, "base64");
+    } finally {
+      decode.mockRestore();
+    }
+    expect(next).not.toHaveBeenCalled();
   });
 
   it("handles a large valid cache entry without recursive base64 validation", async () => {
