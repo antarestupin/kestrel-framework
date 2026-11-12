@@ -19,13 +19,17 @@ describe("MemoryEmailAdapter", () => {
     });
     const firstRead = adapter.getMessages();
     (firstRead[0]?.to as { address: string }[])[0]!.address = "changed@example.com";
+    Object.assign(firstRead[0]?.from ?? {}, { address: "changed@example.com" });
 
     expect(receipt).toEqual({
       status: "accepted",
       messageId: "message-1",
       acceptedAt: new Date("2026-08-23T10:00:00.000Z"),
     });
-    expect(adapter.getMessages()[0]?.to[0]?.address).toBe("member@example.com");
+    expect(adapter.getMessages()[0]).toStrictEqual({
+      from: { address: "sender@example.com" }, to: [{ address: "member@example.com" }],
+      cc: [], bcc: [], replyTo: [], subject: "Welcome", text: "Hello", attachments: [],
+    });
 
     adapter.clear();
     expect(adapter.getMessages()).toEqual([]);
@@ -45,8 +49,9 @@ it("clones HTML, headers and text and binary attachments on every read", async (
   (message.headers as Record<string, string>)["X-Test"] = "changed";
   expect(adapter.name).toBe("local");
   expect(receipt).toMatchObject({ status: "accepted", messageId: expect.any(String), acceptedAt: expect.any(Date) });
-  expect(adapter.getMessages()[0]).toMatchObject({
-    html: "<p>Hello</p>", headers: { "X-Test": "unchanged" },
-    attachments: [{ content: "text" }, { content: new Uint8Array([1, 2]) }],
+  expect(adapter.getMessages()[0]).toStrictEqual({
+    from: { address: "sender@example.com" }, to: [{ address: "member@example.com" }],
+    cc: [], bcc: [], replyTo: [], subject: "Welcome", html: "<p>Hello</p>", headers: { "X-Test": "unchanged" },
+    attachments: [{ filename: "file.txt", content: "text" }, { filename: "file.bin", content: new Uint8Array([1, 2]) }],
   });
 });

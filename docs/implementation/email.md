@@ -155,7 +155,7 @@ Studio email extension -> email capture and observation source contracts
 
 The email core never imports Studio, application code or application configuration. The Kestrel email provider accepts adapter definitions; application composition selects the concrete backend and passes its resolved configuration. The Studio email extension lives below `src/packages/kestrel/src/studio/extensions/email` and depends on injected email and observation source contracts. PostgreSQL storage remains an adapter below the email library, and the Kestrel provider exposes it to Studio through DI.
 
-Drizzle schema entrypoints import `kestrel/email/postgres_schema` instead of the general email barrel. This schema-only facade deliberately avoids provider and transport evaluation because Drizzle Kit loads TypeScript schemas through a CommonJS compatibility path, while Email SDK exposes ESM modules. The disposable attachment table intentionally has no database foreign key: Drizzle Push can otherwise emit that reference before the capture UUID uniqueness constraint on both fresh and partially created local schemas. `PostgresEmailCaptureStorageAdapter` preserves the same invariant by inserting atomically and deleting attachments before captures during clearing and retention pruning.
+Drizzle schema entrypoints import `kestrel/email/postgres_schema` instead of the general email barrel. This schema-only facade deliberately avoids provider and transport evaluation because Drizzle Kit loads TypeScript schemas through a CommonJS compatibility path, while Email SDK exposes ESM modules. The disposable attachment table intentionally has no database foreign key: Drizzle Push can otherwise emit that reference before the capture UUID uniqueness constraint on both fresh and partially created local schemas. `PostgresEmailCaptureStorageAdapter` inserts captures and their attachments atomically. Clearing and retention pruning use one statement snapshot for both tables so concurrent sends cannot leave orphaned attachments. Lookup uses a read-only repeatable-read transaction so the message and its attachments remain consistent if a concurrent clear or retention prune commits.
 
 Captures and observations are separate records with a bidirectional logical correlation. `EmailClient` reserves the observation UUID before calling the driver. The capture stores that UUID immediately, while the successful observation stores the returned `captureId`. There is intentionally no database foreign key from capture to observation because observation writes are buffered and may complete later, be disabled or expire under a different retention policy. Studio therefore treats a missing linked observation as a valid pending or expired state.
 
@@ -163,7 +163,7 @@ Captures and observations are separate records with a bidirectional logical corr
 
 `EmailClient.send()` validates stable operation identifiers, addresses, headers, attachment metadata and the required message content synchronously before the driver runs. It rejects control characters in address and header fields but leaves complete RFC mailbox validation to the selected transport.
 
-The normalized message is detached from caller-owned arrays, records and binary attachments. This prevents mutations made after `send()` from changing an in-flight request. Drivers receive a read-only TypeScript contract and must treat it as immutable.
+The normalized message is detached from caller-owned arrays, records and binary attachments. This prevents mutations made after `send()` from changing an in-flight request. Recipient and attachment arrays must contain valid elements at every position. Attachment disposition, if set, must be `attachment` or `inline`. PostgreSQL lookup omits unsupported dispositions in older captures so those messages remain readable. Drivers receive a read-only TypeScript contract and must treat it as immutable.
 
 ### Failure semantics
 
@@ -181,7 +181,7 @@ The retryable flag is descriptive rather than an automatic retry policy. Callers
 
 ### Lifecycle
 
-`EmailClient.close()` is idempotent and releases driver resources such as SMTP connection pools. A closed client rejects new sends with `unavailable`. `EmailProvider` transfers lifecycle ownership to the application container and closes the singleton during application disposal.
+`EmailClient.close()` is idempotent and releases driver resources such as SMTP connection pools. Concurrent and later calls await the same shutdown result. The client rejects new sends with `unavailable` as soon as shutdown begins. `EmailProvider` transfers lifecycle ownership to the application container and closes the singleton during application disposal.
 
 ## Execution scenarios
 

@@ -35,25 +35,31 @@ export async function main(
   }
 }
 
-const entrypoint = process.argv[1];
-// npm executables are symlinks; compare their resolved target with this module.
-const isEntrypoint = entrypoint !== undefined
-  && import.meta.url === pathToFileURL(realpathSync(entrypoint)).href;
+/** npm executables are symlinks; compare their resolved target with this module. */
+export function isExecutableEntrypoint(entrypoint: string | undefined, moduleUrl: string): boolean {
+  return entrypoint !== undefined && moduleUrl === pathToFileURL(realpathSync(entrypoint)).href;
+}
 
-if (isEntrypoint) {
-  main(process.argv.slice(2), (error) => {
-    // The executable owns process termination. Never await application logging
-    // after the deadline, and do not force exits from the embedded library API.
-    try { writeSync(2, `${error.message} Forced process termination.\n`); }
-    finally { process.exit(1); }
-  })
-    .then((exitCode) => {
-      process.exitCode = exitCode;
-    })
-    .catch((error: unknown) => {
-      // Shutdown can nest several AggregateErrors; retain their leaf failures
-      // instead of hiding the infrastructure cause behind `[Array]`.
-      console.error(inspect(error, { depth: null }));
-      process.exitCode = 1;
-    });
+/** The executable owns termination, including when application diagnostics cannot finish. */
+export function terminateExecutable(
+  error: ApplicationShutdownTimeoutError,
+  write: (descriptor: number, message: string) => number = writeSync,
+): never {
+  try { write(2, `${error.message} Forced process termination.\n`); }
+  finally { process.exit(1); }
+}
+
+/** Run the executable without coupling embedded callers to process exit handling. */
+export async function runExecutable(arguments_: readonly string[] = process.argv.slice(2)): Promise<void> {
+  try {
+    process.exitCode = await main(arguments_, terminateExecutable);
+  } catch (error: unknown) {
+    // Retain nested shutdown failures instead of hiding their causes behind [Array].
+    console.error(inspect(error, { depth: null }));
+    process.exitCode = 1;
+  }
+}
+
+if (isExecutableEntrypoint(process.argv[1], import.meta.url)) {
+  void runExecutable();
 }

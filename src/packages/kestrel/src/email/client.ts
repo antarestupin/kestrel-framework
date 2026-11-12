@@ -23,7 +23,7 @@ export class EmailClient {
 
   private readonly createObservationId: () => string;
 
-  private closed = false;
+  private closePromise: Promise<void> | undefined;
 
   public constructor(private readonly options: EmailClientOptions) {
     this.name = normalizeIdentifier(options.name, "client name");
@@ -46,7 +46,7 @@ export class EmailClient {
     let message: EmailMessage | undefined;
 
     try {
-      if (this.closed) {
+      if (this.closePromise !== undefined) {
         throw new EmailSendError(
           operation,
           "unavailable",
@@ -103,11 +103,11 @@ export class EmailClient {
   }
 
   /** Releases transport resources such as SMTP connection pools. */
-  public async close(): Promise<void> {
-    if (this.closed) return;
-
-    this.closed = true;
-    if (this.options.closeDriver !== false) await this.options.driver.close?.();
+  public close(): Promise<void> {
+    // Publish the shutdown before invoking the driver so every caller awaits its result.
+    return this.closePromise ??= Promise.resolve().then(async () => {
+      if (this.options.closeDriver !== false) await this.options.driver.close?.();
+    });
   }
 
   private createObservationData(

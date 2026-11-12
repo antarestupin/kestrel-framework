@@ -1,11 +1,13 @@
 import {
   EmailAdapterError as SdkAdapterError,
+  EmailAdapterNotFoundError as SdkAdapterNotFoundError,
+  EmailAllRecipientsFailedError as SdkAllRecipientsFailedError,
   EmailAbortError as SdkAbortError,
   EmailValidationError as SdkValidationError,
   type EmailAdapter as SdkAdapter,
   type EmailMessage as SdkMessage,
 } from "@opencoredev/email-sdk";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EmailClient } from "../../client.js";
 import type { EmailSendError } from "../../errors.js";
@@ -18,6 +20,10 @@ const capabilities = {
   scheduling: false,
   personalized: "unsupported" as const,
 };
+
+// Keep even a mutant of the telemetry option from sending SDK telemetry during tests.
+beforeEach(() => { vi.stubEnv("EMAIL_SDK_TELEMETRY", "0"); });
+afterEach(() => { vi.unstubAllEnvs(); });
 
 describe("EmailSdkEmailAdapter", () => {
   it("maps the Kestrel message and receipt without exposing raw data", async () => {
@@ -63,13 +69,16 @@ describe("EmailSdkEmailAdapter", () => {
       status: "accepted",
       messageId: "provider-message-1",
     });
-    expect(received).toMatchObject({
+    expect(received).toStrictEqual({
       from: { email: "sender@example.com", name: "Sender" },
       to: [{ email: "first@example.com" }, { email: "second@example.com" }],
       replyTo: [{ email: "reply@example.com" }],
+      subject: "Welcome", text: "Hello", html: "<p>Hello</p>",
       headers: [{ name: "X-Correlation", value: "correlation-1" }],
       attachments: [{
         filename: "logo.png",
+        content: new Uint8Array([1, 2]),
+        contentEncoding: "raw",
         contentType: "image/png",
         disposition: "inline",
         contentId: "logo",
@@ -128,7 +137,9 @@ describe("EmailSdkEmailAdapter", () => {
       to: ["first@example.com", "second@example.com"],
       subject: "Welcome",
       text: "Hello",
-    })).rejects.toMatchObject({ code: "provider" });
+    })).rejects.toMatchObject({
+      code: "provider", cause: expect.objectContaining({ message: "The email transport rejected one or more recipients." }),
+    });
   });
 });
 
@@ -150,13 +161,26 @@ describe("Email SDK boundaries", () => {
   });
 
   it.each([
-    [new SdkAbortError(), "cancelled"], [new SdkValidationError("invalid SDK input"), "invalid-message"],
-    [new Error("network failed"), "transport"],
-  ] as const)("classifies SDK exceptions without returning private provider data", async (failure, code) => {
+    [new SdkAbortError(), "cancelled", "The email send was cancelled."],
+    [new SdkValidationError("invalid SDK input"), "invalid-message", "Email SDK rejected the message contract."],
+    [new SdkAdapterNotFoundError("unknown"), "transport", "Email SDK failed before accepting the message."],
+    [new SdkAllRecipientsFailedError([]), "transport", "Email SDK could not route the message."],
+  ] as const)("classifies SDK exceptions without returning private provider data", async (failure, code, message) => {
     const driver = new EmailSdkEmailAdapter({ adapter: {
-      name: "controlled", capabilities, send: async () => { throw failure; },
+      name: "controlled", capabilities, send: vi.fn(), validate: async () => { throw failure; },
     } });
-    await expect(new EmailClient({ name: "transactional", driver }).send(simple)).rejects.toMatchObject({ code });
+    await expect(driver.send(normalizeEmailMessage(simple))).rejects.toMatchObject({ code, message, cause: failure });
+  });
+
+  it("uses status and cause from an SDK adapter failure during validation", async () => {
+    const failure = new SdkAdapterError("socket unavailable", { adapter: "controlled", delivery: "not_sent" });
+    const driver = new EmailSdkEmailAdapter({ adapter: {
+      name: "controlled", capabilities, send: vi.fn(), validate: async () => { throw failure; },
+    } });
+    await expect(driver.send(normalizeEmailMessage(simple))).rejects.toMatchObject({
+      code: "transport", message: "The Email SDK transport rejected the message.", cause: failure,
+      retryable: false, statusCode: undefined,
+    });
   });
 
   it("preserves the HTML-only envelope and tolerates a receipt without a message ID", async () => {
@@ -169,18 +193,41 @@ describe("Email SDK boundaries", () => {
       attachments: [{ filename: "note.txt", content: "plain text" }],
     })).resolves.toEqual({ status: "accepted" });
     expect(send).toHaveBeenCalledOnce();
-    expect(send.mock.calls[0]?.[0]).toMatchObject({
+    expect(send.mock.calls[0]?.[0]).toStrictEqual({
+      from: { email: simple.from }, to: [{ email: simple.to }], subject: simple.subject,
       html: "<p>Example</p>", cc: [{ email: "copy@example.com" }], bcc: [{ email: "audit@example.com" }],
       attachments: [{ filename: "note.txt", content: "plain text", contentEncoding: "raw" }],
     });
-    expect(send.mock.calls[0]?.[0]).not.toHaveProperty("text");
+    await expect(driver.send(normalizeEmailMessage(simple))).resolves.toStrictEqual({ status: "accepted" });
+    expect(send.mock.lastCall?.[0]).toStrictEqual({
+      from: { email: simple.from }, to: [{ email: simple.to }], subject: simple.subject, text: simple.text,
+    });
+  });
+
+  it("keeps the normalized attachment bytes isolated from the SDK adapter", async () => {
+    const bytes = new Uint8Array([10, 20]);
+    const message = normalizeEmailMessage({ ...simple, attachments: [{ filename: "binary.bin", content: bytes }] });
+    const adapter: SdkAdapter = {
+      name: "controlled", capabilities,
+      send: async (outgoing) => {
+        const content = outgoing.attachments?.[0]?.content;
+        expect(content).toEqual(bytes);
+        if (content instanceof Uint8Array) content[0] = 99;
+        return { adapter: "controlled" };
+      },
+    };
+
+    await new EmailSdkEmailAdapter({ adapter }).send(message);
+    expect(message.attachments[0]?.content).toEqual(new Uint8Array([10, 20]));
   });
 
   it("fails before the SDK when called directly with an invalid normalized message", async () => {
     const send = vi.fn();
     const driver = new EmailSdkEmailAdapter({ adapter: { name: "controlled", capabilities, send } });
     const { text: _body, ...invalid } = normalizeEmailMessage(simple);
-    await expect(driver.send(invalid)).rejects.toMatchObject({ code: "invalid-message" });
+    await expect(driver.send(invalid)).rejects.toMatchObject({
+      code: "invalid-message", message: "The normalized email message has no body.",
+    });
     expect(send).not.toHaveBeenCalled();
   });
 });

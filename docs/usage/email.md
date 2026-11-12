@@ -50,7 +50,7 @@ try {
 }
 ```
 
-Recipients accept one address or an array; CC, BCC and reply-to fields use the same address model. At least one text or HTML body is required. The stable `operation` identifies the logical send in observations without including recipient data.
+Recipients accept one address or an array. CC, BCC and reply-to fields use the same address model. Supply a valid address for every recipient and a valid attachment for every entry in `attachments`. Use `attachment` or `inline` for an explicit attachment disposition. At least one text or HTML body is required. The stable `operation` identifies the logical send in observations without including recipient data.
 
 You can provide `text` and `html` together: they are alternative representations of a single email, not two separate emails. The recipient's email client chooses which version to display according to its capabilities and preferences. Keep their content equivalent, using `text` for plain text and `html` for formatted content.
 
@@ -70,7 +70,7 @@ const smtpDefinition = configure(emailConfigBase, {
 // Resolve this contribution, then pass smtpEmail(app.config.email.adapter) to EmailProvider.
 ```
 
-The provider owns client cleanup. Standalone clients must be closed explicitly. `EmailSendError` exposes a neutral code and retryable hint, but no automatic resend occurs: a transport error can happen after the provider accepted a message. Rendering, bulk personalization and delivery scheduling remain application responsibilities; [workers](./workers.md) can own asynchronous sends.
+The provider owns client cleanup. Standalone clients must be closed explicitly. Concurrent calls to `close()` wait for the same driver shutdown. `EmailSendError` exposes a neutral code and retryable hint. The client leaves retry decisions to the caller because a transport error can happen after the provider accepts a message. Rendering, bulk personalization and delivery scheduling remain application responsibilities. [Workers](./workers.md) can own asynchronous sends.
 
 ## Use cases still to document
 

@@ -6,7 +6,7 @@ import {
 } from "vitest";
 import { z } from "zod";
 
-import { defineAction } from "../actions/index.js";
+import { createPaginationInputSchema, defineAction } from "../actions/index.js";
 import {
   App,
   executionCompletedEvent,
@@ -27,6 +27,7 @@ import {
   defineActionCliController,
   defineCliController,
   defineCliMiddleware,
+  defineModelListActionCliController,
   option,
   param,
   repeatableOption,
@@ -217,9 +218,9 @@ describe("CliCommandManager", () => {
   });
 
   it.each([
-    { input: ["--", "--help"], value: "--help", binding: param(0) },
-    { input: ["--message", "--help"], value: "--help", binding: option() },
-    { input: ["--message", "-V"], value: "-V", binding: option("message") },
+    { input: ["--", "--help"], value: "--help", binding: () => param(0) },
+    { input: ["--message", "--help"], value: "--help", binding: () => option() },
+    { input: ["--message", "-V"], value: "-V", binding: () => option("message") },
   ])("executes a command with literal input $input", async (invocation) => {
     const cli = createTestCli();
     const boot = vi.fn();
@@ -227,7 +228,7 @@ describe("CliCommandManager", () => {
     cli.manager.register(defineCliController({
       command: "echo",
       input: z.object({ message: z.string() }),
-      bindings: { message: invocation.binding },
+      bindings: { message: invocation.binding() },
       handler: ({ input }) => input.message,
     }));
 
@@ -289,9 +290,78 @@ describe("CliCommandManager", () => {
       cli.manager.prepare(["work", "--_format=pretty", "start"]);
       expect(cli.app.bootPlan).toMatchObject({ runningMode: "minimal", workloads: ["workers"] });
 
+      cli.manager.prepare(["--_format", "json", "work", "start"]);
+      expect(cli.app.bootPlan).toMatchObject({ runningMode: "minimal", workloads: ["workers"] });
+
       cli.manager.prepare(["--_format", "json", "work"]);
-      expect(cli.app.bootPlan).toMatchObject({ runningMode: "standard", workloads: [] });
+      expect(cli.app.bootPlan).toMatchObject({ runningMode: "standard", runtime: "command", workloads: [] });
+
+      cli.manager.prepare(["unknown"]);
+      expect(cli.app.bootPlan).toMatchObject({ runningMode: "standard", runtime: "command", workloads: [] });
       expect(cli.app.state).toBe("composing");
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("keeps command groups distinct and documents their available options", async () => {
+    const cli = createTestCli();
+    try {
+      cli.manager.register(defineCliController({ command: "alpha read", handler: () => undefined }));
+      cli.manager.register(defineCliController({
+        command: "beta  \twrite",
+        description: "Write to the beta store.",
+        input: z.object({ id: z.string().describe("Record identity.") }),
+        handler: () => undefined,
+      }));
+      expect(await cli.manager.run(["beta", "write", "--help"])).toBe(0);
+      const help = cli.output.join("");
+      expect(help).toContain("Usage: test beta write");
+      expect(help).toContain("Write to the beta store.");
+      expect(help).toContain("Record identity.");
+      expect(await cli.manager.run(["alpha", "read"])).toBe(0);
+      expect(cli.output.join("")).toBe(help);
+      cli.output.length = 0;
+      expect(await cli.manager.run(["alpha", "read", "--help"])).toBe(0);
+      expect(cli.output.join("")).toMatch(/^Usage: test alpha read \[options\]\n\nOptions:\n/);
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("uses the built-in name and streams without version or a valid output format", async () => {
+    const app = new App({});
+    const stdout = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    try {
+      const manager = new CliCommandManager(app);
+      manager.register(defineCliController({ command: "check", handler: () => undefined }));
+      expect(await manager.run(["--help"])).toBe(0);
+      expect(stdout.mock.calls.flat().join("")).toContain("Usage: do");
+      expect(stdout.mock.calls.flat().join("")).toContain("Output format.");
+      expect(await manager.run(["--version"])).toBe(2);
+      expect(await manager.run(["check", "--_format=xml"])).toBe(2);
+      expect(stderr.mock.calls.flat().join("")).toContain("unknown option '--version'");
+      expect(stderr.mock.calls.flat().join("")).toContain("Allowed choices are pretty, json.");
+    } finally {
+      stdout.mockRestore();
+      stderr.mockRestore();
+      await app.dispose();
+    }
+  });
+
+  it("maps CLI list pagination before invoking the action", async () => {
+    const cli = createTestCli();
+    const list = defineAction({
+      name: "records.list",
+      input: z.object({ pagination: createPaginationInputSchema() }),
+      output: z.unknown(),
+      handler: (input) => input,
+    });
+    try {
+      cli.manager.register(defineModelListActionCliController(list, "records list"));
+      expect(await cli.manager.run(["records", "list", "--page=2", "--pageSize=5"])).toBe(0);
+      expect(JSON.parse(cli.output.join(""))).toEqual({ pagination: { type: "page", page: 2, pageSize: 5 } });
     } finally {
       await cli.app.dispose();
     }
@@ -332,15 +402,15 @@ describe("CliCommandManager", () => {
   });
 
   it.each([
-    { bindings: { first: param(0), second: param(0) } },
-    { bindings: { first: param(0), second: param(2) } },
-  ])("rejects non-contiguous or conflicting positional bindings $bindings", async ({ bindings }) => {
+    { secondIndex: 0 },
+    { secondIndex: 2 },
+  ])("rejects non-contiguous or conflicting second positional index $secondIndex", async ({ secondIndex }) => {
     const cli = createTestCli();
     try {
       expect(() => cli.manager.register(defineCliController({
         command: "echo",
         input: z.object({ first: z.string(), second: z.string() }),
-        bindings,
+        bindings: { first: param(0), second: param(secondIndex) },
         handler: () => undefined,
       }))).toThrow("CLI positional parameter indexes must be unique and contiguous.");
     } finally {
@@ -372,8 +442,161 @@ describe("CliCommandManager", () => {
     }
   });
 
+  it("can correct a failed registration at the same command path", async () => {
+    const cli = createTestCli();
+    const handler = vi.fn(() => "corrected");
+    try {
+      expect(() => cli.manager.register(defineCliController({
+        command: "text echo",
+        input: z.object({ value: z.string() }),
+        bindings: { value: option("invalid name") },
+        handler,
+      }))).toThrow('Invalid CLI option name "invalid name".');
+      expect(cli.manager.register(defineCliController({ command: "text echo", handler }))).toBe(cli.manager);
+      expect(await cli.manager.run(["text", "echo"])).toBe(0);
+      expect(cli.output).toEqual(['"corrected"\n']);
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("rejects distinct option names that resolve to the same parsed value", async () => {
+    const cli = createTestCli();
+    try {
+      expect(() => cli.manager.register(defineCliController({
+        command: "labels",
+        input: z.object({ first: z.string(), second: z.string() }),
+        bindings: { first: option("tag-name"), second: option("tagName") },
+        handler: () => undefined,
+      }))).toThrow('CLI option "--tagName" conflicts with another input option.');
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("reads only supplied option values when a field shadows an inherited name", async () => {
+    const cli = createTestCli();
+    const handler = vi.fn(({ input }: { input: unknown }) => input);
+    try {
+      cli.manager.register(defineCliController({
+        command: "echo",
+        input: z.object({ constructor: z.string().optional() }),
+        handler,
+      }));
+      expect(await cli.manager.run(["echo"])).toBe(0);
+      expect(await cli.manager.run(["echo", "--constructor=custom"])).toBe(0);
+      expect(cli.output).toEqual(["{}\n", '{\n  "constructor": "custom"\n}\n']);
+      expect(handler.mock.calls[0]?.[0].input).toStrictEqual({});
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("keeps a no-prefixed value option independent from its positive spelling", async () => {
+    const cli = createTestCli();
+    try {
+      cli.manager.register(defineCliController({
+        command: "paint",
+        input: z.object({ base: z.string().optional(), accent: z.string().optional() }),
+        bindings: { base: option("color"), accent: option("no-color") },
+        handler: ({ input }) => input,
+      }));
+      expect(await cli.manager.run(["paint", "--no-color=green"])).toBe(0);
+      expect(await cli.manager.run(["paint", "--color=red", "--no-color=green"])).toBe(0);
+      expect(await cli.manager.run(["paint"])).toBe(0);
+      expect(cli.output.map((result) => JSON.parse(result))).toEqual([
+        { accent: "green" }, { base: "red", accent: "green" }, {},
+      ]);
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
   it.each([-1, 1.5])("rejects invalid positional index %s", (index) => {
     expect(() => param(index)).toThrow("A CLI parameter index must be a non-negative integer.");
+  });
+
+  it("preserves explicit and inferred binding descriptors", () => {
+    expect(option()).toStrictEqual({ kind: "option" });
+    expect(option("label")).toStrictEqual({ kind: "option", name: "label" });
+    expect(repeatableOption()).toStrictEqual({ kind: "option", repeatable: true });
+    expect(repeatableOption("label")).toStrictEqual({ kind: "option", name: "label", repeatable: true });
+    expect(param(0)).toStrictEqual({ kind: "parameter", index: 0 });
+  });
+
+  it("sorts positional bindings independently from schema order and handles optional values", async () => {
+    const cli = createTestCli();
+    try {
+      cli.manager.register(defineCliController({
+        command: "label",
+        input: z.object({
+          second: z.string().optional().describe("Optional detail."),
+          first: z.string().describe("Primary label."),
+          colors: z.array(z.string()).default([]),
+        }),
+        bindings: { first: param(0), second: param(1), colors: repeatableOption("constructor") },
+        handler: ({ input }) => input,
+      }));
+      expect(await cli.manager.run(["label", "--help"])).toBe(0);
+      expect(cli.output.join("")).toContain("<first> [second]");
+      expect(cli.output.join("")).toContain("Optional detail.");
+      expect(await cli.manager.run(["label", "red", "--constructor=blue", "--constructor=green"])).toBe(0);
+      expect(JSON.parse(cli.output.at(-1)!)).toEqual({ first: "red", colors: ["blue", "green"] });
+      expect(await cli.manager.run(["label", "red", "dark"])).toBe(0);
+      expect(JSON.parse(cli.output.at(-1)!)).toEqual({ first: "red", second: "dark", colors: [] });
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("reports missing required options before starting the application", async () => {
+    const cli = createTestCli();
+    const handler = vi.fn();
+    try {
+      cli.manager.register(defineCliController({
+        command: "check",
+        input: z.object({ message: z.string() }),
+        handler,
+      }));
+      expect(await cli.manager.run(["check"])).toBe(2);
+      expect(cli.errors.join("")).toContain("required option '--message <message>' not specified");
+      expect(cli.app.state).toBe("composing");
+      expect(handler).not.toHaveBeenCalled();
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("keeps default controller metadata explicit and omits absent optional fields", () => {
+    const action = defineAction({
+      name: "status.read",
+      input: z.object({}),
+      output: z.string(),
+      validation: { input: "async", output: "async" },
+      handler: () => "ready",
+    });
+    const standalone = defineCliController({ command: "standalone", handler: () => undefined });
+    const delegated = defineActionCliController(action, "delegated");
+    for (const controller of [standalone, delegated]) {
+      expect(controller).toMatchObject({ observe: true, runningMode: "standard", workloads: [] });
+      expect(controller).not.toHaveProperty("runtime");
+      expect(controller).not.toHaveProperty("prepareWorkloads");
+      expect(controller).not.toHaveProperty("description");
+      expect(controller).not.toHaveProperty("outputSchema");
+    }
+    expect(delegated.source).toBe("action");
+    expect(delegated).not.toHaveProperty("handler");
+    expect(delegated.validation).toEqual({ input: "async", output: "sync" });
+    const mapped = defineActionCliController(action, "mapped", {
+      input: z.object({}),
+      observe: false,
+      runningMode: "minimal",
+      workloads: ["workers"],
+    });
+    expect(mapped).toMatchObject({
+      observe: false, runningMode: "minimal", workloads: ["workers"],
+      validation: { input: "sync", output: "sync" },
+    });
   });
 
   it("rejects a blank command path", () => {
@@ -425,7 +648,7 @@ describe("CliCommandManager", () => {
     expect(ended).toHaveBeenCalledOnce();
   });
 
-  it.each(["success", "failure"] as const)("records the lifecycle of a %s CLI execution", async (outcome) => {
+  it.each(["success", "failure", "invalid"] as const)("records the lifecycle of a %s CLI execution", async (outcome) => {
     const cli = createTestCli();
     const events: ObservationEvent[] = [];
     const observerContext = new AsyncLocalObserverContext();
@@ -449,20 +672,23 @@ describe("CliCommandManager", () => {
     cli.manager.register(defineCliController({
       command: "observed run",
       input: z.object({
-        input: z.string().transform((value) => {
+        input: z.string().min(1).transform((value) => {
           if (outcome === "failure") throw new Error("Schema transform failed");
           return value;
         }),
       }),
-      handler: () => {
+      handler: (context) => {
         expect(observerContext.get()).toBeDefined();
+        expect(context).not.toHaveProperty("action");
+        expect(context.execution.context.toRecord("log")).toMatchObject({ transport: "cli", operation: "observed run" });
 
         return { status: "ok" };
       },
     }));
 
     try {
-      expect(await cli.manager.run(["observed", "run", "--input=value"])).toBe(outcome === "success" ? 0 : 1);
+      const argument = outcome === "invalid" ? "--input=" : "--input=value";
+      expect(await cli.manager.run(["observed", "run", argument])).toBe(outcome === "success" ? 0 : outcome === "failure" ? 1 : 2);
       expect(events.map((event) => event.name)).toEqual([
         "execution.started",
         "execution.completed",
@@ -473,13 +699,22 @@ describe("CliCommandManager", () => {
       });
       expect(events[1]).toMatchObject({
         executionId: events[0]?.executionId,
-        outcome,
+        outcome: outcome === "invalid" ? "failure" : outcome,
         data: {
           operation: "observed run",
           transport: "cli",
           ...(outcome === "failure" ? { error: { message: "Schema transform failed" } } : {}),
         },
       });
+      expect(events[1]?.durationMs).toBeGreaterThanOrEqual(0);
+      expect(events[1]?.durationMs).toBeLessThan(performance.now());
+      if (outcome === "success") expect(events[1]?.data).not.toHaveProperty("error");
+      if (outcome === "invalid") {
+        expect(events[1]?.data).toMatchObject({ error: {
+          message: "The command input is invalid.",
+          causes: [expect.objectContaining({ name: expect.stringContaining("ZodError") })],
+        } });
+      }
     } finally {
       await cli.app.dispose();
     }
@@ -857,6 +1092,8 @@ describe("CliCommandManager", () => {
       },
     });
     const cli = createTestCli();
+    const executionCompleted = vi.fn();
+    cli.app.eventBus.listen(executionCompletedEvent, executionCompleted, { scope: "descendants" });
 
     cli.manager.register(
       defineActionCliController(action, "failure run"),
@@ -869,9 +1106,9 @@ describe("CliCommandManager", () => {
 
     expect(exitCode).toBe(1);
     expect(cli.errors).toHaveLength(1);
-    expect(cli.errors[0]).toMatch(
-      /^An unexpected error occurred\. Execution: .+\n$/,
-    );
+    const executionId: unknown = executionCompleted.mock.calls[0]?.[0]?.executionId;
+    expect(executionId).toEqual(expect.any(String));
+    expect(cli.errors[0]).toBe(`An unexpected error occurred. Execution: ${String(executionId)}\n`);
   });
 
   it("prints the cause chain for wrapped execution errors", async () => {

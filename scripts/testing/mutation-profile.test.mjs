@@ -79,6 +79,14 @@ const componentPartitions = {
   http: ["http-routing", "http-access", "http-runtime", "http-clients"],
   lock: ["lock-acquisition", "lock-ownership", "lock-adapters", "lock-contracts"],
   outbound_http: ["outbound-resilience", "outbound-client", "outbound-contracts"],
+  cli: focusedProfileNames().filter((mode) => mode.startsWith("cli-")),
+  client: focusedProfileNames().filter((mode) => mode.startsWith("client-")),
+  controllers: ["controllers-contracts"],
+  email: focusedProfileNames().filter((mode) => mode.startsWith("email-")),
+  log: focusedProfileNames().filter((mode) => mode.startsWith("log-")),
+  observability: focusedProfileNames().filter((mode) => mode.startsWith("observability-")),
+  testing: ["testing-http-access"],
+  utils: ["utils-codecs", "utils-catalog"],
 };
 
 for (const [component, modes] of Object.entries(componentPartitions)) {

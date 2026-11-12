@@ -123,16 +123,14 @@ export class CliCommandManager<Config> {
       ControllerDependencies
     >,
   ): this {
-    this.controllers.push(controller as AnyRegisteredCliController);
-    const command = this.addCommandPath(controller.command);
+    const segments = controller.command.split(" ");
+    const command = this.configureCommand(new Command(segments.pop()));
     const fieldBindings = this.configureInput(
       command,
       controller,
     );
 
-    if (controller.description !== undefined) {
-      command.description(controller.description);
-    }
+    command.description(controller.description ?? "");
 
     command.action(async () => {
       // Capture Commander state before any async work can allow another parse.
@@ -254,6 +252,9 @@ export class CliCommandManager<Config> {
       }
     });
 
+    // Validate the complete command before publishing it to either lookup.
+    this.attachCommand(command, segments, controller.command);
+    this.controllers.push(controller as AnyRegisteredCliController);
     return this;
   }
 
@@ -345,19 +346,11 @@ export class CliCommandManager<Config> {
           (segment, index) => commandArguments[index] === segment,
         );
       })
-      .sort((left, right) =>
-        right.command.split(" ").length - left.command.split(" ").length
-      )[0];
+      // Each matching path is a prefix of the invocation. The longest is most specific.
+      .sort((left, right) => right.command.length - left.command.length)[0];
   }
 
-  private addCommandPath(path: string): Command {
-    const segments = path.split(" ");
-    const commandName = segments.pop();
-
-    if (commandName === undefined) {
-      throw new TypeError("A CLI command path cannot be empty.");
-    }
-
+  private attachCommand(command: Command, segments: readonly string[], path: string): void {
     let parent = this.program;
 
     for (const segment of segments) {
@@ -380,19 +373,13 @@ export class CliCommandManager<Config> {
 
     if (
       parent.commands.some(
-        (command) => command.name() === commandName,
+        (registered) => registered.name() === command.name(),
       )
     ) {
       throw new Error(`CLI command "${path}" is already registered.`);
     }
 
-    const command = this.configureCommand(
-      new Command(commandName),
-    );
-
     parent.addCommand(command);
-
-    return command;
   }
 
   private configureInput<
@@ -423,8 +410,9 @@ export class CliCommandManager<Config> {
         );
       }
 
-      const binding =
-        controller.bindings[field] ?? { kind: "option" };
+      const binding: CliInputBinding = Object.hasOwn(controller.bindings, field)
+        ? controller.bindings[field] ?? { kind: "option" }
+        : { kind: "option" };
 
       return {
         field,
@@ -432,28 +420,12 @@ export class CliCommandManager<Config> {
         schema,
       };
     });
-    const parameters = registered
-      .filter(
-        (item) => item.binding.kind === "parameter",
-      )
-      .sort((left, right) => {
-        const leftIndex =
-          left.binding.kind === "parameter"
-            ? left.binding.index
-            : 0;
-        const rightIndex =
-          right.binding.kind === "parameter"
-            ? right.binding.index
-            : 0;
-
-        return leftIndex - rightIndex;
-      });
+    const parameters = registered.flatMap(({ field, binding, schema }) =>
+      binding.kind === "parameter" ? [{ field, index: binding.index, schema }] : [],
+    ).sort((left, right) => left.index - right.index);
 
     parameters.forEach((item, expectedIndex) => {
-      if (
-        item.binding.kind !== "parameter"
-        || item.binding.index !== expectedIndex
-      ) {
+      if (item.index !== expectedIndex) {
         throw new Error(
           "CLI positional parameter indexes must be unique and contiguous.",
         );
@@ -467,6 +439,7 @@ export class CliCommandManager<Config> {
       );
     });
 
+    const optionAttributes = new Set<string>();
     return registered.map(({ field, binding, schema }) => {
       if (binding.kind === "parameter") {
         return { field, binding };
@@ -480,10 +453,18 @@ export class CliCommandManager<Config> {
         `--${optionName} <${field}>`,
         schema.description,
       );
+      // Schema-bound options always take values, including literal --no-* names.
+      cliOption.negate = false;
+      const optionAttribute = cliOption.attributeName();
+      if (optionAttributes.has(optionAttribute)) {
+        throw new Error(`CLI option "--${optionName}" conflicts with another input option.`);
+      }
+      optionAttributes.add(optionAttribute);
 
       if (binding.repeatable === true) {
-        cliOption.argParser((value: string, previous: string[] = []) => [
-          ...previous,
+        cliOption.argParser((value: string, previous: unknown) => [
+          // Commander's initial lookup can see a prototype property of the same name.
+          ...(Array.isArray(previous) ? previous : []),
           value,
         ]);
       }
@@ -497,7 +478,7 @@ export class CliCommandManager<Config> {
       return {
         field,
         binding,
-        optionAttribute: cliOption.attributeName(),
+        optionAttribute,
       };
     });
   }
@@ -543,19 +524,17 @@ export class CliCommandManager<Config> {
     bindings: RegisteredFieldBinding[],
   ): Record<string, unknown> {
     const options = command.opts<Record<string, unknown>>();
+    // Zod must also see omitted fields as missing when their names shadow a prototype property.
+    const input: Record<string, unknown> = Object.create(null);
 
-    return Object.fromEntries(
-      bindings.flatMap((registered) => {
-        const value =
-          registered.binding.kind === "parameter"
-            ? command.processedArgs[registered.binding.index]
-            : options[registered.optionAttribute ?? registered.field];
+    for (const { field, binding, optionAttribute } of bindings) {
+      const value = binding.kind === "parameter"
+        ? command.processedArgs[binding.index]
+        : optionAttribute !== undefined && Object.hasOwn(options, optionAttribute) ? options[optionAttribute] : undefined;
+      if (value !== undefined) input[field] = value;
+    }
 
-        return value === undefined
-          ? []
-          : [[registered.field, value]];
-      }),
-    );
+    return input;
   }
 
   private printResult(
@@ -589,21 +568,18 @@ type AnyRegisteredCliController = CliController<any, any, any, any, any, any>;
 function removeGlobalOptions(arguments_: readonly string[]): string[] {
   const result: string[] = [];
 
-  for (let index = 0; index < arguments_.length; index += 1) {
-    const argument = arguments_[index];
-
+  const argumentsIterator = arguments_.values();
+  for (const argument of argumentsIterator) {
     if (argument === "--_format") {
-      index += 1;
+      argumentsIterator.next();
       continue;
     }
 
-    if (argument?.startsWith("--_format=")) {
+    if (argument.startsWith("--_format=")) {
       continue;
     }
 
-    if (argument !== undefined) {
-      result.push(argument);
-    }
+    result.push(argument);
   }
 
   return result;

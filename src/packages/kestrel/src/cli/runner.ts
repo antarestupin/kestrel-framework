@@ -12,10 +12,7 @@ export function buildCli<Config>(
   app: App<Config>,
   options: CliCommandManagerOptions = {},
 ): CliCommandManager<Config> {
-  const commandManager = new CliCommandManager(app, {
-    name: "do",
-    ...options,
-  });
+  const commandManager = new CliCommandManager(app, options);
 
   for (const controller of app.catalog.cliControllers.definitions) {
     commandManager.register(controller);
@@ -51,13 +48,10 @@ export async function runCli<Config>(
 /** Loads the project-supplied application module without coupling Kestrel to it. */
 export async function loadApp(modulePath: string): Promise<App<any>> {
   const moduleUrl = pathToFileURL(resolve(modulePath)).href;
-  const loaded: unknown = await import(moduleUrl);
+  const loaded = await import(moduleUrl) as Record<string, unknown>;
 
-  if (
-    typeof loaded !== "object"
-    || loaded === null
-    || !("default" in loaded)
-  ) {
+  // Dynamic import always returns a module namespace object, even for CommonJS defaults.
+  if (!("default" in loaded)) {
     throw new TypeError(
       `Application module "${modulePath}" must export an App as default.`,
     );

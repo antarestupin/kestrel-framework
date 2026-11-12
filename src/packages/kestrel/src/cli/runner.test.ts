@@ -27,6 +27,7 @@ it.each([false, true])("disposes the application after catalog build failure (cl
     const catalogError = 'Invalid CLI option name "invalid name".';
     if (failCleanup) {
       await expect(invocation).rejects.toMatchObject({
+        message: "CLI invocation and application disposal failed.",
         errors: [
           expect.objectContaining({ message: catalogError }),
           expect.objectContaining({ errors: [cleanupError] }),

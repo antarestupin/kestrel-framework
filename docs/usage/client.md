@@ -104,6 +104,8 @@ function externalClient(projectRoot: string, absoluteClientRoot: string) {
 
 `ClientProvider(adapter, options?)` accepts a `WebClientAdapterDefinition`. `viteClient(settings)` supplies the bundled backend; `viteClient(development, settings)` borrows a shared development entry or resolves its typed dependency descriptor. Definitions initialize during HTTP mounting; `setup()` installs server-owned shutdown hooks. Borrowed development runtimes retain their own ownership. Each mount has its own adapter registration.
 
+Configure `basePath`, `assetBasePath` and each `excludedPaths` entry as literal absolute URL paths. Reserve the trailing slash for the asset prefix and the root mount. Use concrete path segments instead of router parameters, wildcards, empty segments or dot segments.
+
 See the [shared composition convention](../implementation/app.md#provider-adapter-convention) and [configuration recipes](../usage/configuration.md#additional-provider-composition).
 
 For a deployment containing only compiled output, pass the deployment root (the directory containing `package.json`) as `projectRoot` in production. The Vite adapter reads the cached build configuration under `distDir`; it must not point to a removed `src/client` directory. In development, pass the existing client source directory or supply the shared development runtime. The starter selects these roots from `devMode`.

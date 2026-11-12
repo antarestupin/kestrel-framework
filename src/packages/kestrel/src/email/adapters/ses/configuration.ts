@@ -1,9 +1,6 @@
 import { z } from "zod";
 import { defineConfigBase, type ConfigOutput } from "../../../configuration/index.js";
-const positiveInteger = z
-  .union([z.number(), z.string()])
-  .pipe(z.coerce.number<string | number>().int().positive());
-const port = positiveInteger.pipe(z.number().max(65_535));
+
 export const sesEmailConfigBase = defineConfigBase(
   z.object({
     accessKeyId: z.string().min(1),

@@ -62,7 +62,7 @@ describe("uuidV7", () => {
     "rejects the unsupported timestamp %s",
     (timestamp) => {
       vi.spyOn(Date, "now").mockReturnValue(timestamp);
-      expect(() => uuidV7()).toThrow(RangeError);
+      expect(() => uuidV7()).toThrow(new RangeError("UUID v7 requires a 48-bit Unix timestamp in milliseconds."));
     },
   );
 

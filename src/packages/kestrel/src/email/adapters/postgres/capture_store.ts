@@ -122,32 +122,36 @@ export class PostgresEmailCaptureStorageAdapter implements EmailCaptureStorageAd
   }
 
   public async clear(): Promise<void> {
-    await this.database.transaction(async (transaction) => {
-      // Attachment cleanup precedes captures because this disposable schema
-      // deliberately avoids a Drizzle Push ordering-sensitive foreign key.
-      await transaction.delete(emailCaptureAttachments);
-      await transaction.delete(emailCaptures);
-    });
+    // Both tables must share a statement snapshot so a concurrent send keeps its attachments.
+    await this.pool.query(
+      `with deleted_attachments as (
+        delete from dev.email_capture_attachment
+      )
+      delete from dev.email_capture`,
+    );
   }
 
   public async get(id: string): Promise<EmailCapture | undefined> {
-    const [capture] = await this.database
-      .select()
-      .from(emailCaptures)
-      .where(eq(emailCaptures.id, id))
-      .limit(1);
+    // A clear or pruning operation between the reads must not produce a partial message.
+    return this.database.transaction(async (transaction) => {
+      const [capture] = await transaction
+        .select()
+        .from(emailCaptures)
+        .where(eq(emailCaptures.id, id))
+        .limit(1);
 
-    if (capture === undefined) {
-      return undefined;
-    }
+      if (capture === undefined) {
+        return undefined;
+      }
 
-    const attachments = await this.database
-      .select()
-      .from(emailCaptureAttachments)
-      .where(eq(emailCaptureAttachments.captureId, id))
-      .orderBy(asc(emailCaptureAttachments.position));
+      const attachments = await transaction
+        .select()
+        .from(emailCaptureAttachments)
+        .where(eq(emailCaptureAttachments.captureId, id))
+        .orderBy(asc(emailCaptureAttachments.position));
 
-    return hydrateCapture(capture, attachments);
+      return hydrateCapture(capture, attachments);
+    }, { isolationLevel: "repeatable read", accessMode: "read only" });
   }
 
   public async list(
@@ -204,9 +208,10 @@ function hydrateCapture(
         ...(attachment.contentType === null
           ? {}
           : { contentType: attachment.contentType }),
-        ...(attachment.disposition === null
-          ? {}
-          : { disposition: attachment.disposition }),
+        // Preserve older captures written before transport dispositions were validated.
+        ...(attachment.disposition === "attachment" || attachment.disposition === "inline"
+          ? { disposition: attachment.disposition }
+          : {}),
         ...(attachment.contentId === null
           ? {}
           : { contentId: attachment.contentId }),

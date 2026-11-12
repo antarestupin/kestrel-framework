@@ -1,6 +1,6 @@
 import { once } from "node:events";
 
-import { Pool } from "pg";
+import { Pool, type PoolConfig } from "pg";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import createPostgresTransport from "./postgres_transport.js";
@@ -27,6 +27,32 @@ describe("PostgreSQL log transport", () => {
 
     await expect(createPostgresTransport({})).rejects.toBe(unavailable);
     expect(end).toHaveBeenCalledOnce();
+  });
+
+  it("reports startup and cleanup failures together", async () => {
+    const { query, end } = fakePool();
+    const startup = new Error("log table unavailable");
+    const cleanup = new Error("pool shutdown failed");
+    query.mockRejectedValueOnce(startup);
+    end.mockRejectedValueOnce(cleanup);
+
+    await expect(createPostgresTransport({})).rejects.toMatchObject({
+      message: "PostgreSQL log transport startup and cleanup failed.",
+      errors: [startup, cleanup],
+    });
+  });
+
+  it.each([undefined, 7])("preserves connection options and the configured pool size (%s)", async (max) => {
+    const { end } = fakePool();
+    const settings: PoolConfig = { host: "log.example.test", database: "logging", ssl: true };
+    const stream = await createPostgresTransport({ ...settings, ...(max === undefined ? {} : { max }) });
+    const closed = once(stream, "close");
+
+    stream.end();
+    await closed;
+
+    const pool = end.mock.contexts[0] as Pool & { options: PoolConfig };
+    expect(pool.options).toMatchObject({ ...settings, max: max ?? 2 });
   });
 
   it("batches records and skips log viewer traffic through its terminal events", async () => {
@@ -93,6 +119,42 @@ describe("PostgreSQL log transport", () => {
     }]);
   });
 
+  it("skips only the viewer route path, preserving similarly named requests and query values", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-12T10:00:00Z"));
+    const { query } = fakePool();
+    const stream = await createPostgresTransport({ batchSize: 10 });
+    const closed = once(stream, "close");
+    const viewerPath = "/studio/api/extensions/development-logs/logs";
+    const log = (record: unknown) => stream.write(`${JSON.stringify(record)}\n`);
+
+    try {
+      log({ reqId: "viewer", req: { url: `${viewerPath}?limit=5` } });
+      log({ reqId: "viewer", msg: "request completed" });
+      log({ requestId: 9, req: { url: viewerPath } });
+      log({ requestId: 9, msg: "numeric application binding" });
+      log({ reqId: "different-path", req: { url: `${viewerPath}-export` } });
+      log({ reqId: "different-path", msg: "request completed" });
+      log({ reqId: "query-value", req: { url: `/search?next=${viewerPath}` } });
+      log({ reqId: "query-value", msg: "request completed" });
+      stream.end();
+      await closed;
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      stream.destroy();
+    }
+
+    const writes = query.mock.calls.slice(2);
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse((writes[0]?.[1] as string[])[0]!)).toMatchObject([
+      { request_id: null, message: "numeric application binding", logged_at: "2026-03-12T10:00:00.000Z" },
+      { request_id: "different-path", message: null },
+      { request_id: "different-path", message: "request completed" },
+      { request_id: "query-value", message: null },
+      { request_id: "query-value", message: "request completed" },
+    ]);
+  });
+
   it("flushes a partial batch at its deadline even as additional events arrive", async () => {
     vi.useFakeTimers();
     const { query } = fakePool();
@@ -112,6 +174,26 @@ describe("PostgreSQL log transport", () => {
       await closed;
     }
   });
+
+  it("cancels the pending deadline when the batch fills", async () => {
+    vi.useFakeTimers();
+    const { query } = fakePool();
+    const stream = await createPostgresTransport({ batchSize: 2, flushIntervalMs: 100 });
+    const closed = once(stream, "close");
+
+    try {
+      stream.write('{"msg":"first"}\n');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(vi.getTimerCount()).toBe(1);
+      stream.write('{"msg":"second"}\n');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(query).toHaveBeenCalledTimes(3);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      stream.end();
+      await closed;
+    }
+  });
 });
 
 it("reports a batch write error even after the pool closes cleanly", async () => {
@@ -124,6 +206,42 @@ it("reports a batch write error even after the pool closes cleanly", async () =>
   try {
     stream.write('{"msg":"pending"}\n');
     await expect(closed).rejects.toBe(error);
+    expect(end).toHaveBeenCalledOnce();
+  } finally {
+    stream.destroy();
+  }
+});
+
+it("reports a write failure and a pool close failure together", async () => {
+  const { query, end } = fakePool();
+  const stream = await createPostgresTransport({ batchSize: 1 });
+  const write = new Error("write failed");
+  const cleanup = new Error("pool shutdown failed");
+  query.mockRejectedValueOnce(write);
+  end.mockRejectedValueOnce(cleanup);
+  const closed = once(stream, "close");
+
+  try {
+    stream.write('{"msg":"pending"}\n');
+    await expect(closed).rejects.toMatchObject({
+      message: "PostgreSQL log transport and cleanup failed.",
+      errors: [write, cleanup],
+    });
+  } finally {
+    stream.destroy();
+  }
+});
+
+it("surfaces the pool close error when the stream itself finished successfully", async () => {
+  const { end } = fakePool();
+  const stream = await createPostgresTransport({});
+  const cleanup = new Error("pool shutdown failed");
+  end.mockRejectedValueOnce(cleanup);
+  const closed = once(stream, "close");
+
+  try {
+    stream.end();
+    await expect(closed).rejects.toBe(cleanup);
     expect(end).toHaveBeenCalledOnce();
   } finally {
     stream.destroy();

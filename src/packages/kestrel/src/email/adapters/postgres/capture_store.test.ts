@@ -5,6 +5,7 @@ import { createDependencyContainer, dep } from "../../../di/index.js";
 import { normalizeEmailMessage } from "../../message.js";
 import { postgresEmailCapture } from "./definition.js";
 import { PostgresEmailCaptureStorageAdapter } from "./capture_store.js";
+import { postgresEmailCaptureConfigBase } from "./configuration.js";
 
 describe("PostgresEmailCaptureStorageAdapter", () => {
   it("verifies tables and prunes captures through a bounded retention policy", async () => {
@@ -32,10 +33,10 @@ describe("PostgresEmailCaptureStorageAdapter", () => {
     );
   });
 
-  it("rejects an invalid retention boundary", async () => {
+  it.each([0, -1, 1.5])("rejects an invalid retention boundary %s", async (retentionDays) => {
     const store = new PostgresEmailCaptureStorageAdapter({} as Pool);
 
-    await expect(store.prepare(0)).rejects.toThrow("positive integer");
+    await expect(store.prepare(retentionDays)).rejects.toThrow("Email capture retentionDays must be a positive integer.");
   });
 });
 
@@ -58,12 +59,12 @@ function fixture() {
 }
 
 /** Driver rows carry the metadata and sensitive fields selected by Drizzle in positional order. */
-function captureRow(sequence: number, rich: boolean) {
+function captureRow(sequence: number, rich: boolean, textOnly = false) {
   const timestamp = capturedAt.toISOString();
   return [String(sequence), id, observationId, timestamp, { address: "sender@example.test" },
     [{ address: "reader@example.test" }], rich ? [{ address: "copy@example.test" }] : [],
-    rich ? [{ address: "audit@example.test" }] : [], [{ address: "reply@example.test" }], "Welcome", rich ? "Hello" : null,
-    rich ? "<p>Hello</p>" : "<p>HTML only</p>", rich ? { "X-Label": "private" } : null,
+    rich ? [{ address: "audit@example.test" }] : [], [{ address: "reply@example.test" }], "Welcome", rich || textOnly ? "Hello" : null,
+    textOnly ? null : rich ? "<p>Hello</p>" : "<p>HTML only</p>", rich ? { "X-Label": "private" } : null,
     rich ? 2 : 0, rich ? "4" : "0", timestamp];
 }
 
@@ -110,11 +111,13 @@ describe("PostgreSQL email capture persistence", () => {
 
   it("loads one message with its text and binary attachments and omits absent optional fields", async () => {
     const { query, statement, store } = fixture();
-    query.mockResolvedValueOnce({ rows: [] });
+    const empty = { rows: [] };
+    query.mockResolvedValueOnce(empty).mockResolvedValueOnce(empty);
     await expect(store.get(id)).resolves.toBeUndefined();
-    expect(query).toHaveBeenCalledOnce();
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(statement(2)).toBe("commit");
 
-    query.mockResolvedValueOnce({ rows: [captureRow(3, true)] });
+    query.mockResolvedValueOnce(empty).mockResolvedValueOnce({ rows: [captureRow(3, true)] });
     query.mockResolvedValueOnce({ rows: [
       [id, 0, "note.txt", Buffer.from("é"), "text", null, null, null],
       [id, 1, "image.png", Buffer.from([0, 255]), "binary", "image/png", "inline", "logo"],
@@ -126,15 +129,19 @@ describe("PostgreSQL email capture persistence", () => {
         html: "<p>Hello</p>", headers: { "X-Label": "private" }, attachments,
       }),
     });
-    expect(statement(2)).toContain('order by "dev"."email_capture_attachment"."position" asc');
-    query.mockResolvedValueOnce({ rows: [captureRow(2, false)] });
+    expect(statement(5)).toContain('order by "dev"."email_capture_attachment"."position" asc');
+    query.mockResolvedValueOnce(empty).mockResolvedValueOnce({ rows: [captureRow(2, false)] });
     const html = await store.get(id);
     expect(html?.message).not.toHaveProperty("text");
     expect(html?.message).not.toHaveProperty("headers");
     expect(html?.message.html).toBe("<p>HTML only</p>");
+    query.mockResolvedValueOnce(empty).mockResolvedValueOnce({ rows: [captureRow(1, false, true)] });
+    const text = await store.get(id);
+    expect(text?.message).not.toHaveProperty("html");
+    expect(text?.message.text).toBe("Hello");
   });
 
-  it("pages without sensitive message data and clears attachments before capture rows", async () => {
+  it("pages without sensitive message data", async () => {
     const { query, statement, store } = fixture();
     query.mockResolvedValueOnce({ rows: [captureRow(3, true), captureRow(2, false)] });
     const page = await store.list({ before: 4, limit: 0 });
@@ -147,9 +154,64 @@ describe("PostgreSQL email capture persistence", () => {
     });
     await expect(store.list()).resolves.toEqual({ items: [], nextBefore: null });
     expect(query.mock.calls[1]?.[1]).toEqual([51]);
+    await expect(store.list({ limit: 101 })).resolves.toEqual({ items: [], nextBefore: null });
+    expect(query.mock.calls[2]?.[1]).toEqual([101]);
+    query.mockResolvedValueOnce({ rows: [captureRow(2, false)] });
+    await expect(store.list({ limit: 1 })).resolves.toMatchObject({
+      items: [{ hasText: false, hasHtml: true, attachmentCount: 0, attachmentBytes: 0 }], nextBefore: null,
+    });
+    query.mockResolvedValueOnce({ rows: [captureRow(1, false, true)] });
+    await expect(store.list({ limit: 1 })).resolves.toMatchObject({
+      items: [{ hasText: true, hasHtml: false, attachmentCount: 0, attachmentBytes: 0 }], nextBefore: null,
+    });
+  });
+
+  it("clears attachments and captures using one PostgreSQL statement snapshot", async () => {
+    const { query, statement, store } = fixture();
+
     await store.clear();
-    expect([2, 3, 4, 5].map(statement)).toEqual([
-      "begin", 'delete from "dev"."email_capture_attachment"', 'delete from "dev"."email_capture"', "commit",
+    // Two read-committed DELETEs can see different sets of concurrently committed captures.
+    expect(query).toHaveBeenCalledOnce();
+    expect(statement(0)).toMatch(/with deleted_attachments as \(\s*delete from dev\.email_capture_attachment\s*\)\s*delete from dev\.email_capture/u);
+  });
+
+  it("keeps captured attachments visible if clear commits between the two lookup reads", async () => {
+    const { query, store } = fixture();
+    let repeatableSnapshot = false;
+    let cleared = false;
+    query.mockImplementation(async (statement) => {
+      const sql = typeof statement === "string" ? statement : statement.text;
+      if (sql === "begin isolation level repeatable read read only") repeatableSnapshot = true;
+      if (sql.includes('from "dev"."email_capture"')) {
+        // The concurrent clear becomes visible after the first SELECT in read committed mode.
+        cleared = true;
+        return { rows: [captureRow(3, true)] };
+      }
+      if (sql.includes('from "dev"."email_capture_attachment"') && (repeatableSnapshot || !cleared)) {
+        return { rows: [
+          [id, 0, "note.txt", Buffer.from("é"), "text", null, null, null],
+          [id, 1, "image.png", Buffer.from([0, 255]), "binary", "image/png", "inline", "logo"],
+        ] };
+      }
+      return { rows: [] };
+    });
+
+    const found = await store.get(id);
+    expect(found?.message.attachments).toEqual(attachments);
+  });
+
+  it("reads legacy captures that stored a disposition outside the transport contract", async () => {
+    const { query, store } = fixture();
+    query.mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [captureRow(3, true)] })
+      .mockResolvedValueOnce({ rows: [
+        [id, 0, "note.txt", Buffer.from("é"), "text", null, "legacy", null],
+        [id, 1, "regular.txt", Buffer.from("body"), "text", null, "attachment", null],
+      ] });
+
+    expect((await store.get(id))?.message.attachments).toStrictEqual([
+      { filename: "note.txt", content: "é" },
+      { filename: "regular.txt", content: "body", disposition: "attachment" },
     ]);
   });
 
@@ -171,4 +233,24 @@ describe("PostgreSQL email capture persistence", () => {
       await container.dispose();
     }
   });
+});
+
+it("uses seven days of retention by default and coerces explicit environment values", async () => {
+  expect(postgresEmailCaptureConfigBase.schema.parse({})).toEqual({ retentionDays: 7 });
+  expect(postgresEmailCaptureConfigBase.schema.parse({ retentionDays: "5" })).toEqual({ retentionDays: 5 });
+  for (const retentionDays of [0, -1, "1.5", "invalid"]) {
+    expect(postgresEmailCaptureConfigBase.schema.safeParse({ retentionDays }).success).toBe(false);
+  }
+  const { pool, query } = fixture();
+  const connection = dep<{ readonly pool: Pool }>("database");
+  const container = createDependencyContainer({});
+  container.registerValue(connection.id, { pool });
+  try {
+    const definition = postgresEmailCapture(connection);
+    const store = definition.create(container.resolve.bind(container), undefined);
+    await definition.initialize?.(store);
+    expect(query.mock.calls[1]?.[1]).toEqual([7]);
+  } finally {
+    await container.dispose();
+  }
 });

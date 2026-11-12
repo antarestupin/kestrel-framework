@@ -46,9 +46,9 @@ export class ObservationProvider<Config> implements Provider<Config> {
             throw new TypeError("Observation query capability does not match its implementation.");
         },
       });
+    // A recorder becomes active only after its adapter boots. That adapter owns its drain.
     app.container.registerFactory("observationResource", () => (resource = this.createResource()), {
       lifetime: "singleton",
-      dispose: (resource) => resource.close(),
     });
     app.container.registerFactory<
       ObservationRecorder,
@@ -147,9 +147,10 @@ export class ObservationProvider<Config> implements Provider<Config> {
       },
       close: async () => {
         if (active !== undefined) {
-          recorder.clear(active);
-          await active.close();
+          const owned = active;
           active = undefined;
+          recorder.clear(owned);
+          await owned.close();
         }
       },
     };

@@ -10,6 +10,7 @@ import {
   createExecutionWorkloadLogger,
   createLogger,
   executionContextLogDestination,
+  projectExecutionLogContext,
 } from "./logger.js";
 
 describe("dynamic execution logger", () => {
@@ -91,6 +92,24 @@ describe("dynamic execution logger", () => {
       executionContext: { userId: "user-1" },
     });
   });
+
+  it("passes dynamic diagnostics through Pino's redaction policy before writing", () => {
+    const lines: string[] = [];
+    const destination = new Writable({ write(chunk, _encoding, done) { lines.push(chunk.toString()); done(); } });
+    const context = new ExecutionContext();
+    context.setDiagnostic("token", "context-secret", { destinations: [executionContextLogDestination] });
+    context.setDiagnostic("correlation", "kept", { destinations: [executionContextLogDestination] });
+    const logger = createDynamicExecutionLogger(pino({
+      redact: { paths: ["executionContext.token", "secret"], remove: true },
+    }, destination), context);
+
+    logger.child({ channel: "child" }).info({ secret: "call-secret" }, "Filtered");
+    expect(lines).toHaveLength(1);
+    const entry = JSON.parse(lines[0]!);
+    expect(entry).toMatchObject({ msg: "Filtered", channel: "child", executionContext: { correlation: "kept" } });
+    expect(entry).not.toHaveProperty("secret");
+    expect(entry.executionContext).not.toHaveProperty("token");
+  });
 });
 
 it("preserves Error, null and message overloads while keeping context on derived children", () => {
@@ -118,28 +137,86 @@ it("preserves Error, null and message overloads while keeping context on derived
 it("keeps derived bindings and logger property writes when the destination changes", () => {
   const first = pino({ level: "silent" });
   const second = pino({ level: "silent" });
+  const firstChild = vi.spyOn(first, "child");
+  const secondChild = vi.spyOn(second, "child");
   let destination = first;
   const logger = createDelegatingLogger(() => destination);
   const child = logger.child({ scope: "first" }).child({ task: "report" });
   expect("level" in logger).toBe(true);
   expect("unknown" in logger).toBe(false);
   expect(child.bindings()).toEqual({ scope: "first", task: "report" });
+  const bindings = child.bindings;
+  expect(bindings()).toEqual({ scope: "first", task: "report" });
+  expect(firstChild.mock.calls).toEqual([[{ scope: "first" }], [{ task: "report" }]]);
   logger.level = "error";
   expect(first.level).toBe("error");
   destination = second;
   expect(logger.level).toBe("silent");
   expect(child.bindings()).toEqual({ scope: "first", task: "report" });
   expect(child.bindings()).toEqual({ scope: "first", task: "report" });
+  expect(secondChild.mock.calls).toEqual([[{ scope: "first" }], [{ task: "report" }]]);
+});
+
+it("retries a child against the new destination after child creation fails", () => {
+  const first = pino({ level: "silent" }).child({ destination: "first" });
+  const second = pino({ level: "silent" }).child({ destination: "second" });
+  const failure = new Error("child serializer unavailable");
+  const createChild = vi.spyOn(second, "child").mockImplementationOnce(() => { throw failure; });
+  let active = first;
+  const child = createDelegatingLogger(() => active).child({ task: "report" });
+
+  expect(child.bindings()).toEqual({ destination: "first", task: "report" });
+  active = second;
+  expect(() => child.bindings()).toThrow(failure);
+  expect(child.bindings()).toEqual({ destination: "second", task: "report" });
+  expect(createChild).toHaveBeenCalledTimes(2);
 });
 
 it("removes a workload binding when the execution context stops declaring a supported workload", () => {
   const context = new ExecutionContext();
-  const logger = createExecutionWorkloadLogger(pino({ level: "silent" }), context);
+  const parent = pino({ level: "silent" });
+  const child = vi.spyOn(parent, "child");
+  const logger = createExecutionWorkloadLogger(parent, context);
   expect(logger.bindings()).toEqual({});
   context.setDiagnostic("workload", "workers", { destinations: [executionContextLogDestination] });
   expect(logger.bindings()).toEqual({ workload: "workers" });
+  expect(logger.bindings()).toEqual({ workload: "workers" });
   context.setDiagnostic("workload", "custom", { destinations: [executionContextLogDestination] });
   expect(logger.bindings()).toEqual({});
+  expect(child).toHaveBeenCalledExactlyOnceWith({ workload: "workers" });
+});
+
+it("preserves Pino's original hook arguments when context is absent or disabled", () => {
+  const entries: unknown[][] = [];
+  const parent = pino({ hooks: { logMethod(args) { entries.push(args); } } });
+  const context = new ExecutionContext();
+  let enabled = true;
+  const logger = createDynamicExecutionLogger(parent, context, () => enabled);
+
+  logger.info("Before %s", "context");
+  context.setDiagnostic("userId", "user-1", { destinations: [executionContextLogDestination] });
+  enabled = false;
+  logger.info("While %s", "disabled");
+  enabled = true;
+  logger.info("With %s", "context");
+
+  expect(entries).toEqual([
+    ["Before %s", "context"],
+    ["While %s", "disabled"],
+    [{ executionContext: { userId: "user-1" } }, "With %s", "context"],
+  ]);
+  const bindings = logger.bindings;
+  expect(bindings()).toEqual({});
+});
+
+it("omits malformed reserved execution metadata from projected log fields", () => {
+  const context = new ExecutionContext();
+  for (const key of ["operation", "transport", "workload"]) {
+    context.setDiagnostic(key, { invalid: true }, { destinations: [executionContextLogDestination] });
+  }
+  context.setDiagnostic("source", "audit", { destinations: [executionContextLogDestination] });
+
+  expect(projectExecutionLogContext(context)).toStrictEqual({ executionContext: { source: "audit" } });
 });
 
 it("reports Pino flush failures when closing the standard logger", async () => {

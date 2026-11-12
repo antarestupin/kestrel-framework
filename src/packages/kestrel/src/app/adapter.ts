@@ -14,8 +14,19 @@ export function registerProviderAdapter<Config, Value, Context, Capabilities>(
   context: Context,
   options: { validate?: (value: Value) => void; beforeDispose?: () => void | Promise<void> } = {},
 ): AdapterRegistration<Value> {
-  const registration = registerAdapter(app.container, id, definition, context, options);
+  let shutdownDisposalObserved = false;
+  const registration = registerAdapter(app.container, id, definition, context, {
+    ...options,
+    hasObservedDisposal: () => shutdownDisposalObserved,
+  });
   // Container disposal remains a fallback for direct container owners and failed boots.
-  app.eventBus.listenAsync(shutdownStartedEvent, () => registration.dispose());
+  app.eventBus.listenAsync(shutdownStartedEvent, async () => {
+    try {
+      await registration.dispose();
+    } finally {
+      // The shutdown listener reports this result. The cached rejection must not be reported again.
+      shutdownDisposalObserved = true;
+    }
+  });
   return registration;
 }

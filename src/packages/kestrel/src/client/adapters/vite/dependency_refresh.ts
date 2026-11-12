@@ -1,4 +1,4 @@
-import { watchFile, unwatchFile } from "node:fs";
+import { watchFile, unwatchFile, type Stats } from "node:fs";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 
@@ -21,43 +21,54 @@ export function refreshInstalledDependencies(projectRoot: string, files: readonl
   };
 }
 
+type ReceiptChange = (current: Stats, previous: Stats) => void;
+
+interface ReceiptWatcher {
+  watchFile(path: string, options: { persistent: boolean; interval: number }, change: ReceiptChange): void;
+  unwatchFile(path: string, change: ReceiptChange): void;
+}
+
 /** Keep watcher ownership and restart sequencing testable without starting a server. */
 export function watchInstalledDependencies(
   receipts: readonly string[],
   restart: () => Promise<unknown>,
   report: (error: unknown) => void,
+  watcher: ReceiptWatcher = { watchFile, unwatchFile },
 ) {
+  // Close the exact paths that this subscription opened, even if the caller changes the list.
+  const watchedReceipts = new Set(receipts);
   let closed = false;
   let running = false;
-  let pending = false;
+  let pending: boolean;
   async function refresh() {
-    if (closed) return;
-    pending = true;
-    if (running) return;
+    if (running) {
+      pending = true;
+      return;
+    }
     running = true;
     try {
-      while (pending && !closed) {
+      do {
         pending = false;
         try { await restart(); } catch (error) { report(error); }
-      }
+      } while (pending && !closed);
     } finally { running = false; }
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const changed = (current: import("node:fs").Stats, previous: import("node:fs").Stats) => {
+  const changed: ReceiptChange = (current, previous) => {
     // Ignore deletion during npm ci and wait for the final installed receipt instead.
-    if (!current.mtimeMs || current.mtimeMs === previous.mtimeMs) return;
+    if (closed || !current.mtimeMs || current.mtimeMs === previous.mtimeMs) return;
     clearTimeout(timer);
     timer = setTimeout(() => {
       void refresh();
     }, 300);
   };
-  for (const receipt of new Set(receipts)) {
-    watchFile(receipt, { persistent: false, interval: 1000 }, changed);
+  for (const receipt of watchedReceipts) {
+    watcher.watchFile(receipt, { persistent: false, interval: 1000 }, changed);
   }
   const cleanup = () => {
     closed = true;
     clearTimeout(timer);
-    for (const receipt of new Set(receipts)) unwatchFile(receipt, changed);
+    for (const receipt of watchedReceipts) watcher.unwatchFile(receipt, changed);
   };
   return cleanup;
 }

@@ -27,8 +27,7 @@ export const emailCaptures = devSchema.table(
     sequence: bigint("sequence", { mode: "number" })
       .primaryKey()
       .generatedAlwaysAsIdentity(),
-    // A column constraint is emitted inside CREATE TABLE, before Drizzle adds
-    // the attachment foreign key that references this stable public identity.
+    // The inbox and the application-managed attachment cleanup share this public identity.
     id: uuid("id").notNull().unique("email_capture_id_unique"),
     // The observation is persisted asynchronously, so this is intentionally
     // not a foreign key and may temporarily or permanently remain unresolved.

@@ -6,6 +6,7 @@ import {
 
 import {
   flattenCatalog,
+  insertCatalogEntry,
   type CatalogTree,
 } from "./catalog.js";
 
@@ -55,5 +56,37 @@ describe("flattenCatalog", () => {
 
   it("returns an empty list for an empty catalog", () => {
     expect(flattenCatalog<CatalogItem>({}, isCatalogItem)).toEqual([]);
+  });
+});
+
+describe("insertCatalogEntry", () => {
+  const item = { kind: "item", name: "registered" } as const;
+
+  it("creates own data properties for names inherited from the prototype", () => {
+    const inherited = { branch: { original: item } };
+    const catalog: Record<string, CatalogItem | CatalogTree<CatalogItem>> = Object.create(inherited);
+
+    insertCatalogEntry(catalog, ["branch", "first"], item);
+    insertCatalogEntry(catalog, ["branch", "__proto__"], item);
+
+    expect(Object.getPrototypeOf(catalog)).toBe(inherited);
+    expect(inherited.branch).toEqual({ original: item });
+    expect(Object.getOwnPropertyDescriptor(catalog.branch!, "__proto__")).toEqual({
+      value: item, enumerable: true, configurable: true, writable: true,
+    });
+    expect(Object.keys(catalog)).toEqual(["branch"]);
+    expect(flattenCatalog(catalog, isCatalogItem)).toEqual([item, item]);
+  });
+
+  it("reports the complete path on collisions and preserves the existing value", () => {
+    const catalog = { group: { item }, blocked: null, text: "existing" };
+    const writable: Record<string, unknown> = catalog;
+
+    for (const path of [["group", "item"], ["blocked", "item"], ["text", "item"]]) {
+      expect(() => insertCatalogEntry(writable, path, item)).toThrow(
+        `Catalog path "${path.join(".")}" collides with an existing entry.`,
+      );
+    }
+    expect(catalog).toEqual({ group: { item }, blocked: null, text: "existing" });
   });
 });

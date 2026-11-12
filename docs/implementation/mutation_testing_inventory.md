@@ -27,36 +27,36 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `authorization` | 23 | Reviewed | Requirement evaluation, scoped composition, denial semantics and role stores reviewed | [Boundary review](mutation_testing_http_boundaries.md#authorization) |
 | `background` | 4 | Reviewed | Selection, startup and steady-state polling, rollback and transport drain reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#background-workloads) |
 | `cache` | 24 | Reviewed | Capacity, pruning, coordination, adapter ownership and all storage contracts reviewed | [Storage review](mutation_testing_storage_boundaries.md#cache) |
-| `cli` | 8 | Not assessed | Parsing, dispatch and exit/signals; subprocess observation limit | — |
-| `client` | 10 | Not assessed | Client generation and development/build adapters | — |
+| `cli` | 8 | Reviewed | Executable entry, argument binding, command dispatch and lifecycle | [Component review](mutation_testing_final_wave.md#cli) |
+| `client` | 10 | Reviewed | Literal routes, client ownership, Vite build, cache refresh and development handling | [Component review](mutation_testing_final_wave.md#browser-client) |
 | `concurrency` | 4 | Reviewed | Deferred admission, batch timing and outcome ownership, and generator protocol reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#concurrency) |
 | `configuration` | 1 | Reviewed | Environment resolution, override precedence, supported paths and diagnostics reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#configuration) |
-| `controllers` | 2 | Not assessed | Contract/type exports; establish whether runtime mutations exist | — |
+| `controllers` | 2 | Reviewed | Shared empty input schema and type exports with zero generated mutants | [Component review](mutation_testing_final_wave.md#controllers) |
 | `database` | 8 | Reviewed | Maintenance commands, caller-owned transactions and generated identity isolation reviewed | [Storage review](mutation_testing_storage_boundaries.md#maintenance-and-seeding) |
 | `db` | 34 | Reviewed | Pool and query diagnostics, pagination, history, counters and schema contributions reviewed | [Storage review](mutation_testing_storage_boundaries.md#database-runtime-and-repositories) |
 | `definitions` | 5 | Reviewed | Path and identity validation, immutable registration metadata and schema parsing reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#definition-registries) |
 | `di` | 5 | Reviewed | Adapter ownership, dependency resolution, graph validation and disposal reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#dependency-injection) |
-| `email` | 34 | Not assessed | Composition, rendering, transport failures and adapter ownership | — |
+| `email` | 34 | Reviewed | Composition, delivery, capture, adapter contracts and durable storage | [Component review](mutation_testing_final_wave.md#email) |
 | `errors` | 5 | Reviewed | Transport representation lookup, opaque fallback and cyclic diagnostics reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
 | `events` | 4 | Reviewed | Dispatch, one-time listener reservations, error propagation and scope teardown reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#events) |
 | `http` | 28 | Reviewed | Routing, access and lifecycle, Host admission, client transport and generation reviewed | [Boundary review](mutation_testing_http_boundaries.md#http) |
 | `lock` | 22 | Reviewed | Acquisition, lease ownership, batch renewal and all adapter contracts reviewed | [Storage review](mutation_testing_storage_boundaries.md#lock) |
-| `log` | 13 | Not assessed | Redaction, formatting, filtering and transport ownership | — |
+| `log` | 13 | Reviewed | Filtering, serialization, PostgreSQL buffering and transport ownership | [Component review](mutation_testing_final_wave.md#log) |
 | `middleware` | 2 | Reviewed | Entry, replay, dependency resolution and unwind failure behavior reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
-| `observability` | 15 | Not assessed | Context, buffering, redaction and flush/disposal | — |
+| `observability` | 15 | Reviewed | Context, recorder flush, stored observations and adapter lifecycle | [Component review](mutation_testing_final_wave.md#observability) |
 | `outbound_http` | 17 | Reviewed | Routing, cancellation, stream ownership, retry, caching and throttling feedback reviewed | [Security and resilience review](mutation_testing_security_resilience.md#outbound-http) |
 | `scheduled_tasks` | 19 | Reviewed | Scheduler ownership and shutdown, adapter parity and operator contracts | [Component review](mutation_testing_scheduled_tasks.md#november-11-review) |
 | `scheduling` | 4 | Reviewed | Timer limits, abort handling, lease extensions and polling budgets | [Component review](mutation_testing_scheduling_review.md) |
 | `studio` | 99 | Reviewed | Mounting, action and HTTP explorers, diagnostic extensions and browser request ownership | [Studio review](mutation_testing_studio_atlas.md#studio) |
-| `testing` | 1 | Assessment complete; review pending | Public HTTP policy helper; PostgreSQL/Redis fixtures excluded | `testing-component` |
+| `testing` | 1 | Reviewed | Unrestricted HTTP fixture policy (PostgreSQL and Redis connection fixtures excluded) | [Component review](mutation_testing_final_wave.md#testing) |
 | `throttling` | 35 | Reviewed | Queue ownership, circuit transitions, policy registration and backend capacity and shutdown | [Throttling review](mutation_testing_studio_atlas.md#throttling) |
 | `tokens` | 31 | Reviewed | Token lifecycle, signing, key resolution, batch atomicity and adapter contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#tokens) |
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
-| `utils` | 5 | Not assessed | Codecs, identifiers, catalog and boundary validation | — |
+| `utils` | 5 | Reviewed | Cursor serialization, identifiers, catalog ownership and definition guards | [Component review](mutation_testing_final_wave.md#utilities) |
 | `workers` | 23 | Reviewed | Scheduler admission and ownership, delivery, publication, adapters and contracts | [Component review](mutation_testing_workers_complete_review.md) |
 | `workflows` | 38 | Reviewed | Runtime, replay, operator commands and adapter contracts | [Component review](mutation_testing_workflows_complete_review.md) |
 
-The current total is 7 not-assessed lots, 0 partially assessed lots, 26 reviewed lots, 1 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
+The current total is 0 not-assessed lots, 0 partially assessed lots, 34 reviewed lots, 0 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
 
 ## Evidence ledger
 
@@ -100,7 +100,7 @@ Older selected suites and source revision; not a current full-component referenc
 
 Recorded outcomes: 1 RuntimeError; elapsed 6 seconds. Local report: `artifacts/mutation/component-testing/mutation.json`. [Analysis](mutation_testing_inventory.md).
 
-Initialization error has not been classified; completion does not mean validated behavior.
+The final wave classifies this historical initialization error and adds a direct regression test. [Current evidence](mutation_testing_final_wave.md#testing).
 
 ## Security and coordination selected-lot evidence
 
@@ -268,6 +268,25 @@ The interrupted November 9 campaign has 18,525 recorded statuses out of 42,816 g
 - `throttling` has 14 verified pairs out of 14 profiles. The score across those pairs changed from 93.63% to 95.21%. [Throttling review](mutation_testing_studio_atlas.md#throttling).
 - `studio` has 25 verified pairs out of 25 profiles. The score across those pairs changed from 76.74% to 96.06%. [Studio review](mutation_testing_studio_atlas.md#studio).
 - `atlas` has 28 verified pairs out of 28 profiles. The score across those pairs changed from 77.89% to 95.03%. [Atlas review](mutation_testing_studio_atlas.md#atlas).
+
+## November 12 final component review
+
+The named scopes cover all current candidate sources in the last eight components and retain static mutants. The [final component review](mutation_testing_final_wave.md) records the confirmed defects, run durations and remaining limitations.
+
+| Component | Profiles | Score before → after |
+| --- | ---: | ---: |
+| `cli` | 3 | 74.85% → 96.90% |
+| `client` | 3 | 81.13% → 99.11% |
+| `email` | 6 | 75.66% → 96.32% |
+| `log` | 4 | 80.19% → 95.91% |
+| `observability` | 3 | 80.88% → 96.19% |
+| `utils` | 2 | 80.75% → 96.39% |
+| `testing` | 1 | N/A → 100.00% |
+| `controllers` | 1 | N/A → N/A |
+
+The supplemental `app-contracts` comparison stayed at 100% after the shared adapter shutdown fix. [Evidence](mutation_testing_final_wave.md#evidence).
+
+Local reports and source audits are archived under `artifacts/mutation/wave-six/`.
 
 ## Updating the inventory
 

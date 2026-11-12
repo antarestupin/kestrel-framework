@@ -18,6 +18,8 @@ import {
   isCliController,
   isHttpController,
   isObject,
+  isScheduledTask,
+  isWorker,
   isWorkflow,
 } from "./definitions.js";
 
@@ -59,6 +61,7 @@ describe("definition guards", () => {
     expect(isHttpController(cliController)).toBe(false);
     expect(isCliController(httpController)).toBe(false);
     expect(isWorkflow(action)).toBe(false);
+    expect(isWorkflow({ ...workflow, kind: "action" })).toBe(false);
     expect(isAction(workflow)).toBe(false);
   });
 
@@ -66,5 +69,24 @@ describe("definition guards", () => {
     expect(isObject({})).toBe(true);
     expect(isObject(null)).toBe(false);
     expect(isObject("value")).toBe(false);
+  });
+
+  it.each([
+    ["action", isAction, action, ["name", "inputSchema", "outputSchema", "handler"]],
+    ["HTTP controller", isHttpController, httpController, ["source", "route"]],
+    ["CLI controller", isCliController, cliController, ["source", "command"]],
+    ["workflow", isWorkflow, workflow, ["name", "version", "inputSchema", "signals", "handler"]],
+    ["worker", isWorker, { name: "example.worker", queue: "work", inputSchema: z.object({}), handler() {} },
+      ["name", "queue", "inputSchema", "handler"]],
+    ["scheduled task", isScheduledTask, { id: "example.task", schedule: "* * * * *", overlap: "skip", handler() {} },
+      ["id", "schedule", "overlap", "handler"]],
+  ] as const)("requires all identifying properties for a %s", (_kind, guard, definition, keys) => {
+    expect(guard(definition)).toBe(true);
+    expect(guard(null)).toBe(false);
+    for (const key of keys) {
+      const incomplete: Record<string, unknown> = { ...definition };
+      delete incomplete[key];
+      expect(guard(incomplete), key).toBe(false);
+    }
   });
 });

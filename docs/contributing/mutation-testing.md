@@ -71,6 +71,8 @@ The [security and resilience review](../implementation/mutation_testing_security
 
 The `studio-server-*`, `studio-client-*` and `atlas-*` profiles partition Studio and Atlas, including extension contracts, browser pages and adapters. Select a profile by name, for example `npm run test:mutation:focus -- studio-client-email-capture` or `npm run test:mutation:focus -- atlas-page-forms`. The [Studio, Atlas and throttling review](../implementation/mutation_testing_studio_atlas.md) records the before and after evidence for these profiles.
 
+The [final component review](../implementation/mutation_testing_final_wave.md) lists the named profiles for `cli`, `client`, `email`, `log`, `observability`, `utils`, `testing` and `controllers`. The profiles retain static mutants and share the same ten-minute limit per execution. The controller contract profile also verifies the scope when its sources generate no mutations.
+
 From the repository root, prepare the dedicated PostgreSQL and Redis test infrastructure, then validate the instrumented test run before starting a complete mutation assessment:
 
 ```sh

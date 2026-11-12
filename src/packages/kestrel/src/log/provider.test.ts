@@ -11,8 +11,10 @@ import {
   setExecutionLogEnabledDependency,
 } from "./dependencies.js";
 import type { LoggerConfig } from "./configuration.js";
+import { loggerConfigBase } from "./configuration.js";
 import type { OwnedLogger } from "./logger.js";
 import { LoggerProvider } from "./provider.js";
+import { pinoLogger } from "./adapters/pino/index.js";
 
 describe("LoggerProvider", () => {
   it("keeps a silent facade until bootstrap selects the configured backend", async () => {
@@ -109,9 +111,12 @@ describe("LoggerProvider", () => {
       destinations: ["log"],
     });
 
+    execution.container.resolve(loggerDependency).info("Before completion");
     await execution.dispose("success");
 
-    const entry = parseLogLines(lines).find(({ msg }) => msg === "Execution context completed");
+    const entries = parseLogLines(lines);
+    expect(entries.find(({ msg }) => msg === "Before completion")).not.toHaveProperty("executionContext");
+    const entry = entries.find(({ msg }) => msg === "Execution context completed");
 
     expect(entry).toMatchObject({
       executionContext: {
@@ -144,7 +149,9 @@ describe("LoggerProvider", () => {
     logger.info("Processing user");
     await execution.dispose();
 
-    const entry = parseLogLines(lines).find(({ msg }) => msg === "Processing user");
+    const entries = parseLogLines(lines);
+    expect(entries.map(({ msg }) => msg)).toEqual(["Processing user"]);
+    const entry = entries[0];
 
     expect(entry).toMatchObject({
       executionContext: {
@@ -195,6 +202,8 @@ describe("LoggerProvider", () => {
     const execution = await app.createExecutionScope("execution-1");
     const logger = execution.container.resolve(loggerDependency);
     const setExecutionLogEnabled = execution.container.resolve(setExecutionLogEnabledDependency);
+    expect(execution.container.resolve(setExecutionLogEnabledDependency)).toBe(setExecutionLogEnabled);
+    execution.context.setDiagnostic("userId", "user-1", { destinations: ["log"] });
 
     setExecutionLogEnabled(false);
     logger.info("Technical work");
@@ -211,10 +220,59 @@ describe("LoggerProvider", () => {
     expect(visibleEntry).toMatchObject({
       msg: "Visible work",
       executionId: "execution-1",
+      executionContext: { userId: "user-1" },
     });
-    expect(visibleEntry?.executionContext).toBeUndefined();
     await app.dispose();
   });
+});
+
+it("flushes the standard Pino adapter using the configured destination level", async () => {
+  const config = loggerConfigBase.schema.parse({ level: "error" });
+  const provider = new LoggerProvider(config, pinoLogger());
+  const app = new App({}).register(provider);
+  const facade = app.container.resolve(applicationLoggerDependency);
+
+  try {
+    expect(facade.level).toBe("silent");
+    await app.start();
+    expect(facade.level).toBe("error");
+    const dependency = dep<OwnedLogger>("loggerAdapter");
+    const { logger } = app.container.resolve(dependency);
+    await provider.boot(app);
+    expect(app.container.resolve(dependency).logger).toBe(logger);
+    const flush = vi.spyOn(logger, "flush");
+    try {
+      await app.dispose();
+      expect(flush).toHaveBeenCalledOnce();
+      expect(facade.level).toBe("silent");
+    } finally {
+      flush.mockRestore();
+    }
+  } finally {
+    await app.dispose();
+  }
+});
+
+it("reports an owned logger close failure once and returns the facade to its fallback", async () => {
+  const failure = new Error("logger close failed");
+  const close = vi.fn(async () => { throw failure; });
+  const config = loggerConfigBase.schema.parse({ level: "error" });
+  const app = new App({}).register(new LoggerProvider(config, defineLoggerAdapter({
+    dependencies: {}, capabilities: {},
+    create: () => ({ logger: pino({ level: "error" }), close }),
+    dispose: (resource) => resource.close(),
+  })));
+  const facade = app.container.resolve(applicationLoggerDependency);
+
+  try {
+    await app.start();
+    expect(facade.level).toBe("error");
+    await expect(app.dispose()).rejects.toMatchObject({ errors: [failure] });
+    expect(close).toHaveBeenCalledOnce();
+    expect(facade.level).toBe("silent");
+  } finally {
+    await app.dispose().catch(() => undefined);
+  }
 });
 
 /** Replaces stdout with an in-memory destination for provider integration tests. */

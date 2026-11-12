@@ -111,3 +111,20 @@ it("bounds pages, combines filters, preserves cursors and skips empty execution 
   await store.clear();
   expect(query.mock.calls[3]?.[0].text).toBe('delete from "dev"."log"');
 });
+
+it("returns the complete last page without a cursor when its size matches the limit", async () => {
+  const timestamp = "2026-01-01T00:00:00.000Z";
+  const query = vi.fn(async (_query: { text: string }, _values: readonly unknown[]) => ({ rows: [
+    ["3", timestamp, 30, "newest", null, {}, timestamp],
+    ["2", timestamp, 40, "oldest", null, {}, timestamp],
+  ] }));
+  const store = createDevLogStore({ query } as unknown as Pool);
+
+  await expect(store.list({ limit: 2 })).resolves.toMatchObject({
+    items: [{ id: 3 }, { id: 2 }], nextBefore: null,
+  });
+  const statement = query.mock.calls[0]?.[0].text;
+  expect(statement).toContain('order by "dev"."log"."id" desc');
+  expect(statement).not.toContain(" where ");
+  expect(query.mock.calls[0]?.[1]).toEqual([3]);
+});

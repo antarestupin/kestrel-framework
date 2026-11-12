@@ -1,12 +1,13 @@
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import { spawn } from "node:child_process";
+import { unwatchFile, watchFile } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
-import type { ViteDevServer } from "vite";
+import type { InlineConfig, Plugin, ViteDevServer } from "vite";
 
 import { ViteDevelopmentRuntime } from "./development_runtime.js";
 
@@ -20,10 +21,16 @@ describe("ViteDevelopmentRuntime", () => {
     expect(client.entry.templateModulePath).toBe("/browser/main.tsx");
     expect(client.entry.developmentModulePath).toContain("external%20client%23%3F/browser/main.tsx");
     expect(client.entry.developmentModulePath).toMatch(/^\/@fs\//);
-    expect(runtime.externalEntry({ root }).entry.templateModulePath).toBe("/src/main.tsx");
+    expect(runtime.externalEntry({ root }).entry).toMatchObject({
+      htmlPath: join(root, "index.html"), templateModulePath: "/src/main.tsx",
+    });
     expect(() => runtime.externalEntry({ root: "../sibling" })).toThrow("absolute path");
-    expect(() => runtime.externalEntry({ root, html: "../index.html" })).toThrow("relative path");
-    expect(() => runtime.externalEntry({ root, module: "../outside.ts" })).toThrow("relative path");
+    expect(() => runtime.externalEntry({ root, html: "../index.html" })).toThrow("client HTML must be a relative path");
+    expect(() => runtime.externalEntry({ root, module: "../outside.ts" })).toThrow("client module must be a relative path");
+    if (sep === "/") {
+      const literal = runtime.externalEntry({ root: join(tmpdir(), "external\\client") });
+      expect(literal.entry.developmentModulePath).toContain("external%5Cclient/src/main.tsx");
+    }
   });
 
   it.each(["/", "/development/"])("serves production asset URLs through the shared Vite base %s", async (base) => {
@@ -142,6 +149,34 @@ describe("ViteDevelopmentRuntime", () => {
       root: "src/client",
       html: "templates/../../../outside.html",
     })).toThrowError("client HTML must be a relative path");
+    expect(() => runtime.entry({ root: "src/client", module: ".." })).toThrowError("client module must be a relative path");
+  });
+
+  it("normalizes portable relative paths without resolving Windows drive paths outside the root", () => {
+    const runtime = new ViteDevelopmentRuntime({ root: "/workspace", configFile: "vite.config.ts" });
+    expect(runtime.entry({ root: ".\\src\\client", module: "browser\\entry.tsx" }).entry).toMatchObject({
+      templateModulePath: "/browser/entry.tsx",
+      developmentModulePath: "/src/client/browser/entry.tsx",
+    });
+    for (const root of ["/tmp/client", "\\external", "C:\\client", "D:relative-client", ".."]) {
+      expect(() => runtime.entry({ root })).toThrowError("client root must be a relative path");
+    }
+    expect(runtime.entry({ root: "internal", module: "browser/a:entry.tsx" }).entry.developmentModulePath)
+      .toBe("/internal/browser/a:entry.tsx");
+  });
+
+  it("requires entry file paths while allowing the current directory as a client root", () => {
+    const root = tmpdir();
+    const runtime = new ViteDevelopmentRuntime({ root, configFile: "vite.config.ts" });
+    expect(runtime.entry({ root: "." }).entry.htmlPath).toBe(join(root, "index.html"));
+    for (const file of ["", ".", "./", "pages/..", "pages/.", "pages/", "pages\\"]) {
+      expect(() => runtime.entry({ root: ".", html: file })).toThrow("client HTML must identify a relative file");
+      expect(() => runtime.entry({ root: ".", module: file })).toThrow("client module must identify a relative file");
+      expect(() => runtime.externalEntry({ root, html: file })).toThrow("client HTML must identify a relative file");
+      expect(() => runtime.externalEntry({ root, module: file })).toThrow("client module must identify a relative file");
+    }
+    expect(runtime.entry({ root: ".", html: "pages/../index.html" }).entry.htmlPath).toBe(join(root, "index.html"));
+    expect(runtime.entry({ root: ".", module: "file.." }).entry.templateModulePath).toBe("/file..");
   });
 
   it("shares one Vite server, transforms client entries and closes once", async () => {
@@ -191,6 +226,9 @@ describe("ViteDevelopmentRuntime", () => {
     }));
     expect(first.use).toHaveBeenCalledOnce();
     expect(second.use).toHaveBeenCalledOnce();
+    expect(first.use.mock.calls[0]?.[0]).toBe((await createServer.mock.results[0]?.value)?.middlewares);
+    expect(readHtml).toHaveBeenCalledExactlyOnceWith("/workspace/secondary/index.html", "utf8");
+    expect(transformIndexHtml).toHaveBeenCalledExactlyOnceWith("/admin", expect.stringContaining("/src/kestrel/secondary/client/src/main.tsx"));
     expect(document).toContain(
       'src="/src/kestrel/secondary/client/src/main.tsx"',
     );
@@ -199,6 +237,28 @@ describe("ViteDevelopmentRuntime", () => {
     await first.runPreClose();
     await second.runPreClose();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("preserves fallthrough errors and missing request URLs in the asset wrapper", async () => {
+    const failure = new Error("Vite asset failed");
+    const runtime = new ViteDevelopmentRuntime({ root: "/workspace", configFile: "vite.config.ts" }, {
+      createServer: async () => ({
+        config: { base: "/dev/" },
+        close: vi.fn(async () => {}),
+        middlewares: (_request: unknown, _response: unknown, next: (error: Error) => void) => next(failure),
+      }) as unknown as ViteDevServer,
+    });
+    const scope = createFastifyScope();
+    try {
+      await runtime.mount(scope.server, "/assets/");
+      const wrap = scope.use.mock.calls[0]?.[0] as (request: { url?: string }, response: object, next: (error?: Error) => void) => void;
+      for (const request of [{ url: "/assets/file.js?dev" }, {}]) {
+        const url = request.url;
+        const next = vi.fn(() => expect(request.url).toBe(url));
+        wrap(request, {}, next);
+        expect(next).toHaveBeenCalledExactlyOnceWith(failure);
+      }
+    } finally { await runtime.close(); }
   });
 
   it("installs middleware once when callers mount the same scope concurrently", async () => {
@@ -248,6 +308,35 @@ describe("ViteDevelopmentRuntime", () => {
     }
   });
 
+  it("retries Vite creation after a shared startup failure", async () => {
+    const initialization = new Error("Vite configuration is temporarily invalid");
+    const close = vi.fn(async () => {});
+    const createServer = vi.fn(async () => ({ close, middlewares: vi.fn() }) as unknown as ViteDevServer);
+    createServer.mockRejectedValueOnce(initialization);
+    const runtime = new ViteDevelopmentRuntime({ root: "/workspace", configFile: "vite.config.ts" }, { createServer });
+    const first = createFastifyScope();
+    const second = createFastifyScope();
+    try {
+      await expect(runtime.close()).resolves.toBeUndefined();
+      expect(createServer).not.toHaveBeenCalled();
+      await Promise.all([
+        expect(runtime.mount(first.server)).rejects.toBe(initialization),
+        expect(runtime.mount(second.server)).rejects.toBe(initialization),
+        expect(runtime.close()).rejects.toBe(initialization),
+      ]);
+      expect(createServer).toHaveBeenCalledOnce();
+      expect(first.use).not.toHaveBeenCalled();
+      expect(second.use).not.toHaveBeenCalled();
+
+      await expect(Promise.all([runtime.mount(first.server), runtime.mount(second.server)])).resolves.toEqual([undefined, undefined]);
+      expect(createServer).toHaveBeenCalledTimes(2);
+      await runtime.close();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      await runtime.close().catch(() => undefined);
+    }
+  });
+
   it("inserts a filesystem module URL containing a literal replacement pattern", async () => {
     const runtime = new ViteDevelopmentRuntime({
       root: "/workspace",
@@ -281,6 +370,53 @@ describe("ViteDevelopmentRuntime", () => {
       await runtime.mount(createFastifyScope().server);
       expect(createServer.mock.calls[0]?.[0].plugins).toEqual([]);
     } finally { await runtime.close(); }
+  });
+
+  it.each([undefined, "custom/receipt.json"])("watches the installed receipt configured as %s", async (relativeReceipt) => {
+    const root = await mkdtemp(join(tmpdir(), "kestrel-vite-receipt-"));
+    const createServer = vi.fn(async (_config: InlineConfig) => ({
+      close: vi.fn(async () => {}), middlewares: vi.fn(),
+    }) as unknown as ViteDevServer);
+    const runtime = new ViteDevelopmentRuntime({
+      root, configFile: "vite.config.ts",
+      ...(relativeReceipt === undefined ? {} : { dependencyRefresh: { files: [relativeReceipt] } }),
+    }, { createServer });
+    const receipt = join(root, relativeReceipt ?? "node_modules/.package-lock.json");
+    const sentinel = watchFile(receipt, { persistent: false }, () => undefined);
+    let cleanup: (() => void) | undefined;
+    try {
+      await runtime.mount(createFastifyScope().server);
+      const plugin = (createServer.mock.calls[0]?.[0].plugins?.[0]) as Plugin;
+      const configure = plugin.configureServer as (server: ViteDevServer) => void;
+      cleanup = plugin.buildEnd as () => void;
+      configure({ restart: vi.fn(), config: { logger: { error: vi.fn() } } } as unknown as ViteDevServer);
+      expect(sentinel.listenerCount("change")).toBe(2);
+      cleanup();
+      expect(sentinel.listenerCount("change")).toBe(1);
+    } finally {
+      cleanup?.();
+      unwatchFile(receipt);
+      await runtime.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("loads the installed Vite entry when no server factory is provided", async () => {
+    const middleware = vi.fn();
+    const close = vi.fn(async () => {});
+    const createServer = vi.fn(async () => ({ close, middlewares: middleware }));
+    vi.doMock("vite", () => ({ createServer }));
+    const runtime = new ViteDevelopmentRuntime({ root: "/workspace", configFile: "vite.config.ts" });
+    const scope = createFastifyScope();
+    try {
+      await runtime.mount(scope.server);
+      expect(createServer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ root: "/workspace" }));
+      expect(scope.use).toHaveBeenCalledExactlyOnceWith(middleware);
+    } finally {
+      vi.doUnmock("vite");
+      await runtime.close().catch(() => undefined);
+    }
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it("rejects an HTML template that no longer contains its declared entry", async () => {

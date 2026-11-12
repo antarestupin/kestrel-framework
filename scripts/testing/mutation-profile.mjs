@@ -485,6 +485,58 @@ const focusedProfiles = {
   "studio-client-workflow-execution": [
     ["studio/extensions/workflows/client/index.tsx", "function WorkflowExecutionPage("],
   ],
+  // Separate command input binding from dispatch and the process entrypoint.
+  "cli-entrypoint": [["cli/main.ts"], ["cli/runner.ts"], ["cli/index.ts"]],
+  "cli-dispatch": [
+    ["cli/command_manager.ts", "", "private configureInput<"],
+    ["cli/command_manager.ts", "private async runActionController<"],
+    ["cli/middleware.ts"],
+    ["cli/model_list_controller.ts"],
+  ],
+  "cli-input": [
+    ["cli/command_manager.ts", "private configureInput<", "private async runActionController<"],
+    ["cli/bindings.ts"],
+    ["cli/controller.ts"],
+  ],
+  "client-provider": [
+    ["client/provider.ts"], ["client/client.ts"], ["client/adapter_definition.ts"],
+    ["client/index.ts"], ["client/adapters/index.ts"],
+  ],
+  "client-vite-build": [
+    ["client/adapters/vite/adapter.ts"], ["client/adapters/vite/dependency_refresh.ts"],
+    ["client/adapters/vite/definition.ts"], ["client/adapters/vite/index.ts"],
+  ],
+  "client-vite-development": [["client/adapters/vite/development_runtime.ts"]],
+  "email-delivery": [["email/client.ts"], ["email/errors.ts"], ["email/observations.ts"]],
+  "email-composition": [["email/message.ts"], ["email/capture.ts"], ["email/types.ts"]],
+  "email-provider": [
+    ["email/adapter_definition.ts"], ["email/configuration.ts"], ["email/dependencies.ts"],
+    ["email/index.ts"], ["email/provider.ts"],
+  ],
+  "email-transport-adapters": [
+    ["email/adapters/email_sdk/**/*.ts"], ["email/adapters/ses/**/*.ts"],
+    ["email/adapters/smtp/**/*.ts"], ["email/adapters/index.ts"],
+  ],
+  "email-capture-adapters": [["email/adapters/capture/**/*.ts"], ["email/adapters/memory/**/*.ts"]],
+  "email-postgres-capture": [["email/adapters/postgres/**/*.ts"], ["email/postgres_schema.ts"]],
+  "log-runtime": [["log/logger.ts"]],
+  "log-postgres-transport": [["log/postgres_transport.ts"], ["log/adapters/postgres/**/*.ts"]],
+  "log-storage": [["log/db/**/*.ts"]],
+  "log-contracts": [
+    ["log/adapter_definition.ts"], ["log/adapters/pino/**/*.ts"], ["log/configuration.ts"],
+    ["log/dependencies.ts"], ["log/index.ts"], ["log/provider.ts"],
+  ],
+  "observability-recording": [["observability/recorder.ts"]],
+  "observability-postgres": [["observability/adapters/postgres/**/*.ts"], ["observability/db/schema.ts"]],
+  "observability-runtime": [
+    ["observability/adapter_definition.ts"], ["observability/configuration.ts"], ["observability/context.ts"],
+    ["observability/definitions.ts"], ["observability/dependencies.ts"], ["observability/index.ts"],
+    ["observability/observer.ts"], ["observability/provider.ts"], ["observability/source.ts"],
+  ],
+  "utils-codecs": [["utils/cursor_codec.ts"], ["utils/uuid.ts"]],
+  "utils-catalog": [["utils/catalog.ts"], ["utils/definitions.ts"], ["utils/index.ts"]],
+  "testing-http-access": [["testing/http_access.ts"]],
+  "controllers-contracts": [["controllers/index.ts"], ["controllers/contract.ts"]],
   "catalog-identities": [
     ["app/catalog.ts", "public readonly cliControllers =", "public readonly workers ="],
     ["app/catalog.ts", "public readonly workers =", "public readonly workflows ="],

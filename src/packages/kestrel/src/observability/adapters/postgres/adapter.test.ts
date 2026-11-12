@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { executionCompletedObservation, executionStartedObservation } from "../../../app/observations.js";
 import { createDependencyContainer, dep } from "../../../di/index.js";
 import type { ObservationRecord } from "../../source.js";
+import { postgresObservationsConfigBase } from "./configuration.js";
 import { postgresObservations } from "./definition.js";
 import { PostgresObservationStore } from "./adapter.js";
 
@@ -101,6 +102,33 @@ describe("PostgreSQL observation persistence", () => {
     expect(query.mock.calls[2]?.[1]).toEqual([51]);
   });
 
+  it("omits the next cursor when the last page is exactly full", async () => {
+    const { query, store } = fixture();
+    const rows = [row(8, "execution")];
+    query.mockResolvedValueOnce({ rows });
+    query.mockResolvedValueOnce({ rows });
+    await expect(store.listObservations({ limit: 1 })).resolves.toMatchObject({
+      items: [{ sequence: 8 }], nextBefore: null,
+    });
+    await expect(store.listExecutions({ limit: 1 })).resolves.toMatchObject({
+      items: [{ executionId: "execution" }], nextBefore: null,
+    });
+  });
+
+  it("uses the last visible start as the cursor when older executions remain", async () => {
+    const { query, store } = fixture();
+    query.mockResolvedValueOnce({ rows: [
+      row(8, "newest"), row(7, "middle"), row(6, "oldest-visible"), row(5, "next-page"),
+    ] });
+
+    await expect(store.listExecutions({ limit: 3 })).resolves.toMatchObject({
+      items: [{ executionId: "newest" }, { executionId: "middle" }, { executionId: "oldest-visible" }],
+      nextBefore: 6,
+    });
+    expect(query.mock.calls[0]?.[1]).toEqual([executionStartedObservation.name, 4]);
+    expect(query.mock.calls[1]?.[1]).toEqual([executionCompletedObservation.name, "newest", "middle", "oldest-visible"]);
+  });
+
   it("joins lifecycle events without filling missing completion data or exposing invalid transports", async () => {
     const { query, statement, store } = fixture();
     query.mockResolvedValueOnce({ rows: [
@@ -131,6 +159,14 @@ describe("PostgreSQL observation persistence", () => {
     await expect(store.listExecutions()).resolves.toMatchObject({ items: [{ operation: "run", transport }], nextBefore: null });
   });
 
+  it("uses the default transport for empty legacy transport metadata", async () => {
+    const { query, store } = fixture();
+    query.mockResolvedValueOnce({ rows: [row(1, "execution", { data: { operation: "run", transport: "" } })] });
+    await expect(store.listExecutions()).resolves.toMatchObject({
+      items: [{ operation: "run", transport: "direct" }],
+    });
+  });
+
   it("keeps the latest completion when an execution emits more than one", async () => {
     const { query, store } = fixture();
     query.mockResolvedValueOnce({ rows: [row(1, "execution")] });
@@ -140,6 +176,17 @@ describe("PostgreSQL observation persistence", () => {
     ] });
     await expect(store.listExecutions()).resolves.toMatchObject({
       items: [{ executionId: "execution", outcome: "success", completedAt: new Date(completedAt) }],
+    });
+  });
+
+  it("keeps a timeline browsable when a legacy event contains JSON null instead of metadata", async () => {
+    const { query, store } = fixture();
+    const legacy = row(1, "legacy");
+    // PostgreSQL permits a JSON null even when the JSONB column is NOT NULL.
+    legacy[9] = null;
+    query.mockResolvedValueOnce({ rows: [legacy] });
+    await expect(store.listExecutions()).resolves.toMatchObject({
+      items: [{ executionId: "legacy", operation: "Unknown execution", transport: "direct" }],
     });
   });
 
@@ -159,6 +206,25 @@ describe("PostgreSQL observation persistence", () => {
       } else {
         await expect(definition.initialize?.(adapter)).rejects.toBe(failure);
       }
+    } finally {
+      await container.dispose();
+    }
+  });
+
+  it("validates retention settings and prepares a new adapter with the default retention", async () => {
+    const { pool, query } = fixture();
+    const connection = dep<{ readonly pool: Pool }>("database");
+    const container = createDependencyContainer({});
+    container.registerValue(connection.id, { pool });
+    const definition = postgresObservations(connection);
+    const adapter = definition.create(container.resolve.bind(container), undefined);
+
+    try {
+      expect(postgresObservationsConfigBase.schema.parse({ retentionDays: "2" })).toEqual({ retentionDays: 2 });
+      expect(postgresObservationsConfigBase.schema.safeParse({ retentionDays: 0 }).success).toBe(false);
+      expect(postgresObservationsConfigBase.schema.safeParse({ retentionDays: 1.5 }).success).toBe(false);
+      await definition.initialize?.(adapter);
+      expect(query.mock.calls[1]?.[1]).toEqual([7]);
     } finally {
       await container.dispose();
     }

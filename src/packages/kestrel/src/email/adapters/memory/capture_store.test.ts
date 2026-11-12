@@ -32,6 +32,7 @@ describe("MemoryEmailCaptureStorageAdapter", () => {
       sequence: 2,
       id: "capture-2",
       observationId: "observation-2",
+      hasText: false,
       hasHtml: true,
       attachmentCount: 1,
       attachmentBytes: 6,
@@ -60,5 +61,28 @@ describe("MemoryEmailCaptureStorageAdapter", () => {
 
     await store.clear();
     await expect(store.get("capture-1")).resolves.toBeUndefined();
+  });
+
+  it("enforces unique capture IDs and bounded, gap-free descending pagination", async () => {
+    const store = new MemoryEmailCaptureStorageAdapter();
+    const message = normalizeEmailMessage({ from: "sender@example.test", to: "reader@example.test", subject: "Message", text: "Body" });
+    const newCapture = (sequence: number) => ({ id: `capture-${sequence}`, observationId: `observation-${sequence}`,
+      capturedAt: new Date("2026-08-24T10:00:00.000Z"), message });
+    for (let sequence = 1; sequence <= 101; sequence += 1) {
+      await store.capture(newCapture(sequence));
+    }
+    await expect(store.capture(newCapture(3))).rejects.toThrow('Email capture "capture-3" already exists.');
+    const initial = await store.list();
+    expect(initial.items).toHaveLength(50);
+    expect(initial.items[0]?.sequence).toBe(101);
+    expect(initial.nextBefore).toBe(52);
+
+    const capped = await store.list({ limit: 101 });
+    expect(capped.items).toHaveLength(100);
+    expect(capped.nextBefore).toBe(2);
+    const last = await store.list({ before: capped.nextBefore!, limit: 0 });
+    expect(last.items.map(({ sequence }) => sequence)).toEqual([1]);
+    expect(last.nextBefore).toBeNull();
+    await expect(store.list({ before: 1 })).resolves.toEqual({ items: [], nextBefore: null });
   });
 });

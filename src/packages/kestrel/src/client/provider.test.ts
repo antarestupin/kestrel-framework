@@ -66,11 +66,15 @@ describe("ClientProvider", () => {
     expect((await server.inject("/spaces/example")).body).toBe("/spaces/example");
     expect((await server.inject("/api/known")).json()).toEqual({ status: "known" });
 
-    const apiMiss = await server.inject("/api/missing");
-
-    expect(apiMiss.statusCode).toBe(404);
-    expect(apiMiss.json()).toEqual({ error: "API route not found." });
-    expect((await server.inject("/_client_assets/missing.js")).statusCode).toBe(404);
+    // Both the boundary itself and its descendants stay out of the SPA fallback.
+    for (const path of ["/api", "/api/missing"]) {
+      const apiMiss = await server.inject(path);
+      expect(apiMiss.statusCode).toBe(404);
+      expect(apiMiss.json()).toEqual({ error: "API route not found." });
+    }
+    const assetMiss = await server.inject("/_client_assets/missing.js");
+    expect(assetMiss.statusCode).toBe(404);
+    expect(assetMiss.json()).toEqual({ error: "Client asset not found." });
     expect(setup).toHaveBeenCalledWith(expect.anything(), {
       basePath: "/",
       assetBasePath: "/_client_assets/",
@@ -115,6 +119,10 @@ describe("ClientProvider", () => {
           { basePath: "app" },
         ),
     ).toThrow("client base path");
+    expect(() => new ClientProvider(
+      defineWebClientAdapter({ dependencies: {}, capabilities: {}, create: () => adapter }),
+      { basePath: "/app/" },
+    )).toThrow("client base path");
     expect(
       () =>
         new ClientProvider(
@@ -122,6 +130,10 @@ describe("ClientProvider", () => {
           { assetBasePath: "/" },
         ),
     ).toThrow("client asset base path");
+    expect(() => new ClientProvider(
+      defineWebClientAdapter({ dependencies: {}, capabilities: {}, create: () => adapter }),
+      { assetBasePath: "/assets" },
+    )).toThrow("client asset base path");
     expect(
       () =>
         new ClientProvider(
@@ -130,6 +142,21 @@ describe("ClientProvider", () => {
         ),
     ).toThrow("excluded client path");
   });
+
+  it.each([
+    "app", "//app", "/app//child", "/app?query", "/app#fragment", "/app/*", "/:app",
+    "/app/../other", "/app/%2e/other", "/app/.%2E", "/app\\path", "/app path",
+  ])(
+    "rejects a non-literal route %s in each client boundary",
+    (path) => {
+      const adapter = defineWebClientAdapter({
+        dependencies: {}, capabilities: {}, create: () => ({ setup: async () => () => undefined }),
+      });
+      expect(() => new ClientProvider(adapter, { basePath: path })).toThrow("client base path");
+      expect(() => new ClientProvider(adapter, { assetBasePath: `${path}/` })).toThrow("client asset base path");
+      expect(() => new ClientProvider(adapter, { excludedPaths: [path] })).toThrow("excluded client path");
+    },
+  );
 });
 
 async function mountExtensions(app: App<{}>): Promise<FastifyInstance> {

@@ -1,11 +1,11 @@
-import { defineObservationAdapter } from "./adapter_definition.js";
+import { defineObservationAdapter, type ObservationAdapter } from "./adapter_definition.js";
 import { postgresObservations } from "./adapters/postgres/index.js";
 import type { Pool } from "pg";
 import type { Logger } from "pino";
 import { describe, expect, it, vi } from "vitest";
 
 import { App } from "../app/index.js";
-import { dep } from "../di/index.js";
+import { dep, type AdapterRegistration } from "../di/index.js";
 import type { ObservationConfig } from "./configuration.js";
 import { PostgresObservationStore } from "./adapters/postgres/adapter.js";
 import {
@@ -16,6 +16,9 @@ import {
 } from "./observer.js";
 import type { ObserverContext } from "./context.js";
 import { ObservationProvider } from "./provider.js";
+import { defineObservation } from "./definitions.js";
+import { observationRecorderDependency, observerDependency } from "./dependencies.js";
+import type { DevObservationSource } from "./source.js";
 
 const config: ObservationConfig = {
   enabled: true,
@@ -283,14 +286,76 @@ it("flushes a writer-only external backend before disposal without requiring a q
 });
 
 it("does not construct a backend when observations are disabled", async () => {
-  const create = vi.fn(() => ({ writer: { append: async () => {} } }));
+  const create = vi.fn(() => ({ writer: { append: async () => {} }, source: {} as DevObservationSource }));
   const app = new App({}).register(new ObservationProvider({ ...config, enabled: false }, defineObservationAdapter({
-    dependencies: {}, capabilities: { query: false }, create,
+    dependencies: {}, capabilities: { query: true }, create,
   })));
   try {
+    expect(app.container.hasRegistration("observationAdapter")).toBe(false);
     await app.start();
     expect(app.container.hasRegistration("observationSource")).toBe(false);
     expect(create).not.toHaveBeenCalled();
+  } finally {
+    await app.dispose();
+  }
+});
+
+it("shares the recorder across scopes while binding each observer to its own execution", async () => {
+  const append = vi.fn(async () => {});
+  const provider = new ObservationProvider(config, defineObservationAdapter({
+    dependencies: {}, capabilities: { query: false }, create: () => ({ writer: { append } }),
+  }));
+  const app = new App({}).register(provider);
+  app.container.registerValue("applicationLogger", { warn: vi.fn() });
+
+  try {
+    await app.start();
+    const recorder = app.container.resolve(observationRecorderDependency);
+    const first = await app.createExecutionScope("first-execution");
+    const second = await app.createExecutionScope("second-execution");
+    try {
+      const firstObserver = first.container.resolve(observerDependency);
+      const secondObserver = second.container.resolve(observerDependency);
+      expect(first.container.resolve(observationRecorderDependency)).toBe(recorder);
+      expect(second.container.resolve(observationRecorderDependency)).toBe(recorder);
+      expect(first.container.resolve(observerDependency)).toBe(firstObserver);
+      expect(secondObserver).not.toBe(firstObserver);
+      const definition = defineObservation({ name: "test.event", category: "test" });
+      firstObserver.record(definition, { value: "first" });
+      secondObserver.record(definition, { value: "second" });
+      // Repeated initialization must keep the existing recorder and its admitted events.
+      await provider.boot(app);
+      await recorder.flush();
+      expect(append).toHaveBeenCalledExactlyOnceWith([
+        expect.objectContaining({ executionId: "first-execution", data: { value: "first" } }),
+        expect.objectContaining({ executionId: "second-execution", data: { value: "second" } }),
+      ]);
+    } finally {
+      await Promise.all([first.dispose(), second.dispose()]);
+    }
+  } finally {
+    await app.dispose();
+  }
+});
+
+it("resolves one advertised query source and releases it even before recorder creation", async () => {
+  const source = {} as DevObservationSource;
+  const readSource = vi.fn(() => source);
+  const dispose = vi.fn(async () => {});
+  const app = new App({}).register(new ObservationProvider(config, defineObservationAdapter({
+    dependencies: {}, capabilities: { query: true }, dispose,
+    create: () => ({ writer: { append: async () => {} }, get source() { return readSource(); } }),
+  })));
+
+  try {
+    const dependency = dep<DevObservationSource>("observationSource");
+    expect(app.container.resolve(dependency)).toBe(source);
+    expect(app.container.resolve(dependency)).toBe(source);
+    // Capability validation and the first source resolution each read the source once.
+    expect(readSource).toHaveBeenCalledTimes(2);
+    const adapter = app.container.resolve(dep<AdapterRegistration<ObservationAdapter>>("observationAdapterRegistration"));
+    await adapter.dispose();
+    expect(dispose).toHaveBeenCalledOnce();
   } finally {
     await app.dispose();
   }
@@ -306,3 +371,71 @@ it("rejects an adapter whose query capability does not match its runtime shape",
     await app.dispose();
   }
 });
+
+it("drains the recorder before releasing the adapter independently of application flush", async () => {
+  const writeStarted = Promise.withResolvers<void>();
+  const write = Promise.withResolvers<void>();
+  const dispose = vi.fn(async () => {});
+  const append = vi.fn(async () => {
+    writeStarted.resolve();
+    await write.promise;
+  });
+  const app = new App({}).register(new ObservationProvider(config, defineObservationAdapter({
+    dependencies: {}, capabilities: { query: false }, create: () => ({ writer: { append } }), dispose,
+  })));
+  app.container.registerValue("applicationLogger", { warn: vi.fn() });
+
+  try {
+    await app.start();
+    const recorder = app.container.resolve(dep<ObservationRecorder>("observationRecorder"));
+    const adapter = app.container.resolve(dep<AdapterRegistration<ObservationAdapter>>("observationAdapterRegistration"));
+    recorder.enqueue(createObservationEvent());
+    const closing = adapter.dispose();
+
+    await writeStarted.promise;
+    expect(dispose).not.toHaveBeenCalled();
+    write.resolve();
+    await closing;
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(recorder.getHealth()).toMatchObject({ status: "healthy", pendingCount: 0 });
+    recorder.enqueue(createObservationEvent());
+    await recorder.flush();
+    expect(append).toHaveBeenCalledOnce();
+  } finally {
+    write.resolve();
+    await app.dispose();
+  }
+});
+
+it("reports a fail-fast write failure once and still releases its adapter", async () => {
+  const failure = new Error("observation writer offline");
+  const append = vi.fn(async () => { throw failure; });
+  const dispose = vi.fn(async () => {});
+  const warn = vi.fn();
+  const app = new App({}).register(new ObservationProvider({
+    ...config, failurePolicy: "fail-fast", retry: { ...config.retry, maxAttempts: 1 },
+  }, defineObservationAdapter({
+    dependencies: {}, capabilities: { query: false }, create: () => ({ writer: { append } }), dispose,
+  })));
+  app.container.registerValue("applicationLogger", { warn });
+
+  try {
+    await app.start();
+    const recorder = app.container.resolve(observationRecorderDependency);
+    recorder.enqueue(createObservationEvent());
+    // Count the original error even if another lifecycle layer wraps it.
+    const failures = await app.dispose().then(() => [], leafFailures);
+    expect(failures).toEqual([failure]);
+    expect(failures[0]).toBe(failure);
+    expect(append).toHaveBeenCalledOnce();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(recorder.getHealth()).toMatchObject({ status: "healthy", pendingCount: 0 });
+  } finally {
+    await app.dispose().catch(() => undefined);
+  }
+});
+
+function leafFailures(error: unknown): unknown[] {
+  return error instanceof AggregateError ? error.errors.flatMap(leafFailures) : [error];
+}

@@ -40,7 +40,8 @@
         "app-shutdown",
         "execution-diagnostics",
         "catalog-identities",
-        "app-lifecycle-review"
+        "app-lifecycle-review",
+        "app-adapter-shutdown-final-wave"
       ]
     },
     {
@@ -106,17 +107,21 @@
       "id": "cli",
       "scope": "cli/**/*",
       "sourceFiles": 8,
-      "state": "not-assessed",
-      "focus": "Parsing, dispatch and exit/signals; subprocess observation limit",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Executable entry, argument binding, command dispatch and lifecycle",
+      "evidence": [
+        "cli-final-wave-review"
+      ]
     },
     {
       "id": "client",
       "scope": "client/**/*",
       "sourceFiles": 10,
-      "state": "not-assessed",
-      "focus": "Client generation and development/build adapters",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Literal routes, client ownership, Vite build, cache refresh and development handling",
+      "evidence": [
+        "client-final-wave-review"
+      ]
     },
     {
       "id": "concurrency",
@@ -142,9 +147,11 @@
       "id": "controllers",
       "scope": "controllers/**/*",
       "sourceFiles": 2,
-      "state": "not-assessed",
-      "focus": "Contract/type exports; establish whether runtime mutations exist",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Shared empty input schema and type exports with zero generated mutants",
+      "evidence": [
+        "controllers-final-wave-review"
+      ]
     },
     {
       "id": "database",
@@ -192,9 +199,11 @@
       "id": "email",
       "scope": "email/**/*",
       "sourceFiles": 34,
-      "state": "not-assessed",
-      "focus": "Composition, rendering, transport failures and adapter ownership",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Composition, delivery, capture, adapter contracts and durable storage",
+      "evidence": [
+        "email-final-wave-review"
+      ]
     },
     {
       "id": "errors",
@@ -241,9 +250,11 @@
       "id": "log",
       "scope": "log/**/*",
       "sourceFiles": 13,
-      "state": "not-assessed",
-      "focus": "Redaction, formatting, filtering and transport ownership",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Filtering, serialization, PostgreSQL buffering and transport ownership",
+      "evidence": [
+        "log-final-wave-review"
+      ]
     },
     {
       "id": "middleware",
@@ -259,9 +270,11 @@
       "id": "observability",
       "scope": "observability/**/*",
       "sourceFiles": 15,
-      "state": "not-assessed",
-      "focus": "Context, buffering, redaction and flush/disposal",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Context, recorder flush, stored observations and adapter lifecycle",
+      "evidence": [
+        "observability-final-wave-review"
+      ]
     },
     {
       "id": "outbound_http",
@@ -317,10 +330,11 @@
       "id": "testing",
       "scope": "testing/**/*",
       "sourceFiles": 1,
-      "state": "assessment-complete-review-pending",
-      "focus": "Public HTTP policy helper; PostgreSQL/Redis fixtures excluded",
+      "state": "reviewed",
+      "focus": "Unrestricted HTTP fixture policy (PostgreSQL and Redis connection fixtures excluded)",
       "evidence": [
-        "testing-component"
+        "testing-component",
+        "testing-final-wave-review"
       ]
     },
     {
@@ -363,9 +377,11 @@
       "id": "utils",
       "scope": "utils/**/*",
       "sourceFiles": 5,
-      "state": "not-assessed",
-      "focus": "Codecs, identifiers, catalog and boundary validation",
-      "evidence": []
+      "state": "reviewed",
+      "focus": "Cursor serialization, identifiers, catalog ownership and definition guards",
+      "evidence": [
+        "utils-final-wave-review"
+      ]
     },
     {
       "id": "workers",
@@ -2663,6 +2679,473 @@
       "carriedProfiles": [],
       "analysis": "mutation_testing_studio_atlas.md",
       "limits": "Server, browser and shared contracts are disjoint. The browser tests exercise simulated DOM interaction and injected HTTP boundaries."
+    },
+    {
+      "id": "cli-final-wave-review",
+      "date": "2026-11-12",
+      "components": [
+        "cli"
+      ],
+      "extent": "3 named profiles across 8 candidate sources in cli/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 4,
+        "Killed": 469,
+        "Survived": 11
+      },
+      "baselineCounts": {
+        "NoCoverage": 21,
+        "Killed": 379,
+        "Survived": 107,
+        "Timeout": 2,
+        "RuntimeError": 4
+      },
+      "mutationScore": 96.9,
+      "baselineMutationScore": 74.85,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 51,
+        "Survived": 1
+      },
+      "baselineStaticOrHybridCounts": {
+        "Survived": 15,
+        "Killed": 44,
+        "RuntimeError": 4
+      },
+      "matched": 378,
+      "unmatchedBefore": 135,
+      "unmatchedAfter": 106,
+      "baselineRevision": "b911e5825140397d6ec42b68d26892a6c4809223",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/wave-six/",
+      "profiles": [
+        "cli-entrypoint",
+        "cli-dispatch",
+        "cli-input"
+      ],
+      "beforeSeconds": {
+        "cli-entrypoint": 190,
+        "cli-dispatch": 120,
+        "cli-input": 187
+      },
+      "afterSeconds": {
+        "cli-entrypoint": 131,
+        "cli-dispatch": 82,
+        "cli-input": 85
+      },
+      "analysis": "mutation_testing_final_wave.md",
+      "limits": "Vitest observes executable behavior directly where possible. Child process smoke tests also exercise the executable boundary."
+    },
+    {
+      "id": "client-final-wave-review",
+      "date": "2026-11-12",
+      "components": [
+        "client"
+      ],
+      "extent": "3 named profiles across 10 candidate sources in client/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 332,
+        "Survived": 3,
+        "Timeout": 2
+      },
+      "baselineCounts": {
+        "Killed": 285,
+        "Survived": 66,
+        "Timeout": 3,
+        "NoCoverage": 1
+      },
+      "mutationScore": 99.11,
+      "baselineMutationScore": 81.13,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 1
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 1
+      },
+      "matched": 211,
+      "unmatchedBefore": 144,
+      "unmatchedAfter": 126,
+      "baselineRevision": "b911e5825140397d6ec42b68d26892a6c4809223",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/wave-six/",
+      "profiles": [
+        "client-provider",
+        "client-vite-build",
+        "client-vite-development"
+      ],
+      "beforeSeconds": {
+        "client-provider": 47,
+        "client-vite-build": 131,
+        "client-vite-development": 50
+      },
+      "afterSeconds": {
+        "client-provider": 37,
+        "client-vite-build": 130,
+        "client-vite-development": 44
+      },
+      "analysis": "mutation_testing_final_wave.md",
+      "limits": "Browser and Vite adapter interactions use controlled unit fixtures, including Fastify injection."
+    },
+    {
+      "id": "email-final-wave-review",
+      "date": "2026-11-12",
+      "components": [
+        "email"
+      ],
+      "extent": "6 named profiles across 34 candidate sources in email/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1046,
+        "Survived": 40,
+        "RuntimeError": 33
+      },
+      "baselineCounts": {
+        "Killed": 805,
+        "Survived": 239,
+        "NoCoverage": 20,
+        "RuntimeError": 33
+      },
+      "mutationScore": 96.32,
+      "baselineMutationScore": 75.66,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 91,
+        "RuntimeError": 33,
+        "Survived": 12
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 45,
+        "Survived": 60,
+        "RuntimeError": 33
+      },
+      "matched": 1053,
+      "unmatchedBefore": 44,
+      "unmatchedAfter": 66,
+      "baselineRevision": "b911e5825140397d6ec42b68d26892a6c4809223",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/wave-six/",
+      "profiles": [
+        "email-delivery",
+        "email-composition",
+        "email-provider",
+        "email-transport-adapters",
+        "email-capture-adapters",
+        "email-postgres-capture"
+      ],
+      "beforeSeconds": {
+        "email-delivery": 44,
+        "email-composition": 86,
+        "email-provider": 28,
+        "email-transport-adapters": 59,
+        "email-capture-adapters": 44,
+        "email-postgres-capture": 81
+      },
+      "afterSeconds": {
+        "email-delivery": 49,
+        "email-composition": 105,
+        "email-provider": 34,
+        "email-transport-adapters": 28,
+        "email-capture-adapters": 40,
+        "email-postgres-capture": 72
+      },
+      "analysis": "mutation_testing_final_wave.md",
+      "limits": "External email services use local transport fixtures; PostgreSQL capture uses isolated test databases."
+    },
+    {
+      "id": "log-final-wave-review",
+      "date": "2026-11-12",
+      "components": [
+        "log"
+      ],
+      "extent": "4 named profiles across 13 candidate sources in log/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 489,
+        "Survived": 21,
+        "Timeout": 4,
+        "RuntimeError": 11
+      },
+      "baselineCounts": {
+        "NoCoverage": 9,
+        "Killed": 412,
+        "Survived": 94,
+        "Timeout": 5,
+        "RuntimeError": 12
+      },
+      "mutationScore": 95.91,
+      "baselineMutationScore": 80.19,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 34,
+        "RuntimeError": 11,
+        "Survived": 6
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 11,
+        "RuntimeError": 12,
+        "Survived": 27
+      },
+      "matched": 483,
+      "unmatchedBefore": 49,
+      "unmatchedAfter": 42,
+      "baselineRevision": "b911e5825140397d6ec42b68d26892a6c4809223",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/wave-six/",
+      "profiles": [
+        "log-runtime",
+        "log-postgres-transport",
+        "log-storage",
+        "log-contracts"
+      ],
+      "beforeSeconds": {
+        "log-runtime": 68,
+        "log-postgres-transport": 52,
+        "log-storage": 71,
+        "log-contracts": 101
+      },
+      "afterSeconds": {
+        "log-runtime": 67,
+        "log-postgres-transport": 46,
+        "log-storage": 56,
+        "log-contracts": 57
+      },
+      "analysis": "mutation_testing_final_wave.md",
+      "limits": "Process and transport behavior is exercised with controlled streams and isolated PostgreSQL fixtures."
+    },
+    {
+      "id": "observability-final-wave-review",
+      "date": "2026-11-12",
+      "components": [
+        "observability"
+      ],
+      "extent": "3 named profiles across 15 candidate sources in observability/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 530,
+        "Survived": 21,
+        "RuntimeError": 15
+      },
+      "baselineCounts": {
+        "NoCoverage": 12,
+        "Killed": 436,
+        "Survived": 92,
+        "RuntimeError": 15,
+        "Timeout": 4
+      },
+      "mutationScore": 96.19,
+      "baselineMutationScore": 80.88,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 45,
+        "RuntimeError": 15,
+        "Survived": 8
+      },
+      "baselineStaticOrHybridCounts": {
+        "Survived": 36,
+        "RuntimeError": 15,
+        "Killed": 13,
+        "Timeout": 4
+      },
+      "matched": 546,
+      "unmatchedBefore": 13,
+      "unmatchedAfter": 20,
+      "baselineRevision": "b911e5825140397d6ec42b68d26892a6c4809223",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/wave-six/",
+      "profiles": [
+        "observability-recording",
+        "observability-postgres",
+        "observability-runtime"
+      ],
+      "beforeSeconds": {
+        "observability-recording": 74,
+        "observability-postgres": 241,
+        "observability-runtime": 182
+      },
+      "afterSeconds": {
+        "observability-recording": 75,
+        "observability-postgres": 186,
+        "observability-runtime": 64
+      },
+      "analysis": "mutation_testing_final_wave.md",
+      "limits": "PostgreSQL storage and schema declarations use isolated test databases."
+    },
+    {
+      "id": "utils-final-wave-review",
+      "date": "2026-11-12",
+      "components": [
+        "utils"
+      ],
+      "extent": "2 named profiles across 5 candidate sources in utils/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 240,
+        "Survived": 9
+      },
+      "baselineCounts": {
+        "NoCoverage": 6,
+        "Survived": 40,
+        "Killed": 193
+      },
+      "mutationScore": 96.39,
+      "baselineMutationScore": 80.75,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 67
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 64,
+        "Survived": 3
+      },
+      "matched": 199,
+      "unmatchedBefore": 40,
+      "unmatchedAfter": 50,
+      "baselineRevision": "b911e5825140397d6ec42b68d26892a6c4809223",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/wave-six/",
+      "profiles": [
+        "utils-codecs",
+        "utils-catalog"
+      ],
+      "beforeSeconds": {
+        "utils-codecs": 124,
+        "utils-catalog": 129
+      },
+      "afterSeconds": {
+        "utils-codecs": 104,
+        "utils-catalog": 107
+      },
+      "analysis": "mutation_testing_final_wave.md",
+      "limits": "Diagnostic literals discarded by the cursor codec can survive without changing the returned validation issue."
+    },
+    {
+      "id": "testing-final-wave-review",
+      "date": "2026-11-12",
+      "components": [
+        "testing"
+      ],
+      "extent": "1 named profiles across 1 candidate sources in testing/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1
+      },
+      "baselineCounts": {
+        "RuntimeError": 1
+      },
+      "mutationScore": 100.0,
+      "baselineMutationScore": null,
+      "targetScore": 95,
+      "staticOrHybridCounts": {
+        "Killed": 1
+      },
+      "baselineStaticOrHybridCounts": {
+        "RuntimeError": 1
+      },
+      "matched": 1,
+      "unmatchedBefore": 0,
+      "unmatchedAfter": 0,
+      "baselineRevision": "b911e5825140397d6ec42b68d26892a6c4809223",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/wave-six/",
+      "profiles": [
+        "testing-http-access"
+      ],
+      "beforeSeconds": {
+        "testing-http-access": 6
+      },
+      "afterSeconds": {
+        "testing-http-access": 7
+      },
+      "analysis": "mutation_testing_final_wave.md",
+      "limits": "The sole static mutant now fails a dedicated runtime assertion after earlier collection errors."
+    },
+    {
+      "id": "controllers-final-wave-review",
+      "date": "2026-11-12",
+      "components": [
+        "controllers"
+      ],
+      "extent": "1 named profiles across 2 candidate sources in controllers/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {},
+      "baselineCounts": {},
+      "mutationScore": null,
+      "baselineMutationScore": null,
+      "targetScore": 95,
+      "staticOrHybridCounts": {},
+      "baselineStaticOrHybridCounts": {},
+      "matched": 0,
+      "unmatchedBefore": 0,
+      "unmatchedAfter": 0,
+      "baselineRevision": "b911e5825140397d6ec42b68d26892a6c4809223",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/wave-six/",
+      "profiles": [
+        "controllers-contracts"
+      ],
+      "beforeSeconds": {
+        "controllers-contracts": 11
+      },
+      "afterSeconds": {
+        "controllers-contracts": 17
+      },
+      "analysis": "mutation_testing_final_wave.md",
+      "limits": "Both selected source files generate zero mutants; the score is undefined."
+    },
+    {
+      "id": "app-adapter-shutdown-final-wave",
+      "date": "2026-11-12",
+      "components": [
+        "app"
+      ],
+      "extent": "Existing app-contracts profile covering adapter ownership, events, observations and workloads",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 73,
+        "Timeout": 2,
+        "RuntimeError": 18
+      },
+      "baselineCounts": {
+        "Killed": 67,
+        "Timeout": 2,
+        "RuntimeError": 18
+      },
+      "mutationScore": 100,
+      "baselineMutationScore": 100,
+      "baselineRevision": "b911e5825140397d6ec42b68d26892a6c4809223",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/wave-six/",
+      "profiles": [
+        "app-contracts"
+      ],
+      "beforeSeconds": {
+        "app-contracts": 82
+      },
+      "afterSeconds": {
+        "app-contracts": 79
+      },
+      "analysis": "mutation_testing_final_wave.md",
+      "limits": "Supplemental check of the shared shutdown fix. This scope does not change the historical full app aggregate."
     }
   ]
 }

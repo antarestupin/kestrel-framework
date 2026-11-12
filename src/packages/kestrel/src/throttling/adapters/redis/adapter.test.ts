@@ -129,7 +129,8 @@ describe("RedisRateLimitAdapter", () => {
     if (!result.admitted || result.allocations.quota?.mode !== "lease") throw new Error("Expected a lease.");
     const id = result.allocations.quota.leaseId;
     const raw = JSON.parse((await redis.client.get(bucketKey(redis.keyPrefix)))!);
-    raw.leases[id].expiresAt = Date.now() - 1;
+    // Use an unambiguously expired instant regardless of the Redis server clock offset.
+    raw.leases[id].expiresAt = 1;
     await redis.client.set(bucketKey(redis.keyPrefix), JSON.stringify(raw));
     await expect(adapter.returnLeases([{ key: "quota", leaseId: id, remaining: 4 }])).resolves.toBe(0);
     expect((await adapter.inspectMany([leased()]))[0]!.remaining).toBeCloseTo(6, 3);

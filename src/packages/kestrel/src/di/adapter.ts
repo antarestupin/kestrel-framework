@@ -58,6 +58,8 @@ export function registerAdapter<Config, Value, Context, Capabilities>(
     validate?: (value: Value) => void;
     /** Drain consumers before releasing their adapter. */
     beforeDispose?: () => void | Promise<void>;
+    /** @internal True after the app shutdown boundary has observed this disposal result. */
+    hasObservedDisposal?: () => boolean;
   } = {},
 ): AdapterRegistration<Value> {
   let activated = false;
@@ -110,7 +112,11 @@ export function registerAdapter<Config, Value, Context, Capabilities>(
     },
   };
   // Own the lightweight handle immediately so even unused registrations close with their container.
-  container.registerValue(`${id}Registration`, registration, { dispose: (value) => value.dispose() });
+  container.registerValue(`${id}Registration`, registration, {
+    dispose: (value) => {
+      if (!options.hasObservedDisposal?.()) return value.dispose();
+    },
+  });
   container.registerFactory(id, () => registration.get(), { lifetime: "singleton", [singletonReference]: true });
   return registration;
 }

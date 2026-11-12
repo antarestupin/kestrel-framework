@@ -38,8 +38,8 @@ export function createPaginationCursorCodec<Schema extends ZodType>(
         if (value == null) throw new Error("Missing cursor value");
         // JSON cannot preserve non-finite numbers, dates, undefined or bigint.
         // Require schemas to encode such values explicitly rather than lose data.
-        assertJsonCursorValue(value);
-        return Buffer.from(JSON.stringify({ version: 1, value }), "utf8").toString("base64url");
+        const snapshot = snapshotJsonCursorValue(value);
+        return Buffer.from(JSON.stringify({ version: 1, value: snapshot }), "utf8").toString("base64url");
       } catch {
         context.issues.push({ code: "custom", message: "Cursor values must have a lossless JSON representation.", input: value });
         return z.NEVER;
@@ -48,17 +48,28 @@ export function createPaginationCursorCodec<Schema extends ZodType>(
   });
 }
 
-/** Reject values JSON would silently change; recursive cycles also fail encoding. */
-function assertJsonCursorValue(value: unknown): void {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return;
-  if (typeof value === "number" && Number.isFinite(value)) return;
-  if (Array.isArray(value)) {
-    for (const item of value) assertJsonCursorValue(item);
-    return;
+/** Snapshot values during validation so serialization reads the same data. */
+function snapshotJsonCursorValue(value: unknown): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean" || Number.isFinite(value)) {
+    return value;
   }
-  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
-    for (const item of Object.values(value)) assertJsonCursorValue(item);
-    return;
+  if (typeof value !== "object") throw new TypeError("Unsupported JSON cursor value.");
+
+  // JSON.stringify invokes this hook even on arrays and non-enumerable properties.
+  if (typeof Reflect.get(value, "toJSON") === "function") {
+    throw new TypeError("Cursor values cannot customize JSON serialization.");
+  }
+  if (Array.isArray(value)) {
+    // Match JSON's indexed traversal while rejecting sparse values before growing the snapshot.
+    const items: unknown[] = [];
+    const { length } = value;
+    for (let index = 0; index < length; index += 1) {
+      items.push(snapshotJsonCursorValue(value[index]));
+    }
+    return items;
+  }
+  if (Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, snapshotJsonCursorValue(item)]));
   }
   throw new TypeError("Unsupported JSON cursor value.");
 }

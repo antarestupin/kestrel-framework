@@ -123,7 +123,6 @@ export class LoggerProvider<Config> implements Provider<Config> {
     const fallback = createLogger({ level: "silent" });
     let active = fallback;
     let booted = false;
-    let appRegistration: import("../di/adapter.js").AdapterRegistration<OwnedLogger> | undefined;
 
     return {
       logger: createDelegatingLogger(() => active.logger),
@@ -134,21 +133,15 @@ export class LoggerProvider<Config> implements Provider<Config> {
             config: this.config,
             bootPlan: app.bootPlan,
           });
-          appRegistration = registration;
           active = registration.get();
           await registration.boot();
         }
       },
-      close: async () => {
-        const owned = active;
-
+      close: () => {
+        // The container's adapter registration closes the backend and reports its result.
+        // This resource owns only the stable facade and its silent fallback.
         active = fallback;
-
-        if (owned !== fallback) {
-          await appRegistration?.dispose();
-        }
-
-        await fallback.close();
+        return fallback.close();
       },
     };
   }

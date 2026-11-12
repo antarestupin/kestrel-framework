@@ -228,23 +228,119 @@ it.each([1, 2])("keeps delivery successful when the diagnostic clock throws on r
 });
 
 it.each([
-  null, "accepted", { status: "rejected" }, { status: "accepted", messageId: 42 },
-  { status: "accepted", captureId: 42 }, { status: "accepted", acceptedAt: "2026-01-01" },
-  { status: "accepted", acceptedAt: new Date(NaN) },
-])("does not report success for malformed driver receipt %j", async (receipt) => {
+  [null, "receipt"],
+  ["accepted", "receipt"],
+  [{ status: "rejected" }, "receipt"],
+  [Object.assign(() => undefined, { status: "accepted" }), "receipt"],
+  [{ status: "accepted", messageId: 42 }, "message identifier"],
+  [{ status: "accepted", captureId: 42 }, "capture identifier"],
+  [{ status: "accepted", acceptedAt: "2026-01-01" }, "acceptance date"],
+  [{ status: "accepted", acceptedAt: new Date(NaN) }, "acceptance date"],
+])("does not report success for malformed driver receipt %j", async (receipt, detail) => {
   const client = new EmailClient({
     name: "transactional", driver: { name: "controlled", send: async () => receipt as never },
   });
-  await expect(client.send({
-    from: "sender@example.com", to: "reader@example.com", subject: "Welcome", text: "Hello",
-  })).rejects.toMatchObject({ operation: "transactional.send", code: "transport", retryable: false });
+  await expect(client.send(message)).rejects.toMatchObject({
+    name: "EmailSendError",
+    message: 'Email operation "transactional.send" failed (transport).',
+    operation: "transactional.send", code: "transport", retryable: false,
+    cause: new TypeError(`An email driver returned an invalid ${detail}.`),
+  });
 });
 
 it("rejects an invalid logical operation before handing the message to its driver", async () => {
   const send = vi.fn();
   const client = new EmailClient({ name: "transactional", driver: { name: "controlled", send } });
-  await expect(client.send({
-    from: "sender@example.com", to: "reader@example.com", subject: "Welcome", text: "Hello",
-  }, { operation: "unexpected operation" })).rejects.toThrow("stable identifier");
+  await expect(client.send(message, { operation: "unexpected operation" }))
+    .rejects.toThrow("Email operation must be a stable identifier.");
+  expect(send).not.toHaveBeenCalled();
+});
+
+const message = {
+  from: "sender@example.com", to: "reader@example.com", subject: "Welcome", text: "Hello",
+};
+
+it("identifies malformed client and driver names at construction", () => {
+  const send = vi.fn();
+  expect(() => new EmailClient({ name: 42 as never, driver: { name: "transport", send } }))
+    .toThrow("Email client name must be a stable identifier.");
+  expect(() => new EmailClient({ name: "transactional", driver: { name: "bad name", send } }))
+    .toThrow("Email driver name must be a stable identifier.");
+});
+
+it("records elapsed time and associates a captured message with its observation", async () => {
+  const clock = vi.spyOn(performance, "now");
+  const record = vi.fn();
+  const send = vi.fn().mockResolvedValueOnce({ status: "accepted", captureId: "capture-1" })
+    .mockResolvedValueOnce({ status: "accepted" });
+  const client = new EmailClient({ name: "transactional", driver: { name: "transport", send }, instrumentation: { record } });
+
+  try {
+    clock.mockReturnValueOnce(10).mockReturnValueOnce(14).mockReturnValueOnce(20).mockReturnValueOnce(21);
+    await expect(client.send({ ...message, cc: "copy@example.com" }))
+      .resolves.toStrictEqual({ status: "accepted", captureId: "capture-1" });
+    await expect(client.send(message)).resolves.toStrictEqual({ status: "accepted" });
+    expect(record.mock.calls.map(([event]) => event)).toStrictEqual([
+      {
+        observationId: expect.any(String), durationMs: 4, outcome: "success",
+        data: { client: "transactional", operation: "transactional.send", transport: "transport", result: "accepted",
+          recipientCount: 2, attachmentCount: 0, captureId: "capture-1" },
+      },
+      {
+        observationId: expect.any(String), durationMs: 1, outcome: "success",
+        data: { client: "transactional", operation: "transactional.send", transport: "transport", result: "accepted",
+          recipientCount: 1, attachmentCount: 0 },
+      },
+    ]);
+  } finally {
+    clock.mockRestore();
+    await client.close();
+  }
+});
+
+it("preserves the original invalid input and transport errors as causes", async () => {
+  const driverError = new EmailDriverError("unsupported", "driver detail");
+  const networkError = new Error("socket detail");
+  const send = vi.fn().mockRejectedValueOnce(driverError).mockRejectedValueOnce(networkError);
+  const client = new EmailClient({ name: "transactional", driver: { name: "transport", send } });
+
+  await expect(client.send({ ...message, subject: "" })).rejects.toMatchObject({
+    code: "invalid-message", retryable: false, cause: expect.any(TypeError),
+  });
+  await expect(client.send(message)).rejects.toMatchObject({ code: "unsupported", retryable: false, cause: driverError });
+  await expect(client.send(message)).rejects.toMatchObject({ code: "transport", retryable: false, cause: networkError });
+  expect(driverError.name).toBe("EmailDriverError");
+  await client.close();
+});
+
+it("shares the pending driver shutdown and its failure with every caller", async () => {
+  const driverShutdown = Promise.withResolvers<void>();
+  const failure = new Error("driver shutdown failed");
+  const close = vi.fn(() => driverShutdown.promise);
+  const client = new EmailClient({ name: "transactional", driver: {
+    name: "external", send: vi.fn(), close,
+  } });
+
+  const first = client.close();
+  const second = client.close();
+  // Start the rejection checks before settling the driver's shared shutdown.
+  const outcome = Promise.all([expect(first).rejects.toBe(failure), expect(second).rejects.toBe(failure)]);
+  driverShutdown.reject(failure);
+  await outcome;
+  await expect(client.close()).rejects.toBe(failure);
+  await expect(client.send(message)).rejects.toMatchObject({ code: "unavailable" });
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it("leaves a borrowed driver open while rejecting future sends through the closed client", async () => {
+  const close = vi.fn();
+  const send = vi.fn();
+  const client = new EmailClient({ name: "transactional", closeDriver: false, driver: { name: "external", send, close } });
+
+  await client.close();
+  await expect(client.send(message)).rejects.toMatchObject({
+    name: "EmailSendError", code: "unavailable", retryable: false, statusCode: undefined,
+  });
+  expect(close).not.toHaveBeenCalled();
   expect(send).not.toHaveBeenCalled();
 });

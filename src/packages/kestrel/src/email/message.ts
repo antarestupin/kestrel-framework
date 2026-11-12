@@ -55,7 +55,8 @@ function normalizeAddresses(
     throw new TypeError(`Email field "${field}" requires at least one address.`);
   }
 
-  return Object.freeze(values.map((value) => normalizeAddress(value, field)));
+  // Visit sparse slots as invalid addresses instead of skipping them with map().
+  return Object.freeze(Array.from(values, (value) => normalizeAddress(value, field)));
 }
 
 function normalizeAddress(input: EmailAddressInput, field: string): EmailAddress {
@@ -116,7 +117,7 @@ function normalizeAttachments(
     throw new TypeError("Email attachments must be an array.");
   }
 
-  return Object.freeze(attachments.map((attachment) => {
+  return Object.freeze(Array.from(attachments, (attachment) => {
     if (attachment === null || typeof attachment !== "object") {
       throw new TypeError("An email attachment must be an object.");
     }
@@ -124,6 +125,11 @@ function normalizeAttachments(
     const content = attachment.content;
     if (typeof content !== "string" && !(content instanceof Uint8Array)) {
       throw new TypeError("Email attachment content must be text or bytes.");
+    }
+    // JavaScript callers and decoded inputs must satisfy the transport contract too.
+    const { disposition } = attachment;
+    if (disposition !== undefined && disposition !== "attachment" && disposition !== "inline") {
+      throw new TypeError("Email attachment disposition must be attachment or inline.");
     }
 
     return Object.freeze({
@@ -142,9 +148,9 @@ function normalizeAttachments(
               255,
             ),
           }),
-      ...(attachment.disposition === undefined
+      ...(disposition === undefined
         ? {}
-        : { disposition: attachment.disposition }),
+        : { disposition }),
       ...(attachment.contentId === undefined
         ? {}
         : {

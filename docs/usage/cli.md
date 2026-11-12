@@ -39,6 +39,8 @@ export default new App({}, {
 
 Unbound fields become `--<field>` options. Positional indexes start at zero and must be contiguous. Use `z.coerce.number()` for numeric strings and `repeatableOption()` for repeated options. A custom handler receives `{ input, deps, execution, writeProgress }`, plus `action` on action controllers. Call `writeProgress?.("message")` to emit diagnostic progress to stderr while keeping the final result on stdout, including in JSON mode.
 
+Choose option names with distinct parsed names. For example, `--tag-name` and `--tagName` both resolve to `tagName`. All schema-bound options take values, including names that start with `--no-`.
+
 ## Launch the application
 
 Use the generic launcher to execute a catalog command without writing a dedicated entry point. Save the module above as `src/example.ts` and invoke the installed `tsx` binary:

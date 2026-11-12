@@ -124,6 +124,27 @@ describe("ViteClientAdapter", () => {
     expect(addHook).not.toHaveBeenCalled();
   });
 
+  it("uses autonomous Vite development when no shared entry is supplied", async () => {
+    const register = vi.fn();
+    const ready = vi.fn(async () => {});
+    const addHook = vi.fn();
+    const server = { register, addHook, vite: { ready } } as unknown as FastifyInstance;
+    const resolve = vi.fn(() => { throw new Error("Unexpected runtime dependency"); });
+    const adapter = viteClient({ devMode: true, projectRoot: "/workspace", distDir: "dist" }).create(resolve, undefined);
+    const render = await adapter.setup(server, client);
+    expect(resolve).not.toHaveBeenCalled();
+    expect(register).toHaveBeenCalledExactlyOnceWith(expect.any(Function), {
+      root: "/workspace", dev: true, spa: true, distDir: "dist",
+    });
+    expect(ready).toHaveBeenCalledOnce();
+    // Fastify can enter preClose before Vite exposes its dev server.
+    await expect(addHook.mock.calls[0]?.[1]()).resolves.toBeUndefined();
+    const html = vi.fn(() => "<html>autonomous</html>");
+    const context = { reply: { html } } as unknown as Parameters<typeof render>[0];
+    expect(await render(context)).toBe("<html>autonomous</html>");
+    expect(html).toHaveBeenCalledOnce();
+  });
+
   it.each(["direct entry", "dependency descriptor"])("renders with a shared runtime supplied as a %s", async (source) => {
     const app = new App({});
     const server = Fastify();

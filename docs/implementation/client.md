@@ -51,9 +51,13 @@ flowchart LR
 
 `ClientProvider` owns the HTTP boundary: the configured base path, asset sentinel, excluded JSON namespaces, and SPA fallback. It contributes an encapsulated HTTP extension and delegates document delivery to a `WebClientAdapter`. The renderer receives both the Fastify request and reply even though the first SPA adapter only needs the reply; this keeps request-aware SSR possible without changing the public contract.
 
+The route boundary validates configured paths before mounting so browser URL normalization and Fastify route interpretation preserve the same literal prefix. This rejects router metacharacters, repeated slashes, and both literal and percent-encoded dot segments.
+
 `ViteClientAdapter` owns only Vite development middleware, production asset delivery, readiness, and HMR cleanup. Its required `devMode`, runtime-visible `projectRoot`, and `distDir` values are resolved and passed by the application. The application derives this root from `config.core.runtimeRoot`, selecting the existing source directory for development and the deployment root for production-only artifacts; the separately configurable editor project root must not enter filesystem operations. The adapter does not inspect environment variables or assume that the Vite application uses React.
 
 An application may inject one `ViteDevelopmentRuntime` into several Vite adapters. The runtime creates one middleware-mode Vite server and owns its watcher, dependency optimizer, module graph, middleware and HMR socket. `runtime.entry({ root })` resolves a client's conventional `index.html` and `src/main.tsx` against that same shared root, with explicit `html` and `module` overrides available for other layouts. Each adapter still owns its standalone HTML contract and performs any client-specific configuration injection. Without an injected runtime, every adapter retains its autonomous Vite behavior; production delivery always remains bundle-based.
+
+Concurrent scopes share an in-progress Vite startup. A failed startup releases that cached attempt so a later mount can retry. Client-relative paths reject drive-relative Windows forms because their resolution could leave the configured root. HTML and module paths must identify files, so explicit directory forms fail before the runtime tries to read them.
 
 The shared runtime loads development configuration through Vite's native config loader, using the application's Node.js/tsx runtime. Vite's default bundle loader imports and deletes a temporary module, which makes Node's import-based watch mode restart repeatedly. Native loading avoids that cycle while keeping real configuration dependencies watched. The HMR WebSocket attaches to Fastify through `server.ws.server`, the Vite 8 option.
 

@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { App, type ProviderCompositionApp } from "../app/index.js";
 import { AsyncLocalObserverContext, type Observer } from "../observability/index.js";
 import { emailConfigBase, type EmailConfig } from "./configuration.js";
-import { emailCaptureInboxDependency, emailClientDependency } from "./dependencies.js";
+import { emailCaptureInboxDependency, emailCaptureStoreDependency, emailClientDependency } from "./dependencies.js";
 import { EmailProvider } from "./provider.js";
 import type { EmailTransportAdapter } from "./types.js";
 
@@ -46,7 +46,7 @@ describe("EmailProvider", () => {
     );
 
     expect(observer.record).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ name: "email.send" }),
+      expect.objectContaining({ name: "email.send", category: "email" }),
       {
         client: "transactional",
         operation: "member.welcome",
@@ -61,30 +61,44 @@ describe("EmailProvider", () => {
   });
 
   it("registers a capture-backed client and inbox from configuration", async () => {
+    const record = vi.fn();
     const app = new App({ name: "test" }).register(
       new EmailProvider(
         emailConfig({
           enabled: true,
         }),
         captureEmail(memoryEmailCapture(), { maxMessageBytes: 1024 }),
+        { instrumentation: { record } },
       ),
     );
-    const client = app.container.resolve(emailClientDependency);
+    try {
+      const client = app.container.resolve(emailClientDependency);
+      const inbox = app.container.resolve(emailCaptureInboxDependency);
+      expect(app.container.resolve(emailClientDependency)).toBe(client);
+      expect(app.container.resolve(emailCaptureInboxDependency)).toBe(inbox);
+      expect([emailClientDependency.id, emailCaptureStoreDependency.id, emailCaptureInboxDependency.id])
+        .toEqual(["emailClient", "emailCaptureStore", "emailCaptureInbox"]);
 
-    const receipt = await client.send({
-      from: "sender@example.com",
-      to: "member@example.com",
-      subject: "Welcome",
-      text: "Hello",
-    });
-    const inbox = app.container.resolve(emailCaptureInboxDependency);
+      const receipt = await client.send({
+        from: "sender@example.com",
+        to: "member@example.com",
+        subject: "Welcome",
+        text: "Hello",
+      });
+      const captureId = receipt.captureId!;
+      const { receipt: replay } = await inbox.resend(captureId);
 
-    expect(receipt.captureId).toEqual(expect.any(String));
-    await expect(inbox.list()).resolves.toMatchObject({
-      items: [{ id: receipt.captureId, subject: "Welcome" }],
-    });
-
-    await app.dispose();
+      expect(replay.captureId).toEqual(expect.any(String));
+      expect(replay.captureId).not.toBe(captureId);
+      await expect(inbox.list()).resolves.toMatchObject({
+        items: [{ id: replay.captureId, subject: "Welcome" }, { id: captureId, subject: "Welcome" }],
+      });
+      expect(record).toHaveBeenLastCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ operation: "studio.email.resend", captureId: replay.captureId }),
+      }));
+    } finally {
+      await app.dispose();
+    }
   });
 
   it("owns an external transport exactly once without a provider subclass", async () => {
@@ -140,6 +154,7 @@ function emailConfig(input: unknown): EmailConfig {
 it("closes delivery before its owned capture backend, leaving borrowed infrastructure open", async () => {
   const order: string[] = [];
   const store = new MemoryEmailCaptureStorageAdapter();
+  const lifecycle = vi.fn();
   const app = new App({}).register(
     new EmailProvider(emailConfig({ enabled: true }), {
       ...captureEmail(
@@ -147,23 +162,30 @@ it("closes delivery before its owned capture backend, leaving borrowed infrastru
           dependencies: {},
           capabilities: {},
           create: () => store,
+          initialize: async () => { lifecycle("storage ready"); },
           dispose: async () => {
             order.push("storage");
           },
         }),
         { maxMessageBytes: 1024 },
       ),
+      initialize: async () => { lifecycle("delivery ready"); },
       dispose: async () => {
         order.push("delivery");
         await expect(store.list()).resolves.toBeDefined();
+        await expect(client.send({
+          from: "sender@example.com", to: "reader@example.com", subject: "Welcome", text: "Hello",
+        })).rejects.toMatchObject({ code: "unavailable" });
       },
     }),
   );
+  const client = app.container.resolve(emailClientDependency);
   try {
     await app.start();
   } finally {
     await app.dispose();
   }
+  expect(lifecycle.mock.calls).toEqual([["storage ready"], ["delivery ready"]]);
   expect(order).toEqual(["delivery", "storage"]);
 });
 
@@ -204,8 +226,9 @@ it("keeps independent diagnostics active when the scoped observer fails", async 
   const record = vi.fn(() => { throw new Error("diagnostic sink failed"); });
   const app = new App({});
   app.container.registerValue("observerContext", observerContext);
+  let ticks = 0;
   app.register(new EmailProvider(emailConfig({ enabled: true }), memoryEmail(), {
-    instrumentation: { record }, monotonicNow: () => 1, createObservationId: () => "reserved-id",
+    instrumentation: { record }, monotonicNow: () => ticks += 5, createObservationId: () => "reserved-id",
   }));
   try {
     const client = app.container.resolve(emailClientDependency);
@@ -214,7 +237,7 @@ it("keeps independent diagnostics active when the scoped observer fails", async 
     await expect(client.send(message)).resolves.toMatchObject({ status: "accepted" });
     expect(observer.record).toHaveBeenCalledOnce();
     expect(record).toHaveBeenCalledTimes(2);
-    expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ observationId: "reserved-id", durationMs: 0, outcome: "success" }));
+    expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ observationId: "reserved-id", durationMs: 5, outcome: "success" }));
   } finally {
     await app.dispose();
   }

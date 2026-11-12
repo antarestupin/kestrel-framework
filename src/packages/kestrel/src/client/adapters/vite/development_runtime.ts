@@ -2,7 +2,7 @@ import { refreshInstalledDependencies } from "./dependency_refresh.js";
 import middie from "@fastify/middie";
 import type { FastifyInstance } from "fastify";
 import { readFile } from "node:fs/promises";
-import { isAbsolute, posix, resolve } from "node:path";
+import { isAbsolute, posix, resolve, sep } from "node:path";
 import type { InlineConfig, ViteDevServer } from "vite";
 
 export interface ViteDevelopmentEntry {
@@ -73,10 +73,12 @@ export class ViteDevelopmentRuntime {
     const html = normalizeRelativePath(
       options.html ?? "index.html",
       "client HTML",
+      "file",
     );
     const module = normalizeRelativePath(
       options.module ?? "src/main.tsx",
       "client module",
+      "file",
     );
 
     return {
@@ -94,10 +96,10 @@ export class ViteDevelopmentRuntime {
     if (!isAbsolute(options.root)) {
       throw new TypeError("A Vite external client root must be an absolute path.");
     }
-    const html = normalizeRelativePath(options.html ?? "index.html", "client HTML");
-    const module = normalizeRelativePath(options.module ?? "src/main.tsx", "client module");
+    const html = normalizeRelativePath(options.html ?? "index.html", "client HTML", "file");
+    const module = normalizeRelativePath(options.module ?? "src/main.tsx", "client module", "file");
     // Encode URL delimiters while retaining path separators and native drive notation.
-    const modulePath = resolve(options.root, module).replaceAll("\\", "/");
+    const modulePath = resolve(options.root, module).replaceAll(sep, "/");
     const moduleUrl = encodeURI(modulePath).replaceAll("#", "%23").replaceAll("?", "%3F");
     return {
       runtime: this,
@@ -211,6 +213,11 @@ export class ViteDevelopmentRuntime {
           middlewareMode: true,
           ws: { server: server.server },
         },
+      }).catch((error: unknown) => {
+        // A failed startup owns no server. Let later mounts retry with the corrected configuration.
+        this.serverPromise = undefined;
+        this.closePromise = undefined;
+        throw error;
       });
     }
 
@@ -227,19 +234,23 @@ async function defaultCreateServer(
   return createServer(config);
 }
 
-function normalizeRelativePath(path: string, label: string): string {
+function normalizeRelativePath(path: string, label: string, kind: "directory" | "file" = "directory"): string {
   const portablePath = path.replaceAll("\\", "/");
-  const normalized = posix.normalize(portablePath).replace(/^\.\//u, "");
+  const normalized = posix.normalize(portablePath);
 
   if (
-    normalized === ""
-    || isAbsolute(path)
-    || posix.isAbsolute(portablePath)
-    || /^[A-Za-z]:\//u.test(portablePath)
+    posix.isAbsolute(portablePath)
+    // A drive-relative Windows path can also escape the configured root.
+    || /^[A-Za-z]:/u.test(portablePath)
     || normalized === ".."
     || normalized.startsWith("../")
   ) {
     throw new TypeError(`Vite development ${label} must be a relative path.`);
+  }
+
+  // A directory is a valid client root but cannot be an HTML template or module entry.
+  if (kind === "file" && /(?:^|\/)\.{0,2}$/u.test(portablePath)) {
+    throw new TypeError(`Vite development ${label} must identify a relative file.`);
   }
 
   return normalized;

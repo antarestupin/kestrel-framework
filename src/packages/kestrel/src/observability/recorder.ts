@@ -260,7 +260,19 @@ export class BufferedObservationRecorder implements ObservationRecorder {
         });
 
         if (retryDelayMs !== undefined) {
-          await this.sleep(retryDelayMs);
+          try {
+            await this.sleep(retryDelayMs);
+          } catch (delayError: unknown) {
+            // A failed delay ends the retry sequence, but this batch still owns queue capacity.
+            lastError = new AggregateError([error, delayError], "Observation retry delay failed.");
+            this.reportError(lastError, {
+              attempt,
+              batchSize: batch.length,
+              policy: this.failurePolicy,
+              terminal: true,
+            });
+            break;
+          }
         }
       }
     }

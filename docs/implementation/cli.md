@@ -151,6 +151,8 @@ Business controllers are declared in domain subcatalogs composed by `src/server/
 
 The manager builds nested command paths such as `user create`, invokes controllers asynchronously and leaves process exit management to the entrypoint.
 
+The manager validates the complete command input before adding the command to its tree and boot-plan lookup. Option names must resolve to unique Commander attribute names. Parsed input is assembled from supplied values in a prototype-free object before Zod validation, which preserves omission for a field named after an inherited property.
+
 ## Output
 
 Controllers may declare an optional `output` Zod schema. When present, the returned value is parsed before serialization, including Zod transformations. When absent, the result is serialized without controller-level output validation. Actions always retain their own output validation.

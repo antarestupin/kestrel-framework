@@ -198,12 +198,13 @@ export class PostgresObservationStore implements ObservationWriter, DevObservati
   }
 }
 
-function readExecutionData(data: ObservationData): {
+function readExecutionData(data: ObservationData | null): {
   operation: string;
   transport: ExecutionTransport;
 } {
-  const operation = data.operation;
-  const transport = data.transport;
+  // JSONB can contain a JSON null even when the database column is NOT NULL.
+  const operation = data?.operation;
+  const transport = data?.transport;
 
   return {
     operation: typeof operation === "string" ? operation : "Unknown execution",

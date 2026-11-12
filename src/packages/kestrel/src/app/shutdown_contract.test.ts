@@ -2,12 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { defineEvent, EventBus } from "../events/index.js";
 import { DeferredTasks } from "../concurrency/index.js";
-import { createDependencyContainer } from "../di/index.js";
+import { createDependencyContainer, defineAdapter, dep, type AdapterRegistration } from "../di/index.js";
 import { z } from "zod";
 import {
   App, ApplicationShutdownTimeoutError, bootstrapStartedEvent,
   runtimeStartedEvent, runtimeStoppingEvent, shutdownCompletedEvent, shutdownStartedEvent,
 } from "./index.js";
+import { registerProviderAdapter } from "./adapter.js";
 
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 const outcome = (promise: Promise<unknown>) => promise.then(() => undefined, (error: unknown) => error);
@@ -132,6 +133,48 @@ describe("application shutdown contracts", () => {
       expect(flush).toHaveBeenCalledOnce();
       expect(app.state).toBe("disposed");
     } finally { blocked.resolve(); await disposed; await releaseApp(app); }
+  });
+
+  it("reports adapter shutdown once and preserves independent container disposal failures", async () => {
+    const app = new App({});
+    const adapterFailure = new Error("Adapter close failed");
+    const containerFailure = new Error("Container resource close failed");
+    const release = vi.fn(() => { throw adapterFailure; });
+    app.register({
+      register(composition) {
+        registerProviderAdapter(composition, "ownedAdapter", defineAdapter({
+          dependencies: {}, capabilities: {}, create: () => ({}), dispose: release,
+        }), undefined);
+      },
+    });
+    const registration = app.container.resolve(dep<AdapterRegistration<object>>("ownedAdapterRegistration"));
+    app.container.registerValue("otherResource", {}, { dispose: () => { throw containerFailure; } });
+
+    try {
+      registration.get();
+      await app.start();
+      expect(causes(await outcome(app.dispose()))).toEqual([adapterFailure, containerFailure]);
+      expect(release).toHaveBeenCalledOnce();
+      await expect(registration.dispose()).rejects.toBe(adapterFailure);
+    } finally { await releaseApp(app).catch(() => undefined); }
+  });
+
+  it("retains the container fallback when the application shutdown event was never dispatched", async () => {
+    const app = new App({});
+    const failure = new Error("Fallback adapter close failed");
+    const release = vi.fn(() => { throw failure; });
+    app.register({
+      register(composition) {
+        registerProviderAdapter(composition, "ownedAdapter", defineAdapter({
+          dependencies: {}, capabilities: {}, create: () => ({}), dispose: release,
+        }), undefined).get();
+      },
+    });
+
+    try {
+      expect(causes(await outcome(app.container.dispose()))).toEqual([failure]);
+      expect(release).toHaveBeenCalledOnce();
+    } finally { await releaseApp(app).catch(() => undefined); }
   });
 
   it.each([false, true])("preserves completion-listener failures and continues cleanup (async=%s)", async (asynchronous) => {

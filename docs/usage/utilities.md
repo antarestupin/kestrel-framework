@@ -30,7 +30,7 @@ const token = z.encode(codec, { id });
 const cursor = z.decode(codec, token);
 ```
 
-The codec validates both directions and bounds token size. It is server-only; browsers retain the opaque string. Encoding adds neither confidentiality nor authenticity. See [pagination](./pagination.md) for complete query integration.
+The codec validates both directions and bounds token size. Use JSON-compatible cursor values and bidirectional Zod field codecs for custom representations. The cursor encoder rejects custom `toJSON` functions. It is server-only; browsers retain the opaque string. Encoding adds neither confidentiality nor authenticity. See [pagination](./pagination.md) for complete query integration.
 
 ## Flatten a typed catalog
 

@@ -1,4 +1,5 @@
 import { once } from "node:events";
+import { extname } from "node:path";
 import type { ConnectionOptions } from "node:tls";
 import { fileURLToPath } from "node:url";
 import pino, {
@@ -50,18 +51,17 @@ export function createDelegatingLogger(
       get: (_target, property) => {
         if (property === "child") {
           return (...arguments_: Parameters<Logger["child"]>) => {
-            let parent: Logger | undefined;
-            let child: Logger | undefined;
+            let cached: { parent: Logger; child: Logger } | undefined;
 
             return createFacade(() => {
               const activeParent = resolve();
 
-              if (parent !== activeParent || child === undefined) {
-                parent = activeParent;
-                child = activeParent.child(...arguments_) as unknown as Logger;
+              if (cached?.parent !== activeParent) {
+                // Publish the destination and its child together after successful construction.
+                cached = { parent: activeParent, child: activeParent.child(...arguments_) as unknown as Logger };
               }
 
-              return child as Logger;
+              return cached.child;
             });
           };
         }
@@ -254,7 +254,7 @@ export function createDevLogger(
   } satisfies TransportSingleOptions);
   // Apply the same filtering policy as standard destinations before transport.
   const logger = pino(options, transport);
-  let closed = false;
+  let closePromise: Promise<void> | undefined;
 
   // Pino transport errors are not recoverable. Re-throwing prevents local
   // development from continuing while logs are silently discarded.
@@ -266,14 +266,14 @@ export function createDevLogger(
 
   return {
     logger,
-    close: async () => {
-      if (closed) {
-        return;
+    close: () => {
+      if (closePromise === undefined) {
+        // Register before ending so every caller waits for the same worker close.
+        closePromise = once(transport, "close").then(() => undefined);
+        transport.end();
       }
 
-      closed = true;
-      transport.end();
-      await once(transport, "close");
+      return closePromise;
     },
   };
 }
@@ -283,9 +283,9 @@ export function createDevLogger(
  * in production builds without requiring a copied transport asset.
  */
 function resolveTransportTarget(): string {
-  const extension = import.meta.url.endsWith(".ts") ? "ts" : "js";
+  const extension = extname(fileURLToPath(import.meta.url));
 
   return fileURLToPath(
-    new URL(`./postgres_transport.${extension}`, import.meta.url),
+    new URL(`./postgres_transport${extension}`, import.meta.url),
   );
 }

@@ -69,26 +69,16 @@ export class ClientProvider<Config> implements Provider<Config> {
       }
 
       server.get(this.client.basePath, render);
-
-      if (this.client.basePath !== "/") {
-        server.get(`${this.client.basePath}/`, render);
-      }
-
+      // Fastify's wildcard already matches the empty suffix after a trailing slash.
       server.get(joinWildcardPath(this.client.basePath), render);
     });
   }
 }
 
 function normalizeBasePath(path: string): string {
-  if (
-    !path.startsWith("/") ||
-    path.startsWith("//") ||
-    (path !== "/" && path.endsWith("/")) ||
-    path.includes("?") ||
-    path.includes("#")
-  ) {
+  if (!isLiteralRoutePath(path) || (path !== "/" && path.endsWith("/"))) {
     throw new TypeError(
-      "A client base path must start with one slash and omit a trailing slash, query, or fragment.",
+      "A client base path must be a literal absolute URL path and omit a trailing slash except at the root.",
     );
   }
 
@@ -96,16 +86,9 @@ function normalizeBasePath(path: string): string {
 }
 
 function normalizeAssetBasePath(path: string): string {
-  if (
-    path === "/" ||
-    !path.startsWith("/") ||
-    path.startsWith("//") ||
-    !path.endsWith("/") ||
-    path.includes("?") ||
-    path.includes("#")
-  ) {
+  if (!isLiteralRoutePath(path) || path === "/" || !path.endsWith("/")) {
     throw new TypeError(
-      "A client asset base path must start and end with one slash and omit a query or fragment.",
+      "A client asset base path must be a literal absolute URL path with a trailing slash and a non-root prefix.",
     );
   }
 
@@ -113,20 +96,21 @@ function normalizeAssetBasePath(path: string): string {
 }
 
 function normalizeExcludedPath(path: string): string {
-  if (
-    path === "/" ||
-    !path.startsWith("/") ||
-    path.startsWith("//") ||
-    path.endsWith("/") ||
-    path.includes("?") ||
-    path.includes("#")
-  ) {
+  if (!isLiteralRoutePath(path) || path.endsWith("/")) {
     throw new TypeError(
-      "An excluded client path must start with one slash and omit a trailing slash, query, or fragment.",
+      "An excluded client path must be a literal absolute URL path and omit a trailing slash.",
     );
   }
 
   return path;
+}
+
+/** Require Fastify and browser navigation to agree on the configured literal route. */
+function isLiteralRoutePath(path: string): boolean {
+  return path.startsWith("/")
+    && !path.includes("//")
+    && !/[\\?#:*\p{White_Space}\p{Cc}]/u.test(path)
+    && !/(?:^|\/)(?:\.|%2e){1,2}(?=\/|$)/iu.test(path);
 }
 
 function joinWildcardPath(basePath: string): string {

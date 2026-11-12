@@ -9,6 +9,7 @@ import {
 const DEFAULT_BATCH_SIZE = 50;
 const DEFAULT_FLUSH_INTERVAL_MS = 100;
 const DEFAULT_RETENTION_DAYS = 7;
+const logViewerPath = "/api/extensions/development-logs/logs";
 
 export interface PostgresTransportOptions extends PoolConfig {
   batchSize?: number;
@@ -162,8 +163,9 @@ function shouldPersist(
       ? event.requestId
       : undefined;
   const url = event.req?.url;
-  const isLogApiRequest = typeof url === "string"
-    && url.includes("/api/extensions/development-logs/logs");
+  // Studio can mount below any base path. Match the route suffix before the query string.
+  const path = typeof url === "string" ? url.split("?", 1)[0] : undefined;
+  const isLogApiRequest = path?.endsWith(logViewerPath) === true;
 
   if (isLogApiRequest && requestId !== undefined) {
     ignoredRequestIds.add(requestId);
