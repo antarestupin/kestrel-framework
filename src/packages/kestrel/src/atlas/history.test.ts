@@ -16,7 +16,7 @@ function fixture() {
 describe("Atlas history capability", () => {
   it("validates and snapshots one global actor Resource without changing default manifests", () => {
     const { options } = fixture();
-    const resources = [defineAtlasResource(options)];
+    const resources = [defineAtlasResource(options), defineAtlasResource({ ...options, id: "other-entry" })];
     expect(defineAtlas({ resources }).getManifest().history).toBeUndefined();
     expect(() => defineAtlas({ resources, history: { actor: { resource: "missing" } } })).toThrow("not registered");
     const history = { actor: { resource: "entry" } };
@@ -34,8 +34,40 @@ describe("Atlas history capability", () => {
     expect(() => defineAtlasResource({ ...options, capabilities: { ...options.capabilities, history: source.action(history) } })).toThrow("Query");
   });
   it("rejects unbounded and out-of-range requests", () => {
-    for (const input of [{ id: "1", pageSize: 101 }, { id: "1", before: "9223372036854775808" }, { id: "1", before: "abc" }]) {
+    for (const input of [
+      { id: "" }, { id: "1", pageSize: 0 }, { id: "1", pageSize: 1.5 }, { id: "1", pageSize: 101 },
+      { id: "1", before: "9223372036854775808" }, { id: "1", before: "10000000000000000000" },
+      { id: "1", before: "abc" }, { id: "1", before: "" }, { id: "1", before: "0" }, { id: "1", before: "01" },
+      { id: "1", before: "-1" }, { id: "1", before: "1x" },
+    ]) {
       expect(atlasHistoryInputSchema.safeParse(input).success).toBe(false);
+    }
+  });
+
+  it("preserves exact bigint cursors and accepts the supported page boundaries", () => {
+    expect(atlasHistoryInputSchema.parse({ id: "1" })).toEqual({ id: "1", pageSize: 20 });
+    expect(atlasHistoryInputSchema.parse({ id: "1", before: "1", pageSize: 1 })).toEqual({ id: "1", before: "1", pageSize: 1 });
+    const before = "9223372036854775807";
+    expect(atlasHistoryInputSchema.parse({ id: "1", before, pageSize: 100 })).toEqual({ id: "1", before, pageSize: 100 });
+    expect(atlasHistoryInputSchema.safeParse({ id: "1", before: "9223372036854775808" }).error?.issues)
+      .toMatchObject([{ path: ["before"], message: "Invalid history cursor." }]);
+  });
+
+  it("keeps nullable audit metadata and sparse changed values in a history page", () => {
+    const update = {
+      sequence: "9223372036854775806", changedAt: "2026-01-10T12:00:00Z", operation: "update",
+      actor: "operator", reason: null, values: { title: "Updated", description: null },
+    };
+    const page = {
+      fields: ["title", "description"], events: [
+        { ...update, sequence: "9223372036854775805", operation: "insert", actor: null },
+        update,
+        { ...update, sequence: "9223372036854775807", operation: "delete", reason: "Requested", values: {} },
+      ], nextCursor: null,
+    };
+    expect(atlasHistoryOutputSchema.parse(page)).toEqual(page);
+    for (const patch of [{ sequence: 1 }, { changedAt: null }, { operation: "restore" }, { actor: 1 }, { reason: 1 }, { values: [] }]) {
+      expect(atlasHistoryOutputSchema.safeParse({ ...page, events: [{ ...update, ...patch }] }).success).toBe(false);
     }
   });
 });

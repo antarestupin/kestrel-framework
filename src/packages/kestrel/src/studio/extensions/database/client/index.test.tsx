@@ -42,6 +42,7 @@ describe("DatabaseSchemaSection", () => {
     expect(markup).toContain('title="public.note"');
     expect(markup).toContain('href="/tools/api/extensions/database/schema.svg?hideFramework=true"');
     expect(markup).toContain("1 table across 1 schema");
+    expect(markup).not.toContain("No tables remain after filtering.");
   });
 
   it("signals comments while keeping every description collapsed initially", () => {
@@ -115,7 +116,7 @@ describe("DatabaseSchemaSection", () => {
           tables: [{
             name: "marker",
             kind: "table",
-            columns: [],
+            columns: [{ name: "id", type: "uuid", nullable: false, primaryKey: true }],
           }],
         }],
       }} />,
@@ -148,29 +149,47 @@ describe("DatabaseSchemaSection", () => {
     expect(markup).toContain(
       '<div class="database-column-comment"></div>',
     );
+    expect(markup).toContain('class="database-schema" data-columns="1" style="left:0;top:0;width:324px;height:111px"');
+    expect(markup).toMatch(/class="database-table-card"[^>]*style="left:12px;top:44px;width:300px"/);
   });
 
   it("groups tables into labeled frames and retains compact type and key details", () => {
     const markup = renderToStaticMarkup(<DatabaseLayout layout={{ schemas: [
       { name: "identity", tables: [{
         name: "member", kind: "table",
-        columns: [{ name: "created_at", type: "timestamp(3) with time zone", primaryKey: true, nullable: true }],
-        foreignKeys: [{ name: "member_created_fk", columns: ["created_at"], referencedSchema: "audit", referencedTable: "event", referencedColumns: ["created_at"] }],
+        columns: [
+          { name: "created_at", type: "timestamp(3) with time zone", primaryKey: true, nullable: true },
+          { name: "event_id", type: "uuid", primaryKey: false, nullable: false },
+          { name: "nickname", type: "text", primaryKey: false, nullable: true },
+        ],
+        foreignKeys: [
+          { name: "member_created_fk", columns: ["created_at"], referencedSchema: "audit", referencedTable: "event", referencedColumns: ["created_at"] },
+          { name: "member_event_fk", columns: ["event_id", "created_at"], referencedSchema: "audit", referencedTable: "event", referencedColumns: ["id", "created_at"] },
+        ],
       }] },
       { name: "audit", tables: [{ name: "event", kind: "table", columns: [] }] },
     ] }} />);
 
     expect(markup).toContain('class="database-schema-groups"');
+    expect(markup).toContain('class="database-layout-summary">2 tables across 2 schemas');
     const groups = markup.split("<section ").slice(1);
     expect(groups).toHaveLength(2);
     expect(groups[0]).toContain('title="identity.member"');
     expect(groups[0]).not.toContain('title="audit.event"');
     expect(groups[1]).toContain('title="audit.event"');
+    expect(groups[0]).toContain('class="database-schema-count">1 table');
+    expect(groups[0]).not.toContain("No columns");
+    expect(groups[1]).toContain("No columns");
+    expect(markup).not.toContain("No tables</p>");
+    expect(markup).not.toContain("No tables remain after filtering.");
     expect(markup.match(/aria-labelledby=/g)).toHaveLength(2);
     expect(markup).toContain('title="timestamp(3) with time zone">timestamptz(3)</code>');
     expect(markup).toContain('title="identity.member.created_at"');
     expect(markup).toContain('title="Primary key">PK</abbr>');
-    expect(markup).toContain('title="member_created_fk: (created_at) → audit.event(created_at)">FK</abbr>');
+    expect(markup).toContain(
+      'title="member_created_fk: (created_at) → audit.event(created_at)\nmember_event_fk: (event_id, created_at) → audit.event(id, created_at)">FK</abbr>',
+    );
+    expect(markup.match(/>FK<\/abbr>/g)).toHaveLength(2);
     expect(markup).toContain('title="Nullable">?</span>');
   });
 
@@ -187,6 +206,8 @@ describe("DatabaseSchemaSection", () => {
     expect(canvasWidth).toBeGreaterThan(1480);
     expect(markup).toContain('data-columns="1"');
     expect(markup.match(/class="database-table-card"/g)).toHaveLength(53);
+    expect([...markup.matchAll(/class="database-schema-count">([^<]+)/g)].map((match) => match[1]))
+      .toEqual(["48 tables", "2 tables", "3 tables", "0 tables"]);
     expect(markup).toContain("No tables");
   });
 });

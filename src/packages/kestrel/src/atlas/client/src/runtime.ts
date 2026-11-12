@@ -115,11 +115,32 @@ export function getResourceRecordLabel(
   record: Readonly<Record<string, unknown>> | undefined,
   fallback: string,
 ): string {
-  const value = record?.[resource.displayField];
+  const value = readAtlasRecordField(record, resource.displayField);
 
   return value === undefined || value === null || value === ""
     ? fallback
     : String(value);
+}
+
+/** A missing field must never resolve to a property of Object.prototype. */
+export function readAtlasRecordField(
+  record: Readonly<Record<string, unknown>> | undefined,
+  field: string,
+): unknown {
+  return record !== undefined && Object.hasOwn(record, field) ? record[field] : undefined;
+}
+
+/** Keeps route IDs as strings unless the receiving operation declares a numeric input. */
+export function coerceAtlasRecordId(
+  recordId: string,
+  operation: AtlasOperationManifest | undefined,
+  inputName: string,
+): string | number {
+  const input = operation?.inputs.find(({ id }) => id === inputName);
+  const { schema: { type } } = describeFormInputSchema(input?.schema);
+  return (type === "number" || type === "integer") && recordId.trim() !== ""
+    ? coerceFormValue(recordId, { type })
+    : recordId;
 }
 
 /** Places the Resource display field first without disturbing other columns. */
@@ -197,6 +218,45 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Parses the scalar type shared by form submissions and relation identities. */
+export function coerceFormValue(value: string, schema: unknown): string | number {
+  const { schema: { format, type } } = describeFormInputSchema(schema);
+  if (type === "number" || type === "integer") {
+    const number = Number(value);
+    // Preserve invalid text for validation because JSON encodes non-finite numbers as null.
+    return Number.isFinite(number) ? number : value;
+  }
+  if (format === "date-time") {
+    // A datetime-local control submits the user's wall time without a UTC offset.
+    const instant = new Date(value);
+    if (Number.isFinite(instant.getTime())) return instant.toISOString();
+  }
+  return value;
+}
+
+/** Selects a concrete control for nullable inputs without guessing between other unions. */
+export function describeFormInputSchema(schema: unknown): { schema: Record<string, unknown>; nullable: boolean } {
+  if (!isRecord(schema)) return { schema: {}, nullable: schema === true };
+
+  if (Array.isArray(schema.type) && schema.type.includes("null")) {
+    return {
+      schema: schema.type.length === 2 ? { ...schema, type: schema.type.find((type) => type !== "null") } : schema,
+      nullable: true,
+    };
+  }
+
+  const alternatives = schema.anyOf ?? schema.oneOf;
+  if (Array.isArray(alternatives)
+    && alternatives.some((alternative) => isRecord(alternative) && alternative.type === "null")) {
+    const alternative = alternatives.length === 2
+      ? alternatives.filter(isRecord).find((item) => item.type !== "null")
+      : undefined;
+    return { schema: alternative ?? schema, nullable: true };
+  }
+
+  return { schema, nullable: schema.type === "null" };
+}
+
 async function readResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
 
@@ -204,12 +264,16 @@ async function readResponseBody(response: Response): Promise<unknown> {
     return undefined;
   }
 
-  const contentType = response.headers.get("content-type") ?? "";
+  const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (mediaType !== "application/json" && mediaType?.endsWith("+json") !== true) return text;
 
-  return contentType.includes("application/json")
-      || contentType.includes("+json")
-    ? JSON.parse(text) as unknown
-    : text;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    // An intermediary can send non-JSON failure details with a stale Content-Type.
+    if (response.ok) throw error;
+    return text;
+  }
 }
 
 async function executeGatewayRequest<Output>(

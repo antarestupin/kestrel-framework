@@ -21,14 +21,14 @@ it("opens a relation in Atlas for a plain click and preserves browser shortcuts"
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 
   try {
-    await act(async () => root.render(<FieldValue
-      basePath="/atlas"
-      field={{ id: "owner", kind: "relation", label: "Owner", schema: {}, hidden: false,
-        readOnly: true, searchable: false, sortable: false, filterOperators: [] }}
-      onOpenRelation={open}
-      relationReferences={[{ resourceId: "users", recordId: "team/42", label: "Owner" }]}
-      value="team/42"
-    />));
+    const properties = {
+      basePath: "/atlas",
+      field: { id: "owner", kind: "relation", label: "Owner", schema: {}, hidden: false,
+        readOnly: true, searchable: false, sortable: false, filterOperators: [] },
+      relationReferences: [{ resourceId: "users", recordId: "team/42", label: "Owner" }],
+      value: "team/42",
+    } as const;
+    await act(async () => root.render(<FieldValue {...properties} onOpenRelation={open} />));
     const link = host.querySelector("a")!;
     expect(link.getAttribute("href")).toBe("/atlas/users/team%2F42");
     await act(async () => {
@@ -38,6 +38,11 @@ it("opens a relation in Atlas for a plain click and preserves browser shortcuts"
     });
     expect(prevented).toEqual([false, false, false, false, false, true]);
     expect(open).toHaveBeenCalledExactlyOnceWith("users", "team/42");
+
+    await act(async () => root.render(<FieldValue {...properties} />));
+    await act(async () => host.querySelector("a")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true })));
+    expect(prevented.at(-1)).toBe(false);
+    expect(open).toHaveBeenCalledTimes(1);
   } finally {
     await act(async () => root.unmount());
     document.removeEventListener("click", stopNavigation);

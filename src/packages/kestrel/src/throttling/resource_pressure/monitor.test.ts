@@ -104,7 +104,7 @@ describe("LocalResourcePressureMonitor", () => {
       expect(monitor.supports("cpu")).toBe(true);
       expect(monitor.supports("memory")).toBe(true);
       expect(monitor.supports("unknown")).toBe(false);
-      expect(monitor.evaluate("mixed", pressure.signals, "reject")).toEqual({
+      expect(monitor.evaluate("mixed", pressure.signals, "reject")).toStrictEqual({
         state: "limited", refreshAt: new Date(250),
         signals: [
           { signalId: "cpu", state: "limited", value: 0.95 },
@@ -190,7 +190,7 @@ describe("LocalResourcePressureMonitor", () => {
     });
     try {
       const signal = { id: "absent", degradedAt: 0.5, limitedAt: 1, recoveryRatio: 0.5 };
-      expect(monitor.evaluate("process", [signal], "reject")).toEqual({
+      expect(monitor.evaluate("process", [signal], "reject")).toStrictEqual({
         state: "unknown", signals: [{ signalId: "absent", state: "unknown" }], refreshAt: new Date(350),
       });
       expect(monitor.supports(signal.id)).toBe(false);
@@ -221,7 +221,7 @@ describe("LocalResourcePressureMonitor", () => {
 
     try {
       for (let sample = 1; sample <= 3; sample += 1) {
-        expect(monitor.evaluate("process", [signal], "reject")).toEqual({
+        expect(monitor.evaluate("process", [signal], "reject")).toStrictEqual({
           state: "unknown", signals: [{ signalId: "cpu", state: "unknown" }],
           refreshAt: new Date(nowMs + 250),
         });
@@ -229,7 +229,7 @@ describe("LocalResourcePressureMonitor", () => {
         expect(read).toHaveBeenCalledTimes(sample);
         nowMs += 250;
       }
-      expect(monitor.evaluate("process", [signal], "reject")).toEqual({
+      expect(monitor.evaluate("process", [signal], "reject")).toStrictEqual({
         state: "healthy", signals: [{ signalId: "cpu", state: "healthy", previousState: "unknown", value: 0.2 }],
         refreshAt: new Date(nowMs + 1_000),
       });
@@ -250,12 +250,23 @@ describe("LocalResourcePressureMonitor", () => {
     monitor.close();
     monitor.close();
     // Once closed, inspection is unavailable even with a previously healthy cached value.
-    expect(monitor.evaluate("process", [signal], "ignore")).toEqual({
+    expect(monitor.evaluate("process", [signal], "ignore")).toStrictEqual({
       state: "unknown", signals: [{ signalId: "cpu", state: "unknown" }], refreshAt: new Date(250),
     });
-    expect(monitor.evaluate("process", [signal], "reject").signals).toEqual([{ signalId: "cpu", state: "unknown" }]);
+    expect(monitor.evaluate("process", [signal], "reject").signals).toStrictEqual([{ signalId: "cpu", state: "unknown" }]);
     expect(read).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("preserves each independent reader close failure and disposes each reader once", () => {
+    const failures = [new Error("CPU reader"), new Error("heap reader")];
+    const sources = failures.map((failure) => ({
+      supports: () => false, read: () => undefined, close: vi.fn(() => { throw failure; }),
+    }));
+    const monitor = new LocalResourcePressureMonitor(sources);
+    expect(() => monitor.close()).toThrow(expect.objectContaining({ name: "AggregateError", errors: failures }));
+    expect(() => monitor.close()).not.toThrow();
+    expect(sources.map((source) => source.close.mock.calls.length)).toEqual([1, 1]);
   });
 
   it.each([

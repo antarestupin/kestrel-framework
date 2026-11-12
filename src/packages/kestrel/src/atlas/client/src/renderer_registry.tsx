@@ -118,8 +118,10 @@ export function resolveAtlasRenderer<Renderer>(
   registry: Readonly<Record<string, Renderer>> | undefined,
   keys: readonly (string | undefined)[],
 ): Renderer | undefined {
+  if (registry === undefined) return undefined;
   for (const key of keys) {
-    if (key !== undefined && registry?.[key] !== undefined) {
+    // Prototype names can be valid explicit renderer IDs.
+    if (key !== undefined && Object.hasOwn(registry, key) && registry[key] !== undefined) {
       return registry[key];
     }
   }

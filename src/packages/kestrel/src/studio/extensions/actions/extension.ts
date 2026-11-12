@@ -204,7 +204,10 @@ function documentExecution(
       reason: "This action input does not accept any value.",
     };
   }
-  const configured = options.examples?.[action.name];
+  // Action names can match Object.prototype properties.
+  const configured = options.examples !== undefined && Object.hasOwn(options.examples, action.name)
+    ? options.examples[action.name]
+    : undefined;
   if (configured?.some((example) => !isStudioActionJson(example.input))) {
     throw new TypeError(
       `Studio examples for "${action.name}" must contain JSON values.`,

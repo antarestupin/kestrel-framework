@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type {
   AtlasFieldManifest,
@@ -12,6 +13,7 @@ import {
   createRelationHydrationRequests,
   resolveRelationReferences,
   resolveRelationValue,
+  useRelationHydration,
 } from "./relations.js";
 import {
   FieldValue,
@@ -139,7 +141,7 @@ describe("atlas relation hydration", () => {
       "authorId",
     )).toBe(authorField);
     expect(getRecordActionParameterField(
-      { ...action, parameterFields: [override] },
+      { ...action, parameterFields: [{ ...override, id: "unrelated", label: "Unrelated" }, override] },
       articleResource,
       "authorId",
     )).toBe(override);
@@ -159,6 +161,60 @@ describe("atlas relation hydration", () => {
       resource: userResource,
       ids: ["user-1", "user-2", "user-3"],
     }]);
+  });
+
+  it("omits hydration requests for missing targets and records without visible identifiers", () => {
+    expect(createRelationHydrationRequests(manifest, articleResource, [{ authorId: null, reviewerIds: [] }])).toEqual([]);
+    expect(createRelationHydrationRequests({ ...manifest, resources: [articleResource] }, articleResource, [{ authorId: "user-1" }])).toEqual([]);
+  });
+
+  it("preserves empty and non-relation values without resolving record links", () => {
+    const { relation: _relation, ...field } = authorField;
+    const records = new Map([["user", [
+      { id: "user-1", name: "Ada" }, { id: null, name: "Invalid null identity" }, { name: "Missing identity" },
+    ]]]);
+    for (const value of [undefined, null]) {
+      expect(resolveRelationValue(authorField, value, records, userResource)).toBe(value);
+      expect(resolveRelationReferences(manifest, authorField, value, records)).toEqual([]);
+    }
+    expect(resolveRelationValue(field, "user-1", records, userResource)).toBe("user-1");
+    expect(resolveRelationReferences(manifest, field, "user-1", records)).toEqual([]);
+  });
+
+  it("expands arrays only for a to-many relation and preserves an older scalar value", () => {
+    const records = new Map([["user", [{ id: "user-1", name: "Ada" }]]]);
+    expect(resolveRelationValue(reviewerField, "user-1", records, userResource)).toBe("Ada");
+    expect(resolveRelationReferences(manifest, reviewerField, "user-1", records)).toEqual([
+      { resourceId: "user", recordId: "user-1", label: "Ada" },
+    ]);
+    const unexpectedArray = ["user-1"];
+    expect(resolveRelationValue(authorField, unexpectedArray, records, userResource)).toBe(unexpectedArray);
+    expect(resolveRelationReferences(manifest, authorField, unexpectedArray, records)).toEqual([
+      { resourceId: "user", recordId: "user-1", label: unexpectedArray },
+    ]);
+  });
+
+  it("reports a pending target while retaining labels from a cached target", () => {
+    const company = createResource("company", [], "title");
+    const companyField: AtlasFieldManifest = { ...authorField, id: "companyId", relation: {
+      resource: company.id, cardinality: "one", optional: false,
+    } };
+    const source = { ...articleResource, fields: [authorField, companyField] };
+    const activeManifest = { ...manifest, resources: [...manifest.resources, company] };
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+    client.setQueryData([company.id, "readMany", manifest.basePath, ["company-1"]], [{ id: "company-1", title: "Example Ltd" }]);
+
+    function Status() {
+      const state = useRelationHydration(activeManifest, source, [{ authorId: "user-1", companyId: "company-1" }]);
+      return createElement("output", null, state.isPending ? "Pending" : "Ready", " / ", String(state.resolve(companyField, "company-1")));
+    }
+
+    try {
+      expect(renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(Status))))
+        .toBe("<output>Pending / Example Ltd</output>");
+    } finally {
+      client.clear();
+    }
   });
 
   it("resolves one and many relations through their display field", () => {
@@ -205,6 +261,9 @@ describe("atlas relation hydration", () => {
     expect(resolveRelationValue(authorField, "user-1", records)).toBe("user-1");
     expect(resolveRelationReferences({ ...manifest, resources: [articleResource] }, author, "user-1", records)).toEqual([
       { resourceId: "user", recordId: "user-1", label: "Ada" },
+    ]);
+    expect(resolveRelationReferences({ ...manifest, resources: [articleResource] }, authorField, "user-1", records)).toEqual([
+      { resourceId: "user", recordId: "user-1", label: "user-1" },
     ]);
   });
 

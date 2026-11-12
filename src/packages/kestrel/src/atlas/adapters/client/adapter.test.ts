@@ -1,4 +1,6 @@
 import type { FastifyInstance } from "fastify";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ViteClientDevelopmentOptions, ViteDevelopmentRuntime } from "../../../client/index.js";
@@ -25,23 +27,28 @@ describe("ViteAtlasClientAdapter", () => {
         signOutUrl: "/api/authentication/sign-out",
       },
     };
-    const adapter = new ViteAtlasClientAdapter({ dev: false });
+    const adapter = new ViteAtlasClientAdapter();
 
-    await adapter.setup(
+    const renderPage = await adapter.setup(
       server,
       new Atlas({ basePath: "/atlas", resources: [] }),
       config,
     );
 
     const viteOptions = register.mock.calls[0]?.[1] as {
+      root: string;
       createHtmlFunction(source: string): () => unknown;
     };
+    expect(viteOptions).toMatchObject({ dev: false, spa: true, distDir: "assets/atlas" });
+    expect(resolve(viteOptions.root)).toBe(resolve(fileURLToPath(new URL("../../../../", import.meta.url))));
+    expect(server.addHook).not.toHaveBeenCalled();
     const render = viteOptions.createHtmlFunction(
       '<div id="root" data-atlas-config="__ATLAS_CLIENT_CONFIG__"></div>',
     );
     const reply = {
       type: vi.fn().mockReturnThis(),
       send: vi.fn((document: string) => document),
+      html: vi.fn(() => "served shell"),
     };
     const document = render.call(reply) as string;
     const encodedConfig = document.match(
@@ -51,6 +58,8 @@ describe("ViteAtlasClientAdapter", () => {
     expect(encodedConfig).toBeDefined();
     expect(JSON.parse(decodeURIComponent(encodedConfig ?? ""))).toEqual(config);
     expect(document).not.toContain("<script>window.");
+    expect(reply.type).toHaveBeenCalledExactlyOnceWith("text/html");
+    expect(renderPage(reply as never)).toBe("served shell");
   });
 
   it("injects configuration into shared development HTML", async () => {
@@ -93,6 +102,8 @@ describe("ViteAtlasClientAdapter", () => {
     )?.[1];
 
     expect(JSON.parse(decodeURIComponent(encodedConfig ?? ""))).toEqual(config);
+    expect(reply.type).toHaveBeenCalledExactlyOnceWith("text/html");
+    expect(runtime.transformHtml).toHaveBeenCalledWith("/admin", expect.objectContaining({ htmlPath: "/workspace/atlas/index.html" }));
     expect(server.register).not.toHaveBeenCalled();
   });
 
@@ -133,5 +144,17 @@ describe("ViteAtlasClientAdapter", () => {
     expect(close).not.toHaveBeenCalled();
     await (addHook.mock.calls[0]?.[1] as () => Promise<void>)();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("respects an explicit project root and tolerates a stopped development server", async () => {
+    const addHook = vi.fn();
+    const register = vi.fn();
+    const server = { register, addHook, vite: { ready: vi.fn(async () => undefined) } } as unknown as FastifyInstance;
+    const definition = viteAtlasClient({ dev: true, projectRoot: "/workspace/custom-atlas" });
+    const adapter = definition.create(() => { throw new Error("Unexpected development dependency"); }, undefined);
+    await adapter.setup(server, new Atlas({ resources: [] }), { basePath: "/atlas", title: "Atlas" });
+
+    expect(register).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({ root: "/workspace/custom-atlas", dev: true }));
+    await expect((addHook.mock.calls[0]?.[1] as () => Promise<void>)()).resolves.toBeUndefined();
   });
 });

@@ -13,6 +13,7 @@ import {
   HttpControllerManager,
   path,
   post,
+  query,
 } from "../../../http/index.js";
 import { testHttpAccess } from "../../../testing/http_access.js";
 import { Studio } from "../../studio.js";
@@ -78,6 +79,7 @@ describe("controllers Studio extension", () => {
         id: "app.health",
         method: "GET",
         url: "/health",
+        description: "Report application health.",
         access: "Inherited from HTTP runtime",
         inputs: [],
         examples: [],
@@ -188,7 +190,21 @@ describe("controllers Studio extension", () => {
       examples: [{ input: { filter: "available" } }],
       handler: ({ input }) => input,
     });
-    const studio = new Studio({ extensions: [defineControllersStudioExtension({ detail, create, explicit })] });
+    const collision = defineHttpController({
+      route: get("/entries/:id/:revision"),
+      input: z.object({ id: z.string(), "path.id": z.string().optional(), edition: z.int().min(1) }),
+      bindings: { id: query("id"), edition: path("revision") },
+      examples: [],
+      handler: ({ input, request }) => ({ input, path: request.params }),
+    });
+    const unsupported = defineHttpController({
+      route: post("/unsupported"),
+      input: z.object({ opaque: z.lazy(() => { throw new Error("No schema representation"); }) }),
+      handler: () => null,
+    });
+    const studio = new Studio({
+      extensions: [defineControllersStudioExtension({ detail, create, explicit, collision, unsupported })],
+    });
     const server = Fastify();
     const app = new App({});
     try {
@@ -198,9 +214,19 @@ describe("controllers Studio extension", () => {
       const response = await server.inject({ url: "/_studio/api/extensions/controllers" });
       expect(response.statusCode).toBe(200);
       const catalog = response.json<StudioHttpControllerCatalog>();
+      expect(studio.getManifest().extensions[0]).toMatchObject({
+        title: "Controllers",
+        description: "Browse and execute the application's HTTP controllers.",
+        pages: [{
+          title: "HTTP Controllers",
+          description: "Inspect routes and send requests with reusable examples.",
+        }],
+      });
+      expect((await studio.defineHttpControllers())[1]?.description).toBe("List HTTP controllers documented by Studio.");
       expect(catalog.observability).toBeUndefined();
       expect(catalog.nodes[0]).toMatchObject({
-        id: "detail", inputs: [{ name: "entryId", sourceName: "entryId", binding: "path", required: true }],
+        id: "detail",
+        inputs: [{ name: "entryId", sourceName: "entryId", binding: "path", required: true, schema: { type: "string" } }],
         examples: [{ input: { entryId: "example" } }],
       });
       expect(catalog.nodes[1]).toMatchObject({
@@ -215,6 +241,20 @@ describe("controllers Studio extension", () => {
       });
       expect(catalog.nodes[2]).toMatchObject({
         id: "explicit", examples: [{ name: "Example 1", input: { filter: "available" } }],
+      });
+      expect(catalog.nodes[2]).not.toHaveProperty("description");
+      expect(catalog.nodes[3]).toMatchObject({
+        id: "collision",
+        inputs: [
+          { name: "id", sourceName: "id", binding: "query", required: true },
+          { name: "path.id", sourceName: "path.id", binding: "query", required: false },
+          { name: "edition", sourceName: "revision", binding: "path", required: true },
+          { name: "path.path.id", sourceName: "id", binding: "path", required: true, schema: { type: "string" } },
+        ],
+        examples: [{ name: "Generated example", input: { id: "example", "path.id": "example", edition: 1, "path.path.id": "example" } }],
+      });
+      expect(catalog.nodes[4]).toMatchObject({
+        id: "unsupported", inputs: [{ name: "opaque", schema: {} }],
       });
     } finally {
       await server.close();

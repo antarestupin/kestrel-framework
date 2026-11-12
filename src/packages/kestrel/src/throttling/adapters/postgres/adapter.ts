@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { PgDatabase } from "drizzle-orm/pg-core";
 
+import { abortableDelay } from "../../../scheduling/abortable_delay.js";
 import { uuidV7 } from "../../../utils/uuid.js";
 import {
   ThrottlingBackendUnavailableError,
@@ -1106,24 +1107,22 @@ class ReservationGate {
     }
 
     await new Promise<void>((resolve, reject) => {
-      let settled = false;
+      const timer = new AbortController();
       const waiter = () => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
+        timer.abort();
         this.active += 1;
         resolve();
       };
-      const timeout = setTimeout(() => {
-        if (settled) return;
-        settled = true;
+      // Segment very long configured waits instead of letting Node truncate them to 1 ms.
+      void abortableDelay(this.waitTimeoutMs, timer.signal, { ref: true }).then(() => {
+        if (timer.signal.aborted) return;
         const index = this.waiters.indexOf(waiter);
 
         if (index >= 0) this.waiters.splice(index, 1);
         reject(new ThrottlingBackendUnavailableError({
           cause: new Error("Timed out waiting for throttling storage capacity."),
         }));
-      }, this.waitTimeoutMs);
+      });
 
       this.waiters.push(waiter);
     });

@@ -64,58 +64,61 @@ describe("ThrottlingManager", () => {
     const clock = new ControlledClock();
     const manager = createManager(clock);
     const completed: string[] = [];
+    const first = vi.fn();
+    const second = vi.fn();
 
-    await manager.acquire(onePerSecond);
-
-    const first = manager.run(
-      onePerSecond,
-      { maxWaitMs: 3_000 },
-      () => {
+    try {
+      await manager.acquire(onePerSecond);
+      void manager.run(onePerSecond, { maxWaitMs: 3_000 }, () => {
         completed.push("first");
-      },
-    );
-    const second = manager.run(
-      onePerSecond,
-      { maxWaitMs: 3_000 },
-      () => {
+      }).then(first, first);
+      void manager.run(onePerSecond, { maxWaitMs: 3_000 }, () => {
         completed.push("second");
-      },
-    );
+      }).then(second, second);
+      await setImmediate();
+      expect(clock.pendingSleeps).toBe(1);
 
-    await settleMicrotasks();
-    expect(clock.pendingSleeps).toBe(1);
+      // Each progress check can fail immediately if a regression loses a queued waiter.
+      await clock.advance(1_000);
+      await setImmediate();
+      expect(first).toHaveBeenCalledExactlyOnceWith(undefined);
+      expect(second).not.toHaveBeenCalled();
+      expect(completed).toEqual(["first"]);
+      expect(clock.pendingSleeps).toBe(1);
 
-    await clock.advance(1_000);
-    await first;
-    expect(completed).toEqual(["first"]);
-
-    await settleMicrotasks();
-    expect(clock.pendingSleeps).toBe(1);
-
-    await clock.advance(1_000);
-    await second;
-    expect(completed).toEqual(["first", "second"]);
-
-    await manager.close();
+      await clock.advance(1_000);
+      await setImmediate();
+      expect(second).toHaveBeenCalledExactlyOnceWith(undefined);
+      expect(completed).toEqual(["first", "second"]);
+    } finally {
+      const closing = manager.close();
+      await clock.advance(3_000);
+      await closing;
+    }
   });
 
   it("waits for a long retry deadline without overflowing the default Node timer", async () => {
     const retryAt = new Date(2_147_483_648);
     const reserve = vi.fn<RateLimitAdapter["reserve"]>().mockResolvedValue({ admitted: false, remaining: 0, retryAt });
     const warning = vi.spyOn(process, "emitWarning");
+    const timer = vi.spyOn(globalThis, "setTimeout");
     const manager = new ThrottlingManager({ reserve }, { namespace: "test", now: () => new Date(0) });
     const controller = new AbortController();
-    const waiting = manager.acquire(onePerSecond, { maxWaitMs: retryAt.getTime() + 1_000, signal: controller.signal });
-    void waiting.catch(() => {});
+    const settled = vi.fn();
+    void manager.acquire(onePerSecond, { maxWaitMs: retryAt.getTime() + 1_000, signal: controller.signal }).then(settled, settled);
     try {
       await setImmediate();
       // An overflowing native timeout is coerced to one millisecond and would keep retrying.
       expect(warning.mock.calls.some(([message]) => String(message).includes("does not fit into a 32-bit signed integer"))).toBe(false);
+      const deadlineTimer = timer.mock.calls.findIndex(([, delay]) => delay === 2_147_483_647);
+      expect(timer.mock.results[deadlineTimer]?.value.hasRef()).toBe(true);
       expect(reserve).toHaveBeenCalledOnce();
       controller.abort();
-      await expect(waiting).rejects.toBeInstanceOf(ThrottlingAcquisitionAbortedError);
+      await setImmediate();
+      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionAbortedError));
     } finally {
       warning.mockRestore();
+      timer.mockRestore();
       controller.abort();
       await manager.close();
     }
@@ -125,27 +128,27 @@ describe("ThrottlingManager", () => {
     const clock = new ControlledClock();
     const manager = createManager(clock);
     const controller = new AbortController();
+    const timedOut = vi.fn();
+    const aborted = vi.fn();
 
-    await manager.acquire(onePerSecond);
+    try {
+      await manager.acquire(onePerSecond);
+      void manager.acquire(onePerSecond, { maxWaitMs: 100 }).then(timedOut, timedOut);
+      void manager.acquire(onePerSecond, { maxWaitMs: 500, signal: controller.signal }).then(aborted, aborted);
 
-    const timedOut = manager.acquire(onePerSecond, { maxWaitMs: 100 });
-    const aborted = manager.acquire(onePerSecond, {
-      maxWaitMs: 500,
-      signal: controller.signal,
-    });
+      await setImmediate();
+      controller.abort();
+      await setImmediate();
+      expect(aborted).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionAbortedError));
 
-    await settleMicrotasks();
-    controller.abort();
-    await expect(aborted).rejects.toBeInstanceOf(
-      ThrottlingAcquisitionAbortedError,
-    );
-
-    await clock.advance(100);
-    await expect(timedOut).rejects.toBeInstanceOf(
-      ThrottlingAcquisitionTimeoutError,
-    );
-
-    await manager.close();
+      await clock.advance(100);
+      await setImmediate();
+      expect(timedOut).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionTimeoutError));
+    } finally {
+      const closing = manager.close();
+      await clock.advance(500);
+      await closing;
+    }
   });
 
   it("expires a later waiter at its own earlier deadline", async () => {
@@ -394,23 +397,32 @@ describe("ThrottlingManager", () => {
     const record = vi.fn<(event: ThrottlingInstrumentationEvent) => void>();
     const manager = createManager(clock, { maxPendingAcquisitions: 1, instrumentation: { record } });
 
-    await manager.acquire(onePerSecond);
-    const waiting = manager.acquire(onePerSecond, { maxWaitMs: 2_000 });
-    void waiting.catch(() => {});
-    await settleMicrotasks();
+    const waiting = vi.fn();
+    const overflowing = vi.fn();
+    try {
+      await manager.acquire(onePerSecond);
+      void manager.acquire(onePerSecond, { maxWaitMs: 2_000 }).then(waiting, waiting);
+      await setImmediate();
 
-    await expect(manager.acquire(onePerSecond, { maxWaitMs: 2_000 }))
-      .rejects.toBeInstanceOf(ThrottlingQueueFullError);
-    expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "acquisition", outcome: "failure", data: {
-      key: onePerSecond.id, mode: "wait", result: "queue-full", cost: 1,
-      estimatedCost: { requests: 1 }, constraints: 1, attempts: 0, waitTimeoutMs: 2_000,
-    } }));
+      void manager.acquire(onePerSecond, { maxWaitMs: 2_000 }).then(overflowing, overflowing);
+      await setImmediate();
+      expect(overflowing).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingQueueFullError));
+      expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "acquisition", outcome: "failure", data: {
+        key: onePerSecond.id, mode: "wait", result: "queue-full", cost: 1,
+        estimatedCost: { requests: 1 }, constraints: 1, attempts: 0, waitTimeoutMs: 2_000,
+      } }));
 
-    await manager.close();
-    await expect(waiting).rejects.toBeInstanceOf(ThrottlingClosedError);
-    expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "acquisition", outcome: "failure",
-      data: expect.objectContaining({ result: "closed", waitTimeoutMs: 2_000 }),
-    }));
+      await manager.close();
+      await setImmediate();
+      expect(waiting).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingClosedError));
+      expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "acquisition", outcome: "failure",
+        data: expect.objectContaining({ result: "closed", waitTimeoutMs: 2_000 }),
+      }));
+    } finally {
+      const closing = manager.close();
+      await clock.advance(2_000);
+      await closing;
+    }
   });
 
   it.each(["abort", "timeout"] as const)("keeps %s ahead of queue saturation when a pending reserve is denied", async (event) => {
@@ -571,6 +583,59 @@ describe("ThrottlingManager", () => {
         constraints: 2, attempts: 4, remaining: 3, source: "authoritative", waitTimeoutMs: 100,
       } });
       await (await waiting).complete({ outcome: "success" });
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it("wakes a concurrency waiter only when the constraint blocking it is released", async () => {
+    const clock = new ControlledClock();
+    const sleep = vi.fn(clock.sleep);
+    const record = vi.fn<(event: ThrottlingInstrumentationEvent) => void>();
+    const blocking = concurrencyLimit({ id: "local-slot", limit: 1 });
+    const sibling = concurrencyLimit({ id: "sibling-slot", limit: 1 });
+    const local = defineAdmissionPolicy({ id: "local", limits: [blocking, sibling] });
+    const blockingOnly = defineAdmissionPolicy({ id: "blocking-only", limits: [blocking] });
+    const siblingOnly = defineAdmissionPolicy({ id: "sibling-only", limits: [sibling] });
+    const other = defineAdmissionPolicy({ id: "other", limits: [concurrencyLimit({ id: "other-slot", limit: 1 })] });
+    const manager = new ThrottlingManager(new MemoryRateLimitAdapter({ now: clock.now }), {
+      namespace: "test", now: clock.now, sleep, instrumentation: { record },
+    });
+
+    try {
+      const held = await manager.acquire(blockingOnly);
+      const heldSibling = await manager.acquire(siblingOnly);
+      const settled = vi.fn();
+      const waiting = manager.acquire(local, { maxWaitMs: 1_000 });
+      void waiting.then(settled, settled);
+      await setImmediate();
+      expect(sleep).toHaveBeenCalledOnce();
+
+      // The first blocker still prevents admission even after the sibling slot is released.
+      await heldSibling.complete({ outcome: "success" });
+      await (await manager.acquire(other)).complete({ outcome: "success" });
+      await (await manager.acquire(onePerSecond)).complete({ outcome: "success" });
+      await setImmediate();
+      expect(sleep).toHaveBeenCalledOnce();
+      expect(settled).not.toHaveBeenCalled();
+
+      await held.complete({ outcome: "success" });
+      await setImmediate();
+      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ definitionId: local.id }));
+      expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "acquisition", data: expect.objectContaining({ attempts: 2 }) }));
+      await (await waiting).complete({ outcome: "success" });
+
+      // A permit releasing both slots must still wake a waiter blocked by just one.
+      const both = await manager.acquire(local);
+      const nextSettled = vi.fn();
+      const next = manager.acquire(blockingOnly, { maxWaitMs: 1_000 });
+      void next.then(nextSettled, nextSettled);
+      await setImmediate();
+      expect(nextSettled).not.toHaveBeenCalled();
+      await both.complete({ outcome: "success" });
+      await setImmediate();
+      expect(nextSettled).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ definitionId: blockingOnly.id }));
+      await (await next).complete({ outcome: "success" });
     } finally {
       await manager.close();
     }

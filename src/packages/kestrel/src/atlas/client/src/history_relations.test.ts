@@ -23,13 +23,18 @@ describe("history actor hydration", () => {
   it("avoids synthetic key collisions and ignores hidden business relations", () => {
     const context = createHistoryRelationContext(manifest, {
       ...resource, fields: [{ ...relation, hidden: true }, { ...relation, id: "__atlas_history_actor" }],
-    }, ["authorId"], [event("p1", { authorId: "hidden" })]);
-    expect(context.actorField?.id).toBe("__atlas_history_actor_");
+    }, ["authorId", "__atlas_history_actor_"], [event("p1", { authorId: "hidden", __atlas_history_actor_: "past business value" })]);
+    expect(context.actorField).toMatchObject({
+      id: "__atlas_history_actor__", label: "Actor", hidden: false, readOnly: true, kind: "relation",
+      searchable: false, filterOperators: [], sortable: false, schema: { type: "string" },
+      relation: { resource: "person", cardinality: "one", optional: true },
+    });
+    expect(context.records[0]).toMatchObject({ __atlas_history_actor_: "past business value", __atlas_history_actor__: "p1" });
     expect(createRelationHydrationRequests(manifest, context.resource, context.records)[0]?.ids).toEqual(["p1"]);
   });
   it("keeps unconfigured actors out of hydration and skips absent actors", () => {
     const plain = { ...manifest, history: {} };
-    const context = createHistoryRelationContext(plain, resource, [], [event("raw")]);
+    const context = createHistoryRelationContext(plain, resource, [], [event("raw", { authorId: "not selected in history" })]);
     expect(context.actorField).toBeUndefined();
     expect(createRelationHydrationRequests(plain, context.resource, context.records)).toEqual([]);
     const anonymous = createHistoryRelationContext(manifest, resource, [], [event(null)]);

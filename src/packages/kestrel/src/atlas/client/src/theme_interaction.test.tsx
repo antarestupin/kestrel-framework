@@ -13,7 +13,8 @@ it("follows the OS until the user chooses and persists an explicit theme", async
   document.body.append(host);
   const root = createRoot(host);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  vi.stubGlobal("matchMedia", () => preference);
+  const matchMedia = vi.fn(() => preference);
+  vi.stubGlobal("matchMedia", matchMedia);
   vi.stubGlobal("ResizeObserver", class {
     observe() {}
     unobserve() {}
@@ -26,6 +27,7 @@ it("follows the OS until the user chooses and persists an explicit theme", async
     const trigger = host.querySelector("button")!;
     expect(trigger.textContent).toContain("System");
     expect(document.documentElement.dataset.theme).toBe("light");
+    expect(matchMedia.mock.calls).toEqual(expect.arrayContaining([["(prefers-color-scheme: dark)"]]));
 
     await act(async () => {
       preference.matches = true;

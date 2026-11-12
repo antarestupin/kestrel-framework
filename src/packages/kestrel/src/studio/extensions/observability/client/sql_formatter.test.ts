@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatSqlForDisplay,
+  postgresqlSqlFormatter,
   type SqlFormatter,
 } from "./sql_formatter.js";
 
@@ -33,5 +34,11 @@ describe("formatSqlForDisplay", () => {
       { lineWidth: 100 },
       formatter,
     )).toBe("select custom syntax");
+  });
+
+  it("keeps PostgreSQL dollar-quoted values intact", () => {
+    expect(postgresqlSqlFormatter.format("select $note$original text$note$", { lineWidth: 100 })).toBe(
+      "SELECT\n  $note$original text$note$",
+    );
   });
 });

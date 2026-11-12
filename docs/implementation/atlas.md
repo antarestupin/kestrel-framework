@@ -240,11 +240,17 @@ Relations do not authorize Atlas to query a table directly or bypass Resource ca
 
 Record pages also compile incoming relations whose inverse cardinality is `many` into contextual collections below the main record details. These collections reuse the standard Resource collection engine with an immutable parent filter, independent pagination and an embedded presentation. They are enabled by default, may be disabled with `relatedRecords: false`, and may configure their label, page size, search, filters, sorting, pagination and record Actions. Search and user filters are available by default behind one collapsed toggle, remain applied when the controls are hidden and never expose the immutable parent filter. A relation backed by a join or another query shape may expose a dedicated related-records Query and bind the parent identity to one declared input instead of using the conventional filtered `list` capability.
 
+When navigation changes the parent record, Atlas initializes the related collection's search, filters and pagination before starting its first request for that parent, including when both records are already cached.
+
+An inverse collection backed by the target list uses the typed identity from the loaded parent record. A custom related-records Query converts the parent route parameter according to its declared record input.
+
 Relation autocomplete does not require a second collection capability. By default, it searches candidates through the target Resource `list` capability and its standard collection contract. The client requests only a bounded first page, submits the target Resource identity and uses the configured relation display field or target Resource display field as the option label. Search, filters and sorting remain limited by the target Resource field metadata and enforced by the gateway exactly as they are on the standard list page.
 
 A relation may explicitly reference a specialized lookup exposure when the target Resource list is not the right operation, for example because candidate selection requires fixed server-side constraints, different authorization, relevance ranking, a lightweight projection or a dedicated external endpoint. That exposure still presents the standard bounded collection contract to Atlas client. `defineModelLookupAction()` may be provided as a convenience for this specialized case, but it is not required for ordinary relation autocomplete and does not become a mandatory Resource capability.
 
 Candidate search and selected-value hydration remain distinct. Autocomplete uses `list` or the relation's specialized lookup exposure to discover candidates, while `readMany` efficiently resolves values already present in records or form state without depending on the current search term.
+
+Direct relation entry uses the operation input schema to convert text into typed identities before deduplication. When switching back to autocomplete, the selected values retain those types for `readMany` hydration.
 
 Bulk mutation capabilities are distinct from relation hydration. Future Resource contracts may add `createMany`, `updateMany` and `deleteMany`, but their semantics must be settled before implementation: atomicity, partial successes, maximum batch size, confirmation, destructive effects and whether a sequential fallback may ever be enabled explicitly. The runtime must not silently emulate a missing bulk mutation capability with a series of unit operations.
 
@@ -328,7 +334,11 @@ A dynamic component can be placed explicitly from React or contributed to a cata
 
 Route pages are thin adapters around reusable content components. A reusable list, read page, CRUD form or Action form receives resolved Resource data and callbacks through props or headless hooks; it does not read route parameters directly or navigate with `window.location`. Route adapters provide URL parameters and navigation behavior, while dialogs and embedded layouts reuse the same content component with different success and cancellation callbacks.
 
+Record identifiers remain strings in URLs. Before a record read, update, deletion or record Action, Atlas converts the identifier when the receiving operation declares a numeric-only input. The history panel uses its separate string identifier schema.
+
 For example, `RecordActionForm` owns schema-derived fields, submission state and validation display. `RecordActionPage` wraps it for the canonical route, while `RecordActionDialog` wraps the same component for an in-context interaction. This split also applies to Resource list, read, create and update content so applications can embed them without recreating data and mutation behavior.
+
+Forms and parameterless record Action controls accept one execution at a time, including the interval before React renders the pending control. A create operation without an addressable returned record takes the standard page back to the collection. Reusable Resource forms give their success callback an empty record when the operation returns a non-record result. Native date-time inputs display the current instant in the browser's local time and submit an ISO timestamp. Native number inputs accept decimals when the schema declares `number` and use the browser's integer step when the schema declares `integer`. Invalid numeric text stays visible to gateway validation. An explicitly cleared optional to-one relation sends `null`.
 
 ### Atlas application
 
@@ -346,7 +356,7 @@ export default function App({ manifest }: { manifest: AtlasManifest }) {
 }
 ```
 
-The initial application is served by the same Fastify application as its backend under a configurable base path that defaults to `/atlas`. A dedicated provider owns Atlas routes and assets. The manifest, headless runtime and UI remain independent from that delivery adapter so Atlas can be built and deployed as an autonomous application later.
+The initial application is served by the same Fastify application as its backend under a configurable base path that defaults to `/atlas`. Use a concrete absolute path for the mount. Literal and encoded dot segments, parameters, wildcards, queries and fragments are rejected so the browser and Fastify use the same path. A dedicated provider owns Atlas routes and assets. The manifest, headless runtime and UI remain independent from that delivery adapter so Atlas can be built and deployed as an autonomous application later.
 
 The standard notification stack defaults to the bottom-left viewport corner. The Atlas `notifications.position` option accepts `"top-left"`, `"top-right"`, `"bottom-left"` or `"bottom-right"`; the resolved position is published in the manifest so every standard client uses the same presentation choice.
 
@@ -428,6 +438,8 @@ High-level components expose stable composition regions so developers can replac
 Registries allow packages and applications to contribute sources, connectors, field renderers, form inputs, page renderers and dynamic components. Extensions declare stable identifiers and serializable contracts; client renderers and server implementations remain separated so Node.js dependencies do not enter browser bundles. Phase 1 introduces only the minimal View renderer registry required by resource sub-pages; the generalized extension registries remain part of Phase 2.
 
 The generalized client renderer registries are local to one `AtlasApplication`, so multiple applications and tests do not share mutable global registrations. Field and input renderers resolve Resource-qualified field identifiers before ordinary field identifiers and semantic field kinds. Operation controls resolve stable operation identifiers before operation effects; their renderers provide presentational content while Kestrel retains ownership of the accessible button or menu item. Page and View registries retain built-in renderers as fallbacks, and the former `pageRenderers` and `viewRenderers` application properties remain compatibility aliases for their corresponding registries.
+
+An embedded `AtlasApplication` mounts a new router when its manifest, authentication configuration or renderer registry changes. The router resolves the current URL with the new route definitions and renderer configuration.
 
 Studio already follows a comparable extension structure. Atlas can reuse its architectural principles, but Studio and the production atlas remain distinct products: Studio is a local development interface, whereas Atlas has its own runtime, deployment and future authentication requirements.
 
@@ -533,7 +545,7 @@ Browser documents and programmatic endpoints deliberately behave differently:
 | `GET /admin/api/*` | JSON `401 Unauthorized` |
 | Unsafe `/admin/*` request | Transport error such as `401` or trusted-Origin `403`; never an HTML redirect |
 
-The login document is registered before the protected SPA fallback and does not load the protected manifest. The injected client configuration contains only Atlas base path and title, the public login path, and the application password-sign-in and sign-out URLs. Authentication paths must start with a single slash. Raw backslashes, whitespace and control characters are rejected before browser URL normalization. No session token, password policy, storage detail, or authorization rule is serialized into the page.
+The login document is registered before the protected SPA fallback and does not load the protected manifest. The injected client configuration contains only Atlas base path and title, the public login path, and the application password-sign-in and sign-out URLs. Authentication paths must start with a single slash. The login subpath must identify one concrete route. Raw backslashes, whitespace and control characters are rejected before browser URL normalization. No session token, password policy, storage detail, or authorization rule is serialized into the page.
 
 After a successful sign-in, the client navigates to `returnTo` or to the Atlas base path when it is absent. Both the server and browser constrain the target to the current Atlas boundary and reject normalized paths beginning with two slashes, including at a root mount. Absolute URLs, protocol-relative URLs, normalized path traversal outside the boundary, and the login page itself fall back to `/admin` in the standard application; this prevents open redirects and login loops.
 
@@ -565,6 +577,8 @@ sequenceDiagram
 ```
 
 Credential rejection uses one generic message. Rate limiting, an untrusted page origin, and service unavailability have distinct actionable messages without exposing credential details. Password fields use the standard username and current-password autocomplete semantics. An authenticated subject without `admin.access` still receives `403`; a dedicated access-denied page remains a future client improvement.
+
+The sign-out control starts a single revocation request even when activated twice before React renders its pending state. A failed request leaves the control available for retry.
 
 See [Authorization](./authorization.md) for the implemented policy, code-defined roles, persisted assignments, and response semantics.
 
@@ -883,7 +897,7 @@ sequenceDiagram
   Gateway-->>Browser: data, effects, optional links, display labels
 ```
 
-Independent target Resources load concurrently; batches for one target execute sequentially. `readManyBatchSize` defaults to 100 and must be a positive safe integer matching the source's input contract. There is no per-record fallback to `read`, cross-request server cache, SQL construction or authorization bypass. Maps index loaded records by typed identity; missing target records yield undefined inputs. The formatter must return a string or undefined synchronously. Empty labels fall back to identity, while thrown errors and source failures reject the gateway request. Source operations retain responsibility for their underlying SQL count and row-level visibility.
+Independent target Resources load concurrently; batches for one target execute sequentially. `readManyBatchSize` defaults to 100 and must be a positive safe integer matching the source's input contract. Atlas validates the size before issuing reads, including for custom Resource implementations. There is no per-record fallback to `read`, cross-request server cache, SQL construction or authorization bypass. Atlas indexes rows by typed identity only if that identity was requested in the same batch. Missing target records yield undefined inputs. The formatter must return a string or undefined synchronously. Empty labels fall back to identity, while thrown errors and source failures reject the gateway request. Source operations retain responsibility for their underlying SQL count and row-level visibility.
 
 The envelope's optional `display` contains positional labels and an explicit record/array/list shape. Business data is unchanged on the server. The browser validates label alignment and materializes the reserved field in its own record objects, allowing the existing title, first-column, relation and candidate renderers to share one contract. Existing relation-specific `displayField` overrides still select raw fields. Resource mutations invalidate queries belonging to all Atlas Resources to cover cross-Resource display dependencies; this is intentionally conservative.
 
@@ -905,7 +919,7 @@ The shared `field_value.tsx` module owns field renderer resolution for lists, re
 
 Only the open history panel mounts relation hydration. It collects values from loaded events and allowlisted, visible fields, deduplicates identities per target, and uses normal authorized `readMany` gateway exposures. Computed display metadata is materialized by the existing gateway client, so related labels reuse both simple display fields and server-side `display` definitions without additional per-cell requests. Current labels do not reconstruct historical related-record state.
 
-The shared relation loader chunks requests by the target's manifest `readManyBatchSize` (default 100), sequentially per target and concurrently across targets. Each successful result or missing identity is cached in the QueryClient for reuse for 30 seconds under the target Resource prefix and browser base path. Loading another history page requests only identities without a fresh cached result. Resource invalidation marks both aggregate queries and identity entries stale. Errors are not cached as missing records. This is a reuse window, not a periodic refresh timer or a cross-session cache; simultaneous differently grouped cold requests may overlap. Loaded rows are indexed by typed identity for constant-time per-cell lookup. Missing rows fall back to raw identifiers; hydration errors are reported locally while history values remain readable. Authorization changes require the same query-cache clearing policy as other Atlas reads.
+The shared relation loader chunks list, history and form-picker hydration requests by the target's manifest `readManyBatchSize` (default 100), sequentially per target and concurrently across targets. Each successful result or missing identity is cached in the QueryClient for reuse for 30 seconds under the target Resource prefix and browser base path. Loading another history page requests only identities without a fresh cached result. Atlas also partitions its collection, View, record, history and picker query keys by base path, so embedded mounts can share a QueryClient. Resource invalidation marks both aggregate queries and identity entries stale within the current mount. Errors are not cached as missing records. This is a reuse window. Simultaneous differently grouped cold requests may overlap. Loaded rows are indexed by typed identity for constant-time per-cell lookup. Missing rows fall back to raw identifiers. Hydration errors are reported locally while history values remain readable. Authorization changes require the same query-cache clearing policy as other Atlas reads.
 
 Virtualizing large accumulated matrices and coordinating overlapping in-flight batches remain deferred. Reason metadata retains its separate plain-text rendering; Actor uses the globally configured Resource when present.
 

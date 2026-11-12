@@ -7,6 +7,7 @@ import { z } from "zod";
 import { defineAction } from "../actions/index.js";
 import { App } from "../app/index.js";
 import { AuthenticationRequiredError } from "../authentication/index.js";
+import { dep } from "../di/index.js";
 import {
   defineActionHttpController,
   defineHttpAccessPolicy,
@@ -222,21 +223,35 @@ describe("AtlasProvider", () => {
   it("reserves API and asset fallback paths when Atlas owns the root mount", async () => {
     const server = Fastify();
     const app = new App({});
-    const client = new TestAtlasClientAdapter();
+    const atlas = defineAtlas({ basePath: "/", resources: [] });
+    const client: AtlasClientAdapter = {
+      setup: async () => (reply) => reply.type("text/html").send("<main>Atlas test client</main>"),
+    };
     app.register(new AtlasProvider(
       defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
-      { atlas: defineAtlas({ basePath: "/", resources: [] }) },
+      { atlas },
     ));
     try {
       for (const extension of app.httpExtensions.definitions) await extension.mount({ app, server });
       await app.start();
 
+      expect(app.container.resolve(dep<Atlas>("atlas"))).toBe(atlas);
       expect((await server.inject("/")).body).toContain("Atlas test client");
       expect((await server.inject("/nested/record")).body).toContain("Atlas test client");
       expect((await server.inject("/api/manifest")).json()).toMatchObject({ basePath: "/", resources: [] });
       const missing = await server.inject("/api/unknown");
       expect(missing.statusCode).toBe(404);
       expect(missing.json()).toEqual({ error: "Atlas API route not found." });
+      const asset = await server.inject(`${ATLAS_ASSET_BASE_PATH}missing.js`);
+      expect(asset.statusCode).toBe(404);
+      expect(asset.json()).toEqual({ error: "Atlas asset not found." });
+      for (const method of ["POST", "PATCH", "DELETE"] as const) {
+        for (const url of ["/", "/nested/record"]) {
+          const response = await server.inject({ method, url });
+          expect(response.statusCode).toBe(404);
+          expect(response.json()).toEqual({ error: "Atlas route not found." });
+        }
+      }
     } finally {
       await server.close();
       await app.dispose();
@@ -258,6 +273,52 @@ describe("AtlasProvider", () => {
       await app.start();
       await server.ready();
       expect(client.setup.mock.calls[0]?.[2]).toMatchObject({ branding, theme });
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
+  it("limits its fallback routes and omitted client settings to the configured mount", async () => {
+    const server = Fastify();
+    const app = new App({});
+    const client = new TestAtlasClientAdapter();
+    const atlas = defineAtlas({ basePath: "/management", title: "Operations", resources: [] });
+    const required = vi.fn();
+    const unsafe = vi.fn();
+    app.register(new AtlasProvider(
+      defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+      {
+        atlas,
+        access: {
+          required: [defineHttpMiddleware("atlas-prefix-read", { handler: (_context, next) => { required(); return next(); } })],
+          unsafe: [defineHttpMiddleware("atlas-prefix-write", { handler: (_context, next) => { unsafe(); return next(); } })],
+        },
+      },
+    ));
+    try {
+      for (const extension of app.httpExtensions.definitions) await extension.mount({ app, server });
+      await app.start();
+      for (const url of ["/management", "/management/", "/management/record"]) {
+        expect((await server.inject(url)).body).toContain("Atlas test client");
+      }
+      expect(required).toHaveBeenCalledTimes(3);
+      expect(client.setup.mock.calls[0]?.[2]).toStrictEqual({ basePath: "/management", title: "Operations" });
+
+      // Other application routes must never run Atlas middleware or return its SPA shell.
+      for (const method of ["GET", "POST", "PATCH", "DELETE"] as const) {
+        const response = await server.inject({ method, url: "/management-tools/record" });
+        expect(response.statusCode).toBe(404);
+        expect(response.json()).toMatchObject({ message: expect.stringContaining("/management-tools/record") });
+      }
+      expect(required).toHaveBeenCalledTimes(3);
+      expect(unsafe).not.toHaveBeenCalled();
+      for (const method of ["POST", "PATCH", "DELETE"] as const) {
+        const response = await server.inject({ method, url: "/management/record" });
+        expect(response.statusCode).toBe(404);
+        expect(response.json()).toEqual({ error: "Atlas route not found." });
+      }
+      expect(unsafe).toHaveBeenCalledTimes(3);
     } finally {
       await server.close();
       await app.dispose();
@@ -552,13 +613,14 @@ describe("AtlasProvider", () => {
       payload: { input: {} },
     });
     expect(writeResponse.statusCode).toBe(401);
-    const unknownWriteResponse = await server.inject({
-      method: "POST",
-      url: "/management/unknown",
-    });
-    expect(unknownWriteResponse.statusCode).toBe(401);
-    expect(required).toHaveBeenCalledTimes(7);
-    expect(unsafe).toHaveBeenCalledTimes(2);
+    for (const method of ["POST", "PATCH", "DELETE"] as const) {
+      for (const url of ["/management", "/management/unknown"]) {
+        const unknownWriteResponse = await server.inject({ method, url });
+        expect(unknownWriteResponse.statusCode, `${method} ${url}`).toBe(401);
+      }
+    }
+    expect(required).toHaveBeenCalledTimes(12);
+    expect(unsafe).toHaveBeenCalledTimes(7);
     expect(client.setup.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({
         authentication: {
@@ -571,6 +633,33 @@ describe("AtlasProvider", () => {
 
     await server.close();
     await app.dispose();
+  });
+
+  it("applies unsafe access to known gateway operations while leaving the manifest readable", async () => {
+    const server = Fastify();
+    const app = new App({});
+    const denyUnsafe = defineHttpMiddleware("atlas-deny-unsafe", {
+      handler: () => { throw new AuthenticationRequiredError(); },
+    });
+    try {
+      app.register(new AtlasProvider(
+        defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => new TestAtlasClientAdapter() }),
+        { atlas: createTestAtlas(), access: { unsafe: [denyUnsafe] } },
+      ));
+      for (const extension of app.httpExtensions.definitions) await extension.mount({ app, server });
+      await app.start();
+
+      expect((await server.inject("/management/api/manifest")).statusCode).toBe(200);
+      for (const [url, input] of [
+        ["/management/api/operations/resource%3Amodel%3Alist", { pagination: { type: "page", page: 1, pageSize: 20 } }],
+        ["/management/api/resources/model/record-actions/copy", { id: "1" }],
+      ] as const) {
+        expect((await server.inject({ method: "POST", url, payload: { input } })).statusCode).toBe(401);
+      }
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
   });
 
   it("validates the generic password-login configuration", () => {
@@ -634,7 +723,10 @@ describe("AtlasProvider", () => {
     ["passwordSignInUrl", "/\\external.test/login", "sign-in URL"],
     ["signOutUrl", "/\t/external.test/logout", "sign-out URL"],
     ["loginPath", "/\\external.test/login", "login path"],
-  ])("rejects authentication paths that browsers can treat as external (%s)", (option, path, error) => {
+    ["loginPath", "/staff/:username", "login path"],
+    ["loginPath", "/staff/*", "login path"],
+    ["loginPath", "/staff/%2e%2e/api/manifest", "login path"],
+  ])("rejects ambiguous or external authentication paths (%s)", (option, path, error) => {
     const requiredSession = defineHttpMiddleware("atlas-path-session", {
       handler: (_context, next) => next(),
     });
@@ -649,6 +741,19 @@ describe("AtlasProvider", () => {
         [option]: path,
       },
     })).toThrow(error);
+  });
+
+  it.each(["/", "/api", "/api/manifest"])("rejects a login document at reserved mount-relative path %s", (loginPath) => {
+    const requiredSession = defineHttpMiddleware("atlas-conflicting-login", {
+      handler: (_context, next) => next(),
+    });
+    expect(() => new AtlasProvider(viteAtlasClient({}), {
+      atlas: createTestAtlas(),
+      authentication: {
+        loginPath, passwordSignInUrl: "/authentication/sign-in", signOutUrl: "/authentication/sign-out",
+        requiredSession, isAuthenticationRequired: () => false,
+      },
+    })).toThrow("login path");
   });
 
   it("preserves root-mounted login redirects and propagates non-session errors", async () => {
@@ -690,6 +795,50 @@ describe("AtlasProvider", () => {
       const failure = await server.inject("/failed");
       expect(failure.statusCode).toBe(500);
       expect(failure.headers.location).toBeUndefined();
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
+  it("keeps anonymous navigation within the exact configured mount", async () => {
+    const server = Fastify({
+      rewriteUrl: (request) => request.url === "/rewritten"
+        ? "/management/%2e%2e/management-tools?view=all"
+        : request.url!,
+    });
+    const app = new App({});
+    const client = new TestAtlasClientAdapter();
+    app.register(new AtlasProvider(
+      defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+      {
+        atlas: defineAtlas({ basePath: "/management", resources: [] }),
+        authentication: {
+          passwordSignInUrl: "/sign-in", signOutUrl: "/sign-out",
+          requiredSession: defineHttpMiddleware("atlas-nonroot-session", {
+            handler: ({ request }) => {
+              // Model a proxy rewrite after routing, with the exact Atlas path on an unrelated origin.
+              if (request.url === "/management/foreign") request.raw.url = "https://untrusted.example/management/record";
+              throw new AuthenticationRequiredError();
+            },
+          }),
+          isAuthenticationRequired: (error) => error instanceof AuthenticationRequiredError,
+        },
+      },
+    ));
+    try {
+      for (const extension of app.httpExtensions.definitions) await extension.mount({ app, server });
+      await app.start();
+      for (const [url, target] of [
+        ["/management?view=all", "/management?view=all"],
+        ["/management/record?view=all", "/management/record?view=all"],
+        ["/rewritten", "/management"],
+        ["/management/foreign", "/management"],
+      ] as const) {
+        const response = await server.inject(url);
+        expect(response.statusCode).toBe(302);
+        expect(response.headers.location).toBe(`/management/login?returnTo=${encodeURIComponent(target)}`);
+      }
     } finally {
       await server.close();
       await app.dispose();

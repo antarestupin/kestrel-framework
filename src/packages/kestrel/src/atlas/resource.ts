@@ -276,7 +276,7 @@ export function defineAtlasResource<Read extends AtlasOperationReference>(
   validateViews(options);
   validateRecordActions(options);
   validateFields(options);
-  validateReadMany(options);
+  validateCapabilities(options.capabilities);
   if (options.capabilities.history !== undefined && (
     options.capabilities.history.effect !== "read"
     || !getOperationInputNames(options.capabilities.history).includes("id")
@@ -742,19 +742,21 @@ function validateFieldOptions(
   }
 }
 
-function validateReadMany(options: Omit<AtlasResourceOptions, "recordLinks">): void {
-  const readMany = options.capabilities.readMany;
-
-  if (readMany.effect !== "read") {
-    throw new TypeError(
-      `Atlas Resource "${options.id}" readMany capability must reference a Query.`,
-    );
+function validateCapabilities(capabilities: AtlasResourceCapabilities): void {
+  // Browsing a Resource must never invoke a catalog operation declared as a write.
+  for (const capability of ["list", "read", "readMany"] as const) {
+    if (capabilities[capability].effect !== "read") {
+      throw new TypeError(`Atlas ${capability} capability must reference a Query.`);
+    }
+  }
+  for (const capability of ["create", "update", "delete"] as const) {
+    if (capabilities[capability]?.effect === "read") {
+      throw new TypeError(`Atlas ${capability} capability must reference an Action.`);
+    }
   }
 
-  if (!getOperationInputNames(readMany).includes("ids")) {
-    throw new TypeError(
-      `Atlas Resource "${options.id}" readMany capability must accept an "ids" input.`,
-    );
+  if (!getOperationInputNames(capabilities.readMany).includes("ids")) {
+    throw new TypeError('Atlas readMany capability must accept an "ids" input.');
   }
 }
 
@@ -1087,16 +1089,10 @@ export function getRecordActionExposureId(
 
 function getRequiredFields(
   schema: AtlasJsonSchema,
-): ReadonlySet<string> {
-  const objectSchema = findObjectSchema(schema);
-
-  return new Set(
-    Array.isArray(objectSchema?.required)
-      ? objectSchema.required.filter(
-          (field): field is string => typeof field === "string",
-        )
-      : [],
-  );
+): ReadonlySet<unknown> {
+  const required = findObjectSchema(schema)?.required;
+  // The compiler checks string field IDs, so other metadata values never match.
+  return new Set(Array.isArray(required) ? required : []);
 }
 
 function findObjectProperties(
@@ -1193,13 +1189,9 @@ function inferFieldKind(
 }
 
 function toJsonSchema(
-  schema: ZodType | undefined,
+  schema: ZodType,
   io: "input" | "output",
 ): AtlasJsonSchema {
-  if (schema === undefined) {
-    return {};
-  }
-
   try {
     return z.toJSONSchema(schema, {
       io,
@@ -1244,14 +1236,17 @@ function resolveRecordLinks<RecordData>(
     // The resolver is called only by the gateway after the read output is validated.
     const href = link.href(record as RecordData);
     if (href === undefined) return [];
+    const errorMessage = `Atlas record link "${id}" returned an invalid URL.`;
     // Limit navigation to HTTP(S) URLs and same-origin absolute paths.
     if (typeof href !== "string" || !(isAtlasAbsolutePath(href)
       || /^https?:\/\//iu.test(href) && !hasForbiddenUrlCharacters(href))) {
-      throw new TypeError(`Atlas record link "${id}" returned an invalid URL.`);
+      throw new TypeError(errorMessage);
     }
-    const url = new URL(href, "https://atlas.invalid");
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      throw new TypeError(`Atlas record link "${id}" returned an invalid URL.`);
+    try {
+      // The policy check already restricts the scheme. Parsing catches malformed authorities.
+      new URL(href, "https://atlas.invalid");
+    } catch (cause) {
+      throw new TypeError(errorMessage, { cause });
     }
     return [{ id, label: link.label, href }];
   });

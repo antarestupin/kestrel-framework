@@ -73,8 +73,8 @@ interface ExecutionLogsProperties {
   dataPath: string;
   executionId: string;
   /** Keeps loading during a Studio request and briefly after it completes. */
-  pollAfterRequest?: boolean;
-  requestPending?: boolean;
+  pollAfterRequest: boolean;
+  requestPending: boolean;
 }
 
 /** Renders structured logs correlated through their execution identifier. */
@@ -82,8 +82,8 @@ function ExecutionLogs({
   contextKey,
   dataPath,
   executionId,
-  pollAfterRequest = false,
-  requestPending = false,
+  pollAfterRequest,
+  requestPending,
 }: ExecutionLogsProperties) {
   const resource = useExecutionLogs(
     dataPath,
@@ -143,23 +143,20 @@ function CorrelatedExecutionGroups({
     observations,
     logsResource.status === "ready" ? logsResource.items : [],
   );
-  const [observationsOpen, setObservationsOpen] = useState<
-    Readonly<Record<string, boolean>>
-  >({});
+  // Execution identifiers can coincide with names on Object.prototype.
+  const [observationsOpen, setObservationsOpen] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   const [observationsOpenByDefault, setObservationsOpenByDefault] =
     useState(true);
-  const [logsOpen, setLogsOpen] = useState<
-    Readonly<Record<string, boolean>>
-  >({});
+  const [logsOpen, setLogsOpen] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   const [logsOpenByDefault, setLogsOpenByDefault] = useState(true);
-  const executionIds = groups.map((group) => group.executionId);
+  // Apply the new default to every group by clearing individual overrides.
   const setAllObservationsVisibility = (open: boolean): void => {
     setObservationsOpenByDefault(open);
-    setObservationsOpen(setAllOpen(executionIds, open));
+    setObservationsOpen(new Map());
   };
   const setAllLogsVisibility = (open: boolean): void => {
     setLogsOpenByDefault(open);
-    setLogsOpen(setAllOpen(executionIds, open));
+    setLogsOpen(new Map());
   };
 
   if (groups.length === 0 && logsResource.status === "loading") {
@@ -210,11 +207,8 @@ function CorrelatedExecutionGroups({
               <ArtifactSection
                 count={group.observations.length}
                 label="Observations"
-                onOpenChange={(open) => setObservationsOpen((current) => ({
-                  ...current,
-                  [group.executionId]: open,
-                }))}
-                open={observationsOpen[group.executionId]
+                onOpenChange={(open) => setObservationsOpen((current) => new Map(current).set(group.executionId, open))}
+                open={observationsOpen.get(group.executionId)
                   ?? observationsOpenByDefault}
               >
                 {group.observations.length === 0
@@ -226,11 +220,8 @@ function CorrelatedExecutionGroups({
               <ArtifactSection
                 count={group.logs.length}
                 label="Logs"
-                onOpenChange={(open) => setLogsOpen((current) => ({
-                  ...current,
-                  [group.executionId]: open,
-                }))}
-                open={logsOpen[group.executionId] ?? logsOpenByDefault}
+                onOpenChange={(open) => setLogsOpen((current) => new Map(current).set(group.executionId, open))}
+                open={logsOpen.get(group.executionId) ?? logsOpenByDefault}
               >
                 {logsResource.status === "loading"
                   ? <p className="execution-artifact-message">Loading logs…</p>
@@ -294,13 +285,6 @@ function ArtifactSection({
   );
 }
 
-function setAllOpen(
-  executionIds: readonly string[],
-  open: boolean,
-): Readonly<Record<string, boolean>> {
-  return Object.fromEntries(executionIds.map((id) => [id, open]));
-}
-
 type ExecutionLogsState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -332,8 +316,13 @@ function useExecutionLogs(
   }, [contextKey, dataPath, executionId, requestPending]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     let pollTimer: number | undefined;
+    const canPoll = (): boolean => pollAfterRequest
+      && (requestPendingRef.current || performance.now() - requestFinishedAtRef.current < LOG_POLL_TIMEOUT_MS);
+    const schedulePoll = () => {
+      pollTimer = window.setTimeout(() => void load(), LOG_POLL_INTERVAL_MS);
+    };
 
     const load = async (): Promise<void> => {
       try {
@@ -344,6 +333,7 @@ function useExecutionLogs(
         }
         const response = await fetch(url, {
           headers: { accept: "application/json" },
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -352,14 +342,11 @@ function useExecutionLogs(
 
         const logs = await response.json() as StudioExecutionLogs;
 
-        if (cancelled) {
+        if (controller.signal.aborted) {
           return;
         }
 
-        const timedOut = performance.now() - requestFinishedAtRef.current
-          >= LOG_POLL_TIMEOUT_MS;
-        const shouldPoll = pollAfterRequest
-          && (requestPendingRef.current || !timedOut);
+        const shouldPoll = canPoll();
 
         setState({
           status: "ready",
@@ -367,20 +354,17 @@ function useExecutionLogs(
           polling: shouldPoll,
         });
 
-        if (shouldPoll) {
-          pollTimer = window.setTimeout(
-            () => void load(),
-            LOG_POLL_INTERVAL_MS,
-          );
-        }
+        if (shouldPoll) schedulePoll();
       } catch (error: unknown) {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setState({
             status: "error",
             message: error instanceof Error
               ? error.message
               : "Unable to load execution logs.",
           });
+          // Keep interactive log capture alive through a temporary read failure.
+          if (canPoll()) schedulePoll();
         }
       }
     };
@@ -389,7 +373,7 @@ function useExecutionLogs(
     void load();
 
     return () => {
-      cancelled = true;
+      controller.abort();
 
       if (pollTimer !== undefined) {
         window.clearTimeout(pollTimer);

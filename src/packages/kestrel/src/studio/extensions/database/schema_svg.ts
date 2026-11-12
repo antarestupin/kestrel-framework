@@ -1,7 +1,7 @@
 import type {
   StudioDatabaseLayout,
 } from "./contract.js";
-import { formatDatabaseColumnType } from "./presentation.js";
+import { compactDatabaseLabel, formatDatabaseColumnType } from "./presentation.js";
 import { createDatabaseDiagramLayout, type SchemaGroup, type TableNode } from "./schema_layout.js";
 
 const TABLE_HEADER = 24;
@@ -35,7 +35,7 @@ export function renderDatabaseSchemaSvg(layout: StudioDatabaseLayout): string {
 }
 
 function columnType(type: string): string {
-  return compact(formatDatabaseColumnType(type), 24);
+  return compactDatabaseLabel(formatDatabaseColumnType(type), 24);
 }
 
 function renderSchemaGroup(group: SchemaGroup): string {
@@ -44,7 +44,7 @@ function renderSchemaGroup(group: SchemaGroup): string {
     <title id="${group.id}-title">${xml(`${schema.name}${schema.description === undefined ? "" : `\n${schema.description}`}`)}</title>
     <rect class="database-schema-frame" width="${group.width}" height="${group.height}" rx="6" fill="#fff" stroke="${color}" stroke-opacity="0.35"/>
     <rect width="${group.width}" height="28" rx="6" fill="${color}" fill-opacity="0.08"/>
-    <text x="${INSET}" y="19" font-family="monospace" font-size="12" font-weight="700" fill="${color}">${xml(compact(schema.name, 48))}</text>
+    <text x="${INSET}" y="19" font-family="monospace" font-size="12" font-weight="700" fill="${color}">${xml(compactDatabaseLabel(schema.name, 48))}</text>
     <text x="${group.width - INSET}" y="19" text-anchor="end" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">${schema.tables.length} ${schema.tables.length === 1 ? "table" : "tables"}</text>
     <g font-family="monospace" font-size="10">${group.tables.map((node) => renderTable(node, schema.name, color)).join("")}</g>
     ${schema.tables.length === 0 ? `<text x="${INSET}" y="49" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">No tables</text>` : ""}
@@ -67,7 +67,7 @@ function renderTable(node: TableNode, schema: string, color: string): string {
       <title>${xml(title)}</title>
       <rect x="1" y="${top}" width="${width - 2}" height="${ROW}" fill="${index % 2 === 0 ? "#fff" : "#f1f5f9"}"/>
       <text x="6" y="${top + 11}" fill="${color}" font-size="8" font-weight="700">${flags}</text>
-      <text x="38" y="${top + 11}" fill="#0f172a">${xml(compact(column.name, 32))}${column.nullable ? " ?" : ""}</text>
+      <text x="38" y="${top + 11}" fill="#0f172a">${xml(compactDatabaseLabel(column.name, 32))}${column.nullable ? " ?" : ""}</text>
       <text x="${width - 7}" y="${top + 11}" text-anchor="end" fill="#64748b">${xml(columnType(column.type))}</text>
     </g>`;
   });
@@ -76,15 +76,10 @@ function renderTable(node: TableNode, schema: string, color: string): string {
     <title>${xml(`${schema}.${table.name}${table.kind === "partitioned-table" ? " (partitioned)" : ""}${table.description === undefined ? "" : `\n${table.description}`}`)}</title>
     <rect class="database-table-frame" width="${width}" height="${height}" rx="3" fill="#fff" stroke="#cbd5e1"/>
     <rect x="1" y="1" width="${width - 2}" height="${TABLE_HEADER - 1}" fill="${color}" fill-opacity="0.12"/>
-    <text x="7" y="16" fill="#0f172a" font-size="11" font-weight="700">${xml(compact(table.name, 48))}</text>
+    <text x="7" y="16" fill="#0f172a" font-size="11" font-weight="700">${xml(compactDatabaseLabel(table.name, 48))}</text>
     ${columns.join("")}
     ${columns.length === 0 ? `<text x="7" y="${TABLE_HEADER + 11}" fill="#64748b">No columns</text>` : ""}
   </g>`;
-}
-
-/** Keep unusually long identifiers compact while preserving full tooltip values. */
-function compact(value: string, length: number): string {
-  return value.length <= length ? value : `${value.slice(0, length - 1)}…`;
 }
 
 /** Escape all catalog text and remove characters XML 1.0 cannot represent. */

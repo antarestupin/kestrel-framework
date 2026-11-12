@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { uuidV7 } from "../utils/uuid.js";
 import { defineAction } from "../actions/index.js";
+import { AtlasLoginRequiredError } from "./errors.js";
 import {
   defineCatalogAtlasSource,
   defineAtlas,
@@ -170,8 +171,30 @@ function createAtlas(textMaxLength?: number | false, resourceLimit?: number | fa
 }
 
 describe("Atlas", () => {
+  it("represents required login as a non-cacheable browser redirect", () => {
+    const location = "/management/login?returnTo=%2Fmanagement";
+    const error = new AtlasLoginRequiredError(location);
+    expect(error).toMatchObject({ name: "AtlasLoginRequiredError", message: "Atlas login is required." });
+    expect(error.toHttpError({ executionId: "test-login" })).toEqual({
+      statusCode: 302, message: "Atlas login is required.", headers: { location, "cache-control": "no-store" },
+    });
+  });
+
   it.each(["//external.test", "/\\external.test"])("rejects a cross-origin mount path %s", (basePath) => {
     expect(() => defineAtlas({ basePath, resources: [] })).toThrow("absolute URL path");
+  });
+
+  it.each(["/backoffice/../admin", "/backoffice/%2e%2E/admin", "/backoffice/:tenant"])(
+    "rejects a mount path that would be interpreted differently by the browser or router (%s)",
+    (basePath) => {
+      expect(() => defineAtlas({ basePath, resources: [] })).toThrow("absolute URL path");
+    },
+  );
+
+  it("canonicalizes whitespace and every trailing slash in the configured mount", () => {
+    const atlas = defineAtlas({ basePath: "  /backoffice/admin///  ", resources: [] });
+    expect(atlas.getManifest().basePath).toBe("/backoffice/admin");
+    expect(defineAtlas({ basePath: " / ", resources: [] }).getManifest().basePath).toBe("/");
   });
 
   it("serializes default and resource list text limits without losing false", () => {
@@ -283,6 +306,36 @@ describe("Atlas", () => {
       .toBe("bottom-left");
   });
 
+  it("applies the workspace title and visibility defaults before compiling the manifest", () => {
+    const atlas = defineAtlas({ title: "  Review workspace  ", resources: [] });
+    expect(atlas.getManifest()).toMatchObject({ title: "Review workspace", defaults: { recordActionsInList: "all" } });
+    expect(defineAtlas({ title: "  ", resources: [] }).getManifest().title).toBe("Atlas");
+    expect(atlas.getManifest()).not.toHaveProperty("history");
+    expect(atlas.getManifest()).not.toHaveProperty("branding");
+  });
+
+  it("reuses the compiled manifest for repeated consumers", () => {
+    const [resource] = createAtlas().resources;
+    let compiled = 0;
+    const atlas = defineAtlas({ resources: [{ ...resource!, toManifest: () => {
+      compiled += 1;
+      return resource!.toManifest();
+    } }] });
+    const afterRegistration = compiled;
+    expect(afterRegistration).toBeGreaterThan(0);
+    expect(atlas.getManifest().resources[0]?.id).toBe("example");
+    expect(atlas.getManifest().resources[0]?.id).toBe("example");
+    expect(compiled).toBe(afterRegistration);
+  });
+
+  it("describes each public gateway controller for catalog consumers", () => {
+    expect(defineAtlas({ resources: [] }).defineHttpControllers().map(({ description }) => description)).toEqual([
+      "Expose Atlas client manifest.",
+      "Execute one operation exposed by Atlas manifest.",
+      "Execute one Resource record Action through its configured exposure.",
+    ]);
+  });
+
   it("rejects operations outside the source catalog", () => {
     const source = defineCatalogAtlasSource({
       id: "application",
@@ -308,7 +361,32 @@ describe("Atlas", () => {
         atlas.resources[0]!,
         atlas.resources[0]!,
       ],
-    })).toThrow("registered more than once");
+    })).toThrow('Atlas resource id "example" is registered more than once.');
+  });
+
+  it("rejects duplicate operation exposure ids even when Resource ids are unique", () => {
+    const resource = createAtlas().resources[0]!;
+    const [first, ...otherExposures] = resource.getOperationExposures();
+    // Custom Resources must share the same gateway allowlist as built-in Resources.
+    const duplicate = { ...resource, getOperationExposures: () => [first!, ...otherExposures, first!] };
+    expect(() => defineAtlas({ resources: [duplicate] })).toThrow(
+      `Atlas operation exposure "${first!.id}" is registered more than once.`,
+    );
+  });
+
+  it("rejects a collection exposure whose declared capability owner is absent", () => {
+    const resource = createAtlas().resources[0]!;
+    const exposures = resource.getOperationExposures();
+    const listId = resource.toManifest().capabilities.list.id;
+    const broken = {
+      ...resource,
+      getOperationExposures: () => exposures.map((exposure) => exposure.id === listId
+        ? { ...exposure, collectionResourceId: "missing" }
+        : exposure),
+    };
+    expect(() => defineAtlas({ resources: [broken] })).toThrow(
+      `Atlas collection exposure "${listId}" references unknown Resource "missing".`,
+    );
   });
 
   it("compiles source-independent relations and validates their targets", () => {
@@ -347,9 +425,8 @@ describe("Atlas", () => {
           },
         },
       });
-    const compiledResource = defineAtlas({
-      resources: [createRelatedResource("related")],
-    }).getManifest().resources[0]!;
+    const resource = createRelatedResource("related");
+    const compiledResource = defineAtlas({ resources: [resource] }).getManifest().resources[0]!;
     const relation = compiledResource.fields.find(
       (field) => field.id === "ownerId",
     );
@@ -380,11 +457,44 @@ describe("Atlas", () => {
         resource: "related",
         field: "ownerId",
         pageSize: 10,
+        features: { search: true, filters: true, sorting: true, pagination: true, recordActions: true },
       }),
     ]);
+    const manifest = resource.toManifest();
+    const implicitInverse = {
+      ...resource,
+      // Custom Resource manifests may omit the default inverse cardinality.
+      toManifest: () => ({ ...manifest, fields: manifest.fields.map((field) => {
+        if (field.relation === undefined) return field;
+        const { inverseCardinality: _inverseCardinality, ...relation } = field.relation;
+        return { ...field, relation };
+      }) }),
+    };
+    expect(defineAtlas({ resources: [implicitInverse] }).getManifest().resources[0]?.relatedCollections)
+      .toStrictEqual(compiledResource.relatedCollections);
     expect(() => defineAtlas({
       resources: [createRelatedResource("missing")],
-    }).getManifest()).toThrow('references unknown Resource "missing"');
+    }).getManifest()).toThrow('Atlas relation field "related.ownerId" references unknown Resource "missing".');
+  });
+
+  it("reports the Resource and Action owning an invalid relation parameter", () => {
+    const resource = createAtlas().resources[0]!;
+    const manifest = resource.toManifest();
+    const broken = {
+      ...resource,
+      toManifest: () => ({
+        ...manifest,
+        recordActions: manifest.recordActions.map((action) => action.parameterFields === undefined ? action : {
+          ...action,
+          parameterFields: action.parameterFields.map((field) => field.relation === undefined ? field : {
+            ...field, relation: { ...field.relation, resource: "missing" },
+          }),
+        }),
+      }),
+    };
+    expect(() => defineAtlas({ resources: [broken] })).toThrow(
+      'Atlas relation field "example.send-message.message" references unknown Resource "missing".',
+    );
   });
 
   it("rejects a Resource display field missing from its read output", () => {

@@ -16,51 +16,54 @@ const clientDefinitions = import.meta.glob<StudioClientExtensionDefinition>(
 );
 // Stryker restore all
 
-const definitionsByPageKind = new Map<string, StudioClientExtensionDefinition>();
-const rendererLoads = new Map<
-  string,
-  Promise<StudioPageRenderer | undefined>
->();
+/** Shares in-flight page loads and releases a failed entry for the next navigation. */
+export function createStudioPageLoader(
+  definitions: readonly StudioClientExtensionDefinition[],
+  resolveRenderer: (kind: string) => StudioPageRenderer | undefined,
+): (kind: string) => Promise<StudioPageRenderer | undefined> {
+  const definitionsByPageKind = new Map<string, StudioClientExtensionDefinition>();
+  const rendererLoads = new Map<string, Promise<StudioPageRenderer | undefined>>();
 
-for (const definition of Object.values(clientDefinitions)) {
-  for (const pageKind of definition.pageKinds) {
-    definitionsByPageKind.set(pageKind, definition);
+  for (const definition of definitions) {
+    for (const pageKind of definition.pageKinds) {
+      definitionsByPageKind.set(pageKind, definition);
+    }
   }
+
+  return async (kind) => {
+    const registeredRenderer = resolveRenderer(kind);
+
+    if (registeredRenderer !== undefined) {
+      return registeredRenderer;
+    }
+
+    const existingLoad = rendererLoads.get(kind);
+
+    if (existingLoad !== undefined) {
+      return existingLoad;
+    }
+
+    const definition = definitionsByPageKind.get(kind);
+
+    if (definition === undefined) {
+      return undefined;
+    }
+
+    const load = definition.load()
+      .then(() => resolveRenderer(kind))
+      .catch((error: unknown) => {
+        // A later navigation may retry a transient chunk delivery failure.
+        rendererLoads.delete(kind);
+        throw error;
+      });
+
+    rendererLoads.set(kind, load);
+
+    return load;
+  };
 }
 
 /** Loads the extension owning a page kind and resolves its registered renderer. */
-export async function loadStudioPageRenderer(
-  kind: string,
-): Promise<StudioPageRenderer | undefined> {
-  const registeredRenderer = getStudioPageRenderer(kind);
-
-  if (registeredRenderer !== undefined) {
-    return registeredRenderer;
-  }
-
-  const existingLoad = rendererLoads.get(kind);
-
-  if (existingLoad !== undefined) {
-    return existingLoad;
-  }
-
-  const definition = definitionsByPageKind.get(kind);
-
-  if (definition === undefined) {
-    return undefined;
-  }
-
-  const load = definition.load()
-    .then(() => getStudioPageRenderer(kind))
-    .catch((error: unknown) => {
-      // A later navigation may retry a transient chunk delivery failure.
-      rendererLoads.delete(kind);
-      throw error;
-    });
-
-  rendererLoads.set(kind, load);
-
-  return load;
-}
+export const loadStudioPageRenderer = createStudioPageLoader(Object.values(clientDefinitions), getStudioPageRenderer);
 
 export { getStudioPageRenderer } from "./page_renderer_registry.js";

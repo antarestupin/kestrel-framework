@@ -192,18 +192,13 @@ export function defineDevObservationsExtension(
           description: "List structured logs correlated with one execution.",
           input: timelineInputSchema,
           handler: async ({ input }) => {
-            const events = input.contextKey === undefined
-              ? []
-              : await source.listEventsByContext(
-                  input.contextKey,
-                  input.executionId,
-                );
-            const executionIds = input.contextKey === undefined
-              ? [input.executionId]
-              : [...new Set(events.map((event) => event.executionId))];
+            // Direct execution logs need no observation lookup or correlation IDs.
             const logs = input.contextKey === undefined
               ? await logSource.listByExecution(input.executionId)
-              : await logSource.listByExecutions(executionIds);
+              : await logSource.listByExecutions([...new Set(
+                  (await source.listEventsByContext(input.contextKey, input.executionId))
+                    .map((event) => event.executionId),
+                )]);
             const response: StudioExecutionLogs = {
               executionId: input.executionId,
               items: logs.map((log) => ({

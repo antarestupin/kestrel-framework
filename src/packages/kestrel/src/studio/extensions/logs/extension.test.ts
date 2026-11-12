@@ -104,7 +104,15 @@ describe("development logs Studio extension", () => {
     try {
       const response = await server.inject({ url: "/_studio/api/extensions/development-logs/logs" });
       expect(response.statusCode).toBe(200);
-      expect(source.list).toHaveBeenCalledExactlyOnceWith({});
+      expect((await server.inject({ url: "/_studio/api/extensions/development-logs/logs?workload=system" })).statusCode).toBe(200);
+      expect(source.list.mock.calls).toStrictEqual([[{}], [{ workload: "system" }]]);
+      expect(studio.getManifest().extensions[0]).toMatchObject({
+        title: "Development logs", description: "Inspect structured events emitted by the local application.",
+        pages: [{ title: "Logs", description: "Structured Pino events captured in the local database." }],
+      });
+      expect((await studio.defineHttpControllers()).slice(1).map(({ description }) => description)).toEqual([
+        "List captured development logs.", "Clear captured development logs.",
+      ]);
     } finally {
       await server.close();
       await app.dispose();

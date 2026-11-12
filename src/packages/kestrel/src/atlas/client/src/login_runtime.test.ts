@@ -26,12 +26,19 @@ describe("atlas login runtime", () => {
       "/atlas",
       "/atlas/login",
     )).toBe("/atlas/users?page=2#record");
+    expect(getAtlasLoginReturnTo("?returnTo=%2Fatlas%3Fpage%3D2", "/atlas", "/atlas/login"))
+      .toBe("/atlas?page=2");
+    expect(getAtlasLoginReturnTo("?returnTo=%2Frecords%2F1", "/", "/login"))
+      .toBe("/records/1");
+    expect(getAtlasLoginReturnTo("", "/atlas", "/atlas/login")).toBe("/atlas");
 
     for (const unsafeTarget of [
       "https://attacker.example/atlas",
       "//attacker.example/atlas",
       "/atlas/../account",
       "/atlas/login",
+      "/atlas/login?retry=1#form",
+      "/atlas-elsewhere/path",
       "/application",
     ]) {
       expect(getAtlasLoginReturnTo(
@@ -64,6 +71,7 @@ describe("atlas login runtime", () => {
       expect.objectContaining({
         method: "POST",
         credentials: "same-origin",
+        headers: { accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify({ username: "operator", password: "operator" }),
       }),
     );
@@ -112,6 +120,7 @@ describe("atlas login runtime", () => {
       expect.objectContaining({
         method: "POST",
         credentials: "same-origin",
+        headers: { accept: "application/json" },
       }),
     );
   });

@@ -1,10 +1,12 @@
 import { defineStudioClientAdapter } from "./index.js";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { App } from "../app/index.js";
-import { anonymousHttpAccess } from "../http/index.js";
+import { dep } from "../di/index.js";
+import { anonymousHttpAccess, defineHttpAccessPolicy, defineHttpController, defineHttpMiddleware, get } from "../http/index.js";
 import { setExecutionLogEnabledDependency } from "../log/index.js";
+import { AsyncLocalObserverContext, NoopObservationRecorder, ScopedObserver, type ObservationEvent } from "../observability/index.js";
 import { defineActionsDocumentationExtension } from "./extensions/actions/index.js";
 import {
   STUDIO_ASSET_BASE_PATH,
@@ -67,6 +69,9 @@ describe("StudioProvider", () => {
     const app = new App({ name: "test" });
     const client = new TestStudioClientAdapter();
     const setExecutionLogEnabled = vi.fn();
+    onTestFinished(async () => {
+      try { await server.close(); } finally { await app.dispose(); }
+    });
 
     app.container.registerFactory(
       setExecutionLogEnabledDependency.id,
@@ -100,6 +105,11 @@ describe("StudioProvider", () => {
       await extension.mount({ app, server });
     }
     await app.start();
+    expect(app.container.resolve(dep<Studio>("studio")).basePath).toBe("/tools");
+    expect(app.container.resolve(dep<StudioClientAdapter>("studioClientAdapter:/tools"))).toBe(client);
+    for (const path of ["/tools", "/tools/"]) {
+      expect((await server.inject(path)).body).toContain("Studio test client");
+    }
 
     const pageResponse = await server.inject({
       method: "GET",
@@ -124,6 +134,9 @@ describe("StudioProvider", () => {
 
     expect(pageResponse.statusCode).toBe(200);
     expect(pageResponse.body).toContain("Studio test client");
+    const outside = await server.inject("/toolshed/actions");
+    expect(outside.statusCode).toBe(404);
+    expect(outside.headers["x-studio-scope"]).toBeUndefined();
     expect(manifestResponse.headers["x-studio-scope"]).toBe("active");
     expect(manifestResponse.json()).toMatchObject({ basePath: "/tools" });
     expect(actionsResponse.json()).toEqual({
@@ -149,6 +162,51 @@ describe("StudioProvider", () => {
 
     await server.close();
     await app.dispose();
+  });
+
+  it("applies inherited access to extension controllers while keeping technical observations off", async () => {
+    const server = Fastify();
+    const app = new App({});
+    onTestFinished(async () => {
+      try { await server.close(); } finally { await app.dispose(); }
+    });
+    const recorded: ObservationEvent[] = [];
+    class Recorder extends NoopObservationRecorder {
+      public override enqueue(event: ObservationEvent): void { recorded.push(event); }
+    }
+    const recorder = new Recorder();
+    app.container.registerValue("observerContext", new AsyncLocalObserverContext());
+    app.container.registerFactory("observer", ({ executionId }: { executionId: string }) =>
+      new ScopedObserver(executionId, recorder), { lifetime: "scoped" });
+    const inherited = vi.fn();
+    const defaultAccess = defineHttpAccessPolicy("test.studio", [
+      defineHttpMiddleware("test.studio.access", { handler: async (_context, next) => {
+        inherited();
+        return next();
+      } }),
+    ]);
+    const client = defineStudioClientAdapter({
+      dependencies: {}, capabilities: {},
+      create: () => ({ setup: async () => (reply) => reply.send("Studio") }),
+    });
+    app.register(new StudioProvider({ enabled: true, devMode: false, basePath: "/dev" }, client, {
+      extensions: [{
+        id: "custom", title: "Custom", pages: [],
+        defineHttpControllers({ basePath }) {
+          return [defineHttpController({ route: get(`${basePath}/api/custom`), handler: () => ({ ok: true }) })];
+        },
+      }],
+    }));
+
+    for (const extension of app.httpExtensions.definitions) {
+      await extension.mount({ app, server, defaultAccess });
+    }
+    await app.start();
+    expect((await server.inject("/dev/api/custom")).json()).toEqual({ ok: true });
+    expect(inherited).toHaveBeenCalledOnce();
+    expect((await server.inject("/dev/api/manifest")).statusCode).toBe(200);
+    expect(inherited).toHaveBeenCalledOnce();
+    expect(recorded).toEqual([]);
   });
 
   it("does not register Studio when disabled", async () => {

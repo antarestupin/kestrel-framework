@@ -11,7 +11,7 @@ import { defineAdmissionPolicy, defineRateLimit, localResourcePressure } from ".
 import { throttlingDependency } from "./dependencies.js";
 import { seconds } from "./duration.js";
 import { ThrottlingResourcePressureError } from "./errors.js";
-import { processCpuPressureSignal } from "./resource_pressure/index.js";
+import { processCpuPressureSignal, processRssPressureSignal } from "./resource_pressure/index.js";
 import {
   ThrottlingProvider,
   type ThrottlingResource,
@@ -65,6 +65,7 @@ describe("ThrottlingProvider", () => {
     expect(app.catalog.scheduledTasks.registrations).toMatchObject([{
       task: {
         id: "maintenance.throttling-prune",
+        description: "Remove fully refilled throttling buckets.",
         groups: ["maintenance"],
         // Every replica contributes the same task, with storage-owned scheduling and overlap control.
         overlap: "skip",
@@ -171,6 +172,39 @@ describe("ThrottlingProvider", () => {
       await app.dispose();
     }
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("owns a booted pressure monitor even if the application never resolves throttling", async () => {
+    const close = vi.fn();
+    const app = new App({}).register(new ThrottlingProvider(throttlingConfig, memoryThrottling(), {
+      resourcePressureSources: [{ supports: () => false, read: () => undefined, close }],
+    }));
+    try {
+      await app.start();
+      expect(close).not.toHaveBeenCalled();
+    } finally {
+      await app.dispose();
+    }
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("uses its built-in Node pressure readings without any custom source", async () => {
+    const rss = vi.spyOn(process.memoryUsage, "rss").mockReturnValue(4_096);
+    const app = new App({}).register(new ThrottlingProvider(throttlingConfig, memoryThrottling()));
+    const policy = defineAdmissionPolicy({ id: "node-pressure", limits: [localResourcePressure({
+      id: "resident-memory", signals: { [processRssPressureSignal]: { degradedAt: 1_024, limitedAt: 2_048 } },
+    })] });
+    try {
+      await app.start();
+      const throttling = app.container.resolve(throttlingDependency);
+      await expect(throttling.acquire(policy)).rejects.toMatchObject({
+        name: "ThrottlingResourcePressureError", constraintId: "resident-memory", signalIds: [processRssPressureSignal],
+      });
+      expect(rss).toHaveBeenCalledOnce();
+    } finally {
+      rss.mockRestore();
+      await app.dispose();
+    }
   });
 });
 

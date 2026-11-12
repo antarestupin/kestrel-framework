@@ -11,9 +11,12 @@ describe("AtlasBrand", () => {
     expect(html).toContain('src="/logo.svg"');
     expect(html).toContain('src="/dark.svg"');
     expect(html).toContain('alt="Example logo"');
-    expect(html).toContain("has-logo");
+    expect(html).toContain(`class="${login ? "login-brand-mark" : "brand-mark"} has-logo"`);
+    expect(html).toContain('class="brand-image-light"');
+    expect(html).toContain('class="brand-image-dark"');
   });
   it("keeps the title initial when no logo is supplied", () => {
-    expect(renderToStaticMarkup(<AtlasBrand title="Example" />)).toContain('aria-hidden="true">E</span>');
+    expect(renderToStaticMarkup(<AtlasBrand title="Example" />))
+      .toBe('<span class="brand-mark"><span aria-hidden="true">E</span></span>');
   });
 });

@@ -279,6 +279,18 @@ describe("BackendFailureRateLimitAdapter", () => {
     await expect(adapter.returnLeases([{ key: request.key, leaseId: "previous-lease", remaining: 1 }]))
       .rejects.toBe(error);
   });
+
+  it("uses an empty return batch by default and rejects local accounting when emergency capacity is disabled", async () => {
+    const backend = failingAdapter(new ThrottlingBackendUnavailableError({ cause: new Error("offline") }));
+    const allocate = vi.spyOn(backend, "allocateLeases").mockResolvedValue({ admitted: true, allocations: {} });
+    const adapter = new BackendFailureRateLimitAdapter(backend, { strategy: "reject" });
+    await expect(adapter.allocateLeases("worker", [leaseRequest])).resolves.toEqual({ admitted: true, allocations: {} });
+    expect(allocate).toHaveBeenCalledExactlyOnceWith("worker", [leaseRequest], []);
+
+    // A caller cannot charge an emergency-local bucket under a reject-only policy.
+    await expect(adapter.reconcile([{ ...request, estimatedCost: 1, actualCost: 2, reservationSource: "emergency-local" }]))
+      .rejects.toThrow("Emergency throttling is not configured");
+  });
 });
 
 function failingAdapter(error: Error): PrunableRateLimitAdapter & LeasableRateLimitAdapter {

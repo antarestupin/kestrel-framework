@@ -26,4 +26,18 @@ describe("Studio log rows", () => {
     expect(markup).toContain("Structured event");
     expect(markup).toContain("<code>—</code>");
   });
+
+  it.each([[10, "Trace"], [20, "Debug"], [30, "Info"], [50, "Error"], [60, "Fatal"]] as const)(
+    "uses the standard display label for log level %i",
+    (level, label) => {
+      const markup = renderToStaticMarkup(<LogRow log={{ ...event, level }} />);
+      expect(markup).toContain(`class="log-level ${label.toLowerCase()}">${label}`);
+    },
+  );
+
+  it("preserves an unrecognized workload from stored logs", () => {
+    const historicWorkload = "legacy-job" as StudioLog["workload"];
+    const markup = renderToStaticMarkup(<LogRow log={{ ...event, workload: historicWorkload }} />);
+    expect(markup).toContain('class="log-workload">legacy-job');
+  });
 });

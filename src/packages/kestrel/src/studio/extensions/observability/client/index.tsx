@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { useParams } from "@tanstack/react-router";
@@ -17,8 +18,6 @@ import {
   DEV_OBSERVATION_EXECUTION_PAGE_KIND,
   type StudioObservation,
   type StudioObservationExecution,
-  type StudioObservationExecutionPage,
-  type StudioObservationPage,
 } from "../contract.js";
 import { formatObservationDuration } from "./observation_format.js";
 import { ExecutionDetails } from "./execution_details.js";
@@ -59,7 +58,7 @@ function DevelopmentObservationsPage({
       <StudioPageHeader page={page} eyebrow="Observability" />
       {page.dataPath === undefined
         ? <p className="error-panel">The executions page has no data endpoint.</p>
-        : <ExecutionExplorer dataPath={page.dataPath} />}
+        : <ExecutionExplorer key={page.dataPath} dataPath={page.dataPath} />}
     </div>
   );
 }
@@ -69,16 +68,13 @@ function DevelopmentObservationExecutionPage({
 }: {
   page: StudioPageManifest;
 }) {
-  const parameters = useParams({ strict: false });
-  const executionId = "executionId" in parameters
-    && typeof parameters.executionId === "string"
-    ? parameters.executionId
-    : undefined;
+  const parameters: Record<string, unknown> = useParams({ strict: false });
+  const { executionId } = parameters;
 
   return (
     <div className="page">
       <StudioPageHeader page={page} eyebrow="Observability" />
-      {page.dataPath === undefined || executionId === undefined
+      {page.dataPath === undefined || typeof executionId !== "string"
         ? <p className="error-panel">The execution link is incomplete.</p>
         : (
             <section
@@ -100,22 +96,15 @@ function DevelopmentObservationCorrelationPage({
 }: {
   page: StudioPageManifest;
 }) {
-  const parameters = useParams({ strict: false });
-  const executionId = "executionId" in parameters
-    && typeof parameters.executionId === "string"
-    ? parameters.executionId
-    : undefined;
-  const contextKey = "contextKey" in parameters
-    && typeof parameters.contextKey === "string"
-    ? parameters.contextKey
-    : undefined;
+  const parameters: Record<string, unknown> = useParams({ strict: false });
+  const { executionId, contextKey } = parameters;
 
   return (
     <div className="page">
       <StudioPageHeader page={page} eyebrow="Observability" />
       {page.dataPath === undefined
-        || executionId === undefined
-        || contextKey === undefined
+        || typeof executionId !== "string"
+        || typeof contextKey !== "string"
         ? <p className="error-panel">The correlation link is incomplete.</p>
         : (
             <section
@@ -143,7 +132,7 @@ function DevelopmentObservationListPage({
       <StudioPageHeader page={page} eyebrow="Observability" />
       {page.dataPath === undefined
         ? <p className="error-panel">The observations page has no data endpoint.</p>
-        : <ObservationListExplorer dataPath={page.dataPath} />}
+        : <ObservationListExplorer key={page.dataPath} dataPath={page.dataPath} />}
     </div>
   );
 }
@@ -165,6 +154,7 @@ const EMPTY_OBSERVATION_FILTERS: ObservationFilters = {
 function ObservationListExplorer({ dataPath }: { dataPath: string }) {
   const [draftFilters, setDraftFilters] = useState(EMPTY_OBSERVATION_FILTERS);
   const [filters, setFilters] = useState(EMPTY_OBSERVATION_FILTERS);
+  const resource = useObservationPages(`${dataPath}/observations`, observationList, filters);
 
   const updateDraftFilter = (
     field: keyof ObservationFilters,
@@ -236,14 +226,13 @@ function ObservationListExplorer({ dataPath }: { dataPath: string }) {
         </div>
       </form>
 
-      {/* Each filter owns its requests and pagination so late results cannot replace another filter. */}
-      <ObservationListResults key={JSON.stringify([dataPath, filters])} dataPath={dataPath} filters={filters} />
+      <ObservationListResults resource={resource} />
     </section>
   );
 }
 
-function ObservationListResults({ dataPath, filters }: { dataPath: string; filters: ObservationFilters }) {
-  const resource = useObservations(dataPath, filters);
+function ObservationListResults({ resource }: { resource: ObservationPagesResource<StudioObservation> }) {
+  const nextBefore = resource.status === "ready" ? resource.nextBefore : null;
   return (
     <>
       <div className="observation-list-toolbar">
@@ -278,10 +267,10 @@ function ObservationListResults({ dataPath, filters }: { dataPath: string; filte
                   />
                 ))}
           </div>
-          {resource.nextBefore !== null && (
+          {nextBefore !== null && (
             <button
               className="load-observations-button"
-              onClick={() => void resource.loadMore()}
+              onClick={() => void resource.loadMore(nextBefore)}
               type="button"
             >
               <Icon name="executions" />
@@ -294,37 +283,67 @@ function ObservationListResults({ dataPath, filters }: { dataPath: string; filte
   );
 }
 
-type ObservationsState =
+type ObservationPagesState<Item> =
   | { status: "loading" }
   | { status: "error"; message: string }
   | {
       status: "ready";
-      items: readonly StudioObservation[];
+      items: readonly Item[];
       loadedOlder: boolean;
       nextBefore: number | null;
     };
 
-function useObservations(
-  dataPath: string,
-  filters: ObservationFilters,
-) {
-  const [state, setState] = useState<ObservationsState>({ status: "loading" });
-  const { category, executionId, name, outcome } = filters;
+type ObservationPagesResource<Item> = ObservationPagesState<Item> & {
+  clear(): Promise<void>;
+  loadMore(before: number): Promise<void>;
+};
 
-  const load = useCallback(async (
-    before?: number,
-    replaceHistory = false,
-  ) => {
+interface ObservationPageOptions<Item> {
+  identity(item: Item): string;
+  requestLabel: string;
+  loadError: string;
+}
+
+const observationList: ObservationPageOptions<StudioObservation> = {
+  identity: (observation) => observation.id,
+  requestLabel: "Observations",
+  loadError: "Unable to load observations.",
+};
+const executionList: ObservationPageOptions<StudioObservationExecution> = {
+  identity: (execution) => execution.executionId,
+  requestLabel: "Executions",
+  loadError: "Unable to load observed executions.",
+};
+
+function useObservationPages<Item>(
+  endpoint: string,
+  options: ObservationPageOptions<Item>,
+  filters?: ObservationFilters,
+): ObservationPagesResource<Item> {
+  const [state, setState] = useState<ObservationPagesState<Item>>({ status: "loading" });
+  const pending = useRef<{ controller: AbortController; older: boolean } | undefined>(undefined);
+  const deleting = useRef<AbortController | undefined>(undefined);
+  const activeLoad = useRef<typeof load | undefined>(undefined);
+
+  const cancelRead = useCallback(() => {
+    const request = pending.current;
+    pending.current = undefined;
+    request?.controller.abort();
+  }, []);
+
+  const load = useCallback(async (before?: number) => {
+    // Operator pagination takes precedence over polling, and a page can only be loaded once at a time.
+    if (pending.current !== undefined) {
+      if (before === undefined || pending.current.older) return;
+      pending.current.controller.abort();
+    }
+    const controller = new AbortController();
+    pending.current = { controller, older: before !== undefined };
     try {
-      const url = new URL(`${dataPath}/observations`, window.location.origin);
+      const url = new URL(endpoint, window.location.origin);
       url.searchParams.set("limit", "50");
 
-      for (const [key, value] of Object.entries({
-        category,
-        executionId,
-        name,
-        outcome,
-      })) {
+      for (const [key, value] of Object.entries(filters ?? {})) {
         if (value !== "") {
           url.searchParams.set(key, value);
         }
@@ -336,67 +355,88 @@ function useObservations(
 
       const response = await fetch(url, {
         headers: { accept: "application/json" },
+        signal: controller.signal,
       });
 
       if (!response.ok) {
-        throw new Error(`Observations request failed with status ${response.status}.`);
+        throw new Error(`${options.requestLabel} request failed with status ${response.status}.`);
       }
 
-      const page = await response.json() as StudioObservationPage;
-
-      setState((current) => ({
-        status: "ready",
-        items: before !== undefined && current.status === "ready"
-          ? [...current.items, ...page.items]
-          : !replaceHistory
-            && current.status === "ready"
-            && current.loadedOlder
-            ? mergePages(page.items, current.items, (observation) => observation.id)
-            : page.items,
-        loadedOlder: !replaceHistory
-          && (before !== undefined
-            || (current.status === "ready" && current.loadedOlder)),
-        nextBefore: !replaceHistory
-          && before === undefined
-          && current.status === "ready"
-          && current.loadedOlder
-          ? current.nextBefore
-          : page.nextBefore,
-      }));
+      const page = await response.json() as { items: readonly Item[]; nextBefore: number | null };
+      if (controller.signal.aborted) return;
+      setState((current) => {
+        if (current.status === "ready") {
+          if (before !== undefined) {
+            return {
+              status: "ready",
+              items: mergePages(current.items, page.items, options.identity),
+              loadedOlder: true,
+              nextBefore: page.nextBefore,
+            };
+          }
+          if (current.loadedOlder) {
+            return { ...current, items: mergePages(page.items, current.items, options.identity) };
+          }
+        }
+        return { status: "ready", items: page.items, loadedOlder: false, nextBefore: page.nextBefore };
+      });
     } catch (error: unknown) {
+      if (controller.signal.aborted) return;
       setState({
         status: "error",
-        message: error instanceof Error
-          ? error.message
-          : "Unable to load observations.",
+        message: error instanceof Error ? error.message : options.loadError,
       });
+    } finally {
+      if (pending.current?.controller === controller) pending.current = undefined;
     }
-  }, [category, dataPath, executionId, name, outcome]);
+  }, [endpoint, filters, options]);
 
   useEffect(() => {
+    activeLoad.current = load;
+    // A filter change starts a fresh page history.
     setState({ status: "loading" });
     void load();
-    const interval = window.setInterval(() => void load(), 2_000);
+    const interval = window.setInterval(() => {
+      if (deleting.current === undefined) void load();
+    }, 2_000);
+    return () => {
+      window.clearInterval(interval);
+      cancelRead();
+      activeLoad.current = undefined;
+    };
+  }, [cancelRead, load]);
 
-    return () => window.clearInterval(interval);
-  }, [load]);
+  useEffect(() => {
+    return () => {
+      deleting.current?.abort();
+      deleting.current = undefined;
+    };
+  }, []);
 
   const clear = useCallback(async () => {
-    const message = await deleteObservations(`${dataPath}/observations`);
-    if (message !== undefined) {
-      setState({ status: "error", message });
-      return;
+    if (deleting.current !== undefined) return;
+    const controller = new AbortController();
+    deleting.current = controller;
+    // A read initiated before clearing can still contain deleted observations.
+    cancelRead();
+    try {
+      const message = await deleteObservations(endpoint, controller.signal);
+      if (controller.signal.aborted) return;
+      if (message !== undefined) {
+        setState({ status: "error", message });
+        return;
+      }
+      cancelRead();
+      setState({ status: "loading" });
+      // Clearing applies to every filter. Reload the one the operator is now viewing.
+      await activeLoad.current?.();
+    } finally {
+      if (deleting.current === controller) deleting.current = undefined;
     }
-
-    // Clearing must discard any older pages retained by live refresh.
-    setState({ status: "loading" });
-    await load(undefined, true);
-  }, [dataPath, load]);
-  const loadMore = useCallback(async () => {
-    if (state.status === "ready" && state.nextBefore !== null) {
-      await load(state.nextBefore);
-    }
-  }, [load, state]);
+  }, [cancelRead, endpoint]);
+  const loadMore = useCallback(async (before: number) => {
+    if (deleting.current === undefined) await load(before);
+  }, [load]);
 
   return { ...state, clear, loadMore };
 }
@@ -416,18 +456,17 @@ function mergePages<Item>(
 }
 
 function ExecutionExplorer({ dataPath }: { dataPath: string }) {
-  const resource = useExecutions(dataPath);
+  const resource = useObservationPages(`${dataPath}/executions`, executionList);
   const [selectedId, setSelectedId] = useState<string>();
+  const items = resource.status === "ready" ? resource.items : [];
+  const remembered = items.find((item) => item.executionId === selectedId);
+  const hasSelection = remembered !== undefined;
+  const currentId = (remembered ?? items[0])?.executionId;
 
+  // Render details from the current page immediately and remember the selection across live updates.
   useEffect(() => {
-    if (
-      resource.status === "ready"
-      && resource.items.length > 0
-      && !resource.items.some((item) => item.executionId === selectedId)
-    ) {
-      setSelectedId(resource.items[0]?.executionId);
-    }
-  }, [resource, selectedId]);
+    if (!hasSelection && currentId !== undefined) setSelectedId(currentId);
+  }, [currentId, hasSelection]);
 
   if (resource.status === "loading") {
     return <p className="loading-panel">Loading observed executions…</p>;
@@ -437,6 +476,7 @@ function ExecutionExplorer({ dataPath }: { dataPath: string }) {
     return <p className="error-panel">{resource.message}</p>;
   }
 
+  const { nextBefore } = resource;
   return (
     <section className="observation-explorer" aria-label="Observed executions">
       <div className="observation-toolbar">
@@ -446,7 +486,7 @@ function ExecutionExplorer({ dataPath }: { dataPath: string }) {
           Clear observations
         </button>
       </div>
-      {resource.items.length === 0
+      {currentId === undefined
         ? <p className="observations-empty">No executions have been observed yet.</p>
         : (
             <div className="observation-layout">
@@ -456,13 +496,13 @@ function ExecutionExplorer({ dataPath }: { dataPath: string }) {
                     execution={execution}
                     key={execution.executionId}
                     onSelect={() => setSelectedId(execution.executionId)}
-                    selected={execution.executionId === selectedId}
+                    selected={execution.executionId === currentId}
                   />
                 ))}
-                {resource.nextBefore !== null && (
+                {nextBefore !== null && (
                   <button
                     className="load-executions-button"
-                    onClick={() => void resource.loadMore()}
+                    onClick={() => void resource.loadMore(nextBefore)}
                     type="button"
                   >
                     <Icon name="executions" />
@@ -470,9 +510,7 @@ function ExecutionExplorer({ dataPath }: { dataPath: string }) {
                   </button>
                 )}
               </div>
-              {selectedId === undefined
-                ? null
-                : <ExecutionDetails dataPath={dataPath} executionId={selectedId} />}
+              <ExecutionDetails dataPath={dataPath} executionId={currentId} />
             </div>
           )}
     </section>
@@ -510,93 +548,10 @@ function ExecutionRow({
   );
 }
 
-type ExecutionsState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | {
-      status: "ready";
-      items: readonly StudioObservationExecution[];
-      loadedOlder: boolean;
-      nextBefore: number | null;
-    };
-
-function useExecutions(dataPath: string) {
-  const [state, setState] = useState<ExecutionsState>({ status: "loading" });
-
-  const load = useCallback(async (before?: number, replaceHistory = false) => {
-    try {
-      const url = new URL(`${dataPath}/executions`, window.location.origin);
-      url.searchParams.set("limit", "50");
-
-      if (before !== undefined) {
-        url.searchParams.set("before", String(before));
-      }
-
-      const response = await fetch(url, {
-        headers: { accept: "application/json" },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Executions request failed with status ${response.status}.`);
-      }
-
-      const page = await response.json() as StudioObservationExecutionPage;
-
-      setState((current) => {
-        if (current.status === "ready" && !replaceHistory) {
-          if (before !== undefined) {
-            return {
-              status: "ready",
-              items: mergePages(current.items, page.items, (execution) => execution.executionId),
-              loadedOlder: true, nextBefore: page.nextBefore,
-            };
-          }
-          // The selected execution can live on an already loaded older page.
-          if (current.loadedOlder) {
-            return { ...current, items: mergePages(page.items, current.items, (execution) => execution.executionId) };
-          }
-        }
-        return { status: "ready", items: page.items, loadedOlder: false, nextBefore: page.nextBefore };
-      });
-    } catch (error: unknown) {
-      setState({
-        status: "error",
-        message: error instanceof Error
-          ? error.message
-          : "Unable to load observed executions.",
-      });
-    }
-  }, [dataPath]);
-
-  useEffect(() => {
-    void load();
-    const interval = window.setInterval(() => void load(), 2_000);
-
-    return () => window.clearInterval(interval);
-  }, [load]);
-
-  const clear = useCallback(async () => {
-    const message = await deleteObservations(`${dataPath}/executions`);
-    if (message !== undefined) {
-      setState({ status: "error", message });
-      return;
-    }
-
-    await load(undefined, true);
-  }, [dataPath, load]);
-  const loadMore = useCallback(async () => {
-    if (state.status === "ready" && state.nextBefore !== null) {
-      await load(state.nextBefore);
-    }
-  }, [load, state]);
-
-  return { ...state, clear, loadMore };
-}
-
 /** Both explorers surface network rejections as well as HTTP failures. */
-async function deleteObservations(url: string): Promise<string | undefined> {
+async function deleteObservations(url: string, signal: AbortSignal): Promise<string | undefined> {
   try {
-    const response = await fetch(url, { method: "DELETE" });
+    const response = await fetch(url, { method: "DELETE", signal });
     return response.ok ? undefined : `Clearing observations failed with status ${response.status}.`;
   } catch (error) {
     return error instanceof Error ? error.message : "Unable to clear observations.";

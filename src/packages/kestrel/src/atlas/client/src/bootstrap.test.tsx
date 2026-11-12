@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 import { act } from "react";
-import type { Root } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AtlasManifest } from "../../contract.js";
+import { AtlasApplication } from "./app.js";
 import { bootstrapAtlas } from "./bootstrap.js";
 
 const configuration = { basePath: "/atlas", title: "Atlas workspace" };
@@ -83,9 +84,50 @@ describe("Atlas document startup", () => {
     });
     expect(host.querySelector(".sidebar")).not.toBeNull();
     expect(host.textContent).toContain("Sign out");
+    expect(host.querySelector('section[aria-label="Inventory"] h2')?.textContent).toBe("Inventory");
+    expect(host.querySelector('section[aria-label="Resources"] h2')?.textContent).toBe("Resources");
     expect(host.querySelector('section[aria-label="Inventory"] a[href="/atlas/items/views/recent"]')?.textContent).toBe("Recent");
     expect(host.querySelector('section[aria-label="Resources"] a[href="/atlas/users"]')?.textContent).toBe("Users");
     expect(document.querySelector("link[data-atlas-favicon]")?.getAttribute("href")).toBe("/brand.svg");
+  });
+
+  it("marks active navigation and reuses a fresh collection on quick return", async () => {
+    host.dataset.atlasConfig = encodeURIComponent(JSON.stringify(configuration));
+    const list = { ...operation, id: "items.list" };
+    fetchMock.mockImplementation(async (url) => String(url).endsWith("/api/manifest")
+      ? Response.json({ ...manifest, resources: [{
+        id: "items", label: "Items", labelSingular: "Item", identity: "id", displayField: "id", sourceId: "app",
+        fields: [{ id: "id", label: "ID", kind: "text", schema: { type: "string" }, hidden: false, readOnly: true, searchable: false, sortable: false, filterOperators: [] }],
+        capabilities: { list, read: operation, readMany: operation }, recordActions: [],
+        views: [{ id: "recent", label: "Recent", renderer: "resource-list", query: list }],
+      }] } satisfies AtlasManifest)
+      : Response.json({ data: { items: [{ id: "item-one" }] }, effects: [] }));
+    await start();
+
+    const select = async (selector: string) => {
+      const link = host.querySelector<HTMLAnchorElement>(selector);
+      expect(link).not.toBeNull();
+      await act(async () => link?.click());
+    };
+    const readCalls = () => fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/operations/items.list"));
+    const loaded = () => vi.waitFor(async () => {
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      expect(host.querySelector("tbody")?.textContent).toContain("item-one");
+    });
+
+    await select('.nav-link[href="/atlas/items"]');
+    await loaded();
+    expect(host.querySelector('.nav-link.active[href="/atlas/items"]')).not.toBeNull();
+    expect(readCalls()).toHaveLength(1);
+    await select(".brand");
+    await vi.waitFor(() => expect(host.querySelector("h1")?.textContent).toBe("Atlas workspace"));
+    await select('.nav-link[href="/atlas/items"]');
+    await loaded();
+    expect(readCalls()).toHaveLength(1);
+
+    await select('.nav-subitem[href="/atlas/items/views/recent"]');
+    await vi.waitFor(() => expect(host.querySelector("h1")?.textContent).toBe("Recent"));
+    expect(host.querySelector('.nav-subitem.active[href="/atlas/items/views/recent"]')).not.toBeNull();
   });
 
   it("links back to the overview from an unknown route", async () => {
@@ -99,11 +141,13 @@ describe("Atlas document startup", () => {
   });
 
   it("mounts the login document without requesting the protected manifest", async () => {
-    host.dataset.atlasConfig = encodeURIComponent(JSON.stringify({ ...configuration, authentication }));
+    host.dataset.atlasConfig = encodeURIComponent(JSON.stringify({ ...configuration, authentication, theme: { primaryColor: "#123456" } }));
     window.history.replaceState(null, "", authentication.loginPath);
     await start();
 
     expect(host.querySelector("h1")?.textContent).toBe("Sign in to Atlas workspace");
+    expect(document.querySelector("style[data-atlas-appearance]")?.textContent).toContain("--atlas-accent:#123456");
+    expect(document.documentElement.style.colorScheme).toBe("light");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -113,6 +157,7 @@ describe("Atlas document startup", () => {
       if (value !== undefined) host.dataset.atlasConfig = value;
       await start();
       expect(host.querySelector("h1")?.textContent).toBe("Unable to load Atlas");
+      if (value !== "%broken") expect(host.textContent).toContain("Atlas client configuration was not injected.");
       expect(fetchMock).not.toHaveBeenCalled();
     },
   );
@@ -134,5 +179,32 @@ describe("Atlas document startup", () => {
   it("rejects startup without a document mount", async () => {
     host.remove();
     await expect(bootstrapAtlas()).rejects.toThrow("could not find its root element");
+  });
+
+  it("honors the legacy page override and refreshes embedded renderers when props change", async () => {
+    root = createRoot(host);
+    const registries = { pages: { home: () => <h1>Registry home</h1> } };
+    const first = { home: () => <h1>First override</h1> };
+    const second = { home: () => <h1>Second override</h1> };
+    await act(async () => root!.render(<AtlasApplication manifest={manifest} registries={registries} pageRenderers={first} />));
+    expect(host.querySelector("h1")?.textContent).toBe("First override");
+    await act(async () => root!.render(<AtlasApplication manifest={manifest} registries={registries} pageRenderers={second} />));
+    await vi.waitFor(() => expect(host.querySelector("h1")?.textContent).toBe("Second override"));
+    await act(async () => root!.render(<AtlasApplication manifest={manifest} registries={registries} />));
+    await vi.waitFor(() => expect(host.querySelector("h1")?.textContent).toBe("Registry home"));
+  });
+
+  it("uses an explicitly supplied legacy View renderer ahead of the registry default", async () => {
+    const embedded: AtlasManifest = { ...manifest, resources: [{
+      id: "items", label: "Items", labelSingular: "Item", identity: "id", displayField: "id", sourceId: "app",
+      fields: [], capabilities: { list: operation, read: operation, readMany: operation }, recordActions: [],
+      views: [{ id: "recent", label: "Recent", renderer: "custom", query: operation }],
+    }] };
+    window.history.replaceState(null, "", "/atlas/items/views/recent");
+    root = createRoot(host);
+    await act(async () => root!.render(<AtlasApplication manifest={embedded}
+      registries={{ views: { custom: () => <h1>Registry View</h1> } }}
+      viewRenderers={{ custom: () => <h1>Explicit View</h1> }} />));
+    await vi.waitFor(() => expect(host.querySelector("h1")?.textContent).toBe("Explicit View"));
   });
 });

@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
-import { createMemoryHistory } from "@tanstack/react-router";
-import { act, type ReactNode } from "react";
+import { createMemoryHistory, RouterContextProvider } from "@tanstack/react-router";
+import { act, Profiler, StrictMode, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createStudioRouter } from "../../../client/src/router.js";
+import { getStudioPageRenderer } from "../../../client/src/page_renderer_registry.js";
 import { DATABASE_SCHEMA_PAGE_KIND, type StudioDatabaseLayout } from "../contract.js";
 import { useDatabaseDiagramLayout } from "./diagram_layout.js";
 import { DatabaseLayout, DatabaseSchemaSection } from "./index.js";
@@ -90,11 +91,15 @@ describe("Studio database diagram", () => {
 
     await click("Show comment for table app.order");
     const disclosure = button("Hide comment for table app.order");
+    expect(disclosure.querySelector("svg.database-comment-chevron")).not.toBeNull();
     expect(document.getElementById(disclosure.getAttribute("aria-controls")!)?.hidden).toBe(false);
     await click("Hide comment for table app.order");
+    expect(document.getElementById(disclosure.getAttribute("aria-controls")!)?.hidden).toBe(true);
     await click("Expand all comments");
+    expect(button("Collapse all comments").getAttribute("aria-pressed")).toBe("true");
     expect(container.querySelectorAll(".database-comment-button[aria-expanded='true']")).toHaveLength(3);
     await click("Collapse all comments");
+    expect(button("Expand all comments").getAttribute("aria-pressed")).toBe("false");
     expect(container.querySelectorAll(".database-comment-button[aria-expanded='true']")).toHaveLength(0);
 
     await click("Hide framework tables");
@@ -106,6 +111,10 @@ describe("Studio database diagram", () => {
     expect(new URLSearchParams(router.state.location.searchStr).has("hideFramework")).toBe(false);
     expect(container.querySelector(".database-diagram-link")?.getAttribute("href")).toBe(`${dataPath}.svg`);
     expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledWith(dataPath, {
+      headers: { accept: "application/json" }, signal: expect.any(AbortSignal),
+    });
+    expect(router.history.length).toBe(1);
   });
 
   it("keeps comment disclosures distinct for quoted identifiers containing dots", async () => {
@@ -139,19 +148,37 @@ describe("Studio database diagram", () => {
       disconnect = disconnect;
     });
     let height = 100;
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => new DOMRect(0, 0, 300, height));
-    await render(<DatabaseLayout layout={layout} />);
+    const commits = vi.fn();
+    const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return new DOMRect(0, 0, 300, this.matches(".database-table-card") ? height : 60);
+    });
+    await render(<Profiler id="database diagram" onRender={commits}><DatabaseLayout layout={layout} /></Profiler>);
     expect(observe).toHaveBeenCalledTimes(2);
+    expect(bounds).toHaveBeenCalledTimes(2);
     const diagram = container.querySelector<HTMLElement>(".database-schema-groups")!;
     const initialHeight = parseInt(diagram.style.height, 10);
     height = 250;
     await act(async () => measure());
     expect(parseInt(diagram.style.height, 10)).toBeGreaterThan(initialHeight);
     const updatedHeight = diagram.style.height;
+    // React may commit one more update immediately after the measured dimensions changed.
+    await act(async () => measure());
+    const stableCommits = commits.mock.calls.length;
     await act(async () => measure());
     expect(diagram.style.height).toBe(updatedHeight);
-    await render(null);
+    expect(commits).toHaveBeenCalledTimes(stableCommits);
+    await click("Hide framework tables");
     expect(disconnect).toHaveBeenCalledOnce();
+    expect(diagram.querySelector("[data-database-measure]")).toBeNull();
+    expect(container.querySelector(".database-diagram-link")).toBeNull();
+    expect(container.textContent).toContain("0 tables across 0 schemas");
+    expect(container.querySelector("[role='status']")?.textContent).toBe("No tables remain after filtering.");
+    await click("Show framework tables");
+    expect(observe).toHaveBeenCalledTimes(4);
+    expect(container.querySelector(".database-layout-summary")?.textContent).toBe("1 table across 1 schema");
+    expect(container.querySelector("[role='status']")).toBeNull();
+    await render(null);
+    expect(disconnect).toHaveBeenCalledTimes(3);
   });
 
   it("allows a layout consumer without a mounted measurement target", async () => {
@@ -192,5 +219,55 @@ describe("Studio database diagram", () => {
     await mountPage(dataPath);
     await render(null);
     expect(fetch.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
+  it("withdraws the old diagram before loading a replacement endpoint", async () => {
+    const replacement = Promise.withResolvers<Response>();
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json(layout))
+      .mockReturnValueOnce(replacement.promise);
+    vi.stubGlobal("fetch", fetch);
+    const { router } = createStudioRouter({ basePath: "/studio", icons: {}, extensions: [] });
+    router.update({ history: createMemoryHistory({ initialEntries: ["/studio/database"] }) });
+    const schemaPage = (endpoint: `/${string}`) => (
+      <RouterContextProvider router={router}>
+        {getStudioPageRenderer(DATABASE_SCHEMA_PAGE_KIND)!.render({
+          id: "database", kind: DATABASE_SCHEMA_PAGE_KIND, path: "/database", title: "Database", dataPath: endpoint,
+        })}
+      </RouterContextProvider>
+    );
+    await render(schemaPage(dataPath));
+    expect(container.querySelector(".database-diagram-link")?.getAttribute("href")).toBe(`${dataPath}.svg`);
+
+    await render(schemaPage("/studio/other-database"));
+    expect(container.textContent).toContain("Loading database schema");
+    expect(container.querySelector(".database-layout")).toBeNull();
+    await act(async () => replacement.resolve(Response.json({ schemas: [] })));
+    expect(container.textContent).toContain("No application tables found");
+    expect(fetch.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
+  it.each(["success", "failure"] as const)("ignores stale %s from an aborted schema effect", async (outcome) => {
+    const abandoned = Promise.withResolvers<Response>();
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockReturnValueOnce(abandoned.promise)
+      .mockResolvedValueOnce(Response.json(layout));
+    vi.stubGlobal("fetch", fetch);
+    const { router } = createStudioRouter({ basePath: "/studio", icons: {}, extensions: [] });
+    router.update({ history: createMemoryHistory({ initialEntries: ["/studio/database"] }) });
+    await render(<StrictMode>
+      <RouterContextProvider router={router}>
+        {getStudioPageRenderer(DATABASE_SCHEMA_PAGE_KIND)!.render({
+          id: "database", kind: DATABASE_SCHEMA_PAGE_KIND, path: "/database", title: "Database", dataPath,
+        })}
+      </RouterContextProvider>
+    </StrictMode>);
+    expect(fetch.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+    await act(async () => {
+      if (outcome === "success") abandoned.resolve(Response.json({ schemas: [] }));
+      else abandoned.reject(new Error("Old database schema unavailable"));
+    });
+    expect(container.querySelector(".database-layout")).not.toBeNull();
+    expect(container.querySelector(".error-panel")).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import { defineHttpController, get, post } from "../../../http/index.js";
 import {
   WorkflowExecutionConflictError,
   WorkflowExecutionNotFoundError,
+  WorkflowExecutionVersionUnsupportedError,
 } from "../../../workflows/index.js";
 import type {
   AnyWorkflow,
@@ -312,41 +313,41 @@ export function defineWorkflowsStudioExtension(
           successStatusCode: 200,
           handler: async ({ input, request, execution, reply }) => {
             await authorize(input.action, { request, execution }, input.executionId);
-            if (input.action === "retry") {
-              try {
+            try {
+              if (input.action === "retry") {
                 const retried = await operations.retry(
                   input.executionId,
                   input.newExecutionId,
                 );
                 return { execution: serializeExecution(retried) };
-              } catch (error) {
-                if (error instanceof TypeError || error instanceof WorkflowExecutionConflictError) {
-                  return reply.code(409).send({
-                    statusCode: 409,
-                    error: "Conflict",
-                    message: error.message,
-                  });
-                }
-                throwWorkflowExecutionHttpError(error);
               }
+              const changed = input.action === "pause"
+                ? await operations.pause(input.executionId)
+                : input.action === "resume"
+                  ? await operations.resume(input.executionId)
+                  : input.action === "cancel"
+                    ? await operations.cancel(input.executionId)
+                    : input.action === "recover"
+                      ? await operations.recover(input.executionId)
+                      : await operations.terminate(input.executionId, input.reason);
+              if (changed) return { changed: true };
+            } catch (error) {
+              // Expired executions and unsupported versions are expected operator failures.
+              if (error instanceof WorkflowExecutionVersionUnsupportedError
+                || (input.action === "retry" && (error instanceof TypeError || error instanceof WorkflowExecutionConflictError))) {
+                return reply.code(409).send({
+                  statusCode: 409,
+                  error: "Conflict",
+                  message: error.message,
+                });
+              }
+              throwWorkflowExecutionHttpError(error);
             }
-            const changed = input.action === "pause"
-              ? await operations.pause(input.executionId)
-              : input.action === "resume"
-                ? await operations.resume(input.executionId)
-                : input.action === "cancel"
-                  ? await operations.cancel(input.executionId)
-                  : input.action === "recover"
-                    ? await operations.recover(input.executionId)
-                    : await operations.terminate(input.executionId, input.reason);
-            if (!changed) {
-              return reply.code(409).send({
-                statusCode: 409,
-                error: "Conflict",
-                message: `Workflow control "${input.action}" is not valid in the current state.`,
-              });
-            }
-            return { changed: true };
+            return reply.code(409).send({
+              statusCode: 409,
+              error: "Conflict",
+              message: `Workflow control "${input.action}" is not valid in the current state.`,
+            });
           },
         }),
       ];

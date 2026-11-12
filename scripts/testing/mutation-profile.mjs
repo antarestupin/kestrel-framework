@@ -348,7 +348,143 @@ const focusedProfiles = {
     ["app/adapter.ts"], ["app/events.ts"], ["app/index.ts"],
     ["app/observations.ts"], ["app/workloads.ts"],
   ],
+  // Bound server and extension contracts independently of their browser renderers.
+  "studio-server-core": [["studio/*.ts"], ["studio/adapters/**/*.ts"]],
+  "studio-server-actions": [["studio/extensions/actions/*.ts"], ["studio/extensions/schema_examples.ts"]],
+  "studio-server-database-schema": [
+    ["studio/extensions/database/presentation.ts"],
+    ["studio/extensions/database/schema_*.ts"],
+  ],
+  "studio-server-http-database": [
+    ["studio/extensions/controllers/*.ts"],
+    ["studio/extensions/database/contract.ts"],
+    ["studio/extensions/database/extension.ts"],
+    ["studio/extensions/database/filter.ts"],
+    ["studio/extensions/database/index.ts"],
+  ],
+  "studio-server-diagnostics": [["studio/extensions/logs/*.ts"], ["studio/extensions/observability/*.ts"]],
+  "studio-server-workers-email": [["studio/extensions/workers/*.ts"], ["studio/extensions/email/*.ts"]],
+  "studio-server-scheduled-tasks": [["studio/extensions/scheduled_tasks/*.ts"]],
+  "studio-server-workflows": [["studio/extensions/workflows/*.ts"]],
   "atlas-collection-query": [["atlas/client/src/collection.ts"]],
+  // Keep Atlas browser pages and server manifest compilation in independent budgets.
+  "atlas-server-catalog": [["atlas/atlas.ts", "", "function compileRelatedCollections("]],
+  "atlas-server-catalog-relations": [["atlas/atlas.ts", "function compileRelatedCollections("]],
+  "atlas-server-provider": [["atlas/provider.ts"], ["atlas/adapters/**/*.ts"], ["atlas/adapter_definition.ts"]],
+  "atlas-resource-core": [["atlas/resource.ts", "", "function validateViews("]],
+  "atlas-resource-validation": [["atlas/resource.ts", "function validateViews(", "function validateFieldOptions("]],
+  "atlas-resource-relations": [["atlas/resource.ts", "function validateFieldOptions(", "function compileView("]],
+  "atlas-resource-fields": [["atlas/resource.ts", "function compileView(", "function getRequiredFields("]],
+  "atlas-resource-schemas": [["atlas/resource.ts", "function getRequiredFields("]],
+  "atlas-server-source": [["atlas/source.ts"], ["atlas/drizzle.ts"]],
+  "atlas-server-collections": [["atlas/collection.ts"]],
+  "atlas-server-display": [["atlas/display.ts"]],
+  "atlas-shared-contracts": [
+    ["atlas/client_config.ts"], ["atlas/contract.ts"], ["atlas/effects.ts"], ["atlas/errors.ts"],
+    ["atlas/history.ts"], ["atlas/index.ts"],
+  ],
+  "atlas-shared-appearance": [
+    ["atlas/appearance.ts"], ["atlas/display_text.ts"], ["atlas/icon_catalog.ts"], ["atlas/icon_definition.ts"],
+    ["atlas/text_presentation.ts"], ["atlas/urls.ts"],
+  ],
+  "atlas-client-routing": [
+    ["atlas/client/index.ts"], ["atlas/client/src/app.tsx"], ["atlas/client/src/bootstrap.tsx"],
+    ["atlas/client/src/home_page.tsx"], ["atlas/client/src/main.tsx"], ["atlas/client/src/navigation.ts"],
+    ["atlas/client/src/router-view.tsx"], ["atlas/client/src/router.ts"],
+  ],
+  "atlas-client-session": [
+    ["atlas/client/src/appearance_runtime.ts"], ["atlas/client/src/brand.tsx"],
+    ["atlas/client/src/login.tsx"], ["atlas/client/src/login_runtime.ts"],
+    ["atlas/client/src/theme.tsx"], ["atlas/client/src/theme_runtime.ts"],
+  ],
+  "atlas-client-gateway": [["atlas/client/src/runtime.ts"]],
+  "atlas-client-display": [
+    ["atlas/client/src/display_text.tsx"], ["atlas/client/src/field_value.tsx"],
+    ["atlas/client/src/renderer_registry.tsx"], ["atlas/client/src/ui/*.ts"], ["atlas/client/src/ui/*.tsx"],
+  ],
+  "atlas-client-feedback": [["atlas/client/src/confirmation.tsx"], ["atlas/client/src/effects.tsx"]],
+  "atlas-client-history": [["atlas/client/src/history_matrix.tsx"], ["atlas/client/src/history_relations.ts"]],
+  "atlas-client-relations": [
+    ["atlas/client/src/relation_loader.ts"], ["atlas/client/src/relations.ts"],
+  ],
+  "atlas-client-relation-helpers": [
+    ["atlas/client/src/relation_input.tsx", "", "export function RelationInput("],
+    ["atlas/client/src/relation_input.tsx", "function normalizeRelationIdentifiers("],
+  ],
+  "atlas-client-relation-picker": [[
+    "atlas/client/src/relation_input.tsx", "export function RelationInput(", "function normalizeRelationIdentifiers(",
+  ]],
+  "atlas-page-collections": [
+    ["atlas/client/src/pages.tsx", "", "export function ResourceReadPage("],
+    ["atlas/client/src/pages.tsx", "export function CollectionControls(", "export function ResourceTable("],
+  ],
+  "atlas-page-records": [["atlas/client/src/pages.tsx", "export function ResourceReadPage(", "export function ResourceCreatePage("]],
+  "atlas-page-forms": [["atlas/client/src/pages.tsx", "export function ResourceCreatePage(", "export function CollectionControls("]],
+  "atlas-page-table": [["atlas/client/src/pages.tsx", "export function ResourceTable(", "export function OperationControl("]],
+  "atlas-page-controls": [["atlas/client/src/pages.tsx", "export function OperationControl("]],
+  // Separate browser startup, route construction and extension loading from rendered views.
+  "studio-client-runtime": [
+    ["studio/client/src/bootstrap.tsx"],
+    ["studio/client/src/extensions.ts"],
+    ["studio/client/src/main.tsx"],
+    ["studio/client/src/page_renderer.ts"],
+    ["studio/client/src/page_renderer_registry.ts"],
+    ["studio/client/src/router.ts"],
+    ["studio/client/src/runtime_config.ts"],
+  ],
+  "studio-client-views": [
+    ["studio/client/src/navigation.ts"],
+    ["studio/client/src/page.tsx"],
+    ["studio/client/src/router-view.tsx"],
+    ["studio/client/src/ui/**/*.{ts,tsx}"],
+  ],
+  "studio-client-actions": [["studio/extensions/actions/client/**/*.{ts,tsx}"]],
+  "studio-client-controller-view": [
+    ["studio/extensions/controllers/client/definition.ts"],
+    ["studio/extensions/controllers/client/index.tsx"],
+  ],
+  "studio-client-controller-request": [["studio/extensions/controllers/client/request.ts"]],
+  "studio-client-database": [["studio/extensions/database/client/**/*.{ts,tsx}"]],
+  // Keep inbox navigation, capture operations and shared pagination in separate budgets.
+  "studio-client-email-inbox": [
+    ["studio/extensions/email/client/definition.ts"],
+    ["studio/extensions/email/client/index.tsx", "", "function EmailCaptureDetail("],
+  ],
+  "studio-client-email-capture": [[
+    "studio/extensions/email/client/index.tsx", "function EmailCaptureDetail(", "function EmailToolbar(",
+  ]],
+  "studio-client-email-pagination": [["studio/extensions/email/client/index.tsx", "function EmailToolbar("]],
+  "studio-client-logs": [["studio/extensions/logs/client/**/*.{ts,tsx}"]],
+  "studio-client-observability-page": [
+    ["studio/extensions/observability/client/definition.ts"],
+    ["studio/extensions/observability/client/index.tsx"],
+  ],
+  "studio-client-observability-details": [
+    ["studio/extensions/observability/client/execution_details.tsx"],
+    ["studio/extensions/observability/client/execution_group.tsx"],
+    ["studio/extensions/observability/client/timeline.tsx"],
+  ],
+  "studio-client-observability-model": [
+    ["studio/extensions/observability/client/database_query_observation.tsx"],
+    ["studio/extensions/observability/client/database_query_observation_data.ts"],
+    ["studio/extensions/observability/client/execution_grouping.ts"],
+    ["studio/extensions/observability/client/json_observation.tsx"],
+    ["studio/extensions/observability/client/observation_content.tsx"],
+    ["studio/extensions/observability/client/observation_format.ts"],
+    ["studio/extensions/observability/client/observation_renderer.ts"],
+    ["studio/extensions/observability/client/observation_row.tsx"],
+    ["studio/extensions/observability/client/sql_formatter.ts"],
+  ],
+  "studio-client-scheduled-tasks": [["studio/extensions/scheduled_tasks/client/**/*.{ts,tsx}"]],
+  "studio-client-workers": [["studio/extensions/workers/client/**/*.{ts,tsx}"]],
+  // Catalog and detail are independently interactive and can exceed one time budget together.
+  "studio-client-workflow-catalog": [
+    ["studio/extensions/workflows/client/definition.ts"],
+    ["studio/extensions/workflows/client/index.tsx", "", "function WorkflowExecutionPage("],
+  ],
+  "studio-client-workflow-execution": [
+    ["studio/extensions/workflows/client/index.tsx", "function WorkflowExecutionPage("],
+  ],
   "catalog-identities": [
     ["app/catalog.ts", "public readonly cliControllers =", "public readonly workers ="],
     ["app/catalog.ts", "public readonly workers =", "public readonly workflows ="],

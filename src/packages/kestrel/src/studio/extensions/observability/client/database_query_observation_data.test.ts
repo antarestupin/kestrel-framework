@@ -12,6 +12,21 @@ describe("database query observation data", () => {
     expect(isDatabaseQueryObservationData({ query: "select 1" })).toBe(false);
   });
 
+  it.each([
+    { parameters: "not a list" },
+    { statementName: 7 },
+    { command: ["SELECT"] },
+    { rowCount: "10" },
+    { errorCode: 42 },
+    { origin: { file: "/src/file.ts", line: "3", column: 1 } },
+    { origin: { file: null, line: 3, column: 1 } },
+    { origin: { file: "/src/file.ts", line: 3, column: "1" } },
+    { origin: { file: "/src/file.ts", line: 3, column: 1, function: [] } },
+    { origin: { file: "/src/file.ts", line: 3, column: 1, stack: [1] } },
+  ])("rejects malformed optional diagnostic data %j", (options) => {
+    expect(isDatabaseQueryObservationData({ sql: "select 1", ...options })).toBe(false);
+  });
+
   it("creates an encoded VS Code link for a captured source location", () => {
     expect(createVscodeSourceUrl({
       function: "UserRepository.find",
@@ -84,5 +99,12 @@ describe("database query observation data", () => {
     expect(mapSourceFile("/", { runtimeRoot: "/", editorRoot: "/editor" })).toBe("/editor");
     expect(mapSourceFile("/src/query.ts", { runtimeRoot: "/", editorRoot: "/editor" })).toBe("/editor/src/query.ts");
     expect(mapSourceFile("/runtime/query.ts", { runtimeRoot: "/runtime", editorRoot: "/" })).toBe("/query.ts");
+  });
+
+  it("maps a Windows runtime root with repeated trailing separators", () => {
+    const mapping = { runtimeRoot: "C:\\runtime\\\\", editorRoot: "/editor///" };
+    expect(mapSourceFile("C:\\runtime", mapping)).toBe("/editor");
+    expect(mapSourceFile("C:\\runtime\\sql.ts", mapping)).toBe("/editor/sql.ts");
+    expect(mapSourceFile("C:\\runtime-backup\\sql.ts", mapping)).toBe("C:/runtime-backup/sql.ts");
   });
 });

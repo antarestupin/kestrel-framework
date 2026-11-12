@@ -339,23 +339,26 @@ export function onAtlasOperationSuccess<
       const effects = [...result.effects];
       let step = await generator.next();
 
-      while (!step.done) {
-        effects.push(
-          atlasClientEffectSchema.parse(
-            step.value,
-          ) as AtlasClientEffect,
-        );
-        step = await generator.next();
+      try {
+        while (!step.done) {
+          effects.push(
+            atlasClientEffectSchema.parse(
+              step.value,
+            ) as AtlasClientEffect,
+          );
+          step = await generator.next();
+        }
+      } finally {
+        // Invalid effects can interrupt iteration while a generator still owns work.
+        if (!step.done) await generator.return(undefined);
       }
 
-      const data = step.value === undefined ? result.data : step.value;
-      const parsedOutput = await parseSchema(
-        reference.outputSchema,
-        data,
-        reference.validation.output,
+      // The inner reference already parsed its output, including any transformations.
+      const data = step.value === undefined ? result.data : await parseSchema(
+        reference.outputSchema, step.value, reference.validation.output,
       );
 
-      return { data: parsedOutput, effects };
+      return { data, effects };
     },
   });
 }
@@ -525,7 +528,7 @@ function mapReferenceOutput<
   mapOutput: (
     output: output<SourceOutputSchema>,
   ) => MaybePromise<input<DerivedOutputSchema>>,
-  validation: ValidationMode = "sync",
+  validation: ValidationMode,
 ): AtlasOperationReference<InputSchema, DerivedOutputSchema, Operation> {
   return createOperationReference<
     InputSchema,

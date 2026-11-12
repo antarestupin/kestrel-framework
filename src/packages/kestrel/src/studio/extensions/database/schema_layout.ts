@@ -1,5 +1,5 @@
 import type { StudioDatabaseLayout, StudioDatabaseSchema, StudioDatabaseTable } from "./contract.js";
-import { formatDatabaseColumnType } from "./presentation.js";
+import { compactDatabaseLabel, formatDatabaseColumnType } from "./presentation.js";
 
 const GROUP_GAP = 16;
 const INSET = 12;
@@ -121,9 +121,4 @@ function tableWidth(table: StudioDatabaseTable): number {
   return Math.max(180, compactDatabaseLabel(table.name, 48).length * 7 + 20, ...table.columns.map((column) =>
     62 + (compactDatabaseLabel(column.name, 32).length + columnType(column.type).length) * 6
   ));
-}
-
-/** Keep labels compact without discarding the complete transport value. */
-function compactDatabaseLabel(value: string, length: number): string {
-  return value.length <= length ? value : `${value.slice(0, length - 1)}…`;
 }

@@ -18,7 +18,7 @@ import type {
   StudioWorkflowExecutionDetails,
   StudioWorkflowExecutionPage,
 } from "./contract.js";
-import { defineWorkflowsStudioExtension } from "./extension.js";
+import { defineWorkflowsStudioExtension, type WorkflowsStudioExtensionOptions } from "./extension.js";
 
 const approval = defineWorkflowSignal({
   name: "approved",
@@ -53,6 +53,7 @@ describe("workflows Studio extension", () => {
       list.mockClear();
       const invalid = await server.inject({ method: "GET", url: `${url}?cursor=b` });
       expect(invalid.statusCode).toBe(400);
+      expect(invalid.body).toContain("Invalid workflow execution cursor.");
       expect(list).not.toHaveBeenCalled();
     } finally {
       list.mockRestore();
@@ -69,7 +70,10 @@ describe("workflows Studio extension", () => {
       workflowVersion: 2,
       input: { orderId: "A" },
     });
-    const { server, app } = await createTestApp(adapter);
+    await adapter.start({
+      executionId: "future-version", workflowName: workflow.name, workflowVersion: 3, input: { orderId: "B" },
+    });
+    const { server, app, studio } = await createTestApp(adapter);
 
     const catalogResponse = await server.inject({
       method: "GET",
@@ -77,14 +81,27 @@ describe("workflows Studio extension", () => {
     });
     const executionsResponse = await server.inject({
       method: "GET",
-      url: "/_studio/api/extensions/workflows/executions?status=queued&limit=1",
+      url: "/_studio/api/extensions/workflows/executions?status=queued&workflowVersion=2&limit=1",
     });
     const detailsResponse = await server.inject({
       method: "GET",
       url: "/_studio/api/extensions/workflows/executions/order-1",
     });
 
-    expect(catalogResponse.json<StudioWorkflowCatalog>()).toMatchObject({
+    expect(studio.getManifest().extensions[0]).toMatchObject({
+      title: "Durable workflows", description: "Inspect durable orchestration and operate individual executions.",
+      pages: [
+        { title: "Workflows", description: "Definitions, versions and durable executions." },
+        { title: "Workflow execution", description: "Durable history, graph and operational controls.", showInNavigation: false },
+      ],
+    });
+    expect((await studio.defineHttpControllers()).slice(1).map(({ description }) => description)).toEqual([
+      "List deployed workflow definitions and version inventory.", "Search durable workflow executions.",
+      "Read one workflow execution, history and derived graph.", "Validate and deliver one declared workflow signal.",
+      "Pause, resume, cancel, recover, retry or terminate one execution.",
+    ]);
+    const catalog = catalogResponse.json<StudioWorkflowCatalog>();
+    expect(catalog).toMatchObject({
       definitions: [{
         name: workflow.name,
         path: ["orders", "fulfill"],
@@ -94,6 +111,13 @@ describe("workflows Studio extension", () => {
         signals: ["approved"],
       }],
     });
+    expect(catalog.definitions[0]?.executions).toEqual([
+      { workflowVersion: 2, count: 1, status: "queued" },
+      { workflowVersion: 3, count: 1, status: "queued" },
+    ]);
+    expect(catalog.unsupportedActiveVersions).toEqual([
+      { workflowName: workflow.name, workflowVersion: 3, count: 1, reason: "version-unsupported" },
+    ]);
     expect(executionsResponse.json<StudioWorkflowExecutionPage>().items)
       .toMatchObject([{ executionId: "order-1", status: "queued" }]);
     expect(detailsResponse.json<StudioWorkflowExecutionDetails>()).toMatchObject({
@@ -173,12 +197,15 @@ describe("workflows Studio extension", () => {
         children: [childDetails.execution],
         graph: {
           nodes: expect.arrayContaining([
-            expect.objectContaining({ id: "command:2", sequence: 2, completedAt: timestamp }),
+            expect.objectContaining({ id: "command:2", sequence: 2, occurredAt: timestamp, completedAt: timestamp }),
             expect.objectContaining({ id: "execution:child", completedAt: timestamp }),
           ]),
           edges: expect.arrayContaining([{ from: "command:2", to: "execution:child", kind: "child" }]),
         },
       });
+      expect(parent.json<StudioWorkflowExecutionDetails>().history).toContainEqual(expect.objectContaining({
+        type: "command-scheduled", sequence: 0, kind: "timer", target: "sleep", occurredAt: timestamp,
+      }));
     } finally {
       await server.close();
       await app.dispose();
@@ -243,9 +270,14 @@ describe("workflows Studio extension", () => {
         newExecutionId: "failed-retry",
       },
     });
-    const terminate = await control(server, "active", "terminate");
+    const forceTerminate = vi.spyOn(adapter, "forceTerminate");
+    const terminate = await server.inject({
+      method: "POST", url: "/_studio/api/extensions/workflows/control",
+      payload: { executionId: "active", action: "terminate", reason: "  Operator request.  " },
+    });
 
     expect(invalidSignal.statusCode).toBe(400);
+    expect(invalidSignal.json()).toMatchObject({ statusCode: 400, error: "Bad Request" });
     expect(validSignal.statusCode).toBe(200);
     expect(firstReceipt).toEqual({ id: expect.any(String), accepted: true });
     expect(repeatedReceipt).toEqual({ id: firstReceipt.id, accepted: false });
@@ -257,6 +289,8 @@ describe("workflows Studio extension", () => {
       },
     });
     expect(terminate.statusCode).toBe(200);
+    expect(terminate.json()).toEqual({ changed: true });
+    expect(forceTerminate).toHaveBeenCalledExactlyOnceWith("active", "Operator request.");
     await expect(adapter.get("active")).resolves.toMatchObject({ status: "terminated" });
     expect(authorize).toHaveBeenCalledWith(expect.objectContaining({ operation: "signal" }));
     expect(authorize).toHaveBeenCalledWith(expect.objectContaining({ operation: "terminate" }));
@@ -283,7 +317,7 @@ describe("workflows Studio extension", () => {
 
     try {
       const query = new URLSearchParams({
-        search: "order", workflowName: workflow.name, workflowVersion: "2",
+        search: "  order  ", workflowName: workflow.name, workflowVersion: "2", status: "queued",
         createdAfter: "2026-01-01", createdBefore: "2026-02-01",
         parentExecutionId: "parent", rootExecutionId: "root", paused: "false", limit: "3",
       });
@@ -292,11 +326,16 @@ describe("workflows Studio extension", () => {
       });
       expect(result.statusCode).toBe(200);
       expect(result.json()).toEqual({ items: [] });
-      expect(list).toHaveBeenCalledExactlyOnceWith({
-        search: "order", workflowNames: [workflow.name], workflowVersions: [2],
+      expect(list.mock.calls).toStrictEqual([[{
+        search: "order", workflowNames: [workflow.name], workflowVersions: [2], statuses: ["queued"],
         createdAfter: new Date("2026-01-01"), createdBefore: new Date("2026-02-01"),
         parentExecutionId: "parent", rootExecutionId: "root", paused: false, limit: 3,
-      });
+      }]]);
+      list.mockClear();
+      const prefix = "/_studio/api/extensions/workflows/executions";
+      expect((await server.inject(`${prefix}?paused=true`)).statusCode).toBe(200);
+      expect((await server.inject(prefix)).statusCode).toBe(200);
+      expect(list.mock.calls).toStrictEqual([[{ paused: true, limit: 50 }], [{ limit: 50 }]]);
       expect((await control(server, "protected", "cancel")).statusCode).toBe(403);
       expect(cancel).not.toHaveBeenCalled();
       expect(authorize).toHaveBeenCalledWith(expect.objectContaining({
@@ -309,15 +348,97 @@ describe("workflows Studio extension", () => {
   });
 
   it.each([
+    { method: "GET", path: "/catalog", operation: "read" },
+    { method: "GET", path: "/executions", operation: "read" },
+    { method: "GET", path: "/executions/protected", operation: "read", executionId: "protected" },
+    { method: "POST", path: "/signals", operation: "signal", executionId: "protected",
+      payload: { executionId: "protected", signalName: "approved", payload: { reviewer: "Ada" } } },
+    { method: "POST", path: "/control", operation: "retry", executionId: "protected",
+      payload: { executionId: "protected", action: "retry" } },
+  ] as const)("awaits authorization before dispatching $path", async ({ method, path, operation, ...options }) => {
+    const adapter = new MemoryWorkflowAdapter();
+    const versions = vi.spyOn(adapter, "listExecutions");
+    const read = vi.spyOn(adapter, "get");
+    const authorize = vi.fn(async () => {
+      await Promise.resolve();
+      throw Object.assign(new Error("Operator denied."), {
+        toHttpError: () => ({ statusCode: 403, message: "Operator denied." }),
+      });
+    });
+    const { server, app } = await createTestApp(adapter, authorize);
+    try {
+      const response = await server.inject({
+        method, url: `/_studio/api/extensions/workflows${path}`,
+        ...("payload" in options ? { payload: options.payload } : {}),
+      });
+      expect(response.statusCode).toBe(403);
+      expect(authorize.mock.calls).toStrictEqual([[{
+        operation, request: expect.any(Object), execution: expect.any(Object),
+        ...("executionId" in options ? { executionId: options.executionId } : {}),
+      }]]);
+      expect(versions).not.toHaveBeenCalled();
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
+  it.each([
     { method: "GET", path: "/executions/deleted" },
     { method: "POST", path: "/signals", payload: { executionId: "deleted", signalName: "approved", payload: { reviewer: "Ada" } } },
     { method: "POST", path: "/control", payload: { executionId: "deleted", action: "retry" } },
+    ...(["cancel", "pause", "recover", "resume", "terminate"] as const).map((action) => ({
+      method: "POST" as const, path: "/control", payload: { executionId: "deleted", action },
+    })),
   ] as const)("reports an absent execution as not found ($path)", async ({ method, path, ...options }) => {
     const { server, app } = await createTestApp(new MemoryWorkflowAdapter());
     try {
       const response = await server.inject({ method, url: `/_studio/api/extensions/workflows${path}`, ...options });
       expect(response.statusCode).toBe(404);
       expect(response.json()).toMatchObject({ message: 'Unknown workflow execution "deleted".' });
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
+  it("reports an unsupported deployed workflow version as an operator conflict", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    await adapter.start({ executionId: "future", workflowName: workflow.name, workflowVersion: 3, input: { orderId: "A" } });
+    const { server, app } = await createTestApp(adapter);
+    try {
+      const response = await control(server, "future", "recover");
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toEqual({
+        statusCode: 409, error: "Conflict",
+        message: 'Workflow execution "future" uses version 3, but the current definition supports versions 1 through 2.',
+      });
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
+  it("rejects invalid control reasons and list filters before reaching storage", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const terminate = vi.spyOn(adapter, "forceTerminate");
+    const list = vi.spyOn(adapter, "listExecutions");
+    const { server, app } = await createTestApp(adapter);
+    const prefix = "/_studio/api/extensions/workflows";
+    try {
+      for (const reason of ["   ", "x".repeat(1_001)]) {
+        const result = await server.inject({
+          method: "POST", url: `${prefix}/control`,
+          payload: { executionId: "existing", action: "terminate", reason },
+        });
+        expect(result.statusCode).toBe(400);
+      }
+      for (const filter of ["search=%20%20", "paused=unknown", "limit=201"]) {
+        expect((await server.inject(`${prefix}/executions?${filter}`)).statusCode).toBe(400);
+      }
+      expect(terminate).not.toHaveBeenCalled();
+      expect(list).not.toHaveBeenCalled();
     } finally {
       await server.close();
       await app.dispose();
@@ -334,7 +455,7 @@ describe("workflows Studio extension", () => {
       const recover = await control(server, "running", "recover");
       const retry = await control(server, "running", "retry");
       expect(recover.statusCode).toBe(409);
-      expect(recover.json()).toMatchObject({ message: expect.stringContaining("not valid") });
+      expect(recover.json()).toMatchObject({ statusCode: 409, error: "Conflict", message: expect.stringContaining("not valid") });
       expect(retry.statusCode).toBe(409);
       const collision = await server.inject({
         method: "POST",
@@ -342,7 +463,7 @@ describe("workflows Studio extension", () => {
         payload: { executionId: "failed", action: "retry", newExecutionId: "running" },
       });
       expect(collision.statusCode).toBe(409);
-      expect(collision.json()).toMatchObject({ message: expect.stringContaining('"running" already exists') });
+      expect(collision.json()).toMatchObject({ statusCode: 409, error: "Conflict", message: expect.stringContaining('"running" already exists') });
       expect((await control(server, "running", "cancel")).statusCode).toBe(200);
       await expect(adapter.get("running")).resolves.toMatchObject({ cancellationRequested: true });
     } finally {
@@ -368,16 +489,14 @@ describe("workflows Studio extension", () => {
 
 async function createTestApp(
   adapter: MemoryWorkflowAdapter,
-  authorize = vi.fn(),
+  authorize?: WorkflowsStudioExtensionOptions["authorize"],
 ) {
   const registry = new DefinitionCatalogRegistry<AnyWorkflow>({
     getIdentity: ({ name }) => name,
     identityName: "Workflow",
   }).register(workflow, { kind: "application" }, ["orders", "fulfill"]);
   const operations = new WorkflowOperations([workflow], adapter);
-  const extension = defineWorkflowsStudioExtension(registry, operations, {
-    authorize,
-  });
+  const extension = defineWorkflowsStudioExtension(registry, operations, authorize === undefined ? undefined : { authorize });
   const studio = new Studio({ extensions: [extension] });
   const server = Fastify();
   const app = new App({});
@@ -387,7 +506,7 @@ async function createTestApp(
     manager.register(controller);
   }
   await app.start();
-  return { server, app };
+  return { server, app, studio };
 }
 
 function control(

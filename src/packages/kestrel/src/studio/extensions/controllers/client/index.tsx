@@ -83,14 +83,6 @@ function ControllerExplorer({ dataPath }: { dataPath: string }) {
     return next;
   });
 
-  useEffect(() => {
-    if (controllers.length > 0 && !controllers.some(
-      (controller) => controller.id === selectedId,
-    )) {
-      setSelectedId(controllers[0]!.id);
-    }
-  }, [controllers, selectedId]);
-
   if (resource.status === "loading") {
     return <p className="loading-panel">Loading HTTP controllers…</p>;
   }
@@ -416,11 +408,12 @@ function useControllerCatalog(dataPath: string): CatalogResource {
 
         return response.json() as Promise<StudioHttpControllerCatalog>;
       })
-      .then((catalog) => setResource({ status: "ready", catalog }))
+      .then((catalog) => {
+        // A superseded catalog may still resolve when the transport ignores abort.
+        if (!abortController.signal.aborted) setResource({ status: "ready", catalog });
+      })
       .catch((caught: unknown) => {
-        if (caught instanceof DOMException && caught.name === "AbortError") {
-          return;
-        }
+        if (abortController.signal.aborted) return;
 
         setResource({
           status: "error",

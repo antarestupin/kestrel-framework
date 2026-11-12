@@ -1,3 +1,4 @@
+import { monitorEventLoopDelay } from "node:perf_hooks";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -76,6 +77,29 @@ describe("NodeLocalResourcePressureSource", () => {
       expect(source.read(processEventLoopDelayPressureSignal)).toBe(0);
     } finally {
       source.close();
+    }
+  });
+
+  it("disables the owned native histogram once when the reader closes", () => {
+    const prototype: Pick<ReturnType<typeof monitorEventLoopDelay>, "enable" | "disable"> =
+      Object.getPrototypeOf(monitorEventLoopDelay());
+    const enable = vi.spyOn(prototype, "enable");
+    const disable = vi.spyOn(prototype, "disable");
+    const source = new NodeLocalResourcePressureSource();
+    try {
+      expect(enable).not.toHaveBeenCalled();
+      source.read(processEventLoopDelayPressureSignal);
+      expect(enable).toHaveBeenCalledOnce();
+      source.close();
+      source.close();
+      expect(disable).toHaveBeenCalledOnce();
+      expect(disable.mock.contexts[0]).toBe(enable.mock.contexts[0]);
+    } finally {
+      const owned = enable.mock.contexts[0] as ReturnType<typeof monitorEventLoopDelay> | undefined;
+      enable.mockRestore();
+      disable.mockRestore();
+      // Even a regression in source.close must not leave the native sampler enabled.
+      owned?.disable();
     }
   });
 });

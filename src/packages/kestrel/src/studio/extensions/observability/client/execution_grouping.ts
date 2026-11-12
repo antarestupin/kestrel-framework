@@ -106,7 +106,8 @@ export function combineExecutionGroups(
 function describeExecution(
   sources: readonly Record<string, unknown>[],
 ): ExecutionGroupPresentation {
-  const values = Object.assign({}, ...sources);
+  // A persisted "__proto__" field must stay data instead of introducing inherited diagnostics.
+  const values = Object.assign(Object.create(null) as Record<string, unknown>, ...sources);
   const taskKind = readString(values["workflow.taskKind"]);
   const activityTarget = readString(values["workflow.activityTarget"]);
   const operation = readString(values.operation);

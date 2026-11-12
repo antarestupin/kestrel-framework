@@ -168,6 +168,7 @@ describe("PostgresDatabaseSchemaSource", () => {
           column_name: null,
           column_description: null,
           column_type: null,
+          foreign_keys: null,
           nullable: true,
           primary_key: false,
         },
@@ -177,7 +178,7 @@ describe("PostgresDatabaseSchemaSource", () => {
       query,
     } as unknown as Pick<Pool, "query">);
 
-    await expect(source.getLayout()).resolves.toEqual({
+    await expect(source.getLayout()).resolves.toStrictEqual({
       schemas: [{
         name: "public",
         tables: [{

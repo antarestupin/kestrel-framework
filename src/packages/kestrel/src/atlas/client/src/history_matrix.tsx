@@ -18,7 +18,7 @@ export function HistoryMatrix({ manifest, resource, recordId, onOpenRelation }: 
   const viewport = useRef<HTMLDivElement>(null);
   const previousWidth = useRef(0);
   const history = useInfiniteQuery({
-    queryKey: [resource.id, "history", recordId],
+    queryKey: [resource.id, "history", manifest.basePath, recordId],
     initialPageParam: undefined as string | undefined,
     enabled: open,
     queryFn: async ({ pageParam }) => atlasHistoryOutputSchema.parse(await executeAtlasOperation(

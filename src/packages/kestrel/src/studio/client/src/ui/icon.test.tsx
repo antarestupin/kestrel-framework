@@ -13,6 +13,7 @@ describe("Studio icons", () => {
   it("renders a labeled, spinning custom icon and its path", () => {
     const markup = renderToStaticMarkup(<Icon icon={glyph} label="Refreshing" className="status-icon" spin />);
     expect(markup).toContain('role="img"');
+    expect(markup).not.toContain("aria-hidden");
     expect(markup).toContain('aria-label="Refreshing"');
     expect(markup).toContain("kestrel-icon spinning status-icon");
     expect(markup).toContain('opacity="0.5"');
@@ -30,5 +31,16 @@ describe("Studio icons", () => {
 
   it("renders nothing when no icon was requested", () => {
     expect(renderToStaticMarkup(<Icon />)).toBe("");
+  });
+
+  it("keeps a decorative icon hidden and renders its fallback for an unspecified catalog ID", () => {
+    const fallback = renderToStaticMarkup(<Icon name="table" className="nav-icon" />);
+    expect(fallback).toContain('class="kestrel-icon nav-icon"');
+    expect(fallback).toContain('aria-hidden="true"');
+    expect(fallback).not.toContain('role="img"');
+    // A manifest may have a real icon named "undefined" and still omit this reference.
+    expect(renderToStaticMarkup(
+      <CatalogIcon catalog={{ undefined: glyph }} fallback="table" className="nav-icon" />,
+    )).toBe(fallback);
   });
 });

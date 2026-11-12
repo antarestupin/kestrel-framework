@@ -20,6 +20,17 @@ describe("Studio IconCatalogBuilder", () => {
       viewBox: [0, 0, 640, 512],
       paths: [expect.objectContaining({ d: expect.any(String) })],
     });
+    expect(fontAwesomeIcon(faUsers).paths[0]).not.toHaveProperty("opacity");
+  });
+
+  it("applies secondary opacity only to the first path of a layered icon", () => {
+    expect(fontAwesomeIcon({
+      ...faUsers,
+      icon: [16, 12, [], "0", ["M1 1h2", "M2 2h3"]],
+    })).toEqual({
+      type: "svg", viewBox: [0, 0, 16, 12],
+      paths: [{ d: "M1 1h2", opacity: 0.4 }, { d: "M2 2h3" }],
+    });
   });
 
   it("deduplicates equivalent icon definitions", () => {
@@ -39,5 +50,7 @@ describe("Studio IconCatalogBuilder", () => {
 
     expect(catalog.add(squareIcon)).toBe("icon-1");
     expect(catalog.add(secondIcon)).toBe("icon-2");
+    expect(catalog.add({ ...squareIcon, paths: [{ d: squareIcon.paths[0]!.d, opacity: 0 }] })).toBe("icon-3");
+    expect(catalog.add({ ...squareIcon, paths: [{ d: squareIcon.paths[0]!.d, opacity: 0.4 }] })).toBe("icon-4");
   });
 });

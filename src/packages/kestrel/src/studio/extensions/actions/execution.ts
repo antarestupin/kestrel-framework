@@ -10,6 +10,7 @@ import {
 } from "../../../app/observations.js";
 import { defineActionMiddleware } from "../../../actions/index.js";
 import type { HttpErrorRepresentation } from "../../../errors/index.js";
+import { formatThrownValue } from "../../../errors/format_thrown_value.js";
 import {
   observerDependency,
   observerContextDependency,
@@ -113,7 +114,7 @@ export async function executeStudioAction(
                 : "Action validation failed during execution."
               : error instanceof Error
                 ? error.message
-                : String(error),
+                : formatThrownValue(error),
           ...(error instanceof ZodError
             ? {
                 issues: error.issues.map((issue) => ({

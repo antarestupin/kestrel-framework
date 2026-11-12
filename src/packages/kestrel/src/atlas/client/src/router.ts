@@ -12,10 +12,11 @@ import {
 
 import type { AtlasManifest } from "../../contract.js";
 import type { AtlasClientAuthenticationConfig } from "../../client_config.js";
-import type {
-  AtlasPageRenderers,
-  AtlasRendererRegistries,
-  AtlasViewRenderer,
+import {
+  resolveAtlasRenderer,
+  type AtlasPageRenderers,
+  type AtlasRendererRegistries,
+  type AtlasViewRenderer,
 } from "./renderer_registry.js";
 import {
   AtlasLayout,
@@ -147,7 +148,7 @@ export function createAtlasRouter(
       getParentRoute: () => rootRoute,
       path: `/${resource.id}/views/${view.id}`,
       component: () => {
-        const Renderer = viewRenderers[view.renderer];
+        const Renderer = resolveAtlasRenderer(viewRenderers, [view.renderer]);
 
         return Renderer === undefined
           ? createElement("div", { className: "page error-state" },

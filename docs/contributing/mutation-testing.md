@@ -69,6 +69,8 @@ For the complete application lifecycle assessment, run `test:mutation:focus` wit
 
 The [security and resilience review](../implementation/mutation_testing_security_resilience.md#profile-executions) lists the profiles that partition `authentication`, `tokens`, `throttling` and `outbound_http`. Run each named profile with `npm run test:mutation:focus -- <profile>`. The dedicated `test:mutation:authentication-sessions` script selects the session manager. The profiles retain static mutants and apply the ten-minute budget independently.
 
+The `studio-server-*`, `studio-client-*` and `atlas-*` profiles partition Studio and Atlas, including extension contracts, browser pages and adapters. Select a profile by name, for example `npm run test:mutation:focus -- studio-client-email-capture` or `npm run test:mutation:focus -- atlas-page-forms`. The [Studio, Atlas and throttling review](../implementation/mutation_testing_studio_atlas.md) records the before and after evidence for these profiles.
+
 From the repository root, prepare the dedicated PostgreSQL and Redis test infrastructure, then validate the instrumented test run before starting a complete mutation assessment:
 
 ```sh

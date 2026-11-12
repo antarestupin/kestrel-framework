@@ -13,6 +13,7 @@ import type {
   RateLimitReservationRequest,
   RateLimitReservationResult,
 } from "../../types.js";
+import { rateLimitDefinitionSignature } from "./signature.js";
 
 interface SingleDenial {
   readonly expiresAtMs: number;
@@ -392,7 +393,7 @@ implements LeasableRateLimitAdapter {
 }
 
 function requestSignature(request: RateLimitReservationRequest): string {
-  return [request.limit, request.periodMs, request.burst, request.cost].join(":");
+  return JSON.stringify([rateLimitDefinitionSignature(request), request.cost]);
 }
 
 function batchSignature(

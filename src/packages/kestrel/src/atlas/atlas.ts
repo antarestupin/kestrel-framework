@@ -40,7 +40,7 @@ import type {
   AtlasOperationExposure,
 } from "./resource.js";
 import { createResourceCollectionQuerySchema } from "./collection.js";
-import { isAtlasAbsolutePath } from "./urls.js";
+import { isAtlasConcreteRoutePath } from "./urls.js";
 
 interface RecordActionInvocation {
   readonly resourceId: string;
@@ -552,13 +552,10 @@ function normalizeBasePath(basePath: string): string {
 
   if (
     // The mount also supplies the fallback navigation target after sign-in.
-    !isAtlasAbsolutePath(trimmedPath)
-    || trimmedPath.includes("?")
-    || trimmedPath.includes("#")
-    || trimmedPath.includes("*")
+    !isAtlasConcreteRoutePath(trimmedPath)
   ) {
     throw new TypeError(
-      "Atlas base path must be an absolute URL path without a query, fragment or wildcard.",
+      "Atlas base path must be an absolute URL path without dot segments, route parameters, wildcards, a query or a fragment.",
     );
   }
 

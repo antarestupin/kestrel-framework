@@ -59,7 +59,7 @@ function WorkersStudioPage({ page }: { page: StudioPageManifest }) {
       <StudioPageHeader page={page} eyebrow="Operations" />
       {page.dataPath === undefined
         ? <p className="error-panel">The workers page has no data endpoint.</p>
-        : <WorkerWorkspace dataPath={page.dataPath} />}
+        : <WorkerWorkspace key={page.dataPath} dataPath={page.dataPath} />}
     </div>
   );
 }
@@ -67,36 +67,35 @@ function WorkersStudioPage({ page }: { page: StudioPageManifest }) {
 function WorkerWorkspace({ dataPath }: { dataPath: string }) {
   const [resource, setResource] = useState<CatalogResource>({ status: "loading" });
   const [updatingQueues, setUpdatingQueues] = useState<ReadonlySet<string>>(() => new Set());
+  const pendingControls = useRef(new Set<string>());
 
-  const load = useCallback(async () => {
+  const readCatalog = useCallback(async (signal: AbortSignal) => {
     try {
-      const response = await fetch(`${dataPath}/catalog`);
+      const response = await fetch(`${dataPath}/catalog`, { signal });
 
       if (!response.ok) {
         throw new Error(`Unable to load worker queues (${response.status}).`);
       }
 
       const catalog = await response.json() as StudioWorkerCatalog;
-      setResource({ status: "ready", catalog });
+      if (!signal.aborted) setResource({ status: "ready", catalog });
     } catch (error) {
-      setResource({
-        status: "error",
-        message: error instanceof Error ? error.message : String(error),
-      });
+      if (!signal.aborted) {
+        setResource({
+          status: "error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }, [dataPath]);
-
-  useEffect(() => {
-    void load();
-
-    // Refresh operational state at the same cadence as logs and observations.
-    const interval = window.setInterval(() => void load(), 2_000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const load = useWorkerPolling(readCatalog);
 
   const setEnabled = async (worker: StudioWorkerQueue, enabled: boolean) => {
-    // Each queue remains locked until its own update settles.
-    setUpdatingQueues((current) => new Set(current).add(worker.queue));
+    // Lock each queue before React renders the pending button.
+    const pending = pendingControls.current;
+    if (pending.has(worker.queue)) return;
+    pending.add(worker.queue);
+    setUpdatingQueues(new Set(pending));
 
     try {
       const response = await fetch(`${dataPath}/queues/control`, {
@@ -116,11 +115,8 @@ function WorkerWorkspace({ dataPath }: { dataPath: string }) {
         message: error instanceof Error ? error.message : String(error),
       });
     } finally {
-      setUpdatingQueues((current) => {
-        const pending = new Set(current);
-        pending.delete(worker.queue);
-        return pending;
-      });
+      pending.delete(worker.queue);
+      setUpdatingQueues(new Set(pending));
     }
   };
 
@@ -252,14 +248,16 @@ function WorkerDetailWorkspace({
   const [updatingQueue, setUpdatingQueue] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [controlError, setControlError] = useState<string>();
+  const pendingControl = useRef(false);
 
-  const load = useCallback(async () => {
+  const readDetail = useCallback(async (signal: AbortSignal) => {
     try {
       const response = await fetch(
         `${dataPath}/catalog/${encodeURIComponent(workerId)}`,
-        { headers: { accept: "application/json" } },
+        { headers: { accept: "application/json" }, signal },
       );
 
+      if (signal.aborted) return;
       if (!response.ok) {
         setResource({
           status: "error",
@@ -272,25 +270,22 @@ function WorkerDetailWorkspace({
       }
 
       const detail = await response.json() as StudioWorkerDetail;
-      setResource({ status: "ready", detail });
+      if (!signal.aborted) setResource({ status: "ready", detail });
     } catch (error) {
-      setResource({
-        status: "error",
-        message: error instanceof Error ? error.message : String(error),
-        notFound: false,
-      });
+      if (!signal.aborted) {
+        setResource({
+          status: "error",
+          message: error instanceof Error ? error.message : String(error),
+          notFound: false,
+        });
+      }
     }
   }, [dataPath, workerId]);
-
-  useEffect(() => {
-    void load();
-
-    // Refresh operational state at the same cadence as logs and observations.
-    const interval = window.setInterval(() => void load(), 2_000);
-    return () => window.clearInterval(interval);
-  }, [load]);
+  const load = useWorkerPolling(readDetail);
 
   const setEnabled = async (queue: string, enabled: boolean) => {
+    if (pendingControl.current) return;
+    pendingControl.current = true;
     setUpdatingQueue(true);
     setControlError(undefined);
 
@@ -312,6 +307,7 @@ function WorkerDetailWorkspace({
     } catch (error) {
       setControlError(error instanceof Error ? error.message : String(error));
     } finally {
+      pendingControl.current = false;
       setUpdatingQueue(false);
     }
   };
@@ -363,6 +359,38 @@ function WorkerDetailWorkspace({
       />
     </>
   );
+}
+
+/** A post-control or manual refresh supersedes an older worker read. */
+function useWorkerPolling(read: (signal: AbortSignal) => Promise<void>): () => Promise<void> {
+  const mounted = useRef(false);
+  const pending = useRef<AbortController | undefined>(undefined);
+  const load = useCallback(async () => {
+    if (!mounted.current) return;
+    pending.current?.abort();
+    const request = new AbortController();
+    pending.current = request;
+    try {
+      await read(request.signal);
+    } finally {
+      if (pending.current === request) pending.current = undefined;
+    }
+  }, [read]);
+
+  useEffect(() => {
+    mounted.current = true;
+    void load();
+    const interval = window.setInterval(() => {
+      if (pending.current === undefined) void load();
+    }, 2_000);
+    return () => {
+      mounted.current = false;
+      pending.current?.abort();
+      window.clearInterval(interval);
+    };
+  }, [load]);
+
+  return load;
 }
 
 function WorkerPublisher({

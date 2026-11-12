@@ -41,6 +41,10 @@ describe("renderDatabaseSchemaSvg", () => {
     expect(svg).toContain("team_fk: (tenant_id, parent_id) → organization.team(tenant_id, id)");
     expect(svg).toContain("parent_fk: (parent_id) → public.member(id)");
     expect(svg.match(/class="database-schema-frame"/g)).toHaveLength(2);
+    expect(svg).toContain('<title id="schema-0-title">public</title>');
+    expect(svg).toMatch(/<desc id="diagram-description">2 tables grouped into 2 schemas\./u);
+    expect(svg).toMatch(/<\/g>\s*<g id="schema-1"/u);
+    expect(svg).toMatch(/<\/g>\s*<\/svg>$/u);
     const sections = svg.split(/<g id="schema-\d+"/).slice(1);
     expect(sections[0]).toContain("public.member");
     expect(sections[0]).not.toContain('id="table-1-0"');
@@ -65,6 +69,7 @@ describe("renderDatabaseSchemaSvg", () => {
     expect(svg).toContain("A &amp; B");
     expect(svg).not.toContain("<script>");
     expect(svg).not.toContain("\u0000");
+    expect(svg).toContain("&lt;/title&gt;&lt;script&gt;bad()&lt;/script&gt;</title>");
     expect(svg).not.toMatch(/<foreignObject|<style|<image|(?:href|src)="https?:\/\//);
   });
 
@@ -156,7 +161,9 @@ describe("renderDatabaseSchemaSvg", () => {
   });
 
   it("supports empty layouts, zero-column tables and sources without foreign keys", () => {
-    expect(renderDatabaseSchemaSvg({ schemas: [] })).toContain("No application tables found.");
+    const emptyDiagram = renderDatabaseSchemaSvg({ schemas: [] });
+    const height = Number(/viewBox="0 0 \d+ (\d+)"/u.exec(emptyDiagram)?.[1]);
+    expect(emptyDiagram).toContain(`<text x="20" y="${height - 20}" font-family="system-ui, sans-serif" font-size="12" fill="#475569">No application tables found.</text>`);
     const emptySchema = renderDatabaseSchemaSvg({ schemas: [{ name: "empty", tables: [] }] });
     expect(emptySchema).toContain("No tables");
     expect(emptySchema).not.toMatch(/NaN|Infinity/);
@@ -164,9 +171,59 @@ describe("renderDatabaseSchemaSvg", () => {
       { name: "marker", kind: "partitioned-table", columns: [] }, table("member"),
     ] }] });
 
-    expect(svg).toContain("No columns");
+    expect(svg).toContain('<text x="7" y="35" fill="#64748b">No columns</text>');
     expect(svg).toContain("partitioned");
     expect(svg).toContain("0 foreign keys");
+    expect(svg).toMatch(/<\/g>\s*<g id="table-0-1"/u);
+    expect(svg).toContain(">2 tables</text>");
+    expect(svg).toMatch(/<\/g>\s*<\/g>\s*<\/g>\s*<\/g>\s*<\/svg>$/u);
     expect(svg).not.toMatch(/NaN|undefined/);
+  });
+
+  it("does not split an astral character at the label truncation boundary", () => {
+    const prefix = "x".repeat(46);
+    const name = `${prefix}🧪more`;
+    const svg = renderDatabaseSchemaSvg({ schemas: [{ name: "lab", tables: [table(name)] }] });
+
+    expect(svg).toContain(`>${prefix}🧪…</text>`);
+    expect(svg).toContain(`<title>lab.${name}</title>`);
+  });
+
+  it("renders accessible labels, partitioned tables, and both row states", () => {
+    const name = "a".repeat(48);
+    const svg = renderDatabaseSchemaSvg({ schemas: [{
+      name: "public", description: "Research & test",
+      tables: [{ ...table(name), kind: "partitioned-table", description: "Quoted 'name' and <labels>", foreignKeys: [{
+        name: "fk_parent", columns: ["parent_id"], referencedSchema: "public",
+        referencedTable: name, referencedColumns: ["id"],
+      }] }],
+    }] });
+
+    expect(svg).toContain('aria-labelledby="diagram-title diagram-description"');
+    expect(svg).toMatch(/<desc id="diagram-description">1 tables? grouped into 1 schemas?\. 1 foreign keys?\./u);
+    expect(svg).toContain('<title id="schema-0-title">public\nResearch &amp; test</title>');
+    expect(svg).toContain(`<title>public.${name} (partitioned)\nQuoted &apos;name&apos; and &lt;labels&gt;</title>`);
+    expect(svg).toContain(`>${name}</text>`);
+    const frame = /<rect class="database-schema-frame" width="(\d+)"/u.exec(svg);
+    expect(svg).toContain(`<text x="${Number(frame?.[1]) - 12}" y="19" text-anchor="end" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">1 table</text>`);
+    expect(svg).toContain('<rect x="1" y="1" width="354" height="23"');
+    const rows = svg.split(/<g id="table-0-0-column-\d+">/u).slice(1);
+    expect(rows).toHaveLength(3);
+    expect(svg).toMatch(/<\/g>\s*<g id="table-0-0-column-1">/u);
+    expect(rows[0]).toContain("tenant_id: uuid; not null");
+    expect(rows[0]).toContain('y="24" width="354"');
+    expect(rows[0]).toContain('height="16" fill="#fff"');
+    expect(rows[0]).toContain('<text x="6" y="35"');
+    expect(rows[0]).toContain('<text x="38" y="35" fill="#0f172a">tenant_id</text>');
+    expect(rows[0]).toContain('<text x="349" y="35" text-anchor="end" fill="#64748b">uuid</text>');
+    expect(rows[0]).toContain(">PK</text>");
+    expect(rows[0]).not.toContain(">PK FK</text>");
+    expect(rows[1]).toContain('y="40"');
+    expect(rows[1]).toContain('height="16" fill="#f1f5f9"');
+    expect(rows[1]).toContain('y="51"');
+    expect(rows[2]).toContain(">FK</text>");
+    expect(rows[2]).toContain('<rect x="1" y="56" width="354" height="16" fill="#fff"/>');
+    expect(rows[2]).toContain("parent_id: uuid; nullable\nfk_parent:");
+    expect(svg).not.toMatch(/No tables|No columns|No application tables/);
   });
 });

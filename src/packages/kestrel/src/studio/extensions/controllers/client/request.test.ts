@@ -66,4 +66,33 @@ describe("Studio controller request editor", () => {
     expect(buildRequest(get, { show: "active" }, "").url).toBe("/people/:label?format=summary&include=active");
     expect(buildRequest(get, { show: "" }, "").url).toBe("/people/:label?format=summary");
   });
+
+  it("rejects a substituted path that the browser would interpret as another authority", () => {
+    const optionalPrefix = {
+      ...controller,
+      method: "GET",
+      url: "/:team/api.example.test/people",
+      inputs: [{ name: "team", sourceName: "team", binding: "path", required: false, schema: { type: "string" } }],
+    } satisfies StudioHttpControllerDefinition;
+    expect(() => buildRequest(optionalPrefix, {}, "")).toThrow(/path on the current origin/);
+    expect(buildRequest(optionalPrefix, { team: "design" }, "").url).toBe("/design/api.example.test/people");
+  });
+
+  it("only uses own properties when a field has a prototype-named identifier", () => {
+    const typed: StudioHttpControllerDefinition = {
+      ...controller,
+      url: "/people",
+      inputs: [
+        { name: "constructor", sourceName: "constructor", binding: "query", required: false, schema: { type: "string" } },
+        { name: "__proto__", sourceName: "tag", binding: "body", required: false, schema: { type: "string" } },
+      ],
+      examples: [{ name: "Omitted", input: {} }, { name: "Provided", input: { constructor: "person", ["__proto__"]: "tag" } }],
+    };
+
+    expect(createFieldValues(typed, 0)).toEqual({ constructor: "" });
+    expect(createBodyValue(typed, 0)).toBe("{}");
+    expect(buildRequest(typed, {}, "{}").url).toBe("/people");
+    expect(createFieldValues(typed, 1)).toEqual({ constructor: "person" });
+    expect(JSON.parse(createBodyValue(typed, 1))).toEqual({ tag: "tag" });
+  });
 });

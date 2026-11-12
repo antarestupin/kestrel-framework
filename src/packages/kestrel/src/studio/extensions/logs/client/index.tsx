@@ -45,7 +45,7 @@ function DevelopmentLogsPage({ page }: { page: StudioPageManifest }) {
       <StudioPageHeader page={page} eyebrow="Observability" />
       {page.dataPath === undefined
         ? <p className="error-panel">The logs page has no data endpoint.</p>
-        : <LogsExplorer dataPath={page.dataPath} />}
+        : <LogsExplorer key={page.dataPath} dataPath={page.dataPath} />}
     </div>
   );
 }
@@ -54,6 +54,7 @@ function LogsExplorer({ dataPath }: { dataPath: string }) {
   const [level, setLevel] = useState("");
   const [workload, setWorkload] = useState<StudioWorkloadFilter>("");
   const resource = useLogs(dataPath, level, workload);
+  const nextBefore = resource.status === "ready" ? resource.nextBefore : null;
 
   return (
     <section className="logs-explorer" aria-label="Development logs">
@@ -115,10 +116,10 @@ function LogsExplorer({ dataPath }: { dataPath: string }) {
                   <LogRow key={log.id} log={log} />
                 ))}
           </div>
-          {resource.nextBefore !== null && (
+          {nextBefore !== null && (
             <button
               className="load-logs-button"
-              onClick={() => void resource.loadMore()}
+              onClick={() => void resource.loadMore(nextBefore)}
               type="button"
             >
               <Icon name="executions" />
@@ -131,32 +132,39 @@ function LogsExplorer({ dataPath }: { dataPath: string }) {
   );
 }
 
-type LogsResource =
-  | { status: "loading"; clear(): Promise<void>; loadMore(): Promise<void> }
-  | { status: "error"; message: string; clear(): Promise<void>; loadMore(): Promise<void> }
+type LogsState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
   | {
       status: "ready";
       items: readonly StudioLog[];
       loadedOlder: boolean;
       nextBefore: number | null;
-      clear(): Promise<void>;
-      loadMore(): Promise<void>;
     };
+
+type LogsResource = LogsState & {
+  clear(): Promise<void>;
+  loadMore(before: number): Promise<void>;
+};
 
 function useLogs(
   dataPath: string,
   level: string,
   workload: StudioWorkloadFilter,
 ): LogsResource {
-  const [state, setState] = useState<
-    | { status: "loading" }
-    | { status: "error"; message: string }
-    | { status: "ready"; items: readonly StudioLog[]; loadedOlder: boolean; nextBefore: number | null }
-  >({ status: "loading" });
-  const activeRequest = useRef<AbortController | undefined>(undefined);
+  const [state, setState] = useState<LogsState>({ status: "loading" });
+  const activeFilter = useRef<{
+    controller: AbortController;
+    load: (signal: AbortSignal, before?: number) => Promise<void>;
+  } | undefined>(undefined);
+  const activeRead = useRef<AbortController | undefined>(undefined);
+  const clearing = useRef(false);
 
-  const load = useCallback(async (signal: AbortSignal, before?: number, replaceHistory = false) => {
-    if (signal.aborted) return;
+  const load = useCallback(async (scope: AbortSignal, before?: number) => {
+    activeRead.current?.abort();
+    const request = new AbortController();
+    activeRead.current = request;
+    const signal = AbortSignal.any([scope, request.signal]);
     try {
       const url = new URL(dataPath, window.location.origin);
       url.searchParams.set("limit", "50");
@@ -186,7 +194,7 @@ function useLogs(
       if (signal.aborted) return;
 
       setState((current) => {
-        if (current.status === "ready" && !replaceHistory) {
+        if (current.status === "ready") {
           if (before !== undefined) {
             return {
               status: "ready", items: mergeLogEntries(current.items, page.items),
@@ -208,49 +216,62 @@ function useLogs(
           ? error.message
           : "Unable to load logs.",
       });
+    } finally {
+      if (activeRead.current === request) activeRead.current = undefined;
     }
   }, [dataPath, level, workload]);
 
   useEffect(() => {
     // A filter change invalidates every read started for the old filter.
     const controller = new AbortController();
-    activeRequest.current = controller;
+    activeFilter.current = { controller, load };
     setState({ status: "loading" });
     void load(controller.signal);
 
     // Keep the newest page live without requiring a manual refresh.
-    const interval = window.setInterval(() => void load(controller.signal), 2_000);
+    const interval = window.setInterval(() => {
+      if (!clearing.current && activeRead.current === undefined) void load(controller.signal);
+    }, 2_000);
 
     return () => {
+      activeFilter.current = undefined;
       controller.abort();
       window.clearInterval(interval);
     };
   }, [load]);
 
   const clear = useCallback(async () => {
-    const signal = activeRequest.current?.signal;
-    if (signal === undefined || signal.aborted) return;
+    const filter = activeFilter.current;
+    if (filter === undefined || clearing.current) return;
+    clearing.current = true;
+    // A read started before deletion must not restore the deleted messages.
+    activeRead.current?.abort();
     try {
       // Clearing applies to the full log, independently of the selected filter.
       const response = await fetch(dataPath, { method: "DELETE" });
       if (!response.ok) {
         throw new Error(`Clearing logs failed with status ${response.status}.`);
       }
-      await load(signal, undefined, true);
+      const current = activeFilter.current;
+      // The filter can change while the full log is being cleared.
+      if (current !== undefined) {
+        setState({ status: "loading" });
+        await current.load(current.controller.signal);
+      }
     } catch (error: unknown) {
-      if (signal.aborted) return;
+      if (filter.controller.signal.aborted) return;
       setState({
         status: "error",
         message: error instanceof Error ? error.message : "Unable to clear logs.",
       });
+    } finally {
+      clearing.current = false;
     }
-  }, [dataPath, load]);
-  const loadMore = useCallback(async () => {
-    const signal = activeRequest.current?.signal;
-    if (signal !== undefined && state.status === "ready" && state.nextBefore !== null) {
-      await load(signal, state.nextBefore);
-    }
-  }, [load, state]);
+  }, [dataPath]);
+  const loadMore = useCallback(async (before: number) => {
+    const signal = activeFilter.current?.controller.signal;
+    if (signal !== undefined && !clearing.current) await load(signal, before);
+  }, [load]);
 
   return { ...state, clear, loadMore };
 }

@@ -91,6 +91,10 @@ describe("Studio document startup", () => {
     expect(runbook?.title).toBe("On-call reference");
     expect(host.querySelector('a[href="/studio/one"]')?.textContent).toBe("First");
     expect(host.querySelector('a[href="/studio/hidden"]')).toBeNull();
+    expect(host.querySelector(".stats article:nth-child(2) strong")?.textContent).toBe("6");
+    expect(host.querySelector('.sidebar a[href="/studio/"]')?.classList.contains("active")).toBe(true);
+    expect(host.querySelector('a[href="/studio/one"]')?.classList.contains("active")).toBe(false);
+    expect(host.textContent).toContain("No description provided.");
     expect([...host.querySelectorAll(".extension-card span")].map((node) => node.textContent))
       .toEqual(["2 pages · 1 link", "2 links", "No resources", "1 page"]);
   });
@@ -114,14 +118,22 @@ describe("Studio document startup", () => {
     await start();
 
     expect(host.textContent).toContain(heading);
-    if (path === "/studio/extension") expect(host.textContent).toContain("Custom tool");
+    if (path === "/studio/extension") {
+      expect(host.textContent).toContain("Custom tool");
+      expect(host.querySelector('.sidebar a[href="/studio/"]')?.classList.contains("active")).toBe(false);
+      expect(host.querySelector('.sidebar a[href="/studio/extension"]')?.classList.contains("active")).toBe(true);
+    }
     else expect(host.querySelector("main a")?.getAttribute("href")).toBe("/studio/");
   });
 
-  it.each([undefined, "%broken"])("renders a startup error when configuration is %s", async (value) => {
+  it.each([
+    [undefined, "Studio client configuration was not injected."],
+    ["%broken", "URI malformed"],
+  ])("renders a startup error when configuration is %s", async (value, message) => {
     if (value !== undefined) host.dataset.studioConfig = value;
     await start();
     expect(host.querySelector("h1")?.textContent).toBe("Unable to load Studio");
+    expect(host.textContent).toContain(message);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

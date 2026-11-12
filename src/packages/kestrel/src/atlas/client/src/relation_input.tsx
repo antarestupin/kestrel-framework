@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useEffect,
   useMemo,
@@ -13,9 +13,12 @@ import type {
   AtlasResourceManifest,
 } from "../../contract.js";
 import { Combobox } from "./ui/primitives.js";
+import { loadAtlasRelationRecords } from "./relation_loader.js";
 import {
+  coerceFormValue,
+  describeFormInputSchema,
   executeAtlasOperation,
-  isRecord,
+  readAtlasRecordField,
   readListResult,
 } from "./runtime.js";
 
@@ -57,14 +60,14 @@ export function getRelationCandidate(
   field: AtlasFieldManifest,
   record: Readonly<Record<string, unknown>>,
 ): { readonly identity: unknown; readonly label: string } | undefined {
-  const identity = record[target.identity];
+  const identity = readAtlasRecordField(record, target.identity);
 
   if (identity === undefined || identity === null) {
     return undefined;
   }
 
   const displayField = field.relation?.displayField ?? target.displayField;
-  const displayValue = record[displayField];
+  const displayValue = readAtlasRecordField(record, displayField);
 
   return {
     identity,
@@ -81,6 +84,7 @@ export function RelationInput({
   manifest,
   value,
 }: RelationInputProperties) {
+  const queryClient = useQueryClient();
   const relation = field.relation;
   const target = manifest.resources.find((resource) =>
     resource.id === relation?.resource);
@@ -116,6 +120,7 @@ export function RelationInput({
     queryKey: [
       target?.id,
       "relation-lookup",
+      manifest.basePath,
       lookupOperation?.id,
       lookupQuery,
     ],
@@ -131,16 +136,8 @@ export function RelationInput({
       && lookupQuery !== undefined,
   });
   const selectedRecordsQuery = useQuery({
-    queryKey: [target?.id, "relation-input", selected],
-    queryFn: async () => {
-      const result = await executeAtlasOperation(
-        manifest.basePath,
-        target!.capabilities.readMany,
-        { ids: selected },
-      );
-
-      return Array.isArray(result) ? result.filter(isRecord) : [];
-    },
+    queryKey: [target?.id, "relation-input", manifest.basePath, selected],
+    queryFn: () => loadAtlasRelationRecords(queryClient, manifest.basePath, target!, selected),
     enabled: target !== undefined && selected.length > 0,
   });
   const selectedLabels = useMemo(() => new Map(
@@ -165,6 +162,7 @@ export function RelationInput({
   const parsedDirectIdentifiers = parseDirectIdentifiers(
     directValue,
     cardinality,
+    definition.schema,
   );
   const submitted = mode === "identifier" ? parsedDirectIdentifiers : selected;
   const cleared = cardinality === "one" && relation?.optional === true
@@ -390,14 +388,16 @@ function normalizeRelationIdentifiers(
 function parseDirectIdentifiers(
   value: string,
   cardinality: "many" | "one",
-): readonly string[] {
-  if (cardinality === "one") {
-    return value.trim() === "" ? [] : [value.trim()];
-  }
+  inputSchema: unknown,
+): readonly unknown[] {
+  const { schema } = describeFormInputSchema(inputSchema);
+  const identifierSchema = cardinality === "many" ? schema.items : schema;
+  const lines = cardinality === "many" ? value.split(/\r?\n/u) : [value];
 
   return deduplicateIdentifiers(
-    value.split(/\r?\n/u).map((item) => item.trim()).filter(Boolean),
-  ) as readonly string[];
+    lines.map((item) => item.trim()).filter(Boolean)
+      .map((identifier) => coerceFormValue(identifier, identifierSchema)),
+  );
 }
 
 function formatDirectIdentifiers(

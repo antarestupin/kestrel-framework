@@ -21,5 +21,12 @@ describe("AtlasLogin", () => {
     expect(markup).toContain('name="password"');
     expect(markup).toContain('autoComplete="current-password"');
     expect(markup).toContain('type="submit"');
+    expect(markup).toContain(">Sign in</button>");
+    expect(markup).not.toContain('role="alert"');
+  });
+
+  it("requires the server's authentication configuration", () => {
+    expect(() => renderToStaticMarkup(<AtlasLogin config={{ basePath: "/atlas", title: "Atlas" }} />))
+      .toThrow("Atlas login page requires authentication configuration.");
   });
 });

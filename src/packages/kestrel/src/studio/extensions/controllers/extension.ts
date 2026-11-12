@@ -135,8 +135,11 @@ function documentController(
   for (const pathParameter of extractHttpPathParameters(controller.route.url)) {
     if (!inputs.some((input) =>
       input.binding === "path" && input.sourceName === pathParameter)) {
+      // Keep the implicit path value independent of an input with another binding.
+      let name = pathParameter;
+      while (inputs.some((input) => input.name === name)) name = `path.${name}`;
       inputs.push({
-        name: pathParameter,
+        name,
         sourceName: pathParameter,
         binding: "path",
         required: true,

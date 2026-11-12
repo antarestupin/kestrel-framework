@@ -8,3 +8,9 @@ export function formatDatabaseColumnType(type: string): string {
     .replace(/^character varying(\(\d+\))?((?:\[\])*)$/, "varchar$1$2")
     .replace(/^double precision((?:\[\])*)$/, "float8$1");
 }
+
+/** Shorten a visible label at a Unicode code-point boundary. */
+export function compactDatabaseLabel(value: string, length: number): string {
+  const characters = Array.from(value);
+  return characters.length <= length ? value : `${characters.slice(0, length - 1).join("")}…`;
+}

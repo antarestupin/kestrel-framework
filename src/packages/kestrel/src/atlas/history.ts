@@ -3,7 +3,12 @@ import { z } from "zod";
 /** Cursor strings preserve PostgreSQL bigint sequences across JSON transport. */
 export const atlasHistoryInputSchema = z.object({
   id: z.string().min(1),
-  before: z.string().regex(/^[1-9][0-9]*$/).max(19).refine((value) => /^[1-9][0-9]*$/.test(value) && value.length <= 19 && BigInt(value) <= 9223372036854775807n, "Invalid history cursor.").optional(),
+  before: z.string()
+    // Abort before calling BigInt on malformed or unbounded input.
+    .regex(/^[1-9][0-9]*$/, { abort: true })
+    .max(19, { abort: true })
+    .refine((value) => BigInt(value) <= 9223372036854775807n, "Invalid history cursor.")
+    .optional(),
   pageSize: z.number().int().min(1).max(100).default(20),
 });
 

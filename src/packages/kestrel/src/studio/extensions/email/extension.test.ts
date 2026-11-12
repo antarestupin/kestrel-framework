@@ -30,6 +30,19 @@ describe("development email Studio extension", () => {
       extensions: [defineDevEmailExtension(source, observations)],
     });
     const app = await registerStudioControllers(studio, server);
+    expect(studio.getManifest().extensions[0]).toMatchObject({
+      title: "Development email", description: "Inspect transactional emails captured by the local application.",
+      pages: [
+        { title: "Email history", description: "Timing and normalized outcomes for transactional sends." },
+        { title: "Email inbox", description: "Messages captured locally without contacting recipients." },
+        { title: "Captured email", description: "Safe preview and diagnostics for one captured message.", showInNavigation: false },
+      ],
+    });
+    const controllers = await studio.defineHttpControllers();
+    expect(controllers.slice(1).map(({ description }) => description)).toEqual([
+      "List transactional email send observations.", "List locally captured emails.", "Clear the local email capture inbox.",
+      "Read one captured email and its send observation.", "Replay one captured email through the configured local transport.",
+    ]);
 
     const history = await server.inject({
       method: "GET",
@@ -70,7 +83,7 @@ describe("development email Studio extension", () => {
     });
     expect(inbox.statusCode).toBe(200);
     expect(inbox.json()).toMatchObject({
-      items: [{ id: captureId, observationId, attachmentCount: 1 }],
+      items: [{ id: captureId, observationId, hasText: true, hasHtml: true, attachmentCount: 1, attachmentBytes: 19 }],
     });
     expect(JSON.stringify(inbox.json())).not.toContain("attachment contents");
     expect(detail.statusCode).toBe(200);
@@ -144,7 +157,9 @@ describe("development email Studio extension", () => {
     });
 
     expect(response.statusCode).toBe(404);
-    expect(response.json()).toMatchObject({
+    expect(response.json()).toEqual({
+      statusCode: 404,
+      error: "Not Found",
       message: "The captured email does not exist or has expired.",
     });
 
@@ -160,7 +175,17 @@ describe("development email Studio extension", () => {
         from: { address: "sender@example.test" },
         to: [{ address: "recipient@example.test", name: "Example recipient" }],
         cc: [], bcc: [], replyTo: [], subject: "Minimal", text: "Only text",
-        attachments: [{ filename: "message.txt", content: "private content", disposition: "inline", contentId: "item" }],
+        attachments: [
+          { filename: "message.txt", content: "private content", disposition: "inline", contentId: "item" },
+          { filename: "unicode.txt", content: "é" },
+        ],
+      },
+    });
+    await store.capture({
+      id: replayCaptureId, observationId, capturedAt: new Date("2026-08-24T10:00:01.000Z"),
+      message: {
+        from: { address: "sender@example.test" }, to: [{ address: "recipient@example.test" }],
+        cc: [], bcc: [], replyTo: [], subject: "HTML only", html: "<p>Hello</p>", attachments: [],
       },
     });
     const source = new EmailCaptureInbox(store, async () => ({ status: "accepted" }));
@@ -168,8 +193,9 @@ describe("development email Studio extension", () => {
     const observations = createObservationSource();
     observations.getObservation.mockResolvedValue(undefined);
     const [record] = (await observations.listObservations({ name: "email.send" })).items;
+    observations.listObservations.mockClear();
     observations.listObservations.mockResolvedValueOnce({
-      items: [{ ...record!, data: { client: 14, attachmentCount: Infinity } }],
+      items: [{ ...record!, data: { client: 14, recipientCount: "1", attachmentCount: Infinity } }],
       nextBefore: 11,
     });
     const server = Fastify();
@@ -184,24 +210,35 @@ describe("development email Studio extension", () => {
       expect(history.json()).toMatchObject({
         items: [{ client: null, operation: null, recipientCount: null, attachmentCount: null }], nextBefore: 11,
       });
+      expect(observations.listObservations.mock.calls).toStrictEqual([[{ name: "email.send" }]]);
       const page = await server.inject({ url: `${prefix}/captures?before=12&limit=1` });
       expect(page.statusCode).toBe(200);
-      expect(list).toHaveBeenCalledExactlyOnceWith({ before: 12, limit: 1 });
+      expect((await server.inject({ url: `${prefix}/captures` })).statusCode).toBe(200);
+      expect(list.mock.calls).toStrictEqual([[{ before: 12, limit: 1 }], [{}]]);
       const detail = await server.inject({ url: `${prefix}/captures/${captureId}` });
       expect(detail.statusCode).toBe(200);
       expect(detail.json()).toMatchObject({
         text: "Only text", html: null, headers: {}, observation: null,
+        hasText: true, hasHtml: false, attachmentCount: 2, attachmentBytes: 17,
         from: { name: null }, to: [{ name: "Example recipient" }],
-        attachments: [{ contentType: null, disposition: "inline", contentId: "item" }],
+        attachments: [
+          { contentType: null, disposition: "inline", contentId: "item", size: 15 },
+          { filename: "unicode.txt", contentType: null, disposition: null, contentId: null, size: 2 },
+        ],
       });
       expect(detail.body).not.toContain("private content");
+      const htmlOnly = await server.inject({ url: `${prefix}/captures/${replayCaptureId}` });
+      expect(htmlOnly.statusCode).toBe(200);
+      expect(htmlOnly.json()).toMatchObject({ text: null, html: "<p>Hello</p>", hasText: false, hasHtml: true });
       const resend = await server.inject({ method: "POST", url: `${prefix}/captures/${captureId}/resend` });
       expect(resend.statusCode).toBe(201);
       expect(resend.json()).toEqual({ captureId: null, messageId: null });
       expect((await server.inject({ method: "DELETE", url: `${prefix}/captures` })).statusCode).toBe(204);
       const missing = await server.inject({ method: "POST", url: `${prefix}/captures/${captureId}/resend` });
       expect(missing.statusCode).toBe(404);
-      expect(missing.json()).toMatchObject({ message: expect.stringContaining("does not exist or has expired") });
+      expect(missing.json()).toEqual({
+        statusCode: 404, error: "Not Found", message: "The captured email does not exist or has expired.",
+      });
       vi.spyOn(source, "resend").mockRejectedValueOnce(new Error("temporary SMTP outage"));
       expect((await server.inject({ method: "POST", url: `${prefix}/captures/${captureId}/resend` })).statusCode).toBe(500);
     } finally {

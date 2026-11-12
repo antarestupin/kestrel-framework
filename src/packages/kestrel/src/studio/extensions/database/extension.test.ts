@@ -53,7 +53,7 @@ describe("defineDatabaseStudioExtension", () => {
   it("exports the selected framework filter and preserves provenance in JSON", async () => {
     const source: DatabaseSchemaSource = { getLayout: async () => ({ schemas: [{ name: "mixed", tables: [
       { name: "internal", kind: "table", origin: "framework", columns: [] },
-      { name: "note", kind: "table", columns: [] },
+      { name: "note", kind: "partitioned-table", columns: [] },
     ] }] }) };
     const server = Fastify();
     const app = new App({});
@@ -64,6 +64,7 @@ describe("defineDatabaseStudioExtension", () => {
       await app.start();
       const json = await server.inject("/tools/api/extensions/database/schema");
       expect(json.json().schemas[0].tables[0].origin).toBe("framework");
+      expect(json.json().schemas[0].tables[1].kind).toBe("partitioned-table");
       for (const suffix of ["", "?hideFramework=false"]) {
         const response = await server.inject(`/tools/api/extensions/database/schema.svg${suffix}`);
         expect(response.statusCode).toBe(200);
@@ -183,13 +184,23 @@ describe("defineDatabaseStudioExtension", () => {
 
     expect(studio.getManifest().extensions[0]).toMatchObject({
       id: "database",
+      title: "Database",
+      description: "Inspect the PostgreSQL schema or browse local data with Drizzle Studio.",
       pages: [{
         id: "schema",
+        title: "Database schema",
+        description: "Tables, columns and descriptions grouped by PostgreSQL schema.",
         path: "/database",
         kind: "database-schema",
         dataPath: "/_studio/api/extensions/database/schema",
       }],
+      links: [{ id: "drizzle-studio", href: DRIZZLE_STUDIO_URL }],
     });
+    const [, layoutController, svgController] = await studio.defineHttpControllers();
+    expect(layoutController?.description).toBe("Return the PostgreSQL database layout visible to Studio.");
+    expect(svgController?.description).toBe("Render a compact SVG overview of tables grouped by PostgreSQL schema.");
+    expect(svgController?.bindings).toMatchObject({ hideFramework: { kind: "query" } });
+    expect(svgController?.inputSchema.parse({})).toEqual({ hideFramework: "false" });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       schemas: [{

@@ -28,12 +28,36 @@ describe("Atlas appearance styles", () => {
     expect(css).toContain("--atlas-primary-hover:#939393");
   });
 
+  it("derives distinct accent, border, hover and logo roles for each configured scheme", () => {
+    const [light, dark] = atlasAppearanceCss({ primaryColor: "#176b70" }).split("\n");
+    const expectedLight = [
+      "--atlas-accent:#176b70", "--atlas-accent-strong:#12565a", "--atlas-primary-hover:#145b5f",
+      "--atlas-on-primary:#ffffff", "--atlas-accent-border:#97bcbf", "--atlas-surface-accent:#e8f0f1",
+      "--atlas-surface-accent-hover:#f1f6f6", "--atlas-sidebar-accent:#8bb5b8",
+      "--atlas-logo-background:#176b70", "--atlas-logo-text:#ffffff",
+    ];
+    const expectedDark = [
+      "--atlas-accent:#74a6a9", "--atlas-accent-strong:#90b8ba", "--atlas-primary-hover:#89b3b6",
+      "--atlas-on-primary:#000000", "--atlas-accent-border:#405a61", "--atlas-surface-accent:#1f2933",
+      "--atlas-surface-accent-hover:#1c232e", "--atlas-sidebar-accent:#74a6a9",
+      "--atlas-logo-background:#74a6a9", "--atlas-logo-text:#000000",
+    ];
+    expect(light).toBe(`:root[data-theme="light"]{${expectedLight.join(";")}}`);
+    expect(dark).toBe(`:root[data-theme="dark"]{${expectedDark.join(";")}}`);
+  });
+
+  it.each(["#006dfb", "#0003fd", "#0056ff"])("chooses white text for saturated primary color %s", (primary) => {
+    const [light] = atlasAppearanceCss({ primaryColor: primary }).split("\n");
+    expect(light).toContain("--atlas-on-primary:#ffffff");
+  });
+
   it("installs styles before rendering without changing theme preference storage", () => {
     const style = { dataset: {}, textContent: "" };
     const append = vi.fn();
     vi.stubGlobal("document", { createElement: () => style, head: { append } });
     initializeAtlasAppearance({ primaryColor: "#07586a" });
     expect(append).toHaveBeenCalledWith(style);
+    expect(style.dataset).toEqual({ atlasAppearance: "" });
     expect(style.textContent).toContain("--atlas-accent:#07586a");
   });
 });

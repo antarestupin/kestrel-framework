@@ -19,7 +19,9 @@ const records = pgTable("atlas_drizzle_record", {
   active: boolean("active").notNull(),
   position: integer("position").notNull(),
   publishedOn: date("published_on", { mode: "date" }).notNull(),
+  archivedOn: date("archived_on", { mode: "string" }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  reviewedAt: timestamp("reviewed_at", { mode: "string", withTimezone: true }),
   metadata: jsonb("metadata"),
 });
 
@@ -34,7 +36,9 @@ describe("Drizzle atlas metadata", () => {
       active: { kind: "boolean" },
       position: { kind: "number" },
       publishedOn: { kind: "date" },
+      archivedOn: { kind: "date" },
       createdAt: { kind: "datetime" },
+      reviewedAt: { kind: "datetime" },
       metadata: { kind: "json" },
     });
   });

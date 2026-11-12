@@ -47,6 +47,8 @@ test("worker mutation profiles partition the scheduler without gaps or overlaps"
 
 // Historical comparison profiles also supply their original files to the complete partitions.
 const componentPartitions = {
+  atlas: focusedProfileNames().filter((mode) => mode.startsWith("atlas-")),
+  studio: focusedProfileNames().filter((mode) => mode.startsWith("studio-")),
   app: [
     "app-composition", "app-execution", "app-startup", "app-shutdown",
     "app-shutdown-coordination", "app-execution-context", "app-catalog", "app-contracts",

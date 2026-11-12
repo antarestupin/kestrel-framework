@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { RouterContextProvider } from "@tanstack/react-router";
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -71,17 +71,18 @@ describe("Studio action explorer interactions", () => {
     }
   });
 
-  async function render(endpoint: `/${string}` = dataPath) {
+  async function render(endpoint: `/${string}` = dataPath, strict = false) {
     const renderer = await loadStudioPageRenderer(ACTIONS_DOCUMENTATION_PAGE_KIND);
     expect(renderer).toBeDefined();
     const { router } = createStudioRouter({ basePath: "/studio", icons: {}, extensions: [] });
-    await act(async () => root.render(
+    const content = (
       <RouterContextProvider router={router}>
         {renderer!.render({
           id: "actions", kind: ACTIONS_DOCUMENTATION_PAGE_KIND, path: "/actions", title: "Actions", dataPath: endpoint,
         })}
-      </RouterContextProvider>,
-    ));
+      </RouterContextProvider>
+    );
+    await act(async () => root.render(strict ? <StrictMode>{content}</StrictMode> : content));
   }
 
   function button(text: string): HTMLButtonElement {
@@ -123,27 +124,63 @@ describe("Studio action explorer interactions", () => {
     expect(container.textContent).not.toContain("Aborted");
   });
 
+  it.each(["success", "failure"] as const)("ignores a late catalog %s from an aborted effect", async (outcome) => {
+    const abandoned = Promise.withResolvers<Response>();
+    request.mockReturnValueOnce(abandoned.promise).mockResolvedValueOnce(catalog([noInputAction]));
+    await render(dataPath, true);
+    expect(request.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+    expect(container.textContent).toContain("This action takes no input.");
+
+    // A fetch implementation may settle even when its caller has aborted.
+    await act(async () => {
+      if (outcome === "success") abandoned.resolve(catalog([action]));
+      else abandoned.reject(new Error("Old catalog failed"));
+    });
+    expect(container.textContent).toContain("This action takes no input.");
+    expect(container.textContent).not.toContain("Old catalog failed");
+  });
+
   it("expands namespaces, switches documentation, and shows executable contracts", async () => {
     request.mockResolvedValueOnce(catalog([action, disabledAction, { name: "guide", middleware: [] }]));
     await render();
     expect(container.textContent).toContain("Export daily reports.");
     expect(container.textContent).toContain("audit");
+    expect(container.textContent).not.toContain("MiddlewareNone");
+    expect(button("export").getAttribute("aria-current")).toBe("true");
+    expect(button("export").classList.contains("selected")).toBe(true);
+    expect(button("delete").hasAttribute("aria-current")).toBe(false);
+    expect(button("Collapse all").getAttribute("aria-label")).toBe("Collapse all namespaces");
     expect(container.querySelectorAll(".action-tree details[open]")).toHaveLength(2);
 
     await act(async () => button("Collapse all").click());
     expect(container.querySelectorAll(".action-tree details[open]")).toHaveLength(0);
+    expect(button("Expand all").getAttribute("aria-label")).toBe("Expand all namespaces");
     await act(async () => button("Expand all").click());
     const outer = container.querySelector<HTMLElement>(".action-tree summary")!;
-    await act(async () => outer.click());
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    await act(async () => { outer.dispatchEvent(click); });
+    expect(click.defaultPrevented).toBe(true);
     expect(outer.parentElement?.hasAttribute("open")).toBe(false);
+    expect(button("Expand all").getAttribute("aria-label")).toBe("Expand all namespaces");
     await act(async () => outer.click());
     expect(outer.parentElement?.hasAttribute("open")).toBe(true);
     await act(async () => button("delete").click());
     expect(button("delete").getAttribute("aria-current")).toBe("true");
+    expect(button("delete").classList.contains("selected")).toBe(true);
+    expect(button("export").classList.contains("selected")).toBe(false);
     expect(container.textContent).toContain("This action is disabled here.");
     expect(container.textContent).toContain("No description provided.");
     await act(async () => button("guide").click());
     expect(container.textContent).toContain("This action is available for documentation only.");
+  });
+
+  it("omits namespace controls when every action belongs to the root", async () => {
+    request.mockResolvedValueOnce(catalog([noInputAction]));
+    await render();
+    expect(container.querySelector(".action-tree-toggle")).toBeNull();
+    expect(request).toHaveBeenCalledExactlyOnceWith(dataPath, {
+      headers: { accept: "application/json" }, signal: expect.any(AbortSignal),
+    });
   });
 
   it("validates input, locks the running action, and retries after a structured validation failure", async () => {
@@ -156,6 +193,8 @@ describe("Studio action explorer interactions", () => {
       }));
     await render();
     expect(container.querySelector("textarea")?.value).toContain('"today"');
+    expect(container.querySelector("textarea")?.getAttribute("spellcheck")).toBe("false");
+    expect(button("Run action").querySelector(".kestrel-icon")).not.toBeNull();
     await editPayload("{");
     await act(async () => button("Run action").click());
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("Enter valid JSON");
@@ -167,6 +206,7 @@ describe("Studio action explorer interactions", () => {
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(select.value).toBe("1");
     expect(container.querySelector("textarea")?.value).toContain('"yesterday"');
     await act(async () => {
       const run = button("Run action");
@@ -174,23 +214,49 @@ describe("Studio action explorer interactions", () => {
       run.click();
     });
     expect(button("Running…").disabled).toBe(true);
+    expect(button("Running…").querySelector(".kestrel-icon.spinning")).not.toBeNull();
     expect(button("refresh").disabled).toBe(true);
     expect(select.disabled).toBe(true);
     expect(request).toHaveBeenCalledTimes(2);
     expect(request).toHaveBeenLastCalledWith(executionPath, expect.objectContaining({
       method: "POST", body: JSON.stringify({ name: action.name, input: { day: "yesterday" } }),
+      credentials: "same-origin",
+      headers: { accept: "application/json", "content-type": "application/json" },
     }));
     await act(async () => pending.resolve(result({
       outcome: "failure", executionId: "run-1", durationMs: 1,
       message: "Invalid report date", issues: [{ path: [], message: "Invalid interval" }],
     })));
     expect(container.textContent).toContain("(root): Invalid interval");
+    expect(container.querySelector(".action-result strong")?.textContent).toBe("Failed");
     expect(button("refresh").disabled).toBe(false);
     expect(container.querySelector("textarea")?.value).toContain('"yesterday"');
 
     await act(async () => button("Run action").click());
     expect(container.querySelector(".action-result")?.textContent).toContain("Succeeded");
     expect(container.querySelector(".action-result pre")?.textContent).toContain('"rows": 3');
+
+    await editPayload("{");
+    await act(async () => button("Run action").click());
+    expect(container.querySelector(".action-result")).toBeNull();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Enter valid JSON");
+  });
+
+  it("clears the previous error before a retry settles", async () => {
+    const retry = Promise.withResolvers<Response>();
+    request.mockResolvedValueOnce(catalog([noInputAction]))
+      .mockResolvedValueOnce(Response.json({ message: "Try again" }, { status: 503 }))
+      .mockReturnValueOnce(retry.promise);
+    await render();
+    await act(async () => button("Run action").click());
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Try again");
+    await act(async () => button("Run action").click());
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(button("Running…").disabled).toBe(true);
+    await act(async () => retry.resolve(result({
+      outcome: "success", executionId: "retried", durationMs: 1, result: { available: true, value: null },
+    })));
+    expect(container.querySelector(".action-result strong")?.textContent).toBe("Succeeded");
   });
 
   it("reports response failures without automatically repeating a no-input action", async () => {

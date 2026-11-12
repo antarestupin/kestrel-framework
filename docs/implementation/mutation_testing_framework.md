@@ -203,6 +203,8 @@ The [lifecycle boundary review](./mutation_testing_lifecycle_boundaries.md) cove
 
 The [security and resilience review](./mutation_testing_security_resilience.md) covers authentication, tokens, throttling and outbound HTTP. It pairs complete profiles with static mutants and records the password proof, storage consistency, quota and cancellation regressions.
 
+The [Studio, Atlas and throttling review](./mutation_testing_studio_atlas.md) covers the follow-up on throttling queues and circuits and the first component-wide profiling of the two browser-facing tools. The profiles include their server composition, extension APIs and browser behavior.
+
 ## Historical execution and interpretation
 
 The first full-scope attempts exposed two execution constraints: cumulative coverage metadata can exhaust a non-isolated runner's heap, and repeated runner startup dominates many small mutation runs. Deterministic projects containing at most six non-isolated test files were an intermediate workaround that passed the complete instrumented baseline. Their checkpoints remain historical observations.

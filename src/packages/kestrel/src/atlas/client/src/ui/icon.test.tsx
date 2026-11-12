@@ -14,6 +14,7 @@ describe("Atlas icons", () => {
     const markup = renderToStaticMarkup(<Icon icon={glyph} label="Refreshing" className="status-icon" spin />);
     expect(markup).toContain('role="img"');
     expect(markup).toContain('aria-label="Refreshing"');
+    expect(markup).not.toContain("aria-hidden");
     expect(markup).toContain("kestrel-icon spinning status-icon");
     expect(markup).toContain('opacity="0.5"');
   });
@@ -26,6 +27,8 @@ describe("Atlas icons", () => {
     );
     expect(configured).toContain('viewBox="0 0 8 8"');
     expect(configured).toContain('aria-hidden="true"');
+    expect(configured).not.toContain('role="img"');
+    expect(renderToStaticMarkup(<CatalogIcon catalog={{ undefined: glyph }} fallback="table" />)).toBe(fallback);
   });
 
   it("renders nothing when no icon was requested", () => {

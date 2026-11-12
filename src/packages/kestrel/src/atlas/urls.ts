@@ -7,3 +7,11 @@ export function hasForbiddenUrlCharacters(value: string): boolean {
 export function isAtlasAbsolutePath(value: string): boolean {
   return value.startsWith("/") && !value.startsWith("//") && !hasForbiddenUrlCharacters(value);
 }
+
+/** Validates configured mounts before the router or browser can reinterpret them. */
+export function isAtlasConcreteRoutePath(value: string): boolean {
+  return isAtlasAbsolutePath(value)
+    && !/[:*?#]/u.test(value)
+    // Browser navigation normalizes both literal and percent-encoded dot segments.
+    && !/(?:^|\/)(?:\.|%2e){1,2}(?=\/|$)/iu.test(value);
+}

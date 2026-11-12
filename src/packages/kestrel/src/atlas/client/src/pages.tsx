@@ -37,6 +37,9 @@ import type {
 import { CatalogIcon, Icon } from "./ui/icon.js";
 import { Dialog, Menu } from "./ui/primitives.js";
 import {
+  coerceAtlasRecordId,
+  coerceFormValue,
+  describeFormInputSchema,
   executeAtlasRecordAction,
   executeAtlasOperation,
   executeAtlasOperationResponse,
@@ -48,6 +51,7 @@ import {
   getResourceRecordLabel,
   isRecord,
   isRecordActionShownInList,
+  readAtlasRecordField,
   readListResult,
 } from "./runtime.js";
 import {
@@ -222,7 +226,7 @@ export function ResourceCollection({
   );
   const operation = scope.operation ?? resource.capabilities.list;
   const query = useQuery({
-    queryKey: [resource.id, "collection", operation.id, scope, collectionQuery],
+    queryKey: [resource.id, "collection", manifest.basePath, operation.id, scope, collectionQuery],
     queryFn: async () => readListResult(
       await executeAtlasOperation(
         manifest.basePath,
@@ -347,7 +351,7 @@ export function ResourceListView({
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const query = useQuery({
-    queryKey: [resource.id, "view", view.id, page, pageSize],
+    queryKey: [resource.id, "view", manifest.basePath, view.id, page, pageSize],
     queryFn: async () => readListResult(
       await executeAtlasOperation(
         manifest.basePath,
@@ -445,17 +449,16 @@ export function ResourceRead({
   const queryClient = useQueryClient();
   const query = useResourceRecord(manifest.basePath, resource, recordId);
   const record = query.data;
+  const loadedIdentity = readAtlasRecordField(record, resource.identity);
   const relations = useRelationHydration(
     manifest,
     resource,
     record === undefined ? [] : [record],
   );
   const remove = useMutation({
-    mutationFn: () => executeAtlasOperation(
-      manifest.basePath,
-      requireCapability(resource.capabilities.delete),
-      { [resource.identity]: recordId },
-    ),
+    mutationFn: () => executeAtlasOperation(manifest.basePath, requireCapability(resource.capabilities.delete), {
+      [resource.identity]: coerceAtlasRecordId(recordId, resource.capabilities.delete, resource.identity),
+    }),
     onSuccess: async () => {
       // Labels can depend on records in another Resource.
       await invalidateAtlasResourceQueries(queryClient, manifest);
@@ -508,34 +511,36 @@ export function ResourceRead({
       {record === undefined ? null : (
         <>
           <dl className="detail-panel">
-            {resource.fields.filter((field) => !field.hidden).map((field) => (
-              <div key={field.id}>
-                <dt>{field.label}</dt>
-                <dd>
-                  <FieldValue
-                    basePath={manifest.basePath}
-                    field={field}
-                    onOpenRelation={onOpenRelation}
-                    relationReferences={relations.references(
-                      field,
-                      record[field.id],
-                    )}
-                    resource={resource}
-                    value={relations.resolve(field, record[field.id])}
-                  />
-                </dd>
-              </div>
-            ))}
+            {resource.fields.filter((field) => !field.hidden).map((field) => {
+              const value = readAtlasRecordField(record, field.id);
+              return (
+                <div key={field.id}>
+                  <dt>{field.label}</dt>
+                  <dd>
+                    <FieldValue
+                      basePath={manifest.basePath}
+                      field={field}
+                      onOpenRelation={onOpenRelation}
+                      relationReferences={relations.references(field, value)}
+                      resource={resource}
+                      value={relations.resolve(field, value)}
+                    />
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
           {resource.capabilities.history === undefined ? null : <HistoryMatrix key={recordId} manifest={manifest} resource={resource} recordId={recordId} onOpenRelation={onOpenRelation} />}
           {(resource.relatedCollections ?? []).map((collection) => (
             <RelatedResourceCollection
               collection={collection}
-              key={collection.id}
+              // Start with fresh controls before issuing a request for a different parent.
+              key={JSON.stringify([manifest.basePath, resource.id, recordId, collection.id, collection.pageSize])}
               manifest={manifest}
               onEdit={onEditRelated}
               onOpenAction={onOpenRelatedAction}
               onOpenRelation={onOpenRelation}
+              parentFilterValue={typeof loadedIdentity === "number" ? loadedIdentity : recordId}
               parentRecordId={recordId}
             />
           ))}
@@ -552,6 +557,7 @@ function RelatedResourceCollection({
   onEdit,
   onOpenAction,
   onOpenRelation,
+  parentFilterValue,
   parentRecordId,
 }: {
   collection: AtlasRelatedCollectionManifest;
@@ -563,6 +569,7 @@ function RelatedResourceCollection({
     action: AtlasRecordActionManifest,
   ) => void;
   onOpenRelation: (resourceId: string, recordId: string) => void;
+  parentFilterValue: string | number;
   parentRecordId: string;
 }) {
   const relatedResource = manifest.resources.find(
@@ -577,18 +584,6 @@ function RelatedResourceCollection({
   });
   const [controlsVisible, setControlsVisible] = useState(false);
 
-  useEffect(() => {
-    // A retained route component must not carry pagination into another parent.
-    setCollectionQuery({
-      pagination: {
-        type: "page",
-        page: 1,
-        pageSize: collection.pageSize,
-      },
-    });
-    setControlsVisible(false);
-  }, [collection.id, collection.pageSize, parentRecordId]);
-
   if (relatedResource === undefined) {
     return null;
   }
@@ -598,14 +593,14 @@ function RelatedResourceCollection({
       filters: [{
         field: collection.field,
         operator: "equals",
-        value: parentRecordId,
+        value: parentFilterValue,
       }],
     }
     : {
       operation: collection.query,
       ...(collection.recordInput === undefined
         ? {}
-        : { input: { [collection.recordInput]: parentRecordId } }),
+        : { input: { [collection.recordInput]: coerceAtlasRecordId(parentRecordId, collection.query, collection.recordInput) } }),
     };
   const filtersAvailable = collection.features.filters
     && relatedResource.fields.some(
@@ -665,12 +660,12 @@ export function ResourceCreatePage(properties: ResourceProperties) {
       mode="create"
       onCancel={() => void navigate({ to: `/${resource.id}` })}
       onSuccess={(record) => {
-        const identity = record[resource.identity];
+        const identity = readAtlasRecordField(record, resource.identity);
 
         void navigate({
-          to: identity === undefined
-            ? `/${resource.id}`
-            : `/${resource.id}/${encodeURIComponent(String(identity))}`,
+          to: typeof identity === "string" || typeof identity === "number"
+            ? `/${resource.id}/${encodeURIComponent(String(identity))}`
+            : `/${resource.id}`,
         });
       }}
     />
@@ -709,6 +704,7 @@ export function ResourceForm({
   recordId?: string;
 }) {
   const queryClient = useQueryClient();
+  const submitOnce = useAtlasSubmission();
   const operation = mode === "create"
     ? resource.capabilities.create
     : resource.capabilities.update;
@@ -720,14 +716,14 @@ export function ResourceForm({
   );
   const mutation = useMutation({
     mutationFn: (input: Record<string, unknown>) =>
-      executeAtlasOperation<Record<string, unknown>>(
+      executeAtlasOperation(
         manifest.basePath,
         requireCapability(operation),
         input,
       ),
     onSuccess: async (record) => {
       // A write can change lists, history and labels that depend on this Resource.
-      onSuccess(record);
+      onSuccess(isRecord(record) ? record : {});
       await invalidateAtlasResourceQueries(queryClient, manifest);
     },
   });
@@ -738,20 +734,23 @@ export function ResourceForm({
     definition, field: resource.fields.find((field) => field.id === definition.id),
   }));
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const input = Object.fromEntries(bodyInputs.flatMap(({ definition, field }) => {
-      const value = readFormValue(form, definition, field);
+    await submitOnce(async () => {
+      const form = new FormData(event.currentTarget);
+      const input = Object.fromEntries(bodyInputs.flatMap(({ definition, field }) => {
+        const value = readFormValue(form, definition, field);
 
-      return value === undefined ? [] : [[definition.id, value]];
-    }));
+        return value === undefined ? [] : [[definition.id, value]];
+      }));
 
-    if (mode === "update" && recordId !== undefined) {
-      input[resource.identity] = recordId;
-    }
+      if (mode === "update" && recordId !== undefined) {
+        input[resource.identity] = coerceAtlasRecordId(recordId, operation, resource.identity);
+      }
 
-    mutation.mutate(input);
+      // The mutation retains its error for rendering and allows a retry.
+      await mutation.mutateAsync(input).catch(() => {});
+    });
   };
 
   if (operation === undefined) return <div className="page"><ErrorState error={new Error("This operation is unavailable for this resource.")} /></div>;
@@ -780,7 +779,7 @@ export function ResourceForm({
             key={definition.id}
             manifest={manifest}
             resource={resource}
-            value={recordQuery.data?.[definition.id]}
+            value={readAtlasRecordField(recordQuery.data, definition.id)}
           />
         ))}
         {mutation.isError ? <ErrorState error={mutation.error} /> : null}
@@ -856,6 +855,7 @@ export function RecordActionForm({
   onSuccess: (response: AtlasOperationResponse) => void;
 }) {
   const confirm = useAtlasConfirmation();
+  const submitOnce = useAtlasSubmission();
   const queryClient = useQueryClient();
   const trackAction = useAtlasActionFeedback();
   const parameters = getRecordActionParameters(action).map((definition) => ({
@@ -887,29 +887,31 @@ export function RecordActionForm({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const form = new FormData(event.currentTarget);
-    const input: Record<string, unknown> = {
-      [action.recordInput]: recordId,
-    };
+    await submitOnce(async () => {
+      const form = new FormData(event.currentTarget);
+      const input: Record<string, unknown> = {
+        [action.recordInput]: coerceAtlasRecordId(recordId, action.action, action.recordInput),
+      };
 
-    for (const { definition, field } of parameters) {
-      const value = readFormValue(form, definition, field);
+      for (const { definition, field } of parameters) {
+        const value = readFormValue(form, definition, field);
 
-      if (value !== undefined) {
-        input[definition.id] = value;
+        if (value !== undefined) {
+          input[definition.id] = value;
+        }
       }
-    }
 
-    if (action.confirmation !== undefined && !await confirm({
-      confirmLabel: action.label,
-      description: action.confirmation,
-      title: `${action.label}?`,
-      tone: action.action.effect === "destructive" ? "danger" : "default",
-    })) {
-      return;
-    }
+      if (action.confirmation !== undefined && !await confirm({
+        confirmLabel: action.label,
+        description: action.confirmation,
+        title: `${action.label}?`,
+        tone: action.action.effect === "destructive" ? "danger" : "default",
+      })) {
+        return;
+      }
 
-    mutation.mutate(input);
+      await mutation.mutateAsync(input).catch(() => {});
+    });
   };
 
   return (
@@ -954,6 +956,20 @@ export function RecordActionForm({
       </div>
     </form>
   );
+}
+
+/** Guards the interval before React can render the disabled operation control. */
+function useAtlasSubmission() {
+  const active = useRef(false);
+  return async (submit: () => Promise<void>): Promise<void> => {
+    if (active.current) return;
+    active.current = true;
+    try {
+      await submit();
+    } finally {
+      active.current = false;
+    }
+  };
 }
 
 /** In-context presentation of the same canonical record Action form. */
@@ -1079,7 +1095,8 @@ export function RecordActionDialog({
 /** Refreshes resource data, including labels derived through other resources. */
 function invalidateAtlasResourceQueries(queryClient: QueryClient, manifest: AtlasManifest): Promise<void> {
   return queryClient.invalidateQueries({
-    predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]),
+    predicate: (query) => query.queryKey[2] === manifest.basePath
+      && manifest.resources.some((target) => target.id === query.queryKey[0]),
   });
 }
 
@@ -1090,13 +1107,13 @@ function useResourceRecord(
   enabled = true,
 ) {
   const query = useQuery({
-    queryKey: [resource.id, "read", recordId],
+    queryKey: [resource.id, "read", basePath, recordId],
     enabled,
     queryFn: async () => {
       const response = await executeAtlasOperationResponse<Record<string, unknown>>(
         basePath,
         resource.capabilities.read,
-        { [resource.identity]: recordId },
+        { [resource.identity]: coerceAtlasRecordId(recordId, resource.capabilities.read, resource.identity) },
       );
 
       if (!isRecord(response.data)) {
@@ -1319,7 +1336,8 @@ function normalizeFilterValue(
   if (field.kind === "number") {
     const number = Number(value);
 
-    return Number.isNaN(number) ? value : number;
+    // JSON turns non-finite numbers into null, changing the submitted operand.
+    return Number.isFinite(number) ? number : value;
   }
 
   if (field.kind === "boolean") {
@@ -1387,20 +1405,20 @@ export function ResourceTable({
       ),
     );
     const table = panel.querySelector("table");
-    const resizeObserver = new ResizeObserver(updateActionShadow);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(updateActionShadow);
 
     panel.addEventListener("scroll", updateActionShadow, { passive: true });
-    resizeObserver.observe(panel);
+    resizeObserver?.observe(panel);
 
     if (table !== null) {
-      resizeObserver.observe(table);
+      resizeObserver?.observe(table);
     }
 
     updateActionShadow();
 
     return () => {
       panel.removeEventListener("scroll", updateActionShadow);
-      resizeObserver.disconnect();
+      resizeObserver?.disconnect();
     };
   }, []);
 
@@ -1447,29 +1465,29 @@ export function ResourceTable({
         </thead>
         <tbody>
           {items.map((record, index) => {
-            const identity = record[resource.identity];
+            const identity = readAtlasRecordField(record, resource.identity);
             // A projection can omit the identity. Its array position cannot address a record.
             const recordId = identity == null ? undefined : String(identity);
 
             return (
               <tr key={recordId === undefined ? `projection:${index}` : `record:${recordId}`}>
-                {fields.map((field) => (
-                  <td key={field.id}>
-                    <FieldValue
-                      basePath={manifest.basePath}
-                      context="list"
-                      textMaxLength={manifest.defaults.textMaxLength}
-                      field={field}
-                      onOpenRelation={onOpenRelation}
-                      relationReferences={relations.references(
-                        field,
-                        record[field.id],
-                      )}
-                      resource={resource}
-                      value={relations.resolve(field, record[field.id])}
-                    />
-                  </td>
-                ))}
+                {fields.map((field) => {
+                  const value = readAtlasRecordField(record, field.id);
+                  return (
+                    <td key={field.id}>
+                      <FieldValue
+                        basePath={manifest.basePath}
+                        context="list"
+                        textMaxLength={manifest.defaults.textMaxLength}
+                        field={field}
+                        onOpenRelation={onOpenRelation}
+                        relationReferences={relations.references(field, value)}
+                        resource={resource}
+                        value={relations.resolve(field, value)}
+                      />
+                    </td>
+                  );
+                })}
                 <td className="row-actions">{recordId === undefined ? null : (
                   <div className="row-actions-controls">
                     <button className="button" onClick={() => onRead(recordId)} type="button">
@@ -1535,11 +1553,9 @@ function RowRecordActions({
   const confirm = useAtlasConfirmation();
   const queryClient = useQueryClient();
   const remove = useMutation({
-    mutationFn: () => executeAtlasOperation(
-      manifest.basePath,
-      requireCapability(resource.capabilities.delete),
-      { [resource.identity]: recordId },
-    ),
+    mutationFn: () => executeAtlasOperation(manifest.basePath, requireCapability(resource.capabilities.delete), {
+      [resource.identity]: coerceAtlasRecordId(recordId, resource.capabilities.delete, resource.identity),
+    }),
     onSuccess: async () => {
       // Refresh every collection and View that may contain the deleted record.
       // Labels can depend on records in another Resource.
@@ -1717,6 +1733,7 @@ function RecordActionControl({
   resource: AtlasResourceManifest;
 }) {
   const confirm = useAtlasConfirmation();
+  const submitOnce = useAtlasSubmission();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const trackAction = useAtlasActionFeedback();
@@ -1727,7 +1744,7 @@ function RecordActionControl({
         manifest.basePath,
         resource,
         item,
-        { [item.recordInput]: recordId },
+        { [item.recordInput]: coerceAtlasRecordId(recordId, item.action, item.recordInput) },
       ),
       {
         label: item.label,
@@ -1759,16 +1776,18 @@ function RecordActionControl({
       return;
     }
 
-    if (item.confirmation !== undefined && !await confirm({
-      confirmLabel: item.label,
-      description: item.confirmation,
-      title: `${item.label}?`,
-      tone: item.action.effect === "destructive" ? "danger" : "default",
-    })) {
-      return;
-    }
+    await submitOnce(async () => {
+      if (item.confirmation !== undefined && !await confirm({
+        confirmLabel: item.label,
+        description: item.confirmation,
+        title: `${item.label}?`,
+        tone: item.action.effect === "destructive" ? "danger" : "default",
+      })) {
+        return;
+      }
 
-    mutation.mutate();
+      await mutation.mutateAsync().catch(() => {});
+    });
   };
 
   return (
@@ -1913,6 +1932,7 @@ function StandardOperationInput({
 
   const multiline = definition.id.toLocaleLowerCase().includes("description")
     || definition.id.toLocaleLowerCase().includes("content");
+  const inputType = getInputType(schema);
 
   return (
     <label className="form-field" htmlFor={definition.id}>
@@ -1926,8 +1946,10 @@ function StandardOperationInput({
       ) : (
         <input
           {...commonProperties}
-          defaultValue={formatInputValue(value)}
-          type={getInputType(schema)}
+          defaultValue={formatInputValue(value, inputType)}
+          // Native number inputs otherwise allow only integers.
+          step={inputType === "datetime-local" || schema.type === "number" ? "any" : undefined}
+          type={inputType}
         />
       )}
     </label>
@@ -2042,34 +2064,6 @@ export function readFormValue(
   return coerceFormValue(value, schema);
 }
 
-function coerceFormValue(value: string, schema: unknown): unknown {
-  const { schema: { type } } = describeFormInputSchema(schema);
-  return type === "number" || type === "integer" ? Number(value) : value;
-}
-
-/** Selects a concrete control for nullable inputs without guessing between other unions. */
-function describeFormInputSchema(schema: unknown): { schema: Record<string, unknown>; nullable: boolean } {
-  if (!isRecord(schema)) return { schema: {}, nullable: schema === true };
-
-  if (Array.isArray(schema.type) && schema.type.includes("null")) {
-    return {
-      schema: schema.type.length === 2 ? { ...schema, type: schema.type.find((type) => type !== "null") } : schema,
-      nullable: true,
-    };
-  }
-
-  const alternatives = schema.anyOf ?? schema.oneOf;
-  if (Array.isArray(alternatives)
-    && alternatives.some((alternative) => isRecord(alternative) && alternative.type === "null")) {
-    const alternative = alternatives.length === 2
-      ? alternatives.filter(isRecord).find((item) => item.type !== "null")
-      : undefined;
-    return { schema: alternative ?? schema, nullable: true };
-  }
-
-  return { schema, nullable: schema.type === "null" };
-}
-
 /** Returns whether schema-derived form values contain user-entered content. */
 export function hasAtlasFormContent(values: readonly unknown[]): boolean {
   return values.some((value) =>
@@ -2100,12 +2094,18 @@ function getInputType(schema: Record<string, unknown>): string {
   return "text";
 }
 
-function formatInputValue(value: unknown): string | number | readonly string[] | undefined {
-  if (typeof value === "number" || typeof value === "string") {
-    return value;
+function formatInputValue(value: unknown, inputType?: string): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (inputType === "datetime-local" && typeof value === "string") {
+    const instant = new Date(value);
+    if (Number.isFinite(instant.getTime())) {
+      // Preserve seconds and milliseconds while presenting the instant in local time.
+      const local = new Date(instant.getTime() - instant.getTimezoneOffset() * 60_000);
+      return local.toISOString().slice(0, -1);
+    }
   }
-
-  return value === undefined || value === null ? undefined : String(value);
+  // Native text, number and date controls all expose a string value.
+  return String(value);
 }
 
 function humanize(value: string): string {

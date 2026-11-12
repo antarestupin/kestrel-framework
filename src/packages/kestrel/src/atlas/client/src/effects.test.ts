@@ -61,6 +61,18 @@ describe("atlas Action feedback", () => {
     });
   });
 
+  it("keeps non-success effects in order and omits links when none is supplied", () => {
+    const failure = { type: "notification", level: "error", message: "First failure" } as const;
+    const success = { type: "notification", level: "success", message: "First success" } as const;
+    const later = { type: "notification", level: "success", message: "Later success" } as const;
+    expect(resolveAtlasActionSuccess([failure, success, later], "Fallback")).toStrictEqual({
+      message: "First success", remainingEffects: [failure, later],
+    });
+    expect(resolveAtlasActionSuccess([failure], "Fallback")).toStrictEqual({
+      message: "Fallback", remainingEffects: [failure],
+    });
+  });
+
   it("dismisses each stack toward its nearest viewport edges", () => {
     expect(getAtlasNotificationSwipeDirections("top-left"))
       .toEqual(["up", "left"]);

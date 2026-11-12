@@ -138,9 +138,11 @@ export function defineWorkersStudioExtension(
               });
             }
 
-            const [statistics] = await adapter.listQueueStatistics([
+            // A custom adapter can return extra queues. Only expose the requested queue.
+            const queues = await adapter.listQueueStatistics([
               worker.queue,
             ]);
+            const statistics = queues.find(({ queue }) => queue === worker.queue);
 
             if (statistics === undefined) {
               throw new Error(

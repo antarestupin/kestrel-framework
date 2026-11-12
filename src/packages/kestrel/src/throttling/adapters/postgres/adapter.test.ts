@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { setTimeout as pause } from "node:timers/promises";
+import { setImmediate, setTimeout as pause } from "node:timers/promises";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import {
@@ -145,6 +145,7 @@ describe("PostgresRateLimitAdapter", () => {
     const now = new Date("2026-01-01T00:00:00Z");
     const adapter = createAdapter({ now: () => now });
     const query = vi.spyOn(client, "query");
+    const transaction = vi.spyOn(database, "transaction");
 
     try {
       await expect(adapter.reserveMany([])).resolves.toEqual({ admitted: true, remaining: {}, source: "authoritative" });
@@ -161,7 +162,11 @@ describe("PostgresRateLimitAdapter", () => {
         admitted: false, remaining: { [request.key]: 0 }, source: "authoritative",
         retryAt: new Date(now.getTime() + request.periodMs),
       });
+      await expect(adapter.reconcile([{ ...request, estimatedCost: 1, actualCost: 0 }])).resolves.toEqual({ [request.key]: 1 });
+      // Single-statement reservations and adjustments need no transaction round trip.
+      expect(transaction).not.toHaveBeenCalled();
     } finally {
+      transaction.mockRestore();
       query.mockRestore();
     }
   });
@@ -255,7 +260,13 @@ describe("PostgresRateLimitAdapter", () => {
     await client.query("UPDATE throttling_rate_limit_lease SET expires_at = statement_timestamp() - interval '1 second'");
     await client.query("UPDATE throttling_rate_limit SET full_at = statement_timestamp() - interval '1 second'");
 
-    await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
+    const query = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.prune({ limit: 1 })).resolves.toBe(1);
+      expect(query).toHaveBeenCalledOnce();
+    } finally {
+      query.mockRestore();
+    }
     const buckets = await client.query("SELECT key FROM throttling_rate_limit");
     expect(buckets.rows).toEqual([{ key: leasedRequest.key }]);
     await expect(adapter.prune({})).resolves.toBe(1);
@@ -382,6 +393,7 @@ describe("PostgresRateLimitAdapter", () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(live).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true }));
       expect(last).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true }));
+      expect(vi.getTimerCount()).toBe(0);
     } finally {
       first.resolve(row);
       second.resolve(row);
@@ -390,6 +402,32 @@ describe("PostgresRateLimitAdapter", () => {
       } finally {
         vi.useRealTimers();
       }
+    }
+  });
+
+  it("keeps a valid long storage wait pending until a pool slot becomes available", async () => {
+    const first = Promise.withResolvers<{ rows: object[] }>();
+    const row = { rows: [{ key: baseRequest.key, admitted: true, remaining: 1 }] };
+    const execute = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue(row);
+    const adapter = new PostgresRateLimitAdapter({ execute } as unknown as PostgresRateLimitDatabase, {
+      maxConcurrentReservations: 1, maxPendingReservations: 1, storageWaitTimeoutMs: 2_147_483_648,
+    });
+    const warning = vi.spyOn(process, "emitWarning");
+    const holding = adapter.reserve(baseRequest);
+    const queued = adapter.reserve(baseRequest);
+    const settled = vi.fn();
+    void queued.then(settled, settled);
+    try {
+      await setImmediate();
+      expect(warning.mock.calls.some(([message]) => String(message).includes("does not fit into a 32-bit signed integer"))).toBe(false);
+      expect(settled).not.toHaveBeenCalled();
+      expect(execute).toHaveBeenCalledOnce();
+      first.resolve(row);
+      await expect(queued).resolves.toMatchObject({ admitted: true });
+    } finally {
+      warning.mockRestore();
+      first.resolve(row);
+      await Promise.allSettled([holding, queued]);
     }
   });
 

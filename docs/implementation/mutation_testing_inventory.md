@@ -2,7 +2,7 @@
 
 [Testing reference](./testing.md#framework-mutation-testing) · [Running assessments](../contributing/mutation-testing.md#run-framework-mutation-testing) · [Results and classifications](./mutation_testing_framework.md) · [Machine-readable inventory](./mutation_testing_inventory.json)
 
-Updated November 12, 2026. The 35 primary lots partition all 639 TS/TSX candidate sources currently selected by the full Stryker configuration. The inventory tracks mutation assessment progress. Source candidates include type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly and may be absent in a fresh Git checkout.
+Updated November 12, 2026. The 35 primary lots partition all 640 TS/TSX candidate sources currently selected by the full Stryker configuration. The inventory tracks mutation assessment progress. Source candidates include type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly and may be absent in a fresh Git checkout.
 
 ## Scope and states
 
@@ -22,7 +22,7 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | --- | ---: | --- | --- | --- |
 | `actions` | 9 | Reviewed | All nine current source candidates assessed; 12 diagnostic/optional-metadata residuals classified; re-review after contract changes | `actions-crud-pagination`, `actions-component` |
 | `app` | 11 | Reviewed | Composition, startup, scope teardown, transport draining, catalog and diagnostic contracts reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#application) |
-| `atlas` | 53 | Partial / selected evidence | Portable collection URL helper reviewed; other client/server, routing, rendering and adapter scopes pending | `atlas-collection-query` |
+| `atlas` | 53 | Reviewed | Resources, gateway effects, relation ownership, forms, routing and browser cache boundaries | [Atlas review](mutation_testing_studio_atlas.md#atlas) |
 | `authentication` | 44 | Reviewed | Accounts, password proofs, session lifecycle, HTTP cookies and adapter contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#authentication) |
 | `authorization` | 23 | Reviewed | Requirement evaluation, scoped composition, denial semantics and role stores reviewed | [Boundary review](mutation_testing_http_boundaries.md#authorization) |
 | `background` | 4 | Reviewed | Selection, startup and steady-state polling, rollback and transport drain reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#background-workloads) |
@@ -47,16 +47,16 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `outbound_http` | 17 | Reviewed | Routing, cancellation, stream ownership, retry, caching and throttling feedback reviewed | [Security and resilience review](mutation_testing_security_resilience.md#outbound-http) |
 | `scheduled_tasks` | 19 | Reviewed | Scheduler ownership and shutdown, adapter parity and operator contracts | [Component review](mutation_testing_scheduled_tasks.md#november-11-review) |
 | `scheduling` | 4 | Reviewed | Timer limits, abort handling, lease extensions and polling budgets | [Component review](mutation_testing_scheduling_review.md) |
-| `studio` | 99 | Not assessed | Server/extensions, client state, routing and rendering | — |
+| `studio` | 99 | Reviewed | Mounting, action and HTTP explorers, diagnostic extensions and browser request ownership | [Studio review](mutation_testing_studio_atlas.md#studio) |
 | `testing` | 1 | Assessment complete; review pending | Public HTTP policy helper; PostgreSQL/Redis fixtures excluded | `testing-component` |
-| `throttling` | 34 | Reviewed | Admission, waiting, circuit feedback, lease coordination and storage contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#throttling) |
+| `throttling` | 35 | Reviewed | Queue ownership, circuit transitions, policy registration and backend capacity and shutdown | [Throttling review](mutation_testing_studio_atlas.md#throttling) |
 | `tokens` | 31 | Reviewed | Token lifecycle, signing, key resolution, batch atomicity and adapter contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#tokens) |
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
 | `utils` | 5 | Not assessed | Codecs, identifiers, catalog and boundary validation | — |
 | `workers` | 23 | Reviewed | Scheduler admission and ownership, delivery, publication, adapters and contracts | [Component review](mutation_testing_workers_complete_review.md) |
 | `workflows` | 38 | Reviewed | Runtime, replay, operator commands and adapter contracts | [Component review](mutation_testing_workflows_complete_review.md) |
 
-The current total is 8 not-assessed lots, 1 partially assessed lot, 24 reviewed lots, 1 completed assessment awaiting review, and 1 lot without candidate sources. These are manual assessment states.
+The current total is 7 not-assessed lots, 0 partially assessed lots, 26 reviewed lots, 1 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
 
 ## Evidence ledger
 
@@ -262,6 +262,12 @@ Local reports, exact comparisons and input hashes are archived under `artifacts/
 ## Historical global campaign
 
 The interrupted November 9 campaign has 18,525 recorded statuses out of 42,816 generated mutations. It is incomplete, uses older tests and does not establish any current complete component baseline. Keep `artifacts/mutation/checkpoint-stopped-by-user.json` as a historical observation. Do not merge its counters with selected slice reports or average component scores to produce a framework score.
+
+## Studio, Atlas and throttling follow-up
+
+- `throttling` has 14 verified pairs out of 14 profiles. The score across those pairs changed from 93.63% to 95.21%. [Throttling review](mutation_testing_studio_atlas.md#throttling).
+- `studio` has 25 verified pairs out of 25 profiles. The score across those pairs changed from 76.74% to 96.06%. [Studio review](mutation_testing_studio_atlas.md#studio).
+- `atlas` has 28 verified pairs out of 28 profiles. The score across those pairs changed from 77.89% to 95.03%. [Atlas review](mutation_testing_studio_atlas.md#atlas).
 
 ## Updating the inventory
 

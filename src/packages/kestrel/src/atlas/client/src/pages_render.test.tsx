@@ -13,6 +13,7 @@ import type {
 } from "../../contract.js";
 import {
   CollectionControls,
+  OperationControl,
   OperationInput,
   RecordActionForm,
   ResourceCollection,
@@ -21,6 +22,7 @@ import {
   ResourceListView,
   ResourceRead,
 } from "./pages.js";
+import { Icon } from "./ui/icon.js";
 
 const fieldDefaults = { hidden: false, readOnly: false, searchable: false, sortable: false, filterOperators: [] } as const;
 const id: AtlasFieldManifest = { ...fieldDefaults, id: "id", label: "Identifier", kind: "id", schema: { type: "string" }, readOnly: true };
@@ -60,6 +62,28 @@ const manifest: AtlasManifest = {
   basePath: "/admin", title: "Coverage Atlas", icons: {}, resources: [resource],
   defaults: { textMaxLength: 15, recordActionsInList: "all" }, notifications: { position: "bottom-left" },
 };
+
+it("keeps schema inputs readable without Resource metadata and omits absent values", () => {
+  const schema = { type: "string", format: "date-time" };
+  const definition = { id: "nextRetryAt", required: false, schema };
+  const input = (value: unknown) => renderToStaticMarkup(<OperationInput definition={definition} value={value} />);
+  expect(input("invalid saved timestamp")).toContain("Next Retry At");
+  expect(input("invalid saved timestamp")).toContain('value="invalid saved timestamp"');
+  expect(input(null)).not.toContain('value="null"');
+  expect(input(undefined)).not.toContain('value="undefined"');
+
+  const relation = { ...name, kind: "relation" as const, relation: { resource: "person", cardinality: "one" as const, optional: false } };
+  const embedded = renderToStaticMarkup(<OperationInput definition={{ id: name.id, required: true, schema: name.schema }} field={relation} value="Ada" />);
+  expect(embedded).toContain('value="Ada"');
+  expect(embedded).not.toContain("relation target is unavailable");
+});
+
+it("uses the standard destructive and non-destructive operation glyphs", () => {
+  const remove = renderToStaticMarkup(<OperationControl label="Remove" operation={{ ...create, effect: "destructive" }} pending={false} />);
+  const execute = renderToStaticMarkup(<OperationControl label="Run" operation={create} pending={false} />);
+  expect(remove).toContain(renderToStaticMarkup(<Icon name="delete" />));
+  expect(execute).toContain(renderToStaticMarkup(<Icon name="play" />));
+});
 const collectionQuery: AtlasCollectionQuery = {
   pagination: { type: "page", page: 2, pageSize: 10 }, search: "Ada",
   filters: [{ field: "name", operator: "contains", value: "Ada" }, { field: "name", operator: "is-null" }],
@@ -83,7 +107,7 @@ describe("Atlas Resource collection rendering", () => {
   it("renders search state, filters, ordered sort criteria and bounded page controls", () => {
     const markup = render(<ResourceList
       collectionQuery={collectionQuery} manifest={manifest} onCreate={noop} resource={resource} {...collectionCallbacks}
-    />, (client) => client.setQueryData([resource.id, "collection", list.id, {}, collectionQuery], {
+    />, (client) => client.setQueryData([resource.id, "collection", manifest.basePath, list.id, {}, collectionQuery], {
       items: [{ id: "1", name: "Ada Lovelace", count: 3, private: "private value" }, { name: "No identity" }], hasNextPage: true,
     }));
     expect(markup).toContain("Create person");
@@ -110,7 +134,7 @@ describe("Atlas Resource collection rendering", () => {
     };
     expect(render(<ResourceCollection {...props} />)).toContain("Loading…");
     const markup = render(<ResourceCollection {...props} />, (client) => client.setQueryData([
-      resource.id, "collection", list.id, scoped, collectionQuery,
+      resource.id, "collection", manifest.basePath, list.id, scoped, collectionQuery,
     ], { items: [], hasNextPage: false }));
     expect(markup).toContain("No records found.");
     expect(markup).not.toContain("collection-controls");
@@ -130,7 +154,7 @@ describe("Atlas Resource collection rendering", () => {
   it("shows View results and reports a failed list query through the visible error state", () => {
     const view = { id: "recent", label: "Recent people", renderer: "resource-list", query: list };
     const props = { manifest, resource, view, ...collectionCallbacks };
-    const key = [resource.id, "view", view.id, 1, 20];
+    const key = [resource.id, "view", manifest.basePath, view.id, 1, 20];
     const success = render(<ResourceListView {...props} />, (client) => client.setQueryData(key, {
       items: [{ id: "p1", name: "Recent member" }], hasNextPage: false,
     }));
@@ -156,7 +180,7 @@ describe("Atlas Resource forms and record details", () => {
 
     expect(render(<ResourceForm mode="update" recordId="1" {...formProps} />)).toContain("Loading…");
     const updateMarkup = render(<ResourceForm mode="update" recordId="1" {...formProps} />, (client) => client.setQueryData([
-      resource.id, "read", "1",
+      resource.id, "read", manifest.basePath, "1",
     ], { data: { id: "1", name: "Ada", count: 7 }, effects: [] }));
     expect(updateMarkup).toContain("Edit record");
     expect(updateMarkup).toContain('value="Ada"');
@@ -175,7 +199,7 @@ describe("Atlas Resource forms and record details", () => {
     const markup = render(<ResourceRead
       manifest={manifest} resource={resource} recordId="1" onDeleted={noop} onEdit={noop}
       onOpenAction={noop} onEditRelated={noop} onOpenRelatedAction={noop} onOpenRelation={noop}
-    />, (client) => client.setQueryData([resource.id, "read", "1"], {
+    />, (client) => client.setQueryData([resource.id, "read", manifest.basePath, "1"], {
       data: { id: "1", name: "Ada Lovelace", count: 7, private: "private value" }, effects: [],
       recordLinks: [{ id: "public", label: "Public page", href: "/people/1" }],
     }));
@@ -202,11 +226,11 @@ describe("Atlas Resource forms and record details", () => {
       manifest={{ ...manifest, resources: [resource, viewed] }} resource={viewed} recordId="1"
       onDeleted={noop} onEdit={noop} onOpenAction={noop} onEditRelated={noop} onOpenRelatedAction={noop} onOpenRelation={noop}
     />, (client) => {
-      client.setQueryData([viewed.id, "read", "1"], { data: { id: "1", name: "Parent" }, effects: [] });
-      client.setQueryData([resource.id, "collection", list.id, { filters: [ownerFilter] }, firstPage], {
+      client.setQueryData([viewed.id, "read", manifest.basePath, "1"], { data: { id: "1", name: "Parent" }, effects: [] });
+      client.setQueryData([resource.id, "collection", manifest.basePath, list.id, { filters: [ownerFilter] }, firstPage], {
         items: [{ id: "managed", name: "Managed child" }], hasNextPage: false,
       });
-      client.setQueryData([resource.id, "collection", custom.id, { operation: custom, input: { parent: "1" } }, firstPage], {
+      client.setQueryData([resource.id, "collection", manifest.basePath, custom.id, { operation: custom, input: { parent: "1" } }, firstPage], {
         items: [{ id: "joined", name: "Linked child" }], hasNextPage: true,
       });
     });
@@ -222,6 +246,7 @@ describe("Atlas Resource forms and record details", () => {
 
   it("uses explicit action parameter presentation and excludes the bound record input", () => {
     const markup = render(<RecordActionForm action={action} manifest={manifest} resource={resource} recordId="1" onSuccess={noop} onCancel={noop} />);
+    expect(markup).not.toContain("Run this Action for person 1.");
     expect(markup).toContain("Recipient");
     expect(markup).toContain('type="email"');
     expect(markup).not.toContain('name="id"');

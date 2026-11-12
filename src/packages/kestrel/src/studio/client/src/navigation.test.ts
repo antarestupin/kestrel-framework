@@ -45,6 +45,35 @@ describe("buildStudioNavigation", () => {
       ["Database schema", "Drizzle Studio"],
     ]);
   });
+
+  it("keeps stable keys and insertion order for ties and drops sections without visible tools", () => {
+    const navigation = buildStudioNavigation({
+      basePath: "/studio",
+      icons: {},
+      extensions: [
+        createExtension("first", "Operations", 0, [
+          { id: "tool", title: "First tool", path: "/first", kind: "tool" },
+        ], [{ id: "tool", title: "Tool guide", href: "https://example.test/guide" }]),
+        createExtension("second", "Operations", 0, [
+          { id: "tool", title: "Second tool", path: "/second", kind: "tool" },
+        ]),
+        createExtension("third", "Documentation", 0, [
+          { id: "help", title: "Help", path: "/help", kind: "tool" },
+        ]),
+        createExtension("hidden", "Private", 0, [
+          { id: "internal", title: "Internal", path: "/internal", kind: "tool", showInNavigation: false },
+        ]),
+      ],
+    });
+
+    expect(navigation.map(({ definition }) => definition.title)).toEqual(["Operations", "Documentation"]);
+    // IDs can repeat across extensions and resource kinds without reusing a React key.
+    expect(navigation[0]?.items.map(({ type, key, insertionIndex }) => ({ type, key, insertionIndex }))).toEqual([
+      { type: "page", key: "first.page.tool", insertionIndex: 0 },
+      { type: "link", key: "first.link.tool", insertionIndex: 1 },
+      { type: "page", key: "second.page.tool", insertionIndex: 2 },
+    ]);
+  });
 });
 
 function createExtension(

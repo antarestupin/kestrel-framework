@@ -47,6 +47,63 @@ function createManager(adapter: RateLimitAdapter, options: Partial<ThrottlingMan
   return manager;
 }
 
+describe("ThrottlingManager teardown contracts", () => {
+  it("closes the other pressure readers and its backend after a reader fails", async () => {
+    const failure = new Error("pressure reader teardown failed");
+    const first = vi.fn(() => { throw failure; });
+    const second = vi.fn();
+    const monitor = new LocalResourcePressureMonitor([
+      { supports: () => false, read: () => undefined, close: first },
+      { supports: () => false, read: () => undefined, close: second },
+    ]);
+    const close = vi.fn(async () => {});
+    const manager = new ThrottlingManager({ reserve: vi.fn(), close }, {
+      namespace: "test", resourcePressureMonitor: monitor,
+    });
+
+    const closing = manager.close();
+    await expect(closing).rejects.toBe(failure);
+    expect(manager.close()).toBe(closing);
+    expect(first).toHaveBeenCalledOnce();
+    expect(second).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("drains pending accounting and preserves independent reader and backend close failures", async () => {
+    const readerError = new Error("pressure reader teardown failed");
+    const storageError = new Error("storage teardown failed");
+    const accounting = Promise.withResolvers<Readonly<Record<string, number>>>();
+    const monitor = new LocalResourcePressureMonitor([
+      { supports: () => false, read: () => undefined, close: () => { throw readerError; } },
+    ]);
+    const reconcile = vi.fn<NonNullable<RateLimitAdapter["reconcile"]>>().mockReturnValue(accounting.promise);
+    const close = vi.fn<NonNullable<RateLimitAdapter["close"]>>().mockRejectedValue(storageError);
+    const manager = new ThrottlingManager({ reserve: async () => ({ admitted: true, remaining: 9 }), reconcile, close }, {
+      namespace: "test", resourcePressureMonitor: monitor,
+    });
+    const deferred = defineAdmissionPolicy({ id: "deferred-on-close", limits: [quota], costAccounting: { reconciliation: "asynchronous" } });
+
+    try {
+      const permit = await manager.acquire(deferred, { estimatedCost: { requests: 1 } });
+      await permit.complete({ outcome: "success", actualCost: { requests: 2 } });
+      expect(reconcile).toHaveBeenCalledOnce();
+      const settled = vi.fn();
+      const closing = manager.close();
+      void closing.then(settled, settled);
+      // Closing storage before the deferred write settles would lose actual-cost accounting.
+      await Promise.resolve();
+      expect(settled).not.toHaveBeenCalled();
+      expect(close).not.toHaveBeenCalled();
+      accounting.resolve({ [quota.id]: 8 });
+      await expect(closing).rejects.toMatchObject({ name: "AggregateError", errors: [readerError, storageError] });
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      accounting.resolve({});
+      await manager.close().catch(() => undefined);
+    }
+  });
+});
+
 describe("ThrottlingManager inspection contracts", () => {
   it("requires inspection support without attempting a reservation", async () => {
     const reserve = vi.fn<RateLimitAdapter["reserve"]>();
@@ -82,7 +139,7 @@ describe("ThrottlingManager inspection contracts", () => {
     ]);
     const manager = createManager({ reserve: vi.fn<RateLimitAdapter["reserve"]>(), inspectMany });
 
-    await expect(manager.inspect(policy, { estimatedCost: { requests: 1 } })).resolves.toEqual({
+    await expect(manager.inspect(policy, { estimatedCost: { requests: 1 } })).resolves.toStrictEqual({
       state: "limited",
       retryAt: new Date(200),
       reasons: [
@@ -209,11 +266,31 @@ describe("ThrottlingManager instrumentation contracts", () => {
     reserve.mockResolvedValue({ admitted: true, remaining: 0 });
     await manager.run(simple, { rateKey: longestAllowedKey }, () => "ok");
     expect(reserve).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ key: `test:${simple.id}:${longestAllowedKey}` }));
+    expect(record.mock.calls.map(([event]) => event).findLast((event) => event.type === "acquisition")?.data).toStrictEqual({
+      key: simple.id, mode: "immediate", result: "acquired", cost: 1, estimatedCost: { requests: 1 },
+      constraints: 1, attempts: 1, remaining: 0,
+    });
+
+    await manager.run(concurrencyOnly, () => "local");
+    expect(record.mock.calls.map(([event]) => event).findLast((event) => event.type === "acquisition")?.data).toStrictEqual({
+      key: concurrencyOnly.id, mode: "immediate", result: "acquired", cost: 0, estimatedCost: {},
+      constraints: 1, attempts: 1, source: "local",
+    });
+  });
+
+  it("keeps a callable handler's own properties out of run options", async () => {
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>().mockResolvedValue({ admitted: true, remaining: 0 });
+    const manager = createManager({ reserve });
+    const handler = Object.assign(vi.fn(() => "handled"), { rateKey: "plugin-metadata", maxWaitMs: -1 });
+
+    // A JavaScript callback may carry fields that happen to share option names.
+    await expect(manager.run(simple, handler)).resolves.toBe("handled");
+    expect(reserve).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ key: `test:${simple.id}`, cost: 1 }));
   });
 
   it("reports only actionable pressure signals, including transitions from observed health", async () => {
     let time = 0;
-    const values: Record<string, number | undefined> = { cpu: 0, rss: 0, missing: 0, spare: 0 };
+    const values: Record<string, number | undefined> = { benign: 0, cpu: 0, rss: 0, missing: 0, spare: 0 };
     const monitor = new LocalResourcePressureMonitor([{
       supports: (id) => id in values,
       read: (id) => values[id],
@@ -222,8 +299,8 @@ describe("ThrottlingManager instrumentation contracts", () => {
       healthyIntervalMs: 10, nearThresholdIntervalMs: 10, pressuredIntervalMs: 10,
     });
     const thresholds = { degradedAt: 0.8, limitedAt: 0.9 };
-    const optional = localResourcePressure({ id: "optional-pressure", signals: { missing: thresholds, rss: thresholds }, onUnavailable: "ignore" });
-    const required = localResourcePressure({ id: "required-pressure", signals: { cpu: thresholds, spare: thresholds } });
+    const optional = localResourcePressure({ id: "optional-pressure", signals: { benign: thresholds, missing: thresholds, rss: thresholds }, onUnavailable: "ignore" });
+    const required = localResourcePressure({ id: "required-pressure", signals: { benign: thresholds, cpu: thresholds, spare: thresholds } });
     const policy = defineAdmissionPolicy({ id: "pressure-policy", limits: [optional, required] });
     const reserve = vi.fn<RateLimitAdapter["reserve"]>();
     const record = vi.fn<(event: ThrottlingInstrumentationEvent) => void>();
@@ -233,24 +310,29 @@ describe("ThrottlingManager instrumentation contracts", () => {
     expect(record).not.toHaveBeenCalled();
     Object.assign(values, { missing: undefined, rss: 0.85 });
     time += 10;
-    await expect(manager.inspect(policy)).resolves.toEqual({ state: "degraded", reasons: [
+    await expect(manager.inspect(policy)).resolves.toStrictEqual({ state: "degraded", reasons: [
       { constraintId: optional.id, kind: "pressure", signalId: "missing" },
       { constraintId: optional.id, kind: "pressure", signalId: "rss", value: 0.85 },
     ] });
-    expect(record.mock.calls.map(([event]) => event)).toEqual([
+    expect(record.mock.calls.map(([event]) => event)).toStrictEqual([
       { type: "pressure", durationMs: 0, outcome: "failure", data: { key: `test:${optional.id}`, operation: "transition", signal: "missing", state: "unknown", previousState: "healthy" } },
       { type: "pressure", durationMs: 0, outcome: "success", data: { key: `test:${optional.id}`, operation: "transition", signal: "rss", state: "degraded", previousState: "healthy", value: 0.85 } },
     ]);
 
     Object.assign(values, { cpu: 0.9, spare: undefined });
     time += 10;
-    await expect(manager.inspect(policy)).resolves.toEqual({ state: "unknown", reasons: [
+    record.mockClear();
+    await expect(manager.inspect(policy)).resolves.toStrictEqual({ state: "unknown", reasons: [
       { constraintId: required.id, kind: "pressure", signalId: "cpu", value: 0.9 },
       { constraintId: required.id, kind: "pressure", signalId: "spare" },
     ] });
+    expect(record.mock.calls.map(([event]) => event)).toStrictEqual([
+      { type: "pressure", durationMs: 0, outcome: "failure", data: { key: `test:${required.id}`, operation: "transition", signal: "cpu", state: "limited", previousState: "healthy", value: 0.9 } },
+      { type: "pressure", durationMs: 0, outcome: "failure", data: { key: `test:${required.id}`, operation: "transition", signal: "spare", state: "unknown", previousState: "healthy" } },
+    ]);
     record.mockClear();
     await expect(manager.acquire(policy)).rejects.toMatchObject({ constraintId: required.id, signalIds: ["cpu", "spare"] });
-    expect(record.mock.calls.map(([event]) => event).filter((event) => event.type === "pressure")).toEqual([
+    expect(record.mock.calls.map(([event]) => event).filter((event) => event.type === "pressure")).toStrictEqual([
       { type: "pressure", durationMs: 0, outcome: "failure", data: { key: `test:${required.id}`, operation: "rejection", signal: "cpu", state: "limited", value: 0.9 } },
       { type: "pressure", durationMs: 0, outcome: "failure", data: { key: `test:${required.id}`, operation: "rejection", signal: "spare", state: "unknown" } },
     ]);
@@ -262,6 +344,18 @@ describe("ThrottlingManager instrumentation contracts", () => {
       { constraintId: required.id, kind: "pressure", signalId: "cpu", value: 0.9 },
     ] });
     await expect(manager.acquire(policy)).rejects.toMatchObject({ constraintId: required.id, signalIds: ["cpu"], source: "local" });
+
+    // A fail-open reader remains advisory even when another signal in its group blocks admission.
+    Object.assign(values, { rss: 0.95 });
+    time += 10;
+    const optionalOnly = defineAdmissionPolicy({ id: "optional-only", limits: [optional] });
+    record.mockClear();
+    await expect(manager.acquire(optionalOnly)).rejects.toMatchObject({ constraintId: optional.id, signalIds: ["rss"] });
+    const rejected = record.mock.calls.map(([event]) => event)
+      .filter((event) => event.type === "pressure" && event.data.operation === "rejection");
+    expect(rejected.map((event) => event.data)).toStrictEqual([
+      { key: `test:${optional.id}`, operation: "rejection", signal: "rss", state: "limited", value: 0.95 },
+    ]);
   });
 });
 
@@ -433,7 +527,7 @@ describe("ThrottlingManager reconciliation contracts", () => {
     const free = await manager.acquire(simple, { estimatedCost: { requests: 0 } });
     expect(reserve).not.toHaveBeenCalled();
     await free.complete({ outcome: "success" });
-    expect(record).toHaveBeenLastCalledWith({ type: "completion", outcome: "success", durationMs: 0, data: {
+    expect(record.mock.lastCall?.[0]).toStrictEqual({ type: "completion", outcome: "success", durationMs: 0, data: {
       key: simple.id, result: "success", cost: 0, estimatedCost: { requests: 0 }, actualCost: { requests: 0 },
       reconciliation: "not-needed", heldDurationMs: 0,
     } });
@@ -554,6 +648,28 @@ describe("ThrottlingManager admission validation", () => {
     await expect(manager.inspect(sharedSimple, { estimatedCost: { requests: 1 } })).resolves.toMatchObject({ state: "limited" });
   });
 
+  it("can register a corrected policy after another constraint rejects the original", async () => {
+    const manager = createManager(new MemoryRateLimitAdapter({ now: () => new Date(0) }));
+    await manager.run(concurrencyOnly, () => undefined);
+    const candidate = (limit: number) => rateLimit({ id: "candidate", unit: "requests", limit, per: seconds(1) });
+    const incompatible = defineAdmissionPolicy({ id: "candidate-policy", limits: [
+      candidate(1), concurrencyLimit({ id: slots.id, limit: 2 }),
+    ] });
+    const corrected = defineAdmissionPolicy({ id: incompatible.id, limits: [candidate(2), slots] });
+    const estimatedCost = { requests: 1 };
+
+    await expect(manager.acquire(incompatible, { estimatedCost })).rejects.toThrow(`constraint id "${slots.id}"`);
+    await expect(manager.run(corrected, { estimatedCost }, () => "corrected")).resolves.toBe("corrected");
+  });
+
+  it("does not reserve a definition id for a caller with an invalid partition key", async () => {
+    const manager = createManager(new MemoryRateLimitAdapter({ now: () => new Date(0) }));
+    const corrected = defineRateLimit({ id: simple.id, requests: 2, per: seconds(1) });
+
+    await expect(manager.acquire(simple, { rateKey: " " })).rejects.toThrow("rate keys must contain between 1 and 256 characters");
+    await expect(manager.run(corrected, () => "corrected")).resolves.toBe("corrected");
+  });
+
   it("rejects pressure policies without a monitor or a supported signal", async () => {
     const pressure = localResourcePressure({ id: "local-pressure", signals: { "test-missing": { degradedAt: 0.8, limitedAt: 0.9 } } });
     const policy = defineAdmissionPolicy({ id: "pressure-required", limits: [pressure] });
@@ -602,15 +718,25 @@ describe("ThrottlingManager admission validation", () => {
 
   it("only samples the instrumentation clock with an observer and tolerates a clock exception", async () => {
     const monotonicNow = vi.fn(() => { throw new Error("clock interrupted"); });
-    const reserve = vi.fn<RateLimitAdapter["reserve"]>().mockResolvedValue({ admitted: true, remaining: 0 });
+    let time = 10;
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>().mockImplementation(async () => {
+      time += 4;
+      return { admitted: true, remaining: 0 };
+    });
     const silent = createManager({ reserve }, { monotonicNow });
     await expect(silent.run(simple, () => "ok")).resolves.toBe("ok");
     expect(monotonicNow).not.toHaveBeenCalled();
 
     const record = vi.fn<(event: ThrottlingInstrumentationEvent) => void>();
     const observed = createManager({ reserve }, { monotonicNow, instrumentation: { record } });
-    await expect(observed.run(simple, () => "ok")).resolves.toBe("ok");
+    const platformClock = vi.spyOn(performance, "now").mockImplementation(() => time);
+    try {
+      await expect(observed.run(simple, () => "ok")).resolves.toBe("ok");
+    } finally {
+      platformClock.mockRestore();
+    }
     expect(monotonicNow).toHaveBeenCalled();
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ type: "acquisition", durationMs: 4 }));
     expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "completion", outcome: "success" }));
   });
 });

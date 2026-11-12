@@ -36,6 +36,25 @@ describe("Studio action JSON examples", () => {
     expect(isStudioActionJson({ a: shared, b: [shared, null, true, "ok"] })).toBe(true);
   });
 
+  it("rejects proxy examples without evaluating their reflection or serialization hooks", () => {
+    const ownKeys = vi.fn(() => ["phantom"]);
+    const get = vi.fn(() => () => "substituted");
+    const opaque = new Proxy({}, { ownKeys, get });
+    const revoked = Proxy.revocable([], {});
+    revoked.revoke();
+
+    expect(isStudioActionJson(opaque)).toBe(false);
+    expect(isStudioActionJson(revoked.proxy)).toBe(false);
+    expect(ownKeys).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("rejects a single invalid member among valid keys and checks sparse arrays with extra keys", () => {
+    expect(isStudioActionJson({ valid: true, [Symbol("hidden")]: 1 })).toBe(false);
+    expect(isStudioActionJson({ valid: true, invalid: undefined })).toBe(false);
+    expect(isStudioActionJson(Object.assign(new Array(1), { nonIndex: 1 }))).toBe(false);
+  });
+
   it("does not treat inherited names as known string formats", () => {
     expect(generateActionExample({ type: "string", format: "constructor" })).toBe("example");
   });
@@ -63,5 +82,22 @@ describe("Studio action JSON examples", () => {
     });
     expect(generateActionExample(false)).toBeNull();
     expect(generateActionExample({ type: "boolean" }, 9)).toBeNull();
+  });
+
+  it("handles empty alternatives and applies the depth limit to objects, tuples and unions", () => {
+    const nested = { type: "boolean" };
+    expect(generateActionExample({ type: "boolean", oneOf: [], anyOf: [] }, 8)).toBe(true);
+    expect(generateActionExample({ type: "object", properties: { nested } }, 8)).toEqual({ nested: null });
+    expect(generateActionExample({ type: "array", prefixItems: [nested] }, 8)).toEqual([null]);
+    expect(generateActionExample({ oneOf: [nested] }, 8)).toBeNull();
+  });
+
+  it.each([
+    ["email", "user@example.com"],
+    ["uuid", "00000000-0000-4000-8000-000000000000"],
+    ["date", "2026-01-01"],
+    ["date-time", "2026-01-01T12:00:00.000Z"],
+  ])("generates a valid %s example", (format, value) => {
+    expect(generateActionExample({ type: "string", format })).toBe(value);
   });
 });

@@ -2,6 +2,7 @@ import { uuidV7 } from "../../../utils/uuid.js";
 import {
   ThrottlingAdapterCapabilityError,
   ThrottlingBackendUnavailableError,
+  ThrottlingDefinitionConflictError,
 } from "../../errors.js";
 import type {
   ThrottlingInstrumentation,
@@ -20,12 +21,18 @@ import type {
   RateLimitReservationRequest,
   RateLimitReservationResult,
 } from "../../types.js";
+import { rateLimitDefinitionSignature } from "../denial_caching/signature.js";
 
 interface LocalLease {
   readonly expiresAt: Date;
   readonly expiresAtMs: number;
   readonly id: string;
   remaining: number;
+}
+
+interface LocalBucket {
+  readonly definition: string;
+  leases: LocalLease[];
 }
 
 interface CachedLeaseDenial {
@@ -52,7 +59,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
   public readonly prune?: (options: RateLimitPruneOptions) => Promise<number>;
   private readonly denialCache = new Map<string, CachedLeaseDenial>();
 
-  private readonly leases = new Map<string, LocalLease[]>();
+  private readonly leases = new Map<string, LocalBucket>();
 
   private readonly locks = new Map<string, Promise<void>>();
 
@@ -139,6 +146,10 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       return Promise.resolve({ admitted: true, remaining: {}, source: "leased" });
     }
 
+    const keys = requests.map(({ key }) => key);
+    // A warm batch must enforce the same uniqueness as authoritative storage.
+    if (new Set(keys).size !== keys.length) throw new TypeError("Rate limit keys must be unique.");
+
     const strategies = new Set(requests.map((request) =>
       request.coordination?.strategy ?? "exact"));
 
@@ -150,7 +161,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
 
     const leasedRequests = requests as readonly RateLimitLeaseRequest[];
     const reservation = strategies.has("leased")
-      ? this.withLocks(leasedRequests.map(({ key }) => key), () => this.reserveFromLeases(leasedRequests))
+      ? this.withLocks(keys, () => this.reserveFromLeases(leasedRequests))
       : this.reserveExactly(requests);
     const pending = reservation.finally(() => {
       this.pendingReservations.delete(pending);
@@ -188,10 +199,11 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
         return;
       }
 
-      this.discardExpired(request.key, nowMs);
+      validateLeasedCost(request);
+      this.prepareLocalBucket(request, nowMs);
       const remaining = this.localRemaining(request.key);
 
-      if (remaining + Number.EPSILON >= request.cost) {
+      if (canSpendLocalLease(remaining, request.cost)) {
         results[index] = { available: true, remaining, source: "leased" };
       } else {
         authoritative.push({ index, request });
@@ -255,6 +267,8 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
   private async reserveFromLeases(
     requests: readonly RateLimitLeaseRequest[],
   ): Promise<RateLimitBatchReservationResult> {
+    // A warm grant bypasses backend validation, so validate all costs before spending any units.
+    for (const request of requests) validateLeasedCost(request);
     const nowMs = this.getMonotonicNow();
     const signature = batchSignature(requests);
     const cached = this.getCachedDenial(signature, nowMs);
@@ -268,9 +282,9 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       };
     }
 
-    for (const request of requests) this.discardExpired(request.key, nowMs);
+    for (const request of requests) this.prepareLocalBucket(request, nowMs);
     const missing = requests.filter((request) =>
-      this.localRemaining(request.key) + Number.EPSILON < request.cost);
+      !canSpendLocalLease(this.localRemaining(request.key), request.cost));
     const exactFallback = new Map<string, RateLimitLeaseAllocation>();
     let source: RateLimitReservationResult["source"] = "leased";
 
@@ -322,7 +336,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
             remaining: granted.remaining,
           });
         } else {
-          this.addLocalLease(request.key, granted);
+          this.addLocalLease(request, granted);
         }
       }
 
@@ -331,7 +345,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       for (const request of requests) {
         if (exactFallback.has(request.key)) continue;
         this.discardExpired(request.key, commitMs);
-        if (this.localRemaining(request.key) + Number.EPSILON < request.cost) {
+        if (!canSpendLocalLease(this.localRemaining(request.key), request.cost)) {
           throw new ThrottlingBackendUnavailableError({
             cause: new Error("A leased reservation lost local capacity during allocation."),
           });
@@ -391,7 +405,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
   }
 
   private addLocalLease(
-    key: string,
+    request: RateLimitLeaseRequest,
     allocation: Extract<RateLimitLeaseAllocation, { mode: "lease" }>,
   ): void {
     const durationMs = allocation.expiresAt.getTime() - this.getNowMs();
@@ -402,7 +416,9 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       });
     }
 
-    const leases = this.leases.get(key) ?? [];
+    const { key } = request;
+    const bucket: LocalBucket = this.leases.get(key) ?? { definition: rateLimitDefinitionSignature(request), leases: [] };
+    const { leases } = bucket;
     leases.push({
       id: allocation.leaseId,
       remaining: allocation.units,
@@ -410,7 +426,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       expiresAtMs: this.getMonotonicNow() + durationMs,
     });
     leases.sort((left, right) => left.expiresAtMs - right.expiresAtMs);
-    this.leases.set(key, leases);
+    this.leases.set(key, bucket);
     this.recordLease(key, "issue", allocation.units, {
       remaining: allocation.units,
     });
@@ -419,7 +435,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
   private consumeLocally(key: string, cost: number): void {
     let needed = cost;
 
-    for (const lease of this.leases.get(key) ?? []) {
+    for (const lease of this.leases.get(key)?.leases ?? []) {
       const consumed = Math.min(lease.remaining, needed);
       lease.remaining -= consumed;
       needed -= consumed;
@@ -435,14 +451,25 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
   }
 
   private localRemaining(key: string): number {
-    return (this.leases.get(key) ?? []).reduce(
+    return (this.leases.get(key)?.leases ?? []).reduce(
       (total, lease) => total + lease.remaining,
       0,
     );
   }
 
+  private prepareLocalBucket(request: RateLimitReservationRequest, nowMs: number): void {
+    this.discardExpired(request.key, nowMs);
+    const bucket = this.leases.get(request.key);
+    // Live capacity belongs to the definition that originally reserved it.
+    if (bucket !== undefined && bucket.definition !== rateLimitDefinitionSignature(request)) {
+      throw new ThrottlingDefinitionConflictError(request.key);
+    }
+  }
+
   private discardExpired(key: string, nowMs: number): void {
-    const leases = this.leases.get(key) ?? [];
+    const bucket = this.leases.get(key);
+    if (bucket === undefined) return;
+    const { leases } = bucket;
     const active = leases.filter(
       (lease) => lease.expiresAtMs > nowMs,
     );
@@ -455,16 +482,18 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
     }
 
     if (active.length === 0) this.leases.delete(key);
-    else this.leases.set(key, active);
+    else bucket.leases = active;
   }
 
   private takeCompletedLeases(keys: readonly string[]): RateLimitLeaseReturn[] {
     const completed: RateLimitLeaseReturn[] = [];
 
     for (const key of keys) {
+      const bucket = this.leases.get(key);
+      if (bucket === undefined) continue;
       const active: LocalLease[] = [];
 
-      for (const lease of this.leases.get(key) ?? []) {
+      for (const lease of bucket.leases) {
         if (lease.remaining <= Number.EPSILON) {
           completed.push({ key, leaseId: lease.id, remaining: 0 });
         } else {
@@ -473,7 +502,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       }
 
       if (active.length === 0) this.leases.delete(key);
-      else this.leases.set(key, active);
+      else bucket.leases = active;
     }
 
     return completed;
@@ -483,7 +512,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
     const nowMs = this.getMonotonicNow();
     const returned: RateLimitLeaseReturn[] = [];
 
-    for (const [key, leases] of this.leases) {
+    for (const [key, { leases }] of this.leases) {
       for (const lease of leases) {
         if (lease.expiresAtMs > nowMs) {
           returned.push({
@@ -549,7 +578,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
     keys: readonly string[],
     operation: () => Promise<Value>,
   ): Promise<Value> {
-    const ordered = [...new Set(keys)].sort();
+    const ordered = [...keys].sort();
 
     const enter = (index: number): Promise<Value> => {
       const key = ordered[index];
@@ -633,6 +662,17 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
   }
 }
 
+function validateLeasedCost(request: RateLimitReservationRequest): void {
+  if (!Number.isFinite(request.cost) || request.cost <= 0 || request.cost > request.burst) {
+    throw new TypeError("Leased reservation costs must be positive, finite, and fit the configured burst.");
+  }
+}
+
+function canSpendLocalLease(remaining: number, cost: number): boolean {
+  // Rounding tolerance can absorb subtraction error, but cannot supply a missing grant.
+  return remaining > 0 && remaining + Number.EPSILON >= cost;
+}
+
 function batchSignature(requests: readonly RateLimitLeaseRequest[]): string {
   // Keys may contain separators, so encode each dimension as a structured tuple.
   const ordered = [...requests].sort((left, right) => {
@@ -642,13 +682,7 @@ function batchSignature(requests: readonly RateLimitLeaseRequest[]): string {
   });
   return JSON.stringify(ordered.map((request) => [
     request.key,
-    request.limit,
-    request.periodMs,
-    request.burst,
+    rateLimitDefinitionSignature(request),
     request.cost,
-    request.coordination.maxLeaseUnits,
-    request.coordination.leaseMs,
-    request.coordination.maxOutstandingUnits,
-    request.coordination.guardBandUnits,
   ]));
 }

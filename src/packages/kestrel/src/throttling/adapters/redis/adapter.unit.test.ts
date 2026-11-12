@@ -4,6 +4,7 @@ import { dep } from "../../../di/index.js";
 import { throttlingConfigBase } from "../../configuration.js";
 import { ThrottlingProvider } from "../../provider.js";
 import { ThrottlingBackendUnavailableError } from "../../errors.js";
+import type { ThrottlingInstrumentationEvent } from "../../observations.js";
 import type { RateLimitAdapter, RateLimitLeaseRequest } from "../../types.js";
 import { BackendFailureRateLimitAdapter } from "../backend_failure/adapter.js";
 import { RedisRateLimitAdapter } from "./adapter.js";
@@ -147,6 +148,34 @@ it("builds a Redis adapter without instrumentation and respects its configured p
     }));
   } finally {
     await definition.dispose?.(adapter);
+  }
+});
+
+it("forwards Redis lease observations and refunds unused capacity when the factory disposes", async () => {
+  const evaluate = vi.fn().mockResolvedValueOnce(JSON.stringify({ ...response, serverNow: 20_000,
+    allocations: { quota: { mode: "lease", leaseId: "grant", units: 4, remaining: 6, expiresAt: 80_000 } },
+  })).mockResolvedValue(JSON.stringify({ ...response, returned: 1 }));
+  const client = { eval: evaluate, destroy: vi.fn() };
+  const definition = redisThrottling(dep<typeof client>("redisConnection"));
+  const config = throttlingConfigBase.schema.parse({ namespace: "test" });
+  const record = vi.fn<(event: ThrottlingInstrumentationEvent) => void>();
+  const adapter = definition.create(vi.fn().mockReturnValue(client), { config, instrumentation: { record } });
+
+  try {
+    await expect(adapter.reserve(leaseRequest)).resolves.toEqual({ admitted: true, remaining: 3, source: "leased" });
+    await definition.dispose?.(adapter);
+    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(evaluate.mock.calls[1]?.[1]?.arguments).toEqual([
+      "return", JSON.stringify([{ key: "quota" }]), JSON.stringify([{ key: "quota", leaseId: "grant", remaining: 3 }]),
+    ]);
+    expect(record.mock.calls.map(([event]) => event.data)).toStrictEqual([
+      { key: "quota", operation: "issue", units: 4, remaining: 4 },
+      { key: "quota", operation: "consume", units: 1, remaining: 3 },
+      { key: "quota", operation: "return", units: 3 },
+    ]);
+    expect(client.destroy).not.toHaveBeenCalled();
+  } finally {
+    await adapter.close?.();
   }
 });
 

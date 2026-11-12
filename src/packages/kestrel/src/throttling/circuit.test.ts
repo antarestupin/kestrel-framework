@@ -4,6 +4,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 
 import {
@@ -398,7 +399,7 @@ describe("process-local circuit breaking", () => {
 
     // Observe the full circuit contract, including absent stale retry timestamps.
     const base = { key: "test:partner-health", consecutiveFailures: 0, activeProbes: 0 };
-    expect(events.filter((event) => event.type === "circuit")).toEqual([
+    expect(events.filter((event) => event.type === "circuit")).toStrictEqual([
       { type: "circuit", outcome: "failure", durationMs: 0, data: { ...base, operation: "feedback", state: "closed", feedback: "timeout" } },
       { type: "circuit", outcome: "failure", durationMs: 0, data: { ...base, consecutiveFailures: 1, operation: "transition", state: "open", previousState: "closed", retryAt: new Date(1_000).toISOString() } },
       { type: "circuit", outcome: "success", durationMs: 0, data: { ...base, consecutiveFailures: 1, operation: "transition", state: "half-open", previousState: "open" } },
@@ -559,6 +560,34 @@ describe("process-local circuit breaking", () => {
     await clock.advance(1);
     expect(waiting.permit).toBeDefined();
     expect(events.at(-1)).toMatchObject({ type: "acquisition", outcome: "success", data: { attempts: 2 } });
+    await waiting.permit!.complete({ outcome: "success" });
+  });
+
+  it("replaces a recovered circuit blocker with the backend retry deadline", async () => {
+    const clock = new CircuitClock();
+    const reserve = vi.fn<() => Promise<RateLimitReservationResult>>()
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt: new Date(2_000) })
+      .mockResolvedValue({ admitted: true, remaining: 9 });
+    const manager = new ThrottlingManager({ reserve }, { namespace: "test", now: clock.now, sleep: clock.sleep });
+    ownedManagers.add(manager);
+    const health = circuitPolicy({ failureThreshold: 1, successThreshold: 2 });
+    const policy = rateCircuitPolicy(1);
+    const options = { estimatedCost: { requests: 1 } };
+    await completeFailure(manager, health);
+    const waiting = observeAcquisition(manager.acquire(policy, { ...options, maxWaitMs: 5_000 }));
+    await settleMicrotasks();
+    expect(clock.nextWakeAtMs).toBe(1_000);
+    expect(reserve).not.toHaveBeenCalled();
+
+    // The half-open retry reached storage, which now owns the advertised deadline.
+    await clock.advance(1_000);
+    expect(waiting.settled).toBe(false);
+    await expect(manager.acquire(policy, options)).rejects.toMatchObject({
+      name: "ThrottlingRejectedError", retryAt: new Date(2_000),
+    });
+    expect(clock.nextWakeAtMs).toBe(2_000);
+    await clock.advance(1_000);
+    expect(waiting.permit).toBeDefined();
     await waiting.permit!.complete({ outcome: "success" });
   });
 

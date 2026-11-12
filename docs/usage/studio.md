@@ -39,7 +39,7 @@ function installStudio<Config>(app: App<Config>) {
 }
 ```
 
-Register the HTTP runtime and build the Studio client when using bundled delivery (`devMode: false`). The default mount is `/_studio`. Use an absolute path for `basePath`, such as `/tools/studio` or `/`. Mount, page and data paths reject ambiguous separators and dot segments that browsers would reinterpret. CLI/background processes do not mount its browser runtime. Select `devMode: true` or inject a shared development adapter when working on Studio itself.
+Register the HTTP runtime and build the Studio client when using bundled delivery (`devMode: false`). The default mount is `/_studio`. Use a literal absolute path for `basePath`, such as `/tools/studio` or `/`. Router parameters belong in page paths. Mount, page and data paths reject ambiguous separators and dot segments that browsers would reinterpret. CLI/background processes do not mount its browser runtime. Select `devMode: true` or inject a shared development adapter when working on Studio itself.
 
 ## Execute actions
 
@@ -80,7 +80,7 @@ Page headers display the category, title and description. Available operations a
 
 Workers (including worker details), Scheduled tasks, Workflows, Email history and Email inbox refresh automatically every two seconds while their page is mounted. Workflow execution details refresh every three seconds. These pages use periodic HTTP requests, like Executions, Observations and Logs; updates become visible on the next successful request. Manual refresh controls remain available.
 
-Paginated lists refresh their newest page, so automatic refresh replaces any older pages loaded with “Load older”. Server-pushed updates and retaining older pages during refresh remain deferred improvements.
+Automatic refresh keeps the older pages already loaded in Workflows, Email history, Email inbox and the Observability lists. Manual refresh starts those lists from the newest page. The polling views keep the current route and the latest operation's response when an earlier request finishes late.
 
 ## View the compact database diagram
 
@@ -108,7 +108,7 @@ const tools: StudioExtension = {
 };
 ```
 
-Add this extension to the provider's `extensions`. Custom interactive pages additionally need a client renderer for their `kind` and optional data controllers. That extension-author workflow, serialization rules and source boundaries are covered in [implementation](../implementation/studio.md#extensions).
+Add this extension to the provider's `extensions`. Give each link a full `https://` or `http://` URL without credentials. Custom interactive pages additionally need a client renderer for their `kind` and optional data controllers. That extension-author workflow, serialization rules and source boundaries are covered in [implementation](../implementation/studio.md#extensions).
 
 ## Use cases still to document
 

@@ -48,11 +48,30 @@ const manifest: AtlasManifest = {
 describe("atlas router renderer registries", () => {
   it("renders a diagnostic when a View has no installed renderer", () => {
     const { router } = createAtlasRouter(manifest);
+    expect(router.options.defaultPreload).toBe("intent");
     const view = router.routesByPath["/example/views/summary"]?.options.component;
     expect(view?.({} as never)).toEqual(expect.objectContaining({
       type: "div",
-      props: expect.objectContaining({ children: "Unknown atlas View renderer: summary" }),
+      props: expect.objectContaining({ className: "page error-state", children: "Unknown atlas View renderer: summary" }),
     }));
+  });
+
+  it("uses a prototype-named View renderer only if it is explicitly registered", () => {
+    const resource = manifest.resources[0]!;
+    const configured = {
+      ...manifest,
+      resources: [{ ...resource, views: [{ ...resource.views[0]!, renderer: "constructor" }] }],
+    };
+    const { router } = createAtlasRouter(configured);
+    const view = router.routesByPath["/example/views/summary"]?.options.component;
+    expect(view?.({} as never)).toMatchObject({
+      type: "div", props: { children: "Unknown atlas View renderer: constructor" },
+    });
+
+    const Summary = () => createElement("div", {}, "Custom summary");
+    const registered = createAtlasRouter(configured, { registries: { views: { constructor: Summary } } });
+    expect(registered.router.routesByPath["/example/views/summary"]?.options.component?.({} as never))
+      .toMatchObject({ type: Summary });
   });
 
   it("uses registered page and View renderers", () => {

@@ -105,9 +105,10 @@ function normalizeStudioBasePath(basePath: string): string {
   const trimmedPath = basePath.trim();
   const mount = trimmedPath === "/" ? trimmedPath : trimmedPath.replace(/\/+$/u, "");
 
-  if (!isStudioAbsolutePath(mount)) {
+  // The server mount is literal even when extension pages use router parameters.
+  if (!isStudioAbsolutePath(mount) || mount.includes(":")) {
     throw new TypeError(
-      "The Studio base path must be an absolute URL path without ambiguous separators, dot segments, a query, fragment or wildcard.",
+      "The Studio base path must be a fixed absolute URL path without ambiguous separators, dot segments, a query, fragment or wildcard.",
     );
   }
 
@@ -400,6 +401,13 @@ function validateExternalLink(
   ) {
     throw new TypeError(
       `Studio link "${extensionId}.${link.id}" must use an absolute HTTP URL without credentials.`,
+    );
+  }
+
+  // Scheme-only forms can parse without a base but resolve relative to the Studio page.
+  if (!/^https?:\/\/[^/\\\s]/iu.test(link.href.trim())) {
+    throw new TypeError(
+      `Studio link "${extensionId}.${link.id}" must use an absolute HTTP URL.`,
     );
   }
 }

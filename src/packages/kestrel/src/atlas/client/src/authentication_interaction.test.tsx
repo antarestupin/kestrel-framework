@@ -50,14 +50,17 @@ describe("Atlas authentication interactions", () => {
 
   it("keeps one sign-in request pending and allows retry after a refusal", async () => {
     const pending = Promise.withResolvers<Response>();
+    const retry = Promise.withResolvers<Response>();
     fetchMock.mockReturnValueOnce(pending.promise)
-      .mockResolvedValueOnce(new Response(null, { status: 429 }));
+      .mockReturnValueOnce(retry.promise);
     const form = await loginForm();
+    const firstSubmit = new Event("submit", { bubbles: true, cancelable: true });
 
     await act(async () => {
-      form.requestSubmit();
+      form.dispatchEvent(firstSubmit);
       form.requestSubmit();
     });
+    expect(firstSubmit.defaultPrevented).toBe(true);
     expect(fetchMock).toHaveBeenCalledExactlyOnceWith("/auth/password", {
       method: "POST",
       credentials: "same-origin",
@@ -65,12 +68,15 @@ describe("Atlas authentication interactions", () => {
       body: JSON.stringify({ username: "operator", password: "test-password" }),
     });
     expect(form.querySelector("button")?.disabled).toBe(true);
+    expect(form.querySelector("button")?.textContent).toBe("Signing in…");
 
     await act(async () => pending.resolve(new Response(null, { status: 401 })));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("credentials are invalid");
     expect(form.querySelector("button")?.disabled).toBe(false);
 
     await act(async () => form.requestSubmit());
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    await act(async () => retry.resolve(new Response(null, { status: 429 })));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("Too many sign-in attempts");
     expect(form.querySelector("button")?.disabled).toBe(false);
   });
@@ -99,13 +105,23 @@ describe("Atlas authentication interactions", () => {
 
   it("retains the sign-out control after a request failure", async () => {
     const pending = Promise.withResolvers<Response>();
-    fetchMock.mockReturnValueOnce(pending.promise);
+    fetchMock.mockReturnValue(pending.promise);
     await act(async () => root.render(<AtlasSignOut authentication={authentication} />));
     const button = host.querySelector("button")!;
+    const idleIcon = button.querySelector("svg path")?.getAttribute("d");
+    expect(idleIcon).toBeTruthy();
+    expect(host.querySelector('[role="alert"]')).toBeNull();
 
-    await act(async () => button.click());
+    await act(async () => {
+      button.click();
+      button.click();
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(button.textContent).toContain("Signing out");
     expect(button.disabled).toBe(true);
+    const pendingIcon = button.querySelector("svg path")?.getAttribute("d");
+    expect(pendingIcon).toBeTruthy();
+    expect(pendingIcon).not.toBe(idleIcon);
     await act(async () => pending.reject(new Error("offline")));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("Sign-out failed");
     expect(button.disabled).toBe(false);

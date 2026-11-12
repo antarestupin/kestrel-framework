@@ -146,7 +146,25 @@ describe("development observations extension", () => {
     );
     expect(logSource.listByExecutions).toHaveBeenCalledWith(["execution-1"]);
     expect(clear.statusCode).toBe(204);
-    expect(source.clear).toHaveBeenCalledOnce();
+    const clearExecutions = await server.inject({
+      method: "DELETE", url: "/_studio/api/extensions/development-observations/executions",
+    });
+    expect(clearExecutions.statusCode).toBe(204);
+    expect(source.clear).toHaveBeenCalledTimes(2);
+    expect(manifest.extensions[0]).toMatchObject({
+      title: "Development observations", description: "Inspect Kestrel observations grouped by execution.",
+      pages: expect.arrayContaining([expect.objectContaining({
+        id: "executions", title: "Executions", description: "Requests and commands captured by the local application.",
+      })]),
+    });
+    expect((await studio.defineHttpControllers()).slice(1).map(({ description }) => description)).toEqual([
+      "List captured development observations.",
+      "Clear captured development observations.",
+      "List observed application executions.",
+      "List the observation timeline for one execution.",
+      "List structured logs correlated with one execution.",
+      "Clear captured development observations.",
+    ]);
     expect(manifest.extensions[0]?.pages).toContainEqual({
       id: "observations",
       title: "Observations",
@@ -227,8 +245,11 @@ describe("development observations extension", () => {
         items: [{ executionId: "active", completedAt: null, durationMs: null, outcome: null }],
       });
       expect(listExecutions).toHaveBeenCalledExactlyOnceWith({ before: 22, limit: 5 });
+      expect((await server.inject({ url: `${prefix}/executions` })).statusCode).toBe(200);
+      expect(listExecutions.mock.calls).toStrictEqual([[{ before: 22, limit: 5 }], [{}]]);
       expect((await server.inject({ url: `${prefix}/observations` })).json()).toEqual({ items: [], nextBefore: null });
-      expect(listObservations).toHaveBeenCalledExactlyOnceWith({});
+      expect((await server.inject({ url: `${prefix}/observations?outcome=failure` })).statusCode).toBe(200);
+      expect(listObservations.mock.calls).toStrictEqual([[{}], [{ outcome: "failure" }]]);
       for (const contextKey of ["", "&contextKey=workflow.id"]) {
         const response = await server.inject({ url: `${prefix}/logs?executionId=active${contextKey}` });
         expect(response.statusCode).toBe(200);

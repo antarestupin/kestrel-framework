@@ -1,4 +1,4 @@
-import { loadRelationRecords, relationIdentifierKey, type RelationRecord } from "./relation_loader.js";
+import { loadAtlasRelationRecords, relationIdentifierKey, type RelationRecord } from "./relation_loader.js";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 
 import type {
@@ -6,10 +6,7 @@ import type {
   AtlasManifest,
   AtlasResourceManifest,
 } from "../../contract.js";
-import {
-  executeAtlasOperation,
-  isRecord,
-} from "./runtime.js";
+import { readAtlasRecordField } from "./runtime.js";
 
 export interface RelationHydrationRequest {
   readonly resource: AtlasResourceManifest;
@@ -47,7 +44,7 @@ export function createRelationHydrationRequests(
     identifiersByResource.set(field.relation.resource, identifiers);
 
     for (const record of records) {
-      const value = record[field.id];
+      const value = readAtlasRecordField(record, field.id);
       const values = field.relation.cardinality === "many"
         ? Array.isArray(value) ? value : []
         : [value];
@@ -94,7 +91,7 @@ export function resolveRelationValue(
   const resolveOne = (identifier: unknown) => {
     const record = findRelationRecord(targetRecords, identity, identifier);
 
-    return record?.[displayField] ?? identifier;
+    return readAtlasRecordField(record, displayField) ?? identifier;
   };
 
   return relation.cardinality === "many" && Array.isArray(value)
@@ -134,8 +131,8 @@ export function resolveRelationReferences(
     const record = findRelationRecord(targetRecords, identity, identifier);
     return [{
       resourceId: relation.resource,
-      recordId: String(record?.[identity] ?? identifier),
-      label: record?.[displayField] ?? identifier,
+      recordId: String(readAtlasRecordField(record, identity) ?? identifier),
+      label: readAtlasRecordField(record, displayField) ?? identifier,
     }];
   });
 }
@@ -155,23 +152,13 @@ export function useRelationHydration(
   const queries = useQueries({
     queries: requests.map((request) => ({
       queryKey: [request.resource.id, "readMany", manifest.basePath, request.ids],
-      queryFn: () => loadRelationRecords(client, manifest.basePath, request.resource, request.ids, async (ids) => {
-        const result = await executeAtlasOperation(
-          manifest.basePath,
-          request.resource.capabilities.readMany,
-          { ids },
-        );
-        if (!Array.isArray(result)) {
-          throw new TypeError("The Resource readMany operation returned an invalid result.");
-        }
-        return result.filter(isRecord);
-      }),
+      queryFn: () => loadAtlasRelationRecords(client, manifest.basePath, request.resource, request.ids),
     })),
   });
   const recordsByResource = new Map(
     requests.map((request, index) => [
       request.resource.id,
-      new Map((queries[index]?.data ?? []).map((row) => [serializeIdentifier(row[request.resource.identity]), row])),
+      new Map((queries[index]?.data ?? []).map((row) => [serializeIdentifier(readAtlasRecordField(row, request.resource.identity)), row])),
     ]),
   );
 
@@ -204,6 +191,6 @@ function serializeIdentifier(identifier: unknown): string {
 /** Hook callers index each target once, avoiding a scan for every matrix cell. */
 function findRelationRecord(records: readonly RelationRecord[] | ReadonlyMap<string, RelationRecord>, identity: string, identifier: unknown) {
   return Array.isArray(records)
-    ? records.find((row) => serializeIdentifier(row[identity]) === serializeIdentifier(identifier))
+    ? records.find((row) => serializeIdentifier(readAtlasRecordField(row, identity)) === serializeIdentifier(identifier))
     : (records as ReadonlyMap<string, RelationRecord>).get(serializeIdentifier(identifier));
 }

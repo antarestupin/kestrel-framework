@@ -4,9 +4,16 @@ import { describe, expect, it } from "vitest";
 
 import type { StudioManifest, StudioPageManifest } from "../../extension.js";
 import { loadStudioPageRenderer } from "./extensions.js";
+import { StudioPageHeader } from "./page.js";
 import { createStudioRouter } from "./router.js";
 
 describe("Studio client pages", () => {
+  it("omits the description element when a page has no description", () => {
+    const page = { kind: "preview", id: "preview", path: "/preview", title: "Preview" } satisfies StudioPageManifest;
+    expect(renderToStaticMarkup(<StudioPageHeader page={page} eyebrow="Tools" />))
+      .toBe('<header class="page-heading"><div><p class="eyebrow">Tools</p><h1>Preview</h1></div></header>');
+  });
+
   it.each([
     ["actions-list", "Loading action contracts"],
     ["controllers.explorer", "Loading HTTP controllers"],
@@ -48,6 +55,7 @@ describe("Studio client pages", () => {
       }],
     };
     const { router, RouterProvider } = createStudioRouter(manifest);
+    expect(router.options.defaultPreload).toBe("intent");
     router.update({
       history: createMemoryHistory({ initialEntries: ["/tools/correlations/workflow.id/run-1"] }),
     });

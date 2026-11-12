@@ -268,12 +268,11 @@ function useActions(dataPath: string): ActionsResource {
         return response.json() as Promise<StudioActionCatalog>;
       })
       .then((catalog) => {
-        setResource({ status: "ready", catalog });
+        // An old Strict Mode effect can settle even when its request was aborted.
+        if (!controller.signal.aborted) setResource({ status: "ready", catalog });
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
+        if (controller.signal.aborted) return;
 
         setResource({
           status: "error",

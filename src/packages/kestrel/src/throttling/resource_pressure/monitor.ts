@@ -133,9 +133,19 @@ export class LocalResourcePressureMonitor {
     if (this.closed) return;
     this.closed = true;
 
-    for (const source of this.sources) source.close?.();
+    // Each reader owns its own resources, so a failure cannot skip the other readers.
+    const errors: unknown[] = [];
+    for (const source of this.sources) {
+      try {
+        source.close?.();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
     this.cachedSignals.clear();
     this.states.clear();
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, "Resource pressure reader teardown failed.");
   }
 
   private evaluateSignal(

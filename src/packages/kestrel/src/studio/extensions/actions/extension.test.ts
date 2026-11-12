@@ -52,18 +52,27 @@ describe("actions documentation Studio extension", () => {
     });
 
     expect(response.statusCode).toBe(200);
+    expect(studio.getManifest().extensions[0]).toMatchObject({
+      title: "Actions",
+      description: "Browse the business operations exposed by the application.",
+      pages: [{ title: "Actions", description: "Action contracts registered with Studio." }],
+    });
+    expect((await studio.defineHttpControllers()).slice(1).map(({ description }) => description)).toEqual([
+      "List actions documented by Studio.",
+      "Execute one JSON-compatible action from the Studio catalog.",
+    ]);
     expect(response.json()).toEqual({
       executionPath:
         "/_studio/api/extensions/actions-documentation/actions/execute",
       actions: [
         {
           name: "user.create",
-          execution: { enabled: false, reason: expect.any(String) },
+          execution: { enabled: false, reason: "Only documentation metadata was registered for this action." },
           middleware: ["database.transaction"],
         },
         {
           name: "user.list",
-          execution: { enabled: false, reason: expect.any(String) },
+          execution: { enabled: false, reason: "Only documentation metadata was registered for this action." },
           description: "List users.",
           middleware: [],
         },
@@ -122,6 +131,64 @@ async function createExecutionTest(
 }
 
 describe("Studio action execution", () => {
+  it("generates a tuple example when the configured examples omit a prototype-named action", async () => {
+    const action = defineAction({
+      name: "constructor",
+      input: z.tuple([z.string(), z.number()]),
+      output: z.string(),
+      handler: ([name, count]) => `${name}:${count}`,
+    });
+    const http = await createExecutionTest([action], { examples: {} });
+    const catalog = await http.catalog();
+    expect(catalog.actions[0].execution).toMatchObject({
+      enabled: true,
+      noInput: false,
+      examples: [{ name: "Generated example", input: ["example", 1] }],
+    });
+    const response = await http.run(action.name, catalog.actions[0].execution.examples[0].input);
+    expect(response.statusCode).toBe(200);
+    expect(response.json().result).toEqual({ available: true, value: "example:1" });
+  });
+
+  it("returns the action failure and its execution id when a thrown object cannot be converted to text", async () => {
+    const action = defineAction({
+      name: "unprintable.failure",
+      handler: () => { throw Object.create(null); },
+    });
+    const http = await createExecutionTest([action]);
+    const response = await http.run(action.name);
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toMatchObject({
+      outcome: "failure",
+      executionId: expect.any(String),
+      message: "The thrown value could not be converted to a string.",
+    });
+  });
+
+  it("rejects invalid configured examples even beside valid ones", () => {
+    const action = defineAction({ name: "validate.example", input: z.unknown(), handler: () => null });
+    expect(() => defineActionsDocumentationExtension([action], {
+      examples: {
+        [action.name]: [
+          { name: "Valid", input: 1 },
+          { name: "Invalid", input: Infinity },
+        ],
+      },
+    })).toThrow('Studio examples for "validate.example" must contain JSON values.');
+  });
+
+  it("publishes the reason an impossible input schema cannot run", async () => {
+    const handler = vi.fn(() => null);
+    const action = defineAction({ name: "impossible", input: z.never(), handler });
+    const http = await createExecutionTest([action]);
+    const message = "This action input does not accept any value.";
+    expect((await http.catalog()).actions[0].execution).toEqual({ enabled: false, reason: message });
+    const response = await http.run(action.name);
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ message });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("runs by default with scoped dependencies, middleware and exactly one async transform per boundary", async () => {
     const transform = vi.fn(async (value: string) => Number(value));
     const output = vi.fn(async (value: number) => ({ value }));
@@ -200,8 +267,12 @@ describe("Studio action execution", () => {
     expect(
       (await http.run("instance", { date: "2026-01-01" })).statusCode,
     ).toBe(403);
-    expect((await http.run("excluded")).statusCode).toBe(403);
-    expect((await http.run("missing")).statusCode).toBe(404);
+    const denied = await http.run("excluded");
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json()).toEqual({ message: "This action is excluded from Studio execution." });
+    const missing = await http.run("missing");
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toEqual({ message: "The action is not registered in Studio." });
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -215,7 +286,9 @@ describe("Studio action execution", () => {
       result: { available: true, value: null },
     });
     const disabled = await createExecutionTest([action], { execution: false });
-    expect((await disabled.run("ping")).statusCode).toBe(403);
+    const response = await disabled.run("ping");
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ message: "Action execution is disabled in Studio." });
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
@@ -250,10 +323,13 @@ describe("Studio action execution", () => {
     expect(invalid.statusCode).toBe(400);
     expect(invalid.json()).toMatchObject({
       outcome: "failure",
+      message: "The action input is invalid.",
       issues: [{ path: ["count"], message: expect.any(String) }],
     });
     expect(handler).not.toHaveBeenCalled();
-    expect((await http.run("output")).statusCode).toBe(500);
+    const invalidOutput = await http.run("output");
+    expect(invalidOutput.statusCode).toBe(500);
+    expect(invalidOutput.json()).toMatchObject({ message: "Action validation failed during execution." });
     const failed = await http.run("throw");
     expect(failed.statusCode).toBe(500);
     expect(failed.json()).toMatchObject({
@@ -261,6 +337,20 @@ describe("Studio action execution", () => {
       message: "Business operation failed.",
     });
     expect(outcomes).toEqual(["failure", "failure", "failure"]);
+  });
+
+  it("preserves numeric issue locations and converts symbol issue keys for JSON", async () => {
+    const action = defineAction({
+      name: "issue.path",
+      input: z.unknown().superRefine((_value, context) => {
+        context.addIssue({ code: "custom", path: [Symbol("column"), 2], message: "Invalid cell." });
+      }),
+      handler: () => null,
+    });
+    const http = await createExecutionTest([action]);
+    const response = await http.run(action.name);
+    expect(response.statusCode).toBe(400);
+    expect(response.json().issues).toEqual([{ path: ["Symbol(column)", 2], message: "Invalid cell." }]);
   });
 
   it("serializes action results with native JSON semantics and invokes hooks only once", async () => {
@@ -326,12 +416,17 @@ describe("Studio action execution", () => {
       defineAction({ name: `result.${index}`, output: z.unknown(), handler }),
     );
     const http = await createExecutionTest(actions);
-    for (const action of actions) {
+    for (const [index, action] of actions.entries()) {
       const response = await http.run(action.name);
       expect(response.statusCode).toBe(200);
       expect(response.json()).toMatchObject({
         outcome: "success",
-        result: { available: false, reason: expect.any(String) },
+        result: {
+          available: false,
+          reason: [1, 4, 5].includes(index)
+            ? "The action succeeded, but its result has no JSON representation."
+            : "The action succeeded, but its result could not be serialized.",
+        },
       });
     }
     handlers.forEach((handler) => expect(handler).toHaveBeenCalledTimes(1));
@@ -346,14 +441,24 @@ describe("Studio action execution", () => {
       }
     }
     const context = new AsyncLocalObserverContext();
+    let time = 100;
     const action = defineAction({
       name: "observed",
       handler: () => {
         expect(context.get()).toBeDefined();
+        time += 13;
         throw new Error("Observed failure");
       },
     });
-    const http = await createExecutionTest([action], { observability: true });
+    const success = defineAction({
+      name: "observed.success",
+      handler: () => {
+        expect(context.get()).toBeDefined();
+        time += 7;
+        return null;
+      },
+    });
+    const http = await createExecutionTest([action, success], { observability: true });
     const recorder = new Recorder();
     http.app.container.registerValue("observerContext", context);
     http.app.container.registerFactory(
@@ -366,7 +471,14 @@ describe("Studio action execution", () => {
       "/dev/tools/",
     );
     expect(events).toEqual([]);
+    const logs: unknown[] = [];
+    http.app.eventBus.listen(executionCompletedEvent, ({ context }) => {
+      logs.push(context.toRecord("log"));
+    }, { scope: "descendants" });
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => time);
+    onTestFinished(() => { clock.mockRestore(); });
     const response = await http.run(action.name);
+    expect(response.json().durationMs).toBe(13);
     expect(events.map((event) => event.name)).toEqual([
       "execution.started",
       "execution.completed",
@@ -378,8 +490,23 @@ describe("Studio action execution", () => {
     ).toBe(true);
     expect(events[1]).toMatchObject({
       outcome: "failure",
-      data: { operation: action.name, transport: "direct" },
+      durationMs: 13,
+      data: {
+        operation: action.name, transport: "direct",
+        error: { name: "Error", message: "Observed failure" },
+      },
     });
+    const completed = await http.run(success.name);
+    expect(completed.json().durationMs).toBe(7);
+    expect(events[3]).toMatchObject({
+      outcome: "success", durationMs: 7,
+      data: { operation: success.name, transport: "direct" },
+    });
+    expect(events[3]?.data).not.toHaveProperty("error");
+    expect(logs).toEqual([
+      expect.objectContaining({ operation: action.name, transport: "direct" }),
+      expect.objectContaining({ operation: success.name, transport: "direct" }),
+    ]);
     expect(context.get()).toBeUndefined();
   });
 });

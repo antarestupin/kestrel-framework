@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 
 import { Icon } from "../../../client/src/ui/icon.js";
 import type { StudioPageManifest } from "../../../extension.js";
@@ -37,7 +37,7 @@ function ScheduledTasksStudioPage({ page }: { page: StudioPageManifest }) {
       <StudioPageHeader page={page} eyebrow="Operations" />
       {page.dataPath === undefined
         ? <p className="error-panel">The scheduled-tasks page has no data endpoint.</p>
-        : <ScheduledTaskWorkspace dataPath={page.dataPath} />}
+        : <ScheduledTaskWorkspace key={page.dataPath} dataPath={page.dataPath} />}
     </div>
   );
 }
@@ -47,33 +47,50 @@ function ScheduledTaskWorkspace({ dataPath }: { dataPath: string }) {
   const [updatingTasks, setUpdatingTasks] = useState<ReadonlySet<string>>(() => new Set());
   const [controlError, setControlError] = useState<string>();
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const mounted = useRef(false);
+  const pendingRead = useRef<AbortController | undefined>(undefined);
+  const pendingControls = useRef(new Set<string>());
 
   const load = useCallback(async () => {
+    if (!mounted.current) return;
+    // A manual or post-control refresh owns the catalog instead of an older poll.
+    pendingRead.current?.abort();
+    const request = new AbortController();
+    pendingRead.current = request;
     try {
-      const response = await fetch(`${dataPath}/catalog`);
+      const response = await fetch(`${dataPath}/catalog`, { signal: request.signal });
 
       if (!response.ok) {
         throw new Error(`Unable to load scheduled tasks (${response.status}).`);
       }
 
-      setResource({
-        status: "ready",
-        catalog: await response.json() as StudioScheduledTaskCatalog,
-      });
+      const catalog = await response.json() as StudioScheduledTaskCatalog;
+      if (!request.signal.aborted) setResource({ status: "ready", catalog });
     } catch (error) {
-      setResource({
-        status: "error",
-        message: error instanceof Error ? error.message : String(error),
-      });
+      if (!request.signal.aborted) {
+        setResource({
+          status: "error",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      if (pendingRead.current === request) pendingRead.current = undefined;
     }
   }, [dataPath]);
 
   useEffect(() => {
+    mounted.current = true;
     void load();
 
     // Refresh operational state at the same cadence as logs and observations.
-    const interval = window.setInterval(() => void load(), 2_000);
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(() => {
+      if (pendingRead.current === undefined) void load();
+    }, 2_000);
+    return () => {
+      mounted.current = false;
+      pendingRead.current?.abort();
+      window.clearInterval(interval);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -86,8 +103,11 @@ function ScheduledTaskWorkspace({ dataPath }: { dataPath: string }) {
     task: StudioScheduledTask,
     action: StudioScheduledTaskControlAction,
   ) => {
-    // Independent controls stay disabled until their own requests settle.
-    setUpdatingTasks((current) => new Set(current).add(task.id));
+    // The ref locks one task immediately, before the disabled state is rendered.
+    const pending = pendingControls.current;
+    if (pending.has(task.id)) return;
+    pending.add(task.id);
+    setUpdatingTasks(new Set(pending));
     setControlError(undefined);
 
     try {
@@ -108,11 +128,8 @@ function ScheduledTaskWorkspace({ dataPath }: { dataPath: string }) {
     } catch (error) {
       setControlError(error instanceof Error ? error.message : String(error));
     } finally {
-      setUpdatingTasks((current) => {
-        const pending = new Set(current);
-        pending.delete(task.id);
-        return pending;
-      });
+      pending.delete(task.id);
+      setUpdatingTasks(new Set(pending));
     }
   };
 

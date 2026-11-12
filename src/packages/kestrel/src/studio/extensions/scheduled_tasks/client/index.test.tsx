@@ -48,7 +48,7 @@ describe("Studio scheduled-task interactions", () => {
   let request: ReturnType<typeof vi.fn<typeof fetch>>;
 
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
     vi.setSystemTime(now);
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     request = vi.fn<typeof fetch>();
@@ -68,11 +68,12 @@ describe("Studio scheduled-task interactions", () => {
     }
   });
 
-  async function mount() {
+  async function mount(endpoint: `/${string}` | null = dataPath) {
     const renderer = await loadStudioPageRenderer(SCHEDULED_TASKS_STUDIO_PAGE_KIND);
     expect(renderer).toBeDefined();
     await act(async () => root.render(renderer!.render({
-      id: "tasks", kind: SCHEDULED_TASKS_STUDIO_PAGE_KIND, title: "Scheduled tasks", path: "/tasks", dataPath,
+      id: "tasks", kind: SCHEDULED_TASKS_STUDIO_PAGE_KIND, title: "Scheduled tasks", path: "/tasks",
+      ...(endpoint === null ? {} : { dataPath: endpoint }),
     })));
   }
 
@@ -98,23 +99,46 @@ describe("Studio scheduled-task interactions", () => {
         ...secondTask, state: { paused: false, activeRuns: 0, manualRunRequestedAt: now.toISOString() },
       }, localTask));
     await mount();
+    expect(request.mock.calls[0]?.[0]).toBe(`${dataPath}/catalog`);
     expect(container.textContent).toContain("Unable to load scheduled tasks (503).");
     await act(async () => button("Retry").click());
     expect(container.textContent).toContain("Maintenance");
     expect(container.textContent).toContain("3 registered tasks");
     expect(row(firstTask).textContent).toContain("0 * * * * (UTC)");
-    expect(row(firstTask).textContent).toContain("1 running");
+    expect(row(firstTask).querySelector(".scheduled-task-status")?.classList.contains("1-running")).toBe(true);
+    expect(row(firstTask).querySelector(".scheduled-task-identity small")?.textContent).toBe(firstTask.description);
+    expect(row(firstTask).querySelector(".scheduled-task-identity span")?.textContent).toBe(
+      "ExportProvider · skip overlap · execution log · no observations · maintenance",
+    );
+    expect(row(firstTask).querySelector(".scheduled-task-identity")?.getAttribute("style")).toContain("--scheduled-task-depth: 1");
+    expect(row(firstTask).querySelector(".scheduled-task-time.last.failed span")?.textContent).toBe(now.toLocaleString());
+    expect(row(firstTask).querySelector(".scheduled-task-time.last.failed small")?.textContent).toBe("now");
     expect(row(firstTask).textContent).toContain("Could not clean exports");
     expect(row(firstTask).querySelector('[data-label="Next run"]')?.textContent).toContain("in 10 minutes");
     expect(row(secondTask).textContent).toContain("every 1m");
     expect(row(secondTask).textContent).toContain("2 days ago");
     expect(row(secondTask).textContent).toContain("Success");
     expect(row(secondTask).textContent).toContain("Paused");
+    expect(row(secondTask).querySelector(".scheduled-task-identity small")).toBeNull();
+    expect(row(secondTask).querySelector(".scheduled-task-identity span")?.textContent).toBe(
+      "Application · wait overlap · no execution log · observations",
+    );
+    expect(row(secondTask).querySelector(".scheduled-task-time.next")?.textContent?.trim()).toBe("—");
+    expect(row(secondTask).querySelector(".scheduled-task-time.last")?.classList.contains("failed")).toBe(false);
+    expect(button("Run now", row(secondTask)).querySelector("svg")).not.toBeNull();
+    expect(button("Resume", row(secondTask)).querySelector("svg")).not.toBeNull();
+    expect(button("Pause", row(firstTask)).querySelector("svg")).not.toBeNull();
     expect(row(localTask).textContent).toContain("loop 125ms");
     expect(row(localTask).textContent).toContain("Local");
+    expect(row(localTask).querySelector(".scheduled-task-controls")?.getAttribute("title")).toBe("Local only");
     expect(button("Run now", row(localTask)).disabled).toBe(true);
+    expect(container.querySelector(".scheduled-task-control-error")).toBeNull();
 
     await act(async () => button("Run now", row(firstTask)).click());
+    expect(request.mock.calls[2]).toEqual([`${dataPath}/control`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ taskId: firstTask.id, action: "run" }),
+    }]);
     expect(container.textContent).toContain("Only an operator can run this task.");
     await act(async () => button("Resume", row(secondTask)).click());
     expect(request.mock.calls[3]).toEqual([`${dataPath}/control`, expect.objectContaining({
@@ -135,8 +159,14 @@ describe("Studio scheduled-task interactions", () => {
       }, secondTask));
     await mount();
 
-    await act(async () => button("Pause", row(firstTask)).click());
+    await act(async () => {
+      const pauseControl = button("Pause", row(firstTask));
+      pauseControl.click();
+      pauseControl.click();
+    });
+    expect(request.mock.calls.filter(([url]) => url === `${dataPath}/control`)).toHaveLength(1);
     expect(button("Run now", row(firstTask)).disabled).toBe(true);
+    expect(button("Run now", row(firstTask)).querySelector("svg.spinning")).not.toBeNull();
     await act(async () => button("Run now", row(secondTask)).click());
     // Completing a different task must not unlock a still-pending mutation.
     expect(button("Run now", row(firstTask)).disabled).toBe(true);
@@ -147,6 +177,104 @@ describe("Studio scheduled-task interactions", () => {
     expect(button("Run now", row(firstTask)).disabled).toBe(true);
     await act(async () => pause.resolve(new Response(null, { status: 204 })));
     expect(button("Resume", row(firstTask)).disabled).toBe(false);
+  });
+
+  it("keeps the updated schedule when an earlier catalog poll finishes late", async () => {
+    const stale = Promise.withResolvers<Response>();
+    const paused = { ...firstTask, state: { ...firstTask.state!, paused: true } };
+    request.mockResolvedValueOnce(catalog(firstTask))
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(catalog(paused));
+    await mount();
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(request).toHaveBeenCalledTimes(2);
+    const signal = request.mock.calls[1]?.[1]?.signal;
+
+    await act(async () => button("Pause", row(firstTask)).click());
+    expect(row(firstTask).querySelector(".scheduled-task-status")?.textContent).toContain("Paused");
+    await act(async () => stale.resolve(catalog(firstTask)));
+    expect(row(firstTask).querySelector(".scheduled-task-status")?.textContent).toContain("Paused");
+    expect(signal?.aborted).toBe(true);
+    expect(request).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps a manual refresh active when the abandoned background read rejects", async () => {
+    const previous = Promise.withResolvers<Response>();
+    const current = Promise.withResolvers<Response>();
+    request.mockResolvedValueOnce(catalog(firstTask))
+      .mockReturnValueOnce(previous.promise)
+      .mockReturnValueOnce(current.promise);
+    await mount();
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    await act(async () => button("Refresh").click());
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(request.mock.calls[1]?.[1]?.signal?.aborted).toBe(true);
+    await act(async () => previous.reject(new Error("Retired scheduled-task poll")));
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(container.querySelector(".error-panel")).toBeNull();
+    await act(async () => current.resolve(catalog(secondTask)));
+    expect(container.textContent).toContain(secondTask.id);
+    expect(container.textContent).not.toContain(firstTask.id);
+  });
+
+  it("does not reload a scheduler after an outstanding control settles on an unmounted page", async () => {
+    const control = Promise.withResolvers<Response>();
+    request.mockResolvedValueOnce(catalog(firstTask)).mockReturnValueOnce(control.promise);
+    await mount();
+    await act(async () => button("Run now", row(firstTask)).click());
+    await act(async () => root.render(null));
+    await act(async () => control.resolve(new Response(null, { status: 204 })));
+    expect(request.mock.calls.map(([url]) => url)).toEqual([`${dataPath}/catalog`, `${dataPath}/control`]);
+  });
+
+  it("updates relative timestamps independently and cancels both timers on unmount", async () => {
+    const pending = Promise.withResolvers<Response>();
+    const nearTask = {
+      ...firstTask, state: { ...firstTask.state!, nextScheduledAt: new Date(now.getTime() + 500).toISOString() },
+    };
+    request.mockResolvedValueOnce(catalog(nearTask)).mockReturnValueOnce(pending.promise);
+    await mount();
+    const relative = () => row(nearTask).querySelector(".scheduled-task-time.next small")?.textContent;
+    expect(relative()).toBe("in 1 second");
+    expect(row(nearTask).querySelectorAll(".scheduled-task-time.next small")).toHaveLength(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(relative()).toBe("0 seconds ago");
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(request).toHaveBeenCalledTimes(2);
+    const signal = request.mock.lastCall?.[1]?.signal;
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(request).toHaveBeenCalledTimes(2);
+    await act(async () => root.render(null));
+    expect(signal?.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    await act(async () => pending.reject(new Error("Retired scheduler")));
+    expect(container.querySelector(".scheduled-task-error")).toBeNull();
+  });
+
+  it("shows an unavailable page without sending a scheduler request", async () => {
+    await mount(null);
+    expect(container.querySelector(".error-panel")?.textContent).toBe("The scheduled-tasks page has no data endpoint.");
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("promotes relative timestamps to the next unit at the rounding boundary", async () => {
+    const times = [
+      [90_000, "in 2 minutes"],
+      [5_400_000, "in 2 hours"],
+      [129_600_000, "in 2 days"],
+    ] as const;
+    const tasks = times.map(([offset]) => ({
+      ...firstTask,
+      id: `test-${offset}`,
+      state: { ...firstTask.state!, nextScheduledAt: new Date(now.getTime() + offset).toISOString() },
+    }));
+    request.mockResolvedValueOnce(catalog(...tasks));
+    await mount();
+    expect(tasks.map((task) => row(task).querySelector(".scheduled-task-time.next small")?.textContent))
+      .toEqual(times.map(([, expected]) => expected));
   });
 
   it("distinguishes an uninitialized persistent task and formats short and distant run times", async () => {

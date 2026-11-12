@@ -144,8 +144,14 @@ function useTimeline(
   }, [contextKey, dataPath, executionId, requestPending]);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     let pollTimer: number | undefined;
+    const canPoll = (): boolean => pollUntilCompleted
+      && (requestPendingRef.current || pollTimeoutMs === null
+        || performance.now() - requestFinishedAtRef.current < pollTimeoutMs);
+    const schedulePoll = () => {
+      pollTimer = window.setTimeout(() => void load(), TIMELINE_POLL_INTERVAL_MS);
+    };
 
     const load = async (): Promise<void> => {
       try {
@@ -156,6 +162,7 @@ function useTimeline(
         }
         const response = await fetch(url, {
           headers: { accept: "application/json" },
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -164,17 +171,13 @@ function useTimeline(
 
         const timeline = await response.json() as StudioObservationTimeline;
 
-        if (cancelled) {
+        if (controller.signal.aborted) {
           return;
         }
 
         const completed = timeline.items.some((event) =>
           event.name === executionCompletedObservation.name);
-        const timedOut = pollTimeoutMs !== null
-          && performance.now() - requestFinishedAtRef.current >= pollTimeoutMs;
-        const shouldPoll = pollUntilCompleted
-          && !completed
-          && (requestPendingRef.current || !timedOut);
+        const shouldPoll = !completed && canPoll();
 
         setState({
           status: "ready",
@@ -182,20 +185,17 @@ function useTimeline(
           polling: shouldPoll,
         });
 
-        if (shouldPoll) {
-          pollTimer = window.setTimeout(
-            () => void load(),
-            TIMELINE_POLL_INTERVAL_MS,
-          );
-        }
+        if (shouldPoll) schedulePoll();
       } catch (error: unknown) {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setState({
             status: "error",
             message: error instanceof Error
               ? error.message
               : "Unable to load the execution timeline.",
           });
+          // Transient delivery errors still share the original polling budget.
+          if (canPoll()) schedulePoll();
         }
       }
     };
@@ -204,7 +204,7 @@ function useTimeline(
     void load();
 
     return () => {
-      cancelled = true;
+      controller.abort();
 
       if (pollTimer !== undefined) {
         window.clearTimeout(pollTimer);

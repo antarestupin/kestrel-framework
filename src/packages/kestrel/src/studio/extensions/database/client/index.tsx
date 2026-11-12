@@ -55,8 +55,8 @@ function DatabaseSchemaPage({ page }: { page: StudioPageManifest }) {
         ? <p className="error-panel">The database page has no data endpoint.</p>
         : (
             <>
-              {/* The manifest endpoint already includes the configured Studio base path. */}
-              <DatabaseLayoutData dataPath={page.dataPath} hideFramework={hideFramework} onHideFrameworkChange={changeFilter} />
+              {/* A new endpoint owns its diagram, export link and disclosure state. */}
+              <DatabaseLayoutData key={page.dataPath} dataPath={page.dataPath} hideFramework={hideFramework} onHideFrameworkChange={changeFilter} />
             </>
           )}
     </div>
@@ -475,11 +475,12 @@ function useDatabaseLayout(dataPath: string): DatabaseLayoutResource {
 
         return response.json() as Promise<StudioDatabaseLayout>;
       })
-      .then((layout) => setResource({ status: "ready", layout }))
+      .then((layout) => {
+        if (!controller.signal.aborted) setResource({ status: "ready", layout });
+      })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
+        // Superseded effects can still settle when a fetch implementation ignores abort.
+        if (controller.signal.aborted) return;
 
         setResource({
           status: "error",

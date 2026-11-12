@@ -6,6 +6,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -53,7 +54,7 @@ function EmailHistoryPage({ page }: { page: StudioPageManifest }) {
       <StudioPageHeader page={page} eyebrow="Observability" />
       {page.dataPath === undefined
         ? <p className="error-panel">The email history page has no data endpoint.</p>
-        : <EmailHistory dataPath={page.dataPath} />}
+        : <EmailHistory key={page.dataPath} dataPath={page.dataPath} />}
     </div>
   );
 }
@@ -64,7 +65,7 @@ function EmailInboxPage({ page }: { page: StudioPageManifest }) {
       <StudioPageHeader page={page} eyebrow="Development email" />
       {page.dataPath === undefined
         ? <p className="error-panel">The email inbox page has no data endpoint.</p>
-        : <EmailInbox dataPath={page.dataPath} />}
+        : <EmailInbox key={page.dataPath} dataPath={page.dataPath} />}
     </div>
   );
 }
@@ -95,7 +96,8 @@ function EmailHistory({ dataPath }: { dataPath: string }) {
     <section className="email-workspace" aria-label="Email send history">
       <EmailToolbar onRefresh={resource.refresh} />
       <ResourceState resource={resource} empty="No email sends have been observed." />
-      {resource.status === "ready" && resource.items.length > 0 && (
+      {/* A failed refresh or older page still leaves usable results. */}
+      {resource.items.length > 0 && (
         <div className="email-table" role="table">
           <div className="email-history-row heading" role="row">
             <span>Operation</span><span>Result</span><span>Transport</span>
@@ -151,20 +153,35 @@ function EmailInbox({ dataPath }: { dataPath: string }) {
   );
   const [clearError, setClearError] = useState<string>();
   const [clearing, setClearing] = useState(false);
+  const clearRequest = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => {
+    clearRequest.current?.abort();
+    clearRequest.current = undefined;
+  }, []);
+
   const clear = async () => {
+    if (clearRequest.current !== undefined) return;
     if (!window.confirm("Clear every locally captured email? This cannot be undone.")) return;
 
+    const controller = new AbortController();
+    clearRequest.current = controller;
     setClearing(true);
     setClearError(undefined);
     try {
-      const response = await fetch(`${dataPath}/captures`, { method: "DELETE" });
+      const response = await fetch(`${dataPath}/captures`, { method: "DELETE", signal: controller.signal });
+      if (controller.signal.aborted) return;
       if (!response.ok) throw new Error(`Unable to clear the inbox (${response.status}).`);
       await resource.refresh();
     } catch (error) {
       // Keep the current inbox visible and let the user retry a failed clear.
-      setClearError(error instanceof Error ? error.message : "Unable to clear the inbox.");
+      if (!controller.signal.aborted) {
+        setClearError(error instanceof Error ? error.message : "Unable to clear the inbox.");
+      }
     } finally {
-      setClearing(false);
+      if (clearRequest.current === controller) {
+        clearRequest.current = undefined;
+        setClearing(false);
+      }
     }
   };
 
@@ -173,7 +190,7 @@ function EmailInbox({ dataPath }: { dataPath: string }) {
       <EmailToolbar onRefresh={resource.refresh} onClear={clear} clearing={clearing} />
       {clearError !== undefined && <p className="error-panel" role="alert">{clearError}</p>}
       <ResourceState resource={resource} empty="No emails have been captured locally." />
-      {resource.status === "ready" && resource.items.length > 0 && (
+      {resource.items.length > 0 && (
         <div className="email-inbox-list">
           {resource.items.map((capture) => (
             <Link
@@ -215,13 +232,21 @@ function EmailCaptureDetail({
   const [resendError, setResendError] = useState<string>();
   const [preview, setPreview] = useState<"html" | "text">("html");
   const [resending, setResending] = useState(false);
-  const load = useCallback(async () => {
+  const readRequest = useRef<AbortController | undefined>(undefined);
+  const resendRequest = useRef<AbortController | undefined>(undefined);
+  const load = useCallback(async (replace = false) => {
+    if (readRequest.current !== undefined && !replace) return;
+    readRequest.current?.abort();
+    const controller = new AbortController();
+    readRequest.current = controller;
     try {
       const response = await fetch(
         `${dataPath}/captures/${encodeURIComponent(captureId)}`,
+        { signal: controller.signal },
       );
       if (!response.ok) throw new Error(`Unable to load captured email (${response.status}).`);
       const nextCapture = await response.json() as StudioEmailCaptureDetail;
+      if (controller.signal.aborted) return;
       setCapture(nextCapture);
       setPreview((current) => {
         if (current === "html" && nextCapture.html === null) return "text";
@@ -232,39 +257,60 @@ function EmailCaptureDetail({
       });
       setError(undefined);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
+      if (!controller.signal.aborted) {
+        setError(loadError instanceof Error ? loadError.message : String(loadError));
+      }
+    } finally {
+      if (readRequest.current === controller) readRequest.current = undefined;
     }
   }, [captureId, dataPath]);
 
   useEffect(() => {
     void load();
     const interval = window.setInterval(() => void load(), 2_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearInterval(interval);
+      readRequest.current?.abort();
+      readRequest.current = undefined;
+      resendRequest.current?.abort();
+      resendRequest.current = undefined;
+    };
   }, [load]);
 
   const resend = async () => {
+    if (resendRequest.current !== undefined) return;
     if (!window.confirm(
       "Replay this message through the configured local email transport using its original recipients?",
     )) return;
+    // Claim the write before React renders the disabled button.
+    const controller = new AbortController();
+    resendRequest.current = controller;
     setResending(true);
     setResendError(undefined);
     try {
       const response = await fetch(
         `${dataPath}/captures/${encodeURIComponent(captureId)}/resend`,
-        { method: "POST" },
+        { method: "POST", signal: controller.signal },
       );
       if (!response.ok) throw new Error(`Unable to resend captured email (${response.status}).`);
       const result = await response.json() as StudioEmailResendResult;
+      if (controller.signal.aborted) return;
       if (result.captureId !== null) {
         await navigate({ to: getStudioEmailCapturePath(result.captureId) });
       } else {
-        await load();
+        // A pre-resend poll must not replace the refreshed detail.
+        await load(true);
       }
     } catch (error) {
       // Action errors must not replace the loaded capture or hide its retry control.
-      setResendError(error instanceof Error ? error.message : "Unable to resend captured email.");
+      if (!controller.signal.aborted) {
+        setResendError(error instanceof Error ? error.message : "Unable to resend captured email.");
+      }
     } finally {
-      setResending(false);
+      if (resendRequest.current === controller) {
+        resendRequest.current = undefined;
+        setResending(false);
+      }
     }
   };
 
@@ -420,14 +466,28 @@ function usePaginatedEmailResource<Item extends { id: string }>(url: string): Pa
   const [state, setState] = useState<PaginatedState<Item>>({
     status: "loading", items: [], loadedOlder: false, nextBefore: null,
   });
+  const active = useRef<{ latest?: AbortController; older?: AbortController }>({});
   const load = useCallback(async (before?: number, replaceHistory = false) => {
+    const requests = active.current;
+    const slot = before === undefined ? "latest" : "older";
+    if (replaceHistory) {
+      // Refreshing after a clear invalidates earlier history and background reads.
+      requests.latest?.abort();
+      requests.older?.abort();
+      delete requests.older;
+    } else if (requests[slot] !== undefined) {
+      return;
+    }
+    const controller = new AbortController();
+    requests[slot] = controller;
     try {
       const requestUrl = new URL(url, window.location.origin);
       requestUrl.searchParams.set("limit", "50");
       if (before !== undefined) requestUrl.searchParams.set("before", String(before));
-      const response = await fetch(requestUrl);
+      const response = await fetch(requestUrl, { signal: controller.signal });
       if (!response.ok) throw new Error(`Email request failed (${response.status}).`);
       const page = await response.json() as { items: readonly Item[]; nextBefore: number | null };
+      if (controller.signal.aborted) return;
       setState((current) => {
         if (before !== undefined) {
           return {
@@ -445,18 +505,27 @@ function usePaginatedEmailResource<Item extends { id: string }>(url: string): Pa
         return { status: "ready", items: page.items, loadedOlder: false, nextBefore: page.nextBefore };
       });
     } catch (error: unknown) {
-      setState((current) => ({
-        ...current,
-        status: "error",
-        message: error instanceof Error ? error.message : String(error),
-      }));
+      if (!controller.signal.aborted) {
+        setState((current) => ({
+          ...current,
+          status: "error",
+          message: error instanceof Error ? error.message : String(error),
+        }));
+      }
+    } finally {
+      if (requests[slot] === controller) delete requests[slot];
     }
   }, [url]);
 
   useEffect(() => {
     void load();
     const interval = window.setInterval(() => void load(), 2_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearInterval(interval);
+      active.current.latest?.abort();
+      active.current.older?.abort();
+      active.current = {};
+    };
   }, [load]);
 
   const refresh = useCallback(() => load(undefined, true), [load]);

@@ -12,6 +12,7 @@ import {
   HttpControllerManager,
 } from "../http/index.js";
 import { testHttpAccess } from "../testing/http_access.js";
+import { studioConfigBase } from "./configuration.js";
 import type { StudioExtension } from "./extension.js";
 import type { SvgIconDefinition } from "./icon_definition.js";
 import {
@@ -59,6 +60,16 @@ const exampleExtension: StudioExtension = {
 };
 
 describe("Studio", () => {
+  it("keeps Studio and Vite development disabled by default and accepts explicit configuration", () => {
+    expect(studioConfigBase.schema.parse({})).toEqual({
+      enabled: false, devMode: false, basePath: "/_studio",
+    });
+    expect(studioConfigBase.schema.parse({ enabled: true, devMode: true, basePath: "/tools" })).toEqual({
+      enabled: true, devMode: true, basePath: "/tools",
+    });
+    expect(studioConfigBase.schema.safeParse({ basePath: "" }).success).toBe(false);
+  });
+
   it("exposes a client manifest and extension routes under its base path", async () => {
     const server = Fastify();
     const studio = new Studio({
@@ -128,6 +139,20 @@ describe("Studio", () => {
     expect(studio.basePath).toBe("/_tools");
   });
 
+  it("trims mount paths and preserves literal dots within route segments", () => {
+    const studio = new Studio({
+      basePath: " /team.v2/ ",
+      extensions: [{
+        ...exampleExtension,
+        pages: [{ ...exampleExtension.pages[0]!, path: "/.well-known", dataPath: "/api/end.." }],
+      }],
+    });
+    expect(studio.basePath).toBe("/team.v2");
+    expect(studio.getManifest().extensions[0]?.pages[0]).toMatchObject({
+      path: "/.well-known", dataPath: "/team.v2/api/end..",
+    });
+  });
+
   it("serves a metadata-only extension at the root mount", async () => {
     const extension: StudioExtension = {
       id: "resources",
@@ -168,6 +193,13 @@ describe("Studio", () => {
     "rejects a mount path which a browser would reinterpret (%j)",
     (basePath) => {
       expect(() => new Studio({ basePath })).toThrow(/Studio base path/);
+    },
+  );
+
+  it.each(["/:tenant", "/console/:tool(^[a-z]+)"])(
+    "rejects a mount path that Fastify would register as a parameter route (%s)",
+    (basePath) => {
+      expect(() => new Studio({ basePath })).toThrow("fixed absolute URL path");
     },
   );
 
@@ -262,6 +294,39 @@ describe("Studio", () => {
       ]);
   });
 
+  it("matches section names case-insensitively and derives stable accented identifiers", () => {
+    const studio = new Studio({ extensions: [
+      { id: "main", title: "Usage", pages: [], section: { id: "tools", title: "Tooling", order: 3 } },
+      { id: "alias", title: "  TOOLING  ", pages: [] },
+      { id: "reference", title: "Reference", pages: [], section: "  tOoLiNg  " },
+      { id: "international", title: "Tools", pages: [], section: "-- Équipe  d’été !!" },
+    ] });
+    const [main, alias, reference, international] = studio.getManifest().extensions;
+    expect(main?.section).toStrictEqual({ id: "tools", title: "Tooling", order: 3 });
+    expect(alias?.section).toStrictEqual(main?.section);
+    expect(reference?.section).toStrictEqual(main?.section);
+    expect(international?.section).toStrictEqual({ id: "equipe-d-ete", title: "-- Équipe  d’été !!" });
+  });
+
+  it("does not overwrite an existing navigation order with an unordered declaration", () => {
+    const studio = new Studio({ extensions: [
+      { id: "first", title: "First", pages: [], section: { id: "tools", title: "Tools", order: 4 } },
+      { id: "second", title: "Second", pages: [], section: { id: "tools", title: "Tools" } },
+    ] });
+    expect(studio.getManifest().extensions.map(({ section }) => section))
+      .toEqual(Array(2).fill({ id: "tools", title: "Tools", order: 4 }));
+  });
+
+  it("keeps explicit navigation sections independent of their extension IDs", () => {
+    const studio = new Studio({ extensions: [
+      { id: "settings", title: "Manage tools", pages: [], section: "Administration" },
+      { id: "helper", title: "Helper", pages: [], section: "settings" },
+    ] });
+    expect(studio.getManifest().extensions.map(({ section }) => section)).toEqual([
+      { id: "administration", title: "Administration" }, { id: "settings", title: "Settings" },
+    ]);
+  });
+
   it("merges navigation order regardless of installation order", () => {
     const extensions: StudioExtension[] = [
       { id: "tools", title: "Local tools", pages: [] },
@@ -320,7 +385,7 @@ describe("Studio", () => {
   it("rejects duplicate extension ids and page paths", () => {
     expect(() => new Studio({
       extensions: [exampleExtension, exampleExtension],
-    })).toThrow("registered more than once");
+    })).toThrow('Studio extension id "example" is registered more than once.');
 
     expect(() => new Studio({
       extensions: [
@@ -338,6 +403,47 @@ describe("Studio", () => {
         pages: [...exampleExtension.pages, { ...exampleExtension.pages[0]!, path: "/other" }],
       }],
     })).toThrow('page id "example.overview" is registered more than once');
+  });
+
+  it("names the exact invalid identifier or navigation field", () => {
+    expect(() => new Studio({ extensions: [{ ...exampleExtension, id: "example!" }] }))
+      .toThrow('The Studio extension id "example!" must use lowercase kebab-case.');
+    expect(() => new Studio({
+      extensions: [{ ...exampleExtension, section: { id: "tools?", title: "Tools" } }],
+    })).toThrow('The Studio navigation section id "tools?" must use lowercase kebab-case.');
+    expect(() => new Studio({
+      extensions: [{ ...exampleExtension, section: { id: "tools", title: "Tools", order: NaN } }],
+    })).toThrow('Studio navigation section "tools" order must be a finite number.');
+    expect(() => new Studio({
+      extensions: [{ ...exampleExtension, pages: [{ ...exampleExtension.pages[0]!, path: "/" }] }],
+    })).toThrow('Studio page "example.overview" must use a non-root absolute path');
+    expect(() => new Studio({
+      extensions: [{ ...exampleExtension, pages: [{ ...exampleExtension.pages[0]!, id: "bad!" }] }],
+    })).toThrow('The Studio page in extension "example" id "bad!"');
+    expect(() => new Studio({
+      extensions: [{ ...exampleExtension, pages: [{ ...exampleExtension.pages[0]!, order: Infinity }] }],
+    })).toThrow('Studio page "example.overview" order must be a finite number.');
+    expect(() => new Studio({
+      extensions: [{ ...exampleExtension, links: [{ ...exampleExtension.links![0]!, id: "bad!" }] }],
+    })).toThrow('The Studio link in extension "example" id "bad!"');
+    expect(() => new Studio({
+      extensions: [{ ...exampleExtension, links: [{ ...exampleExtension.links![0]!, order: Infinity }] }],
+    })).toThrow('Studio link "example.external-tool" order must be a finite number.');
+  });
+
+  it("keeps optional metadata absent and accepts a plain HTTP development tool", async () => {
+    const studio = new Studio({ extensions: [{
+      id: "local", title: "Local",
+      pages: [{ id: "about", title: "About", path: "/about", kind: "plain" }],
+      links: [{ id: "tools", title: "Tools", href: "http://localhost:8080" }],
+    }] });
+    expect(studio.getManifest().extensions[0]).toStrictEqual({
+      id: "local", title: "Local", section: { id: "local", title: "Local" },
+      pages: [{ id: "about", title: "About", path: "/about", kind: "plain" }],
+      links: [{ id: "tools", title: "Tools", href: "http://localhost:8080" }],
+    });
+    const [manifest] = await studio.defineHttpControllers();
+    expect(manifest?.description).toBe("Expose the Studio client manifest.");
   });
 
   it("rejects unsafe or duplicate external links", () => {
@@ -371,6 +477,10 @@ describe("Studio", () => {
 
   it.each([
     ["/manual", /must use an absolute HTTP URL/],
+    ["https:tool.example/manual", /must use an absolute HTTP URL/],
+    ["https:tool.example/?redirect=https://other.example", /must use an absolute HTTP URL/],
+    ["https:/tool.example/manual", /must use an absolute HTTP URL/],
+    ["https:\\tool.example/manual", /must use an absolute HTTP URL/],
     ["https://reader@example.com", /without credentials/],
     ["https://:password@example.com", /without credentials/],
   ] as const)("rejects an unusable external link %s", (href, error) => {
@@ -380,5 +490,13 @@ describe("Studio", () => {
         links: [{ ...exampleExtension.links![0]!, href }],
       }],
     })).toThrow(error);
+  });
+
+  it("accepts a full URL with whitespace and a case-insensitive scheme", () => {
+    const href = "  HTTPS://example.com/tool  ";
+    const studio = new Studio({ extensions: [{
+      ...exampleExtension, links: [{ ...exampleExtension.links![0]!, href }],
+    }] });
+    expect(studio.getManifest().extensions[0]?.links?.[0]?.href).toBe(href);
   });
 });

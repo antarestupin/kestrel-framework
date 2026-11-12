@@ -51,8 +51,9 @@ describe("workers Studio extension", () => {
     const studio = new Studio({ extensions: [extension] });
     const app = new App({});
     const manager = new HttpControllerManager(app, server);
+    const controllers = await studio.defineHttpControllers();
 
-    for (const controller of await studio.defineHttpControllers()) {
+    for (const controller of controllers) {
       manager.register(controller);
     }
     await app.start();
@@ -80,13 +81,20 @@ describe("workers Studio extension", () => {
     expect(catalog.observability).toEqual({
       dataPath: "/_studio/api/extensions/development-observations",
     });
-    expect(extension.pages).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: "worker",
-        path: "/workers/$workerId",
-        showInNavigation: false,
-      }),
-    ]));
+    expect(studio.getManifest().extensions[0]).toMatchObject({
+      title: "Workers", description: "Inspect queues, publish jobs and follow their execution.",
+      pages: [
+        { title: "Workers", description: "Queue activity and consumption controls." },
+        {
+          id: "worker", title: "Worker", path: "/workers/$workerId", showInNavigation: false,
+          description: "Worker details and interactive job publishing.",
+        },
+      ],
+    });
+    expect(controllers.slice(1).map(({ description }) => description)).toEqual([
+      "List the worker catalog and current queue state.", "Return one worker and its current queue state.",
+      "Enable or pause consumption for one worker queue.", "Validate and enqueue one worker payload.",
+    ]);
     expect(catalog.nodes[0]).toMatchObject({
       kind: "group",
       children: [{
@@ -124,7 +132,8 @@ describe("workers Studio extension", () => {
       },
     });
     expect(missingResponse.statusCode).toBe(404);
-    expect(missingResponse.json()).toMatchObject({
+    expect(missingResponse.json()).toEqual({
+      statusCode: 404, error: "Not Found",
       message: "Worker \"unknown\" is not registered.",
     });
     await expect(adapter.listQueueStatistics(["emails"]))
@@ -181,6 +190,7 @@ describe("workers Studio extension", () => {
     }]);
     expect(invalidResponse.statusCode).toBe(400);
     expect(invalidResponse.json()).toMatchObject({
+      statusCode: 400, error: "Bad Request",
       message: "The worker payload is invalid.",
     });
 
@@ -228,6 +238,7 @@ describe("workers Studio extension", () => {
     expect(z.uuid().safeParse(result.executionId).success).toBe(true);
     expect(adapter.inspectJobs()[0]?.executionId).toBe(result.executionId);
     expect(controlResponse.statusCode).toBe(400);
+    expect(controlResponse.body).toContain("The queue is not registered in the application worker catalog.");
     expect(catalogResponse.json()).toMatchObject({
       nodes: [{
         kind: "worker",
@@ -256,7 +267,9 @@ describe("workers Studio extension", () => {
         pair: z.tuple([z.literal("report"), z.int().min(3)]),
         empty: z.tuple([]),
         details: z.record(z.string(), z.number()),
+        converted: z.string().transform((value) => value.length),
       }),
+      examples: [],
       handler: () => undefined,
     });
     const studio = new Studio({ extensions: [defineWorkersStudioExtension({ worker }, adapter)] });
@@ -279,15 +292,23 @@ describe("workers Studio extension", () => {
         site: "https://example.com", hint: "configured",
         id: "00000000-0000-4000-8000-000000000000", email: "user@example.com",
         note: "example", locale: "en",
-        pair: ["report", 3], empty: [], details: {},
+        pair: ["report", 3], empty: [], details: {}, converted: "example",
       });
       vi.spyOn(adapter, "enqueue").mockResolvedValueOnce([]);
       expect((await server.inject({
         method: "POST", url: `${prefix}/enqueue`, payload: { queue: worker.queue, payload },
       })).statusCode).toBe(500);
-      vi.spyOn(adapter, "listQueueStatistics").mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      const unrelatedQueue = { queue: "another-worker", enabled: false, ready: 7, scheduled: 1, reserved: 2 };
+      const ownQueue = { queue: worker.queue, enabled: true, ready: 3, scheduled: 0, reserved: 0 };
+      vi.spyOn(adapter, "listQueueStatistics")
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([unrelatedQueue])
+        .mockResolvedValueOnce([unrelatedQueue, ownQueue]);
       expect((await server.inject({ url: `${prefix}/catalog` })).statusCode).toBe(500);
       expect((await server.inject({ url: `${prefix}/catalog/worker` })).statusCode).toBe(500);
+      const withMatchingStatistics = await server.inject({ url: `${prefix}/catalog/worker` });
+      expect(withMatchingStatistics.statusCode).toBe(200);
+      expect(withMatchingStatistics.json<StudioWorkerDetail>().worker).toMatchObject(ownQueue);
     } finally {
       await server.close();
       await app.dispose();

@@ -37,9 +37,12 @@ describe("scheduled-tasks Studio extension", () => {
       schedule: every({ minutes: 15 }),
       handler: () => undefined,
     });
+    const secondBranch = defineScheduledTask({
+      id: "billing.refunds", schedule: every({ minutes: 20 }), handler: () => undefined,
+    });
     const registry = new ScheduledTaskRegistry()
       .registerCatalog(
-        { billing: { reconciliation: applicationTask, reminders: { send: nestedTask } } },
+        { billing: { reconciliation: applicationTask, reminders: { send: nestedTask }, refunds: { sync: secondBranch } } },
         { kind: "application" },
       )
       .register(
@@ -56,7 +59,7 @@ describe("scheduled-tasks Studio extension", () => {
         nextScheduledAt: new Date("2026-01-01T01:00:00.000Z"),
       },
     ]);
-    const { server, app } = await createTestApp(registry, adapter);
+    const { server, app, studio } = await createTestApp(registry, adapter);
 
     const response = await server.inject({
       method: "GET",
@@ -65,12 +68,21 @@ describe("scheduled-tasks Studio extension", () => {
     const catalog = response.json<StudioScheduledTaskCatalog>();
 
     expect(response.statusCode).toBe(200);
+    expect(studio.getManifest().extensions[0]).toMatchObject({
+      title: "Scheduled tasks", description: "Inspect recurring tasks and control their next executions.",
+      pages: [{ title: "Scheduled tasks", description: "Schedules, execution state and runtime controls." }],
+    });
+    expect((await studio.defineHttpControllers()).slice(1).map(({ description }) => description)).toEqual([
+      "List registered scheduled tasks and current state.", "Run, pause or resume one persistent scheduled task.",
+    ]);
     expect(catalog.nodes).toMatchObject([
       {
         kind: "group",
+        id: "application",
         name: "Application",
         children: [{
           kind: "group",
+          id: "application.billing",
           name: "billing",
           children: [{
             kind: "task",
@@ -93,16 +105,24 @@ describe("scheduled-tasks Studio extension", () => {
             },
           }, {
             kind: "group",
+            id: "application.billing.reminders",
             name: "reminders",
             children: [{ kind: "task", id: "billing.reminders", controllable: false }],
+          }, {
+            kind: "group",
+            id: "application.billing.refunds",
+            name: "refunds",
+            children: [{ kind: "task", id: "billing.refunds", controllable: false }],
           }],
         }],
       },
       {
         kind: "group",
+        id: "providers",
         name: "Providers",
         children: [{
           kind: "group",
+          id: "providers.CacheProvider",
           name: "CacheProvider",
           children: [{
             kind: "task",
@@ -155,6 +175,27 @@ describe("scheduled-tasks Studio extension", () => {
     await app.dispose();
   });
 
+  it("retains the first future occurrence when resuming an interval schedule", async () => {
+    const adapter = new MemoryScheduledTaskAdapter({ now: () => now });
+    const task = defineScheduledTask({
+      id: "first.future",
+      schedule: every({ minutes: 2 }),
+      handler: () => undefined,
+    });
+    const registry = new ScheduledTaskRegistry().register(task, { kind: "application" });
+    await adapter.reconcile([{ taskId: task.id, nextScheduledAt: now }]);
+    const { server, app } = await createTestApp(registry, adapter);
+    try {
+      expect((await control(server, task.id, "resume")).statusCode).toBe(204);
+      await expect(adapter.listStates([task.id])).resolves.toMatchObject([
+        { nextScheduledAt: new Date("2026-01-01T00:02:00.000Z") },
+      ]);
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
   it("exposes memory tasks without allowing cross-process controls", async () => {
     const adapter = new MemoryScheduledTaskAdapter({ now: () => now });
     const task = defineScheduledTask({
@@ -167,6 +208,9 @@ describe("scheduled-tasks Studio extension", () => {
       task,
       { kind: "application" },
     );
+    // Even a stale adapter row for a process-local task must never allow a write.
+    await adapter.reconcile([{ taskId: task.id, nextScheduledAt: now }]);
+    const requestRun = vi.spyOn(adapter, "requestRun");
     const { server, app } = await createTestApp(registry, adapter);
 
     const catalogResponse = await server.inject({
@@ -186,6 +230,10 @@ describe("scheduled-tasks Studio extension", () => {
       }],
     });
     expect(controlResponse.statusCode).toBe(409);
+    expect(controlResponse.json()).toEqual({
+      statusCode: 409, error: "Conflict", message: "Process-local scheduled tasks cannot be controlled from Studio.",
+    });
+    expect(requestRun).not.toHaveBeenCalled();
 
     await server.close();
     await app.dispose();
@@ -238,7 +286,7 @@ describe("scheduled-tasks Studio extension", () => {
       registry.register(task, { kind: "application" });
     }
     await adapter.reconcile([{ taskId: cronTask.id, nextScheduledAt: now }]);
-    vi.spyOn(adapter, "listStates").mockResolvedValueOnce([{
+    const list = vi.spyOn(adapter, "listStates").mockResolvedValueOnce([{
       taskId: cronTask.id,
       paused: true,
       activeRuns: 0,
@@ -252,7 +300,9 @@ describe("scheduled-tasks Studio extension", () => {
     try {
       const catalog = await server.inject({ url: "/_studio/api/extensions/scheduled-tasks/catalog" });
       expect(catalog.statusCode).toBe(200);
-      expect(catalog.json()).toMatchObject({
+      expect(list).toHaveBeenCalledExactlyOnceWith([cronTask.id, waitingTask.id]);
+      const document = catalog.json<StudioScheduledTaskCatalog>();
+      expect(document).toMatchObject({
         nodes: [{ children: expect.arrayContaining([
           expect.objectContaining({
             id: cronTask.id,
@@ -265,15 +315,29 @@ describe("scheduled-tasks Studio extension", () => {
           }),
           expect.objectContaining({
             id: waitingTask.id, controllable: false, unavailableReason: expect.stringContaining("Waiting"),
+            schedule: { kind: "cron", expression: "0 12 * * *" },
           }),
           expect.objectContaining({
             id: loopTask.id, schedule: { kind: "loop", delayMs: 1_000, start: "after-delay" },
           }),
         ]) }],
       });
+      const application = document.nodes[0];
+      if (application?.kind !== "group") throw new Error("Expected the application group.");
+      const waitingDefinition = application.children.find((node) => node.id === waitingTask.id);
+      expect(waitingDefinition).not.toHaveProperty("description");
+      expect(waitingDefinition).not.toHaveProperty("schedule.timeZone");
       expect(catalog.body).not.toContain("internal stack");
-      expect((await control(server, "unregistered", "pause")).statusCode).toBe(404);
-      expect((await control(server, waitingTask.id, "run")).statusCode).toBe(409);
+      const unknown = await control(server, "unregistered", "pause");
+      expect(unknown.statusCode).toBe(404);
+      expect(unknown.json()).toEqual({
+        statusCode: 404, error: "Not Found", message: 'Scheduled task "unregistered" is not registered.',
+      });
+      const waiting = await control(server, waitingTask.id, "run");
+      expect(waiting.statusCode).toBe(409);
+      expect(waiting.json()).toEqual({
+        statusCode: 409, error: "Conflict", message: "The scheduled-task runtime has not registered this task yet.",
+      });
       expect((await control(server, cronTask.id, "resume")).statusCode).toBe(204);
       await expect(adapter.listStates([cronTask.id])).resolves.toMatchObject([
         { nextScheduledAt: new Date("2026-01-01T08:00:00.000Z") },
@@ -304,7 +368,7 @@ async function createTestApp(
   }
   await app.start();
 
-  return { server, app };
+  return { server, app, studio };
 }
 
 function control(

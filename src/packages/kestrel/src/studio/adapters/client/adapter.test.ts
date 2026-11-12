@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { fileURLToPath } from "node:url";
 import {
   describe,
   expect,
@@ -43,18 +44,41 @@ describe("ViteStudioClientAdapter", () => {
 
   it("does not register development cleanup for production assets", async () => {
     const addHook = vi.fn();
+    const register = vi.fn();
+    const ready = vi.fn(async () => {});
     const server = {
       addHook,
-      register: vi.fn(),
-      vite: {
-        ready: vi.fn(async () => {}),
-      },
+      register,
+      vite: { ready },
     } as unknown as FastifyInstance;
-    const adapter = new ViteStudioClientAdapter({ dev: false });
+    const adapter = new ViteStudioClientAdapter();
 
-    await adapter.setup(server, new Studio());
+    const render = await adapter.setup(server, new Studio());
 
+    expect(register).toHaveBeenCalledExactlyOnceWith(expect.any(Function), expect.objectContaining({
+      root: fileURLToPath(new URL("../../../../", import.meta.url)),
+      dev: false, spa: true, distDir: "assets/studio",
+    }));
+    expect(ready).toHaveBeenCalledOnce();
     expect(addHook).not.toHaveBeenCalled();
+    const reply = { html: vi.fn(() => "packaged") };
+    expect(await render(reply as never)).toBe("packaged");
+    expect(reply.html).toHaveBeenCalledOnce();
+  });
+
+  it("uses an explicit Vite root and tolerates development without an HMR server", async () => {
+    const addHook = vi.fn();
+    const register = vi.fn();
+    const server = {
+      addHook, register,
+      vite: { ready: vi.fn(async () => {}) },
+    } as unknown as FastifyInstance;
+    await new ViteStudioClientAdapter({ dev: true, projectRoot: "/workspace/custom" }).setup(server, new Studio());
+    expect(register).toHaveBeenCalledExactlyOnceWith(expect.any(Function), expect.objectContaining({
+      root: "/workspace/custom", dev: true,
+    }));
+    const close = addHook.mock.calls[0]?.[1] as (() => Promise<void>);
+    await expect(close()).resolves.toBeUndefined();
   });
 
   it("injects an optional runtime-to-editor source path mapping", async () => {
@@ -87,6 +111,7 @@ describe("ViteStudioClientAdapter", () => {
       send: vi.fn((document: string) => document),
     };
     const document = render.call(reply) as string;
+    expect(reply.type).toHaveBeenCalledExactlyOnceWith("text/html");
 
     const encodedConfig = document.match(/data-studio-config="([^"]+)"/u)?.[1];
 

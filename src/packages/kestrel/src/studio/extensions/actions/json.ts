@@ -1,3 +1,5 @@
+import { types } from "node:util";
+
 import type { StudioActionJson, StudioActionJsonSchema } from "./contract.js";
 
 /** Reject lossy JSON conversions (class instances, undefined, non-finite numbers and cycles). */
@@ -9,6 +11,8 @@ export function isStudioActionJson(
     return true;
   if (typeof value === "number") return Number.isFinite(value);
   if (typeof value !== "object" || ancestors.has(value)) return false;
+  // Reflection and serialization can observe different values through a proxy.
+  if (types.isProxy(value)) return false;
   const array = Array.isArray(value);
   const prototype = Object.getPrototypeOf(value);
   // An array subclass can inherit a toJSON hook just like an object subclass.
@@ -75,7 +79,10 @@ export function generateActionExample(
         ]),
       );
     case "array":
-      return [];
+      // Tuple schemas describe the input of each fixed position independently.
+      return Array.isArray(schema.prefixItems)
+        ? schema.prefixItems.map((item) => generateActionExample(item as StudioActionJsonSchema, depth + 1))
+        : [];
     case "boolean":
       return true;
     case "number":

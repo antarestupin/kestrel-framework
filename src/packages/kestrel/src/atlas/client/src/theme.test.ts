@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyAtlasTheme,
   ATLAS_THEME_STORAGE_KEY,
+  initializeAtlasTheme,
   readAtlasTheme,
 } from "./theme_runtime.js";
 
@@ -19,9 +20,8 @@ describe("atlas theme", () => {
     });
 
     expect(readAtlasTheme()).toBe("dark");
-    expect(window.localStorage.getItem).toHaveBeenCalledWith(
-      ATLAS_THEME_STORAGE_KEY,
-    );
+    expect(ATLAS_THEME_STORAGE_KEY).toBe("atlas-theme");
+    expect(window.localStorage.getItem).toHaveBeenCalledWith("atlas-theme");
   });
 
   it("falls back to the system theme for invalid or unavailable storage", () => {
@@ -57,6 +57,18 @@ describe("atlas theme", () => {
       dataset: { theme: "dark" },
       style: { colorScheme: "dark" },
     });
+    expect(window.matchMedia).toHaveBeenCalledExactlyOnceWith("(prefers-color-scheme: dark)");
+  });
+
+  it("applies the stored system choice before React starts", () => {
+    const documentElement = { dataset: {}, style: {} };
+    vi.stubGlobal("document", { documentElement, querySelectorAll: () => [] });
+    vi.stubGlobal("window", {
+      localStorage: { getItem: vi.fn().mockReturnValue("system") },
+      matchMedia: vi.fn().mockReturnValue({ matches: false }),
+    });
+    initializeAtlasTheme();
+    expect(documentElement).toEqual({ dataset: { theme: "light" }, style: { colorScheme: "light" } });
   });
 });
 

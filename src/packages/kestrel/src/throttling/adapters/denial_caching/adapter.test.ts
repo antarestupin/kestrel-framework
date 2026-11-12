@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ThrottlingAdapterCapabilityError } from "../../errors.js";
+import { ThrottlingDefinitionConflictError } from "../../errors.js";
 import type {
   LeasableRateLimitAdapter,
   PrunableRateLimitAdapter,
@@ -66,6 +66,27 @@ describe("DenialCachingRateLimitAdapter", () => {
       admitted: true, remaining: 0, source: "authoritative",
     });
     expect(reserve.mock.calls).toEqual([[request], [changed]]);
+  });
+
+  it("checks incompatible coordination settings with the backend after single and batch denials", async () => {
+    const leased = { ...request, coordination: { strategy: "leased", maxLeaseUnits: 1,
+      maxOutstandingUnits: 1, guardBandUnits: 0, leaseMs: 2_000 } } as const;
+    const changed = { ...leased, coordination: { ...leased.coordination, leaseMs: 3_000 } };
+    const failure = new ThrottlingDefinitionConflictError(request.key);
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt }).mockRejectedValueOnce(failure);
+    const reserveMany = vi.fn<NonNullable<RateLimitAdapter["reserveMany"]>>()
+      .mockResolvedValueOnce({ admitted: false, remaining: { [request.key]: 0, [otherRequest.key]: 1 }, retryAt })
+      .mockRejectedValueOnce(failure);
+    const adapter = new DenialCachingRateLimitAdapter({ reserve, reserveMany }, fixedClock);
+
+    await adapter.reserve(leased);
+    await expect(adapter.reserve(changed)).rejects.toBe(failure);
+    await adapter.reserveMany([leased, otherRequest]);
+    await expect(adapter.reserveMany([otherRequest, leased])).resolves.toMatchObject({ source: "denial-cache" });
+    await expect(adapter.reserveMany([otherRequest, changed])).rejects.toBe(failure);
+    expect(reserve).toHaveBeenCalledTimes(2);
+    expect(reserveMany).toHaveBeenCalledTimes(2);
   });
 
   it("keeps cached single denials independent of returned retry dates", async () => {
@@ -284,17 +305,17 @@ describe("DenialCachingRateLimitAdapter", () => {
     const reserve = vi.fn<RateLimitAdapter["reserve"]>()
       .mockResolvedValueOnce({ admitted: true, remaining: 1, source: "authoritative" })
       .mockResolvedValueOnce({ admitted: true, remaining: 0 })
-      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt, source: "authoritative" });
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt });
     const adapter = new DenialCachingRateLimitAdapter({ reserve }, fixedClock);
 
-    await expect(adapter.reserveMany([request])).resolves.toEqual({
+    await expect(adapter.reserveMany([request])).resolves.toStrictEqual({
       admitted: true, remaining: { [request.key]: 1 }, source: "authoritative",
     });
-    await expect(adapter.reserveMany([request])).resolves.toEqual({
+    await expect(adapter.reserveMany([request])).resolves.toStrictEqual({
       admitted: true, remaining: { [request.key]: 0 },
     });
-    await expect(adapter.reserveMany([request])).resolves.toEqual({
-      admitted: false, remaining: { [request.key]: 0 }, retryAt, source: "authoritative",
+    await expect(adapter.reserveMany([request])).resolves.toStrictEqual({
+      admitted: false, remaining: { [request.key]: 0 }, retryAt,
     });
     await expect(adapter.reserveMany([request])).resolves.toEqual({
       admitted: false, remaining: { [request.key]: 0 }, retryAt, source: "denial-cache",
@@ -351,12 +372,12 @@ describe("DenialCachingRateLimitAdapter", () => {
       coordination: { strategy: "leased", maxLeaseUnits: 1, leaseMs: 1_000, maxOutstandingUnits: 1, guardBandUnits: 0 },
     } as const satisfies RateLimitLeaseRequest;
 
-    await expect(adapter.reserveMany([request, otherRequest])).rejects.toBeInstanceOf(ThrottlingAdapterCapabilityError);
-    await expect(adapter.inspectMany([request])).rejects.toBeInstanceOf(ThrottlingAdapterCapabilityError);
+    await expect(adapter.reserveMany([request, otherRequest])).rejects.toMatchObject({ capability: "atomic batch reservation" });
+    await expect(adapter.inspectMany([request])).rejects.toMatchObject({ capability: "advisory inspection" });
     await expect(adapter.reconcile([{ ...request, actualCost: 0, estimatedCost: 1 }]))
-      .rejects.toBeInstanceOf(ThrottlingAdapterCapabilityError);
-    expect(() => adapter.allocateLeases("owner", [leased])).toThrow(ThrottlingAdapterCapabilityError);
-    expect(() => adapter.returnLeases([])).toThrow(ThrottlingAdapterCapabilityError);
+      .rejects.toMatchObject({ capability: "cost reconciliation" });
+    expect(() => adapter.allocateLeases("owner", [leased])).toThrow(expect.objectContaining({ capability: "leased coordination" }));
+    expect(() => adapter.returnLeases([])).toThrow(expect.objectContaining({ capability: "leased coordination" }));
     expect(adapter.prune).toBeUndefined();
     await expect(adapter.close()).resolves.toBeUndefined();
     expect(reserve).not.toHaveBeenCalled();

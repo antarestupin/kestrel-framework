@@ -41,19 +41,23 @@ export function AtlasApplication({
       ...viewRenderers,
     },
   }), [pageRenderers, registries, viewRenderers]);
-  const application = useMemo(
-    () => createAtlasRouter(
+  const ApplicationRouter = useMemo(() => {
+    const { RouterProvider, router } = createAtlasRouter(
       manifest,
       { authentication, registries: resolvedRegistries },
-    ),
-    [authentication, manifest, resolvedRegistries],
-  );
+    );
+
+    // Mount the new router's transition lifecycle when its route closures change.
+    return function AtlasRouterInstance() {
+      return <RouterProvider router={router} />;
+    };
+  }, [authentication, manifest, resolvedRegistries]);
 
   return (
     <AtlasConfirmationProvider>
       <AtlasEffectProvider manifest={manifest}>
         <AtlasRendererRegistryProvider registries={resolvedRegistries}>
-          <application.RouterProvider router={application.router} />
+          <ApplicationRouter />
         </AtlasRendererRegistryProvider>
       </AtlasEffectProvider>
     </AtlasConfirmationProvider>

@@ -98,8 +98,34 @@ describe("Atlas notifications", () => {
     await click("Run action");
     await act(async () => action.reject(new Error("offline")));
     expect(document.body.textContent).toContain("“Archive” failed.");
+    expect(document.querySelector('.notification[role="alertdialog"]')?.textContent).toContain("“Archive” failed.");
     await click("Publish effects");
     expect(document.body.textContent).toContain("Saved to another workspace");
     expect(document.querySelector(".notification a")).toBeNull();
+  });
+
+  it("gives published errors urgent accessibility while keeping ordinary notices linked", async () => {
+    const target = { resource: "items", recordId: "group/42" };
+    const atlas: AtlasManifest = {
+      ...manifest,
+      notifications: { position: "top-right" },
+      resources: [...manifest.resources, { ...manifest.resources[0]!, id: "other" }],
+    };
+    await act(async () => root.render(<AtlasEffectProvider manifest={atlas}>
+      <Trigger execute={async () => ({ data: null, effects: [] })} effects={[
+        { type: "redirect", target },
+        { type: "notification", level: "info", message: "Item updated", link: { label: "Open item", target } },
+        { type: "notification", level: "error", message: "Follow-up failed" },
+      ]} />
+    </AtlasEffectProvider>));
+    await click("Publish effects");
+    const stack = document.querySelector(".notification-stack.top-right");
+    expect(stack?.querySelectorAll(".notification")).toHaveLength(2);
+    const info = stack?.querySelector('.notification.info[role="dialog"]');
+    expect(info?.textContent).toContain("Item updated");
+    expect(info?.querySelector("a")?.getAttribute("href")).toBe("/atlas/items/group%2F42");
+    const error = stack?.querySelector('.notification.error[role="alertdialog"]');
+    expect(error?.textContent).toContain("Follow-up failed");
+    expect(error?.querySelector("a")).toBeNull();
   });
 });

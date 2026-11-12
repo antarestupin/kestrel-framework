@@ -41,10 +41,15 @@ function WorkflowCatalogPage({ page }: { page: StudioPageManifest }) {
   );
 }
 
+type WorkflowListRequest = { kind: "replace" | "poll" } | { kind: "append"; cursor: string };
+
 function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
   const [catalog, setCatalog] = useState<StudioWorkflowCatalog>();
-  const [executions, setExecutions] = useState<StudioWorkflowExecution[]>([]);
-  const [nextCursor, setNextCursor] = useState<string>();
+  const [{ items: executions, nextCursor }, setExecutionPage] = useState<{
+    items: readonly StudioWorkflowExecution[];
+    nextCursor: string | undefined;
+    loadedOlder: boolean;
+  }>({ items: [], nextCursor: undefined, loadedOlder: false });
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [draftSearch, setDraftSearch] = useState("");
@@ -53,7 +58,7 @@ function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
   const [workflowName, setWorkflowName] = useState("");
   const activeLoad = useRef<AbortController | undefined>(undefined);
 
-  const load = useCallback(async (cursor?: string, append = false) => {
+  const load = useCallback(async (mode: WorkflowListRequest = { kind: "replace" }) => {
     // A later filter or refresh owns the results, even if an aborted response still resolves.
     activeLoad.current?.abort();
     const request = new AbortController();
@@ -63,7 +68,7 @@ function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
     try {
       const url = new URL(`${dataPath}/executions`, window.location.origin);
       url.searchParams.set("limit", "50");
-      if (cursor !== undefined) url.searchParams.set("cursor", cursor);
+      if (mode.kind === "append") url.searchParams.set("cursor", mode.cursor);
       if (search !== "") url.searchParams.set("search", search);
       if (status !== "") url.searchParams.set("status", status);
       if (workflowName !== "") url.searchParams.set("workflowName", workflowName);
@@ -78,8 +83,16 @@ function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
       const page = await executionsResponse.json() as StudioWorkflowExecutionPage;
       if (request.signal.aborted) return;
       setCatalog(nextCatalog);
-      setExecutions((current) => append ? [...current, ...page.items] : [...page.items]);
-      setNextCursor(page.nextCursor);
+      setExecutionPage((current) => {
+        if (mode.kind === "append") {
+          return { items: mergeExecutions(current.items, page.items), nextCursor: page.nextCursor, loadedOlder: true };
+        }
+        // Polls refresh the first page while preserving the older page and its continuation.
+        if (mode.kind === "poll" && current.loadedOlder) {
+          return { ...current, items: mergeExecutions(page.items, current.items) };
+        }
+        return { items: page.items, nextCursor: page.nextCursor, loadedOlder: false };
+      });
     } catch (loadError) {
       if (!request.signal.aborted) {
         setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -97,7 +110,7 @@ function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
 
     // Refresh operational state at the same cadence as logs and observations.
     const interval = window.setInterval(() => {
-      if (activeLoad.current === undefined) void load();
+      if (activeLoad.current === undefined) void load({ kind: "poll" });
     }, 2_000);
     return () => {
       activeLoad.current?.abort();
@@ -193,7 +206,7 @@ function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
           <button
             className="workflow-load-more"
             disabled={loading}
-            onClick={() => void load(nextCursor, true)}
+            onClick={() => void load({ kind: "append", cursor: nextCursor })}
             type="button"
           >
             Load older executions
@@ -202,6 +215,14 @@ function WorkflowCatalogWorkspace({ dataPath }: { dataPath: string }) {
       </section>
     </div>
   );
+}
+
+function mergeExecutions(
+  first: readonly StudioWorkflowExecution[],
+  rest: readonly StudioWorkflowExecution[],
+): StudioWorkflowExecution[] {
+  const seen = new Set(first.map((execution) => execution.executionId));
+  return [...first, ...rest.filter((execution) => !seen.has(execution.executionId))];
 }
 
 function ExecutionRow({ execution }: { execution: StudioWorkflowExecution }) {
@@ -252,38 +273,67 @@ function WorkflowExecutionWorkspace({
   const [details, setDetails] = useState<StudioWorkflowExecutionDetails>();
   const [error, setError] = useState<string>();
   const [updating, setUpdating] = useState(false);
+  const mounted = useRef(false);
+  const activeLoad = useRef<AbortController | undefined>(undefined);
+  const activeControl = useRef<AbortController | undefined>(undefined);
   const load = useCallback(async () => {
+    if (!mounted.current) return;
+    // A refresh after a command owns the view even if an earlier poll ignores abort.
+    activeLoad.current?.abort();
+    const request = new AbortController();
+    activeLoad.current = request;
     try {
-      const response = await fetch(`${dataPath}/executions/${encodeURIComponent(executionId)}`);
+      const response = await fetch(`${dataPath}/executions/${encodeURIComponent(executionId)}`, { signal: request.signal });
       if (!response.ok) throw new Error(`Unable to load workflow execution (${response.status}).`);
-      setDetails(await response.json() as StudioWorkflowExecutionDetails);
+      const current = await response.json() as StudioWorkflowExecutionDetails;
+      if (request.signal.aborted) return;
+      setDetails(current);
       setError(undefined);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
+      if (!request.signal.aborted) {
+        setError(loadError instanceof Error ? loadError.message : String(loadError));
+      }
+    } finally {
+      if (activeLoad.current === request) activeLoad.current = undefined;
     }
   }, [dataPath, executionId]);
 
   useEffect(() => {
+    mounted.current = true;
     void load();
-    const interval = window.setInterval(() => void load(), 3_000);
-    return () => window.clearInterval(interval);
+    const interval = window.setInterval(() => {
+      if (activeLoad.current === undefined && activeControl.current === undefined) void load();
+    }, 3_000);
+    return () => {
+      mounted.current = false;
+      activeLoad.current?.abort();
+      activeControl.current?.abort();
+      window.clearInterval(interval);
+    };
   }, [load]);
 
   const control = async (action: StudioWorkflowControlAction) => {
+    if (activeControl.current !== undefined) return;
     if (action === "terminate" && !window.confirm(
       "Force termination does not execute compensation code. Terminate this execution?",
     )) return;
+    // Lock immediately because two clicks may occur before React disables the controls.
+    const request = new AbortController();
+    activeControl.current = request;
+    activeLoad.current?.abort();
     setUpdating(true);
     try {
       const response = await fetch(`${dataPath}/control`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ executionId, action }),
+        signal: request.signal,
       });
       const body = await response.json().catch(() => undefined) as
         | { message?: string; execution?: StudioWorkflowExecution }
         | undefined;
       if (!response.ok) throw new Error(body?.message ?? `Workflow control failed (${response.status}).`);
+      if (request.signal.aborted) return;
       if (body?.execution !== undefined) {
         await navigate({
           to: `/workflows/${encodeURIComponent(body.execution.executionId)}`,
@@ -292,9 +342,14 @@ function WorkflowExecutionWorkspace({
         await load();
       }
     } catch (controlError) {
-      setError(controlError instanceof Error ? controlError.message : String(controlError));
+      if (!request.signal.aborted) {
+        setError(controlError instanceof Error ? controlError.message : String(controlError));
+      }
     } finally {
-      setUpdating(false);
+      if (activeControl.current === request) {
+        activeControl.current = undefined;
+        if (mounted.current) setUpdating(false);
+      }
     }
   };
 

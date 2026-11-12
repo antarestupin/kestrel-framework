@@ -1,3 +1,4 @@
+import { assertHttpRoutePath } from "../../../../http/route.js";
 import type { StudioHttpControllerDefinition } from "../contract.js";
 
 export function createFieldValues(
@@ -8,7 +9,7 @@ export function createFieldValues(
 
   return Object.fromEntries(controller.inputs
     .filter((field) => field.binding !== "body")
-    .map((field) => [field.name, formatRequestValue(input[field.name])]));
+    .map((field) => [field.name, formatRequestValue(readOwn(input, field.name))]));
 }
 
 export function createBodyValue(
@@ -18,9 +19,10 @@ export function createBodyValue(
   const input = controller.examples[exampleIndex]?.input ?? {};
   const payload = Object.fromEntries(controller.inputs
     .filter((field) => field.binding === "body")
-    .flatMap((field) => input[field.name] === undefined
-      ? []
-      : [[field.sourceName, input[field.name]]]));
+    .flatMap((field) => {
+      const value = readOwn(input, field.name);
+      return value === undefined ? [] : [[field.sourceName, value]];
+    }));
 
   return JSON.stringify(payload, null, 2);
 }
@@ -36,7 +38,7 @@ export function buildRequest(
   const bodyInputs = controller.inputs.filter((input) => input.binding === "body");
 
   for (const input of controller.inputs) {
-    const value = fieldValues[input.name] ?? "";
+    const value = readOwn(fieldValues, input.name) ?? "";
 
     if (input.binding === "path") {
       if (input.required && value === "") {
@@ -58,6 +60,8 @@ export function buildRequest(
     /:([A-Za-z_][A-Za-z0-9_]*)/gu,
     (token: string, name: string) => pathValues.get(name) ?? token,
   );
+  // An empty optional prefix can turn a relative route into a network-path reference.
+  assertHttpRoutePath(url);
   const query = queryParameters.toString();
 
   if (query !== "") {
@@ -90,6 +94,11 @@ export function buildRequest(
       ...(hasBody ? { body } : {}),
     },
   };
+}
+
+/** Fields may have names such as "constructor" that are inherited on a plain object. */
+function readOwn<Value>(values: Readonly<Record<string, Value>>, name: string): Value | undefined {
+  return Object.hasOwn(values, name) ? values[name] : undefined;
 }
 
 function formatRequestValue(value: unknown): string {

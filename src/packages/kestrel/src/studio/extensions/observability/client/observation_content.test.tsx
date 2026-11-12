@@ -1,8 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { StudioObservation } from "../contract.js";
+import { DatabaseQueryObservation } from "./database_query_observation.js";
+import { JsonObservation } from "./json_observation.js";
 import { ObservationContent } from "./observation_content.js";
+import { getObservationRenderer } from "./observation_renderer.js";
 import { ObservationRow } from "./observation_row.js";
 import { ExecutionGroup } from "./execution_group.js";
 
@@ -13,7 +16,7 @@ describe("ObservationContent", () => {
         name: "database.query",
         data: {
           sql: "select id from users where id = $1",
-          parameters: ["user-1"],
+          parameters: ["user-1", { flags: true }],
           command: "SELECT",
           rowCount: 1,
           origin: {
@@ -29,11 +32,37 @@ describe("ObservationContent", () => {
     expect(markup).toContain("database-query-observation");
     expect(markup).toContain("SELECT\n  id\nFROM");
     expect(markup).toContain("$1");
+    expect(markup).toContain("<code>$2</code>");
+    expect(markup).toContain("&quot;flags&quot;: true");
+    expect(markup).toContain("<dt>Command</dt><dd>SELECT</dd>");
+    expect(markup).toContain("<dt>Rows</dt><dd>1</dd>");
     expect(markup).toContain("UserRepository.find");
     expect(markup).toContain(
       "href=\"vscode://file/workspace/users.ts:42:7\"",
     );
     expect(markup).toContain("Raw observation");
+  });
+
+  it("uses the configured editor mapping and omits absent query metadata", () => {
+    const document = {
+      querySelector: () => ({ dataset: { studioConfig: encodeURIComponent(JSON.stringify({
+        basePath: "/studio", sourcePathMapping: { runtimeRoot: "/srv", editorRoot: "/work folder" },
+      })) } }),
+    };
+    vi.stubGlobal("document", document);
+    try {
+      const markup = renderToStaticMarkup(<ObservationContent event={observation({
+        name: "database.query",
+        data: { sql: "select 1", origin: { file: "/srv/models.ts", line: 4, column: 1 } },
+      })} />);
+      expect(markup).toContain('href="vscode://file/work%20folder/models.ts:4:1"');
+      expect(markup).toContain("/work folder/models.ts:4");
+      expect(markup).not.toContain("<strong>");
+      expect(markup).not.toContain("<h4>Parameters</h4>");
+      expect(markup).not.toContain("database-query-metadata");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("keeps pretty-printed JSON as the fallback renderer", () => {
@@ -46,6 +75,16 @@ describe("ObservationContent", () => {
 
     expect(markup).toContain("observation-json");
     expect(markup).toContain("{\n  &quot;result&quot;: &quot;ok&quot;\n}");
+  });
+
+  it("uses SQL formatting for the exact query observation identifier", () => {
+    expect(getObservationRenderer("database.query")).toBe(DatabaseQueryObservation);
+    expect(getObservationRenderer("database.query.finished")).toBe(JsonObservation);
+    const sql = "select id from t where name in ('abcdefghijklmnopqrst', 'abcdefghijklmnopqrst', 'abcdefghijklmnopqrst')";
+    const markup = renderToStaticMarkup(<ObservationContent event={observation({
+      name: "database.query", data: { sql },
+    })} />);
+    expect(markup).toContain("name IN (&#x27;abcdefghijklmnopqrst&#x27;, &#x27;abcdefghijklmnopqrst&#x27;, &#x27;abcdefghijklmnopqrst&#x27;)");
   });
 
   it("keeps malformed database diagnostics visible as raw JSON", () => {
@@ -73,9 +112,12 @@ describe("ObservationContent", () => {
     const failed = renderToStaticMarkup(<ObservationRow event={{ ...event, outcome: "failure" }} showDate />);
     expect(failed).toContain('class="observation-row" open=""');
     expect(failed).toContain('class="observation-outcome failure"');
+    expect(failed).toContain(new Date(event.occurredAt).toLocaleString());
     const unset = renderToStaticMarkup(<ObservationRow event={{ ...event, outcome: null, durationMs: null }} />);
     expect(unset).toContain('class="observation-outcome unset">not set');
     expect(unset).not.toContain(' open=""');
+    expect(unset).not.toContain(new Date(event.occurredAt).toLocaleDateString());
+    expect(unset).toContain(new Date(event.occurredAt).toLocaleTimeString());
   });
 
   it("shows unattributed items without inventing an execution permalink", () => {

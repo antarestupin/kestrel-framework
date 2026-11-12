@@ -56,11 +56,20 @@ export async function resolveDisplayLabels(
     const records = new Map<string, Record<string, unknown>>();
     const ids = [...identifiers.values()];
     const size = target.readManyBatchSize ?? 100;
+    if (!Number.isSafeInteger(size) || size < 1) {
+      throw new TypeError("Atlas readManyBatchSize must be a positive safe integer.");
+    }
     // Bound each operation to the source's declared batch budget.
     for (let offset = 0; offset < ids.length; offset += size) {
-      const response = await readMany.reference.execute({ ids: ids.slice(offset, offset + size) }, executor);
+      const batch = ids.slice(offset, offset + size);
+      const requested = new Set(batch.map(key));
+      const response = await readMany.reference.execute({ ids: batch }, executor);
       if (!Array.isArray(response.data) || !response.data.every(isRecord)) throw new TypeError("Invalid Atlas display readMany output.");
-      for (const row of response.data) records.set(key(row[targetManifest.identity]), row);
+      // Only use records associated with this batch's authorized lookup.
+      for (const row of response.data) {
+        const identity = key(row[targetManifest.identity]);
+        if (requested.has(identity)) records.set(identity, row);
+      }
     }
     loaded.set(targetId, records);
   }));

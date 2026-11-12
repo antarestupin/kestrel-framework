@@ -102,6 +102,7 @@ interface DeniedAttempt {
   readonly admitted: false;
   readonly blockedBy: "circuit" | "concurrency" | "pressure" | "rate";
   readonly circuitId?: string;
+  readonly concurrencyKey?: string;
   readonly pressureConstraintId?: string;
   readonly pressureSignalIds?: readonly string[];
   readonly nextAttemptAtMs?: number;
@@ -139,7 +140,7 @@ interface WaitQueue {
   blockedCircuitId?: string;
   blockedPressureConstraintId?: string;
   blockedPressureSignalIds?: readonly string[];
-  blockedByConcurrency: boolean;
+  blockedConcurrencyKey?: string;
   wakeController?: AbortController;
   drainPromise?: Promise<void>;
 }
@@ -480,13 +481,28 @@ export class ThrottlingManager implements Throttling {
 
     void (async () => {
       for (const queue of this.waitQueues.values()) this.wakeQueue(queue);
-      this.resourcePressureMonitor?.close();
+      const errors: unknown[] = [];
+      try {
+        this.resourcePressureMonitor?.close();
+      } catch (error) {
+        errors.push(error);
+      }
 
-      await Promise.all([
+      // Pending work retains its backend until every drain settles, even after a reader fails.
+      const drains = await Promise.allSettled([
         ...[...this.waitQueues.values()].map((queue) => queue.drainPromise),
         this.deferredReconciliations.close(),
       ]);
-      if (this.options.closeAdapter !== false) await this.adapter.close?.();
+      for (const drain of drains) {
+        if (drain.status === "rejected") errors.push(drain.reason);
+      }
+      try {
+        if (this.options.closeAdapter !== false) await this.adapter.close?.();
+      } catch (error) {
+        errors.push(error);
+      }
+      if (errors.length === 1) throw errors[0];
+      if (errors.length > 1) throw new AggregateError(errors, "Throttling manager teardown failed.");
     })().then(closing.resolve, closing.reject);
 
     return closing.promise;
@@ -579,7 +595,6 @@ export class ThrottlingManager implements Throttling {
       key: policy.id,
       waiters: [],
       nextAttemptAtMs: Number.POSITIVE_INFINITY,
-      blockedByConcurrency: false,
     };
     // A finishing drain keeps the empty queue alive; the new denial sets its blocker.
     if (queue.waiters.length === 0) this.setQueueBlocker(queue, attempt);
@@ -618,9 +633,9 @@ export class ThrottlingManager implements Throttling {
     const circuitReservations = circuitAcquisition.reservations;
     const releaseConcurrency = this.tryAcquireConcurrency(policy.concurrency);
 
-    if (releaseConcurrency === undefined) {
+    if (typeof releaseConcurrency !== "function") {
       this.releaseCircuitReservations(circuitReservations);
-      return { admitted: false, blockedBy: "concurrency", source: "local" };
+      return { admitted: false, blockedBy: "concurrency", concurrencyKey: releaseConcurrency, source: "local" };
     }
 
     const releaseLocalReservations = () => {
@@ -919,7 +934,8 @@ export class ThrottlingManager implements Throttling {
     queue.nextAttemptAtMs = attempt.nextAttemptAtMs
       ?? attempt.retryAt?.getTime()
       ?? Number.POSITIVE_INFINITY;
-    queue.blockedByConcurrency = attempt.blockedBy === "concurrency";
+    if (attempt.concurrencyKey === undefined) delete queue.blockedConcurrencyKey;
+    else queue.blockedConcurrencyKey = attempt.concurrencyKey;
     if (attempt.blockedBy === "circuit") {
       queue.blockedCircuitId = attempt.circuitId!;
     } else {
@@ -982,7 +998,7 @@ export class ThrottlingManager implements Throttling {
           continue;
         }
         queue.nextAttemptAtMs = this.getNowMs();
-        queue.blockedByConcurrency = false;
+        delete queue.blockedConcurrencyKey;
         delete queue.blockedCircuitId;
         delete queue.blockedPressureConstraintId;
         delete queue.blockedPressureSignalIds;
@@ -1034,11 +1050,13 @@ export class ThrottlingManager implements Throttling {
     queue.wakeController?.abort();
   }
 
-  private wakeConcurrencyQueues(): void {
+  private wakeConcurrencyQueues(released: readonly CompiledConcurrencyLimit[]): void {
+    if (released.length === 0) return;
     const nowMs = this.getNowMs();
 
     for (const queue of this.waitQueues.values()) {
-      if (!queue.blockedByConcurrency) continue;
+      // A composite policy remains blocked when a different limit releases capacity.
+      if (!released.some((limit) => limit.key === queue.blockedConcurrencyKey)) continue;
       queue.nextAttemptAtMs = nowMs;
       this.wakeQueue(queue);
     }
@@ -1213,7 +1231,7 @@ export class ThrottlingManager implements Throttling {
 
   private tryAcquireConcurrency(
     constraints: readonly CompiledConcurrencyLimit[],
-  ): (() => void) | undefined {
+  ): (() => void) | string {
     const states = constraints.map((constraint) => {
       const state = this.concurrencyStates.get(constraint.key) ?? {
         active: 0,
@@ -1230,7 +1248,8 @@ export class ThrottlingManager implements Throttling {
       return state;
     });
 
-    if (states.some((state) => state.active >= state.limit)) return undefined;
+    const blockedIndex = states.findIndex((state) => state.active >= state.limit);
+    if (blockedIndex !== -1) return constraints[blockedIndex]!.key;
 
     for (const state of states) state.active += 1;
     let released = false;
@@ -1239,7 +1258,7 @@ export class ThrottlingManager implements Throttling {
       if (released) return;
       released = true;
       for (const state of states) state.active -= 1;
-      this.wakeConcurrencyQueues();
+      this.wakeConcurrencyQueues(constraints);
     };
   }
 
@@ -1626,22 +1645,22 @@ export class ThrottlingManager implements Throttling {
   ): CompiledPolicy {
     validateThrottlingDefinition(definition);
     const policy = compileDefinition(this.namespace, definition);
-    const existing = this.definitionSignatures.get(policy.id);
+    const partitioned = partitionRatePolicy(policy, rateKey);
 
-    if (existing !== undefined && existing !== policy.definitionSignature) {
-      throw new TypeError(
-        `Throttling definition id "${policy.id}" is already registered with another policy.`,
-      );
+    for (const constraint of policy.pressure) {
+      const monitor = this.requireResourcePressureMonitor();
+      const unsupported = constraint.signals.find((signal) => !monitor.supports(signal.id));
+      if (unsupported !== undefined) {
+        throw new ThrottlingAdapterCapabilityError(`local resource pressure signal "${unsupported.id}"`);
+      }
     }
 
-    this.definitionSignatures.set(policy.id, policy.definitionSignature);
-
-    for (const constraint of [
+    const signatures = [
       ...policy.rates,
       ...policy.concurrency,
       ...policy.circuits,
       ...policy.pressure,
-    ]) {
+    ].map((constraint) => {
       const signature = constraint.kind === "rate-limit-constraint"
         ? [
             constraint.kind,
@@ -1669,30 +1688,27 @@ export class ThrottlingManager implements Throttling {
               constraint.halfOpen.maxConcurrentProbes,
               constraint.halfOpen.successThreshold,
             ].join(":");
+      return { constraint, signature };
+    });
+
+    // Validate all conflicts after invoking user-provided readers and before registering any keys.
+    const existing = this.definitionSignatures.get(policy.id);
+    if (existing !== undefined && existing !== policy.definitionSignature) {
+      throw new TypeError(`Throttling definition id "${policy.id}" is already registered with another policy.`);
+    }
+    for (const { constraint, signature } of signatures) {
       const registered = this.constraintSignatures.get(constraint.key);
-
       if (registered !== undefined && registered !== signature) {
-        throw new TypeError(
-          `Throttling constraint id "${constraint.id}" is already registered with another policy.`,
-        );
-      }
-
-      this.constraintSignatures.set(constraint.key, signature);
-
-      if (constraint.kind === "local-resource-pressure") {
-        const monitor = this.requireResourcePressureMonitor();
-        const unsupported = constraint.signals.find((signal) =>
-          !monitor.supports(signal.id));
-
-        if (unsupported !== undefined) {
-          throw new ThrottlingAdapterCapabilityError(
-            `local resource pressure signal "${unsupported.id}"`,
-          );
-        }
+        throw new TypeError(`Throttling constraint id "${constraint.id}" is already registered with another policy.`);
       }
     }
 
-    return partitionRatePolicy(policy, rateKey);
+    this.definitionSignatures.set(policy.id, policy.definitionSignature);
+    for (const { constraint, signature } of signatures) {
+      this.constraintSignatures.set(constraint.key, signature);
+    }
+
+    return partitioned;
   }
 
   private throwIfUnavailable(definitionId: string, signal?: AbortSignal): void {

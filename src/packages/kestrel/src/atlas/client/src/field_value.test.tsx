@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { AtlasFieldManifest, AtlasManifest, AtlasResourceManifest } from "../../contract.js";
 import { FieldValue } from "./field_value.js";
 import { AtlasRendererRegistryProvider } from "./renderer_registry.js";
+import { Icon } from "./ui/icon.js";
 
 const field: AtlasFieldManifest = {
   id: "title", label: "Title", kind: "text", schema: { type: "string" },
@@ -29,14 +30,20 @@ describe("Atlas list text presentation", () => {
       expect(renderToStaticMarkup(<FieldValue field={field} value={value} />)).toContain('class="empty-value"');
     }
     expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "number" }} value={0} />)).toBe("0");
-    expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "boolean" }} value={false} />)).toContain(">No</span>");
-    expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "boolean" }} value={true} />)).toContain(">Yes</span>");
+    const flag = { ...field, kind: "boolean" } as const;
+    expect(renderToStaticMarkup(<FieldValue field={flag} value={false} />))
+      .toBe(`<span class="boolean-value false">${renderToStaticMarkup(<Icon name="cancel" />)}No</span>`);
+    expect(renderToStaticMarkup(<FieldValue field={flag} value={true} />))
+      .toBe(`<span class="boolean-value true">${renderToStaticMarkup(<Icon name="success" />)}Yes</span>`);
   });
 
   it("renders dates and structured values without losing invalid text or escaping", () => {
     const date = "2026-01-10T12:00:00Z";
     expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "datetime" }} value={date} />))
       .toBe(new Date(date).toLocaleString());
+    const day = "2026-01-10";
+    expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "date" }} value={day} />))
+      .toBe(new Date(day).toLocaleString());
     expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "date" }} value="invalid date" />)).toBe("invalid date");
     expect(renderToStaticMarkup(<FieldValue field={{ ...field, kind: "json" }} value={{ token: "<unsafe>" }} />))
       .toBe("<code>{&quot;token&quot;:&quot;&lt;unsafe&gt;&quot;}</code>");
@@ -88,6 +95,19 @@ describe("Atlas list text presentation", () => {
     expect(renderToStaticMarkup(<AtlasRendererRegistryProvider registries={{ fields: { text: ({ value }) => <mark>{String(value)}</mark> } }}>
       <FieldValue context="list" field={field} value={text} />
     </AtlasRendererRegistryProvider>)).toBe(`<mark>${text}</mark>`);
+    expect(renderToStaticMarkup(<AtlasRendererRegistryProvider registries={{ fields: { default: () => <mark>Fallback</mark> } }}>
+      <FieldValue field={field} value={text} />
+    </AtlasRendererRegistryProvider>)).toBe("<mark>Fallback</mark>");
+  });
+
+  it.each(["email", "relation"] as const)("shortens string values for the %s field family", (kind) => {
+    expect(renderToStaticMarkup(<FieldValue context="list" field={{ ...field, kind }} value={text} />))
+      .toBe(`<span title="${text}">${"A".repeat(49)}…</span>`);
+  });
+
+  it("preserves structured values when a text field receives a non-string", () => {
+    expect(renderToStaticMarkup(<FieldValue context="list" field={field} value={{ name: "Ada" }} />))
+      .toBe("<code>{&quot;name&quot;:&quot;Ada&quot;}</code>");
   });
 });
 
@@ -108,7 +128,7 @@ describe("Atlas record label presentation", () => {
       notifications: { position: "bottom-left" }, resources: [target],
     };
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-    client.setQueryData([target.id, "read", "record"], { data: { id: "record", title: text } });
+    client.setQueryData([target.id, "read", manifest.basePath, "record"], { data: { id: "record", title: text } });
     try {
       const markup = renderToStaticMarkup(<QueryClientProvider client={client}>
         <AtlasConfirmationProvider>
@@ -120,7 +140,7 @@ describe("Atlas record label presentation", () => {
       const heading = expected === false ? text : `<span title="${text}">${"A".repeat(expected - 1)}…</span>`;
       expect(markup).toContain(`<h1>${heading}</h1>`);
       expect(markup).toContain(`<dd>${text}</dd>`);
-      expect(client.getQueryData([target.id, "read", "record"])).toEqual({ data: { id: "record", title: text } });
+      expect(client.getQueryData([target.id, "read", manifest.basePath, "record"])).toEqual({ data: { id: "record", title: text } });
     } finally {
       client.clear();
     }

@@ -90,6 +90,42 @@ describe("correlated execution grouping", () => {
       { executionId: "task-2:1", logs: 1, observations: 0 },
     ]);
   });
+
+  it.each([
+    [{ "workflow.taskKind": "activity" }, "Activity"],
+    [{ "workflow.taskKind": "workflow" }, "Workflow task"],
+    [{ operation: "load orders", transport: "outbound-http" }, "Outbound Http · load orders"],
+    [{ operation: "load orders" }, "load orders"],
+    [{ operation: "", transport: "outbound-http" }, "Application execution"],
+  ] as const)("labels workflow and transport diagnostics", (data, title) => {
+    expect(describeObservationExecution([observation("run", "execution.started", data)]))
+      .toEqual({ title, details: [] });
+    expect(describeLogExecution([log(data)]))
+      .toEqual({ title, details: [] });
+  });
+
+  it.each([null, [], "", 3] as const)("ignores malformed flattened context %j", (context) => {
+    const data = { operation: "send", context, "workflow.taskAttempt": 2 };
+    expect(describeObservationExecution([observation("run", "execution.started", data)]))
+      .toEqual({ title: "send", details: ["Attempt 2"] });
+    expect(describeLogExecution([log({ operation: "send", executionContext: context, "workflow.taskAttempt": 2 })]))
+      .toEqual({ title: "send", details: ["Attempt 2"] });
+  });
+
+  it("groups logs without a usable execution identifier as unattributed", () => {
+    const group = combineExecutionGroups([], [
+      log({ executionId: "" }), log({ executionId: 3 }), log({}),
+    ]);
+    expect(group).toHaveLength(1);
+    expect(group[0]).toMatchObject({ executionId: "unattributed", observations: [] });
+    expect(group[0]?.logs).toHaveLength(3);
+  });
+
+  it("does not derive labels from an inherited property in persisted diagnostics", () => {
+    const data = JSON.parse('{"__proto__":{"operation":"forged title","workflow.taskAttempt":7}}') as StudioObservation["data"];
+    expect(describeObservationExecution([observation("run", "execution.started", data)]))
+      .toEqual({ title: "Application execution", details: [] });
+  });
 });
 
 function observation(

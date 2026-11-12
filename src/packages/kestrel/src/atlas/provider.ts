@@ -20,7 +20,7 @@ import {
   type AtlasClientConfig,
 } from "./client_config.js";
 import { AtlasLoginRequiredError } from "./errors.js";
-import { isAtlasAbsolutePath } from "./urls.js";
+import { isAtlasAbsolutePath, isAtlasConcreteRoutePath } from "./urls.js";
 
 export interface AtlasAuthenticationOptions {
   /** Relative route below Atlas base path. */
@@ -242,16 +242,13 @@ function normalizeAuthenticationOptions(
   const relativeLoginPath = options.loginPath ?? "/login";
 
   if (
-    !isAtlasAbsolutePath(relativeLoginPath) ||
-    relativeLoginPath === "/" ||
+    !isAtlasConcreteRoutePath(relativeLoginPath) ||
     relativeLoginPath.endsWith("/") ||
-    relativeLoginPath.includes("?") ||
-    relativeLoginPath.includes("#") ||
     relativeLoginPath === "/api" ||
     relativeLoginPath.startsWith("/api/")
   ) {
     throw new TypeError(
-      "An Atlas login path must be a non-root relative path starting with one slash and without a trailing slash, query, or fragment.",
+      "An Atlas login path must be a non-root concrete path starting with one slash, with no trailing slash, dot segments, query or fragment.",
     );
   }
   if (

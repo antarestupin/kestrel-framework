@@ -1,5 +1,5 @@
 import { AtlasBrand } from "./brand.js";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
 
 import type { AtlasClientAuthenticationConfig } from "../../client_config.js";
@@ -81,8 +81,12 @@ export function AtlasSignOut({
 }) {
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState(false);
+  const signOutInFlight = useRef(false);
 
   const signOut = async () => {
+    // Own the request before React can render the disabled sign-out control.
+    if (signOutInFlight.current) return;
+    signOutInFlight.current = true;
     setSigningOut(true);
     setSignOutError(false);
     const result = await signOutAtlas(authentication.signOutUrl);
@@ -93,6 +97,7 @@ export function AtlasSignOut({
     }
 
     setSignOutError(true);
+    signOutInFlight.current = false;
     setSigningOut(false);
   };
 
