@@ -297,6 +297,8 @@ The in-memory adapter uses an LRU policy backed by insertion-ordered maps or an 
 
 The adapter must not create one timer per entry. Expiration is checked lazily, with a bounded prune pass on writes and an explicit `prune()` operation for maintenance. Per-entry timers add substantial overhead and become unreliable under load.
 
+The memory adapter snapshots entries on write and read. Mutating a retrieved value or its metadata cannot affect other callers, change tag membership or bypass the stored size budget.
+
 Refreshing LRU position on every successful read is appropriate for an in-process map because it is an inexpensive local mutation. Oversized values should normally bypass the cache rather than make the application operation fail.
 
 ### PostgreSQL adapter
@@ -304,6 +306,8 @@ Refreshing LRU position on every successful read is appropriate for an in-proces
 PostgreSQL reads `utils.cache_entry`, filters expired rows, and writes with an upsert keyed by the final composed key. The shared `utils` PostgreSQL schema groups reusable operational infrastructure tables such as cache entries, local logs and future locks without mixing them with application-domain tables. Each table keeps its own lifecycle: the cache is migration-owned, while local logs are managed only by development tooling.
 
 The cache table stores the JSON value, absolute expiration, creation time, logical size and tags. Tags use a PostgreSQL text array with a GIN index, which directly supports the required AND containment query without a separate metadata table.
+
+The adapter stores a top-level `null` as a JSONB value on both insertion and replacement. The SQL column remains non-nullable.
 
 The cache table is `UNLOGGED`. Cache writes therefore avoid PostgreSQL WAL overhead, while a crash or unclean shutdown may clear the complete table and its contents are not replicated to standbys. This is compatible with the cache's fail-open and reconstructible-data contract: a restart or failover starts with a cold cache rather than losing authoritative data.
 

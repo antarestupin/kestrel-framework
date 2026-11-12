@@ -1417,7 +1417,14 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(reserveOne("workflow")).resolves.toBeDefined();
   });
 
-  it("commits activation decisions and atomically wakes completed activities", async () => {
+  it.each([
+    { completion: { status: "completed", result: null }, eventData: { result: null } },
+    { completion: { status: "completed" }, eventData: {} },
+    {
+      completion: { status: "failed", error: { name: "ActivityFailure", message: "read failed" } },
+      eventData: { error: { name: "ActivityFailure", message: "read failed" } },
+    },
+  ] as const)("atomically wakes activities with a durable completion (%#)", async ({ completion, eventData }) => {
     const request = startRequest("execution-replay");
     await adapter.start(request);
     const activation = await reserveOne("workflow");
@@ -1440,19 +1447,52 @@ describe("PostgresWorkflowAdapter", () => {
       ...toRef(activity),
       executionId: request.executionId,
       sequence: 0,
-      status: "completed",
-      result: null,
+      ...completion,
     }])).resolves.toEqual([toRef(activity)]);
 
-    await expect(adapter.getHistory(request.executionId)).resolves.toMatchObject([
+    const history = await adapter.getHistory(request.executionId);
+    expect(history).toMatchObject([
       { type: "command-scheduled", payload: null },
-      { type: "command-completed", result: null },
+      { type: "command-completed", sequence: 0, completionOrder: 0, ...eventData },
     ]);
+    // An omitted result and a deliberately persisted null have different meanings.
+    if (!("result" in eventData)) expect(history[1]).not.toHaveProperty("result");
     await expect(adapter.get(request.executionId)).resolves.toMatchObject({
       revision: 2,
       status: "queued",
     });
     await expect(reserveOne("workflow")).resolves.toBeDefined();
+  });
+
+  it("rolls back an activation when a linked child belongs to a different sequence or input", async () => {
+    const parent = startRequest("linked-parent");
+    const child = {
+      ...startRequest("linked-child"), workflowName: "example.child", input: null,
+      parentExecutionId: parent.executionId, parentCommandSequence: 0,
+    };
+    await adapter.start(parent);
+    const activation = await reserveOne("workflow");
+    await adapter.start(child);
+    const command = {
+      sequence: 0, kind: "child", target: child.workflowName,
+      payload: { executionId: child.executionId, version: child.workflowVersion, input: child.input },
+    } as const;
+    const commit = {
+      ...toRef(activation), executionId: parent.executionId, expectedRevision: 0,
+      outcome: { status: "waiting" },
+    } as const;
+
+    for (const commands of [
+      [{ sequence: 0, kind: "capture", target: "first", payload: null }, { ...command, sequence: 1 }],
+      [{ ...command, payload: { ...command.payload, input: "different input" } }],
+    ]) {
+      await expect(adapter.commitActivation({ ...commit, commands })).rejects.toBeInstanceOf(WorkflowExecutionConflictError);
+      await expect(adapter.getHistory(parent.executionId)).resolves.toEqual([]);
+      await expect(loadOne(activation)).resolves.toMatchObject({ revision: 0 });
+    }
+
+    await expect(adapter.commitActivation({ ...commit, commands: [command] })).resolves.toBe(true);
+    await expect(adapter.get(child.executionId)).resolves.toMatchObject(child);
   });
 
   it("persists a failed capture without a result and queues its replay", async () => {

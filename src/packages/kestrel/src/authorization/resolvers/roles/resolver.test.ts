@@ -1,9 +1,9 @@
-import type { SubjectRoleStorageAdapter } from "../../types.js";
-import { defineSubjectRoleStorageAdapter } from "./../../index.js";
 import { describe, expect, it, vi } from "vitest";
 
+import { defineSubjectRoleStorageAdapter } from "../../adapter_definition.js";
 import { MemorySubjectRoleStorageAdapter } from "../../adapters/memory/index.js";
 import { definePermission, defineRole } from "../../definition.js";
+import { rolePermissions } from "./definition.js";
 import { RolePermissionResolver } from "./resolver.js";
 import { RolePermissionResolverProvider } from "./provider.js";
 
@@ -61,5 +61,37 @@ describe("RolePermissionResolver", () => {
     const resolver = new RolePermissionResolver({ roles: [reader], subjectRoleStore });
     await expect(resolver.resolvePermissions("subject-1")).rejects.toBe(failure);
     expect(list).toHaveBeenCalledWith("subject-1");
+  });
+
+  it("disposes only the storage instance owned by a resolver and only once", async () => {
+    const firstStore = new MemorySubjectRoleStorageAdapter();
+    const secondStore = new MemorySubjectRoleStorageAdapter();
+    const create = vi.fn()
+      .mockReturnValueOnce(firstStore)
+      .mockReturnValueOnce(secondStore);
+    const dispose = vi.fn();
+    const definition = rolePermissions([reader], defineSubjectRoleStorageAdapter({
+      dependencies: {},
+      capabilities: {},
+      create,
+      dispose,
+    }));
+    const unexpectedDependency = (): never => { throw new Error("Unexpected dependency"); };
+    const first = definition.create(unexpectedDependency);
+    const second = definition.create(unexpectedDependency);
+
+    try {
+      await firstStore.grantRole("subject-1", reader.key);
+      await expect(first.resolvePermissions("subject-1")).resolves.toEqual(new Set([read.id]));
+      await expect(second.resolvePermissions("subject-1")).resolves.toEqual(new Set());
+      await definition.dispose(first);
+      await definition.dispose(first);
+      expect(dispose).toHaveBeenCalledExactlyOnceWith(firstStore);
+      await definition.dispose(second);
+      expect(dispose.mock.calls).toEqual([[firstStore], [secondStore]]);
+    } finally {
+      await definition.dispose(first);
+      await definition.dispose(second);
+    }
   });
 });

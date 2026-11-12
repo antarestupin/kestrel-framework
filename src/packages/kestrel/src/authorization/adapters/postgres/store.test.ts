@@ -11,11 +11,14 @@ import {
 } from "vitest";
 
 import { PostgresDrizzleManager } from "../../../db/index.js";
+import type { AdapterDependencyResolver } from "../../../di/adapter.js";
+import { dep } from "../../../di/index.js";
 import { createPostgresTestPool } from "../../../testing/postgres.js";
-import { PostgresSubjectRoleStorageAdapter } from "./store.js";
+import { postgresSubjectRoles } from "./definition.js";
 import { definePermission, defineRole } from "../../definition.js";
 import { RolePermissionResolver } from "../../resolvers/roles/index.js";
 import type { PostgresAuthorizationTables } from "./tables.js";
+import type { SubjectRoleStorageAdapter } from "../../types.js";
 
 const testSubjectRoles = pgTable("authorization_subject_role_test", {
   subjectId: text("subject_id").notNull(),
@@ -27,7 +30,7 @@ const testSubjectRoles = pgTable("authorization_subject_role_test", {
 
 let pool: Pool;
 let client: PoolClient;
-let adapter: PostgresSubjectRoleStorageAdapter;
+let adapter: SubjectRoleStorageAdapter;
 
 beforeAll(async () => {
   pool = createPostgresTestPool();
@@ -42,14 +45,19 @@ beforeAll(async () => {
     ) ON COMMIT PRESERVE ROWS
   `);
   const database = drizzle(client);
-  adapter = new PostgresSubjectRoleStorageAdapter(
-    new PostgresDrizzleManager({
-      database: database as ConstructorParameters<typeof PostgresDrizzleManager>[0]["database"],
-    }),
-    {
-      subjectRoles: testSubjectRoles,
-    } satisfies PostgresAuthorizationTables,
-  );
+  const manager = new PostgresDrizzleManager({
+    database: database as ConstructorParameters<typeof PostgresDrizzleManager>[0]["database"],
+  });
+  const dependency = dep<PostgresDrizzleManager>("databaseManager");
+  const definition = postgresSubjectRoles(dependency, {
+    subjectRoles: testSubjectRoles,
+  } satisfies PostgresAuthorizationTables);
+  // The scoped container normally resolves this execution's borrowed manager.
+  const resolve = (descriptor: unknown) => {
+    expect(descriptor).toBe(dependency);
+    return manager;
+  };
+  adapter = definition.create(resolve as AdapterDependencyResolver, undefined);
 });
 
 beforeEach(async () => {

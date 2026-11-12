@@ -51,9 +51,46 @@ describe("MemoryCacheAdapter", () => {
 
     await adapter.set(key("key"), stored);
 
-    await expect(adapter.get(key("key"))).resolves.toBe(stored);
+    await expect(adapter.get(key("key"))).resolves.toEqual(stored);
     await expect(adapter.delete(key("key"))).resolves.toBe(true);
     await expect(adapter.delete(key("key"))).resolves.toBe(false);
+  });
+
+  it("isolates stored data from mutations to written or returned entries", async () => {
+    const adapter = createAdapter();
+    const source = { value: { name: "cached" }, tags: ["original"] };
+    const write = adapter.set(key("key"), entry(source.value, { tags: source.tags }));
+
+    // Mutations while the write is pending must also leave the snapshot intact.
+    source.value.name = "changed during write";
+    source.tags.push("unrelated");
+    await write;
+    const read = (await adapter.get(key("key")))!;
+    expect(read.value).toEqual({ name: "cached" });
+    expect(read.tags).toEqual(["original"]);
+
+    // Updating a returned value or date cannot change another caller's cache hit.
+    Object.assign(read.value as object, { name: "changed after read" });
+    read.expiresAt.setTime(0);
+    await expect(adapter.get(key("key"))).resolves.toMatchObject({
+      value: { name: "cached" },
+      expiresAt: new Date("2026-01-01T01:00:00.000Z"),
+    });
+    await expect(adapter.invalidateAllTags(["unrelated"])).resolves.toBe(0);
+    await expect(adapter.invalidateAllTags(["original"])).resolves.toBe(1);
+  });
+
+  it("rejects empty tag invalidation without removing live entries", async () => {
+    const adapter = createAdapter();
+    await adapter.set(key("key"), entry("value", { tags: ["original"] }));
+
+    await expect(adapter.invalidateAllTags([])).rejects.toThrow("At least one cache tag");
+    await expect(adapter.get(key("key"))).resolves.toMatchObject({ value: "value" });
+  });
+
+  it("rejects an invalid capacity before accepting writes", () => {
+    expect(() => createAdapter({ maxEntries: 0 }))
+      .toThrow("maxEntries must be a positive integer");
   });
 
   it("removes an expired entry lazily", async () => {

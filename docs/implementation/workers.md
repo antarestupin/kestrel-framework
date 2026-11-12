@@ -907,7 +907,7 @@ sequenceDiagram
     end
 ```
 
-Handlers should forward `context.signal` to cancellable dependencies. Under `release`, a handler that ignores cancellation may overlap with a new delivery after its reservation has been returned. Under `expire`, overlap becomes possible after the lease expires. Idempotency remains required for every shutdown mode because ordinary lease loss can also cause replay.
+Handlers should forward `context.signal` to cancellable dependencies. A handler or dependency that throws the signal's reason, including an error that wraps it as its cause, leaves unfinished jobs to the selected release or expiry policy. The scheduler preserves results already reported by a batch and still processes genuine handler failures. The execution scope reports `cancelled` for a cooperative interruption without a reported job failure. Execution observations record the interruption as a failure with the abort diagnostic. Under `release`, a handler that ignores cancellation may overlap with a new delivery after its reservation has been returned. Under `expire`, overlap becomes possible after the lease expires. Idempotency remains required for every shutdown mode because ordinary lease loss can also cause replay.
 
 ## Studio workers
 

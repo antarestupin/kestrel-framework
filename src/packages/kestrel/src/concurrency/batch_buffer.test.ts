@@ -274,6 +274,49 @@ describe("BatchBuffer", () => {
     await expect(firstClose).resolves.toMatchObject({ status: "success" });
   });
 
+  it("drains a value accepted between an idle run and close", async () => {
+    vi.useFakeTimers();
+    const handler = vi.fn(async (batch: readonly number[]) => batch.length);
+    const buffer = new BatchBuffer({
+      maxBatchSize: 10,
+      maxWaitMs: 60_000,
+      execution: "sequential",
+      handler,
+    });
+
+    const run = buffer.run();
+    buffer.add(1);
+    const closing = buffer.close();
+
+    expect(buffer.run()).toBe(closing);
+    await expect(closing).resolves.toMatchObject({
+      results: [{ key: [1], result: 1 }],
+    });
+    await run;
+    expect(buffer.pendingCount).toBe(0);
+    expect(handler).toHaveBeenCalledExactlyOnceWith([1]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("shares an active drain while forcing the incomplete batch at the run boundary", async () => {
+    const handler = vi.fn(async (batch: readonly number[]) => batch.length);
+    const buffer = new BatchBuffer({
+      maxBatchSize: 10,
+      maxWaitMs: 60_000,
+      execution: "sequential",
+      handler,
+    });
+    buffer.add(1);
+    const draining = buffer.run();
+    buffer.add(2);
+
+    expect(buffer.run()).toBe(draining);
+    await expect(buffer.close()).resolves.toMatchObject({
+      results: [{ key: [1], result: 1 }, { key: [2], result: 1 }],
+    });
+    expect(buffer.pendingCount).toBe(0);
+  });
+
   it("validates size and wait boundaries", () => {
     expect(() => new BatchBuffer({
       maxBatchSize: 0,
@@ -287,5 +330,12 @@ describe("BatchBuffer", () => {
       execution: "sequential",
       handler: async () => undefined,
     })).toThrow("Batch buffer wait must be a non-negative finite number.");
+    expect(() => new BatchBuffer({
+      maxBatchSize: 1,
+      maxWaitMs: 1,
+      // @ts-expect-error Untyped callers still receive a clear validation error.
+      execution: "invalid",
+      handler: async () => undefined,
+    })).toThrow('Batch buffer execution must be either "parallel" or "sequential".');
   });
 });

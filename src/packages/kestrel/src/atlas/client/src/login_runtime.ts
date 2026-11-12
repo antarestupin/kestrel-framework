@@ -1,6 +1,7 @@
 import type {
   AtlasClientAuthenticationConfig,
 } from "../../client_config.js";
+import { isAtlasAbsolutePath } from "../../urls.js";
 
 export interface PasswordSignInInput {
   readonly username: string;
@@ -38,8 +39,7 @@ export function getAtlasLoginReturnTo(
 
   if (
     candidate === null
-    || !candidate.startsWith("/")
-    || candidate.startsWith("//")
+    || !isAtlasAbsolutePath(candidate)
   ) {
     return fallback;
   }
@@ -47,12 +47,12 @@ export function getAtlasLoginReturnTo(
   try {
     const url = new URL(candidate, "http://atlas.local");
     const isBelowBasePath = basePath === "/"
-      ? url.pathname.startsWith("/")
-      : url.pathname === basePath || url.pathname.startsWith(`${basePath}/`);
+      || url.pathname === basePath || url.pathname.startsWith(`${basePath}/`);
 
     if (
       url.origin !== "http://atlas.local"
       || !isBelowBasePath
+      || !isAtlasAbsolutePath(url.pathname)
       || url.pathname === loginPath
     ) {
       return fallback;

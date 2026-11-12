@@ -9,12 +9,21 @@ import { z } from "zod";
 import { defineAction } from "../actions/index.js";
 import { defineCliController } from "../cli/index.js";
 import { defineHttpController, get } from "../http/index.js";
+import { defineScheduledTask, every } from "../scheduled_tasks/index.js";
 import { testHttpAccess } from "../testing/http_access.js";
+import { defineWorker } from "../workers/worker.js";
 import { defineWorkflow } from "../workflows/index.js";
 import {
   App,
+  AppCatalog,
   defineCatalog,
+  selectActionCatalog,
+  selectCliControllerCatalog,
+  selectHttpControllerCatalog,
+  selectScheduledTaskCatalog,
+  selectWorkerCatalog,
   selectWorkflowCatalog,
+  type AppCatalogDeclaration,
 } from "./index.js";
 
 const createUser = defineAction({
@@ -130,5 +139,41 @@ describe("AppCatalog", () => {
       actions: { duplicate: createUser },
     }, { kind: "provider", provider: "DuplicateProvider" }))
       .toThrow("Action identities must be unique");
+  });
+
+  it("preserves nested declaration keys while projecting each definition category", () => {
+    const http = defineHttpController({ access: testHttpAccess, route: get("/users"), handler: () => undefined });
+    const cli = defineCliController({ command: "users list", handler: () => undefined });
+    const worker = defineWorker({ name: "users.index", queue: "users", input: z.object({}), handler: () => undefined });
+    const task = defineScheduledTask({ id: "users.cleanup", schedule: every({ minutes: 1 }), handler: () => undefined });
+    const declaration = defineCatalog({
+      users: {
+        actions: { records: { create: createUser } },
+        controllers: { http: { list: http }, cli: { list: cli } },
+        workers: { index: worker },
+        scheduledTasks: { cleanup: task },
+      },
+    });
+
+    // Both transports can use the same local key because they have independent indexes.
+    expect(selectHttpControllerCatalog(declaration)).toEqual({ users: { list: http } });
+    expect(selectCliControllerCatalog(declaration)).toEqual({ users: { list: cli } });
+    expect(selectActionCatalog(declaration)).toEqual({ users: { records: { create: createUser } } });
+    expect(selectWorkerCatalog(declaration)).toEqual({ users: { index: worker } });
+    expect(selectScheduledTaskCatalog(declaration)).toEqual({ users: { cleanup: task } });
+  });
+
+  it.each([
+    { entry: { controllers: null }, message: 'Catalog controllers at "users" must be a catalog branch' },
+    { entry: { controllers: createUser }, message: 'Catalog controllers at "users" must be a catalog branch' },
+    { entry: { controllers: { socket: {} } }, message: 'Unsupported controller catalog transport "socket" at "users"' },
+    { entry: { actions: createUser }, message: 'Catalog category at "users" must contain named definitions' },
+    { entry: { actions: null }, message: 'Catalog category at "users" must contain named definitions' },
+    { entry: { actions: { nested: { create: onboardUser } } }, message: 'Invalid definition at catalog path "users.nested.create"' },
+    { entry: { actions: { create: null } }, message: 'Invalid definition at catalog path "users.create"' },
+  ])("rejects malformed categories with a qualified diagnostic", ({ entry, message }) => {
+    // JavaScript and dynamic contributions can reach the runtime validator with invalid shapes.
+    const declaration = { users: entry } as unknown as AppCatalogDeclaration;
+    expect(() => new AppCatalog(declaration, () => true)).toThrow(message);
   });
 });

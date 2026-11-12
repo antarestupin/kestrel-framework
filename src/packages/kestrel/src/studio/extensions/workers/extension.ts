@@ -19,6 +19,7 @@ import type { StudioExtension } from "../../index.js";
 import { joinStudioPath } from "../../index.js";
 import { studioHttpAccess } from "../../http_access.js";
 import { fontAwesomeIcon } from "../../icon_definition.js";
+import { generateExampleValue } from "../schema_examples.js";
 import { DEV_OBSERVATIONS_DATA_PATH } from "../observability/contract.js";
 import {
   type StudioWorkerCatalog,
@@ -322,94 +323,4 @@ function toJsonSchema(schema: ZodType): StudioWorkerJsonSchema {
   } catch {
     return {};
   }
-}
-
-function generateExampleValue(schema: StudioWorkerJsonSchema): unknown {
-  if (typeof schema === "boolean") {
-    return schema ? "example" : undefined;
-  }
-
-  if (Array.isArray(schema.examples)) {
-    return schema.examples[0];
-  }
-
-  if (schema.default !== undefined) {
-    return schema.default;
-  }
-
-  if (schema.const !== undefined) {
-    return schema.const;
-  }
-
-  if (Array.isArray(schema.enum)) {
-    return schema.enum[0];
-  }
-
-  for (const alternativeKey of ["oneOf", "anyOf"] as const) {
-    const alternatives = schema[alternativeKey];
-
-    if (Array.isArray(alternatives) && alternatives.length > 0) {
-      return generateExampleValue(
-        alternatives[0] as StudioWorkerJsonSchema,
-      );
-    }
-  }
-
-  switch (schema.type) {
-    case "boolean":
-      return true;
-    case "integer":
-    case "number":
-      return typeof schema.minimum === "number" ? schema.minimum : 1;
-    case "array": {
-      const itemSchema = Array.isArray(schema.items)
-        ? schema.items[0]
-        : schema.items;
-
-      return itemSchema === undefined
-        ? []
-        : [generateExampleValue(itemSchema as StudioWorkerJsonSchema)];
-    }
-    case "object": {
-      const properties = isRecord(schema.properties)
-        ? schema.properties
-        : {};
-
-      return Object.fromEntries(Object.entries(properties).map(
-        ([name, propertySchema]) => [
-          name,
-          generateExampleValue(propertySchema as StudioWorkerJsonSchema),
-        ],
-      ));
-    }
-    case "null":
-      return null;
-    case "string":
-    default:
-      return generateStringExample(schema.format);
-  }
-}
-
-function generateStringExample(format: unknown): string {
-  switch (format) {
-    case "date":
-      return "2026-01-01";
-    case "date-time":
-      return "2026-01-01T12:00:00.000Z";
-    case "email":
-      return "user@example.com";
-    case "hostname":
-      return "example.com";
-    case "uri":
-    case "url":
-      return "https://example.com";
-    case "uuid":
-      return "00000000-0000-4000-8000-000000000000";
-    default:
-      return "example";
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

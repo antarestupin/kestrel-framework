@@ -8,6 +8,7 @@ import {
   getExecutionObservationError,
   getExecutionObservationContext,
   setExecutionLogContext,
+  type ExecutionOutcome,
   type ExecutionScope,
 } from "../app/index.js";
 import { runAggregatedResult } from "../concurrency/index.js";
@@ -103,6 +104,11 @@ interface JobFailure {
 }
 
 type JobOutcome = JobFailure | JobSuccess;
+
+interface WorkerInvocationResult {
+  outcomes: readonly JobOutcome[];
+  interruption?: { error: unknown };
+}
 
 interface WorkerInvocation {
   readonly worker: AnyWorker;
@@ -910,11 +916,9 @@ export class WorkerScheduler<Config> {
       () => this.runObservedInvocation(
         invocation.worker,
         invocation.executionId,
-        async () => invocation.jobs.map((job) => ({
-          kind: "failure" as const,
-          job,
-          error,
-        })),
+        async () => ({
+          outcomes: invocation.jobs.map((job) => ({ kind: "failure", job, error })),
+        }),
       ),
       signal,
     );
@@ -954,8 +958,9 @@ export class WorkerScheduler<Config> {
     signal: AbortSignal,
     successes: ReadonlyMap<string, unknown>,
     failures: ReadonlyMap<string, JobFailure>,
+    interrupted = false,
   ): readonly ReservedJob[] {
-    if (!(signal.reason instanceof WorkerReservationLostError)) return jobs;
+    if (!interrupted && !(signal.reason instanceof WorkerReservationLostError)) return jobs;
 
     const reported: ReservedJob[] = [];
     const unfinished: ReservedJob[] = [];
@@ -963,7 +968,9 @@ export class WorkerScheduler<Config> {
       if (successes.has(job.id) || failures.has(job.id)) reported.push(job);
       else unfinished.push(job);
     }
-    this.returnUnfinishedJobs(unfinished);
+    // Lease loss can return the still-owned members immediately. During
+    // shutdown, leave unfinished work to the scheduler's release/expiry mode.
+    if (signal.reason instanceof WorkerReservationLostError) this.returnUnfinishedJobs(unfinished);
     return reported;
   }
 
@@ -1008,25 +1015,29 @@ export class WorkerScheduler<Config> {
             },
           );
 
-          return [{
-            kind: "success",
-            job,
-            ...(hasResult ? { result } : {}),
-          }];
+          return {
+            outcomes: [{ kind: "success", job, ...(hasResult ? { result } : {}) }],
+          };
         } catch (error) {
-          return [{
-            kind: "failure",
-            job,
-            error,
-            ...(error instanceof WorkerRetryError
-              ? {
-                  retryDelayMs: error.retryDelayMs,
-                  ...(error.maxAttempts === undefined
-                    ? {}
-                    : { maxAttempts: error.maxAttempts }),
-                }
-              : {}),
-          }];
+          if (isInvocationAbort(error, signal)) {
+            return { outcomes: [], interruption: { error } };
+          }
+
+          return {
+            outcomes: [{
+              kind: "failure",
+              job,
+              error,
+              ...(error instanceof WorkerRetryError
+                ? {
+                    retryDelayMs: error.retryDelayMs,
+                    ...(error.maxAttempts === undefined
+                      ? {}
+                      : { maxAttempts: error.maxAttempts }),
+                  }
+                : {}),
+            }],
+          };
         }
       },
     );
@@ -1121,16 +1132,19 @@ export class WorkerScheduler<Config> {
           );
 
           reportableJobs = this.getReportableBatchJobs(jobs, signal, successfulResults, failuresByJobId);
-          return this.completeBatchOutcomes(
-            reportableJobs,
-            aggregated.results.length + aggregated.errors.length,
-            successfulResults,
-            eagerlyAcknowledgedJobIds,
-            failuresByJobId,
-          );
+          return {
+            outcomes: this.completeBatchOutcomes(
+              reportableJobs,
+              aggregated.results.length + aggregated.errors.length,
+              successfulResults,
+              eagerlyAcknowledgedJobIds,
+              failuresByJobId,
+            ),
+          };
         } catch (error) {
-          reportableJobs ??= this.getReportableBatchJobs(jobs, signal, successfulResults, failuresByJobId);
-          return reportableJobs.flatMap((job): JobOutcome[] => {
+          const interrupted = isInvocationAbort(error, signal);
+          reportableJobs ??= this.getReportableBatchJobs(jobs, signal, successfulResults, failuresByJobId, interrupted);
+          const outcomes = reportableJobs.flatMap((job): JobOutcome[] => {
             if (eagerlyAcknowledgedJobIds.has(job.id)) return [];
 
             if (successfulResults.has(job.id)) {
@@ -1143,6 +1157,7 @@ export class WorkerScheduler<Config> {
 
             return [failuresByJobId.get(job.id) ?? { kind: "failure", job, error }];
           });
+          return { outcomes, ...(interrupted ? { interruption: { error } } : {}) };
         }
       },
     );
@@ -1185,7 +1200,7 @@ export class WorkerScheduler<Config> {
     executionId: string | undefined,
     callback: (
       execution: ExecutionScope<Config>,
-    ) => Promise<readonly JobOutcome[]>,
+    ) => Promise<WorkerInvocationResult>,
   ): Promise<readonly JobOutcome[]> {
     const execution = await this.app.createExecutionScope(executionId);
     try {
@@ -1198,13 +1213,13 @@ export class WorkerScheduler<Config> {
       const startedAt = performance.now();
 
       const run = async () => {
-        let outcome: "failure" | "success" = "failure";
+        let outcome: ExecutionOutcome = "failure";
         let executionError: unknown;
         try {
-          const outcomes = await callback(execution);
+          const { outcomes, interruption } = await callback(execution);
           const failure = outcomes.find((item) => item.kind === "failure");
-          executionError = failure?.error;
-          outcome = failure === undefined ? "success" : "failure";
+          executionError = failure === undefined ? interruption?.error : failure.error;
+          if (failure === undefined) outcome = interruption === undefined ? "success" : "cancelled";
           return outcomes;
         } catch (error: unknown) {
           executionError = error;
@@ -1222,7 +1237,8 @@ export class WorkerScheduler<Config> {
                   : getExecutionObservationError(executionError)),
               },
               {
-                outcome,
+                // Observations retain their binary success/failure outcome.
+                outcome: outcome === "cancelled" ? "failure" : outcome,
                 durationMs: performance.now() - startedAt,
               },
             );
@@ -1535,6 +1551,12 @@ function isShutdownAdmissionError(
   return signal.aborted
     && (error instanceof ThrottlingAcquisitionAbortedError
       || error instanceof ThrottlingClosedError);
+}
+
+/** Recognizes direct cancellation and Node APIs that wrap its reason. */
+function isInvocationAbort(error: unknown, signal: AbortSignal): boolean {
+  return signal.aborted
+    && (error === signal.reason || (error instanceof Error && error.cause === signal.reason));
 }
 
 function getAdmissionRetryAt(error: unknown): Date | undefined {

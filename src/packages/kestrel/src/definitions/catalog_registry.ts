@@ -1,4 +1,4 @@
-import type { CatalogTree } from "../utils/catalog.js";
+import { insertCatalogEntry, type CatalogTree } from "../utils/catalog.js";
 
 /** Describes where one catalog definition was contributed from. */
 export type CatalogDefinitionSource =
@@ -98,7 +98,7 @@ export class DefinitionCatalogRegistry<Definition> {
     const catalog: Record<string, Definition | CatalogTree<Definition>> = {};
 
     for (const registration of this.registeredDefinitions) {
-      insertAtPath(catalog, registration.path, registration.definition);
+      insertCatalogEntry(catalog, registration.path, registration.definition);
     }
 
     return catalog;
@@ -112,40 +112,4 @@ function isPathPrefix(
 ): boolean {
   return prefix.length < path.length
     && prefix.every((part, index) => path[index] === part);
-}
-
-/** Inserts a definition into a fresh catalog tree and validates branch collisions. */
-function insertAtPath<Definition>(
-  catalog: Record<string, Definition | CatalogTree<Definition>>,
-  path: readonly string[],
-  definition: Definition,
-): void {
-  let branch = catalog;
-
-  for (const [index, part] of path.entries()) {
-    const isLeaf = index === path.length - 1;
-    const existing = branch[part];
-
-    if (isLeaf) {
-      if (existing !== undefined) {
-        throw new TypeError(`Catalog path "${path.join(".")}" collides with an existing branch.`);
-      }
-
-      branch[part] = definition;
-      return;
-    }
-
-    if (existing === undefined) {
-      const child: Record<string, Definition | CatalogTree<Definition>> = {};
-      branch[part] = child;
-      branch = child;
-      continue;
-    }
-
-    if (typeof existing !== "object" || existing === null) {
-      throw new TypeError(`Catalog path "${path.join(".")}" collides with an existing definition.`);
-    }
-
-    branch = existing as Record<string, Definition | CatalogTree<Definition>>;
-  }
 }

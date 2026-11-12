@@ -12,6 +12,19 @@ const write = definePermission({ id: "records.write" });
 const archive = definePermission({ id: "records.archive" });
 
 describe("AuthorizationManager", () => {
+  it("keeps the declared permission when its caller mutates the source object", async () => {
+    const source = { id: write.id };
+    const requirement = permission(source);
+    const manager = new AuthorizationManager({
+      authenticationContext: authenticatedContext("subject-1"),
+      permissionResolver: { resolvePermissions: async () => new Set([read.id]) },
+    });
+
+    // A later caller mutation cannot grant access to a subject missing the original permission.
+    source.id = read.id;
+    await expect(manager.require(requirement)).rejects.toBeInstanceOf(AuthorizationDeniedError);
+  });
+
   it("grants and enforces an allOf requirement when every permission is present", async () => {
     const requirement = allOf(permission(read), permission(write));
     const manager = new AuthorizationManager({

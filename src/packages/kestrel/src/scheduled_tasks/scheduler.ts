@@ -230,12 +230,12 @@ export class ScheduledTaskScheduler<Config> {
     }).sort((left, right) =>
       left.scheduledAt.getTime() - right.scheduledAt.getTime()
       || left.resolved.task.id.localeCompare(right.resolved.task.id)
-    ).slice(0, capacity);
+    );
     const invocations: Promise<void>[] = [];
 
-    // Admission is serialized per cycle so slot accounting stays deterministic.
+    // Only reservations consume slots. A blocked occurrence leaves capacity for its peers.
     for (const candidate of candidates) {
-      if (this.admissionStopped) break;
+      if (this.admissionStopped || invocations.length >= capacity) break;
       const started = await this.tryStart(
         candidate.resolved,
         candidate.scheduledAt,

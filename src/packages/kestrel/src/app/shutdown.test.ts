@@ -112,4 +112,28 @@ describe("application shutdown budget", () => {
     await waiting;
     expect([process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")]).toEqual(before);
   });
+
+  it("does not attach process listeners for an already aborted owner", async () => {
+    const before = [process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")];
+    await expect(waitForShutdownSignal(AbortSignal.abort())).resolves.toBeUndefined();
+    expect([process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")]).toEqual(before);
+  });
+
+  it("drains late transports immediately and deduplicates repeated registrations", async () => {
+    const shutdown = new ApplicationShutdown();
+    const first = vi.fn(async () => undefined);
+    const late = vi.fn(async () => undefined);
+    shutdown.registerDrain(first);
+    shutdown.requestDrain();
+    shutdown.registerDrain(late);
+    shutdown.registerDrain(first);
+
+    // A transport registered after drain has started must close before any later await.
+    await Promise.resolve();
+    expect(first).toHaveBeenCalledOnce();
+    expect(late).toHaveBeenCalledOnce();
+    await expect(shutdown.drained()).resolves.toBeUndefined();
+    expect(first).toHaveBeenCalledOnce();
+    expect(late).toHaveBeenCalledOnce();
+  });
 });

@@ -1,8 +1,8 @@
-import { setImmediate } from "node:timers/promises";
+import { setImmediate, setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { App, type ExecutionScope, type ShutdownOptions } from "../app/index.js";
+import { App, executionCompletedEvent, type ExecutionScope, type ShutdownOptions } from "../app/index.js";
 import { dep } from "../di/index.js";
 import {
   defineAdmissionPolicy,
@@ -318,6 +318,34 @@ describe("worker scheduler ownership", () => {
       await expect(scheduler.runOnce()).rejects.toBe(failure);
       expect(handler).not.toHaveBeenCalled();
       expect(complete).toHaveBeenCalledExactlyOnceWith({ outcome: "failure" });
+      expect(adapter.inspectJobs()).toMatchObject([{ attempt: 1, reservationToken: "token-1" }]);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it("preserves permit feedback and cost when the execution cannot finish cleanup", async () => {
+    const complete = vi.fn(async () => undefined);
+    const acquire = vi.fn<Throttling["acquire"]>().mockResolvedValue({ definitionId: rate.id, complete });
+    const failure = new Error("scope cleanup failed");
+    const worker = defineWorker({
+      name: "failed-cleanup", queue: "failed-cleanup", input: z.null(),
+      throttling: { requirements: () => ({ admission: rate }) },
+      handler: (_job, _dependencies, context) => {
+        context.reportActualCost({ requests: 2 });
+        context.reportFeedback({ kind: "timeout" });
+      },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    app.eventBus.listen(executionCompletedEvent, () => { throw failure; }, { scope: "descendants" });
+
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      await expect(scheduler.runOnce()).rejects.toBe(failure);
+      // The storage transition never committed, but the permit must settle with its observed use.
+      expect(complete).toHaveBeenCalledExactlyOnceWith({
+        outcome: "failure", actualCost: { requests: 2 }, feedback: { kind: "timeout" },
+      });
       expect(adapter.inspectJobs()).toMatchObject([{ attempt: 1, reservationToken: "token-1" }]);
     } finally {
       await app.dispose();
@@ -991,6 +1019,144 @@ describe("worker scheduler ownership", () => {
       await cycle;
       await app.dispose();
       vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    { batch: false, wrapped: false },
+    { batch: false, wrapped: true },
+    { batch: true, wrapped: false },
+  ])("leaves cooperatively interrupted work to expire during shutdown ($batch, $wrapped)", async ({ batch, wrapped }) => {
+    const entered = vi.fn();
+    const finish = Promise.withResolvers<void>();
+    const options = { name: "interrupted", queue: "interrupted", input: z.null(), maxAttempts: 1 };
+    const worker = batch
+      ? defineWorker({
+        ...options,
+        batch: { size: 2 },
+        async *handler(jobs, _deps, { signal }) {
+          yield jobSuccess(jobs[0]!.id, "completed before shutdown");
+          entered();
+          await finish.promise;
+          signal.throwIfAborted();
+        },
+      })
+      : defineWorker({
+        ...options,
+        async handler(_job, _deps, { signal }) {
+          entered();
+          await finish.promise;
+          // Node's timer API wraps the signal reason in an AbortError.
+          if (wrapped) await delay(0, undefined, { signal });
+          else signal.throwIfAborted();
+        },
+      });
+    const { app, adapter, scheduler, advanceStorage } = await fixture([worker]);
+    const completed = vi.fn();
+    app.eventBus.listen(executionCompletedEvent, (event) => completed(event.outcome), { scope: "descendants" });
+    const jobs = Array.from({ length: batch ? 2 : 1 }, () => ({ queue: worker.queue, payload: null }));
+    await adapter.enqueue(jobs);
+    const ack = vi.spyOn(adapter, "ack");
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await setImmediate();
+      expect(entered).toHaveBeenCalledOnce();
+      await scheduler.stop("expire");
+      finish.resolve();
+      expect(await cycle).toEqual([{ status: "fulfilled", value: batch ? 2 : 1 }]);
+      expect(completed).toHaveBeenCalledExactlyOnceWith("cancelled");
+
+      // Shutdown must retain reported success and leave the unfinished job leased.
+      if (batch) {
+        expect(ack).toHaveBeenCalledExactlyOnceWith([{ jobId: "job-1", reservationToken: "token-1" }]);
+      }
+      expect(adapter.inspectDeadLetters()).toEqual([]);
+      expect(adapter.inspectJobs()).toMatchObject([{
+        id: batch ? "job-2" : "job-1", attempt: 1, reservationToken: expect.any(String),
+      }]);
+      const request = {
+        queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }],
+        totalLimit: 1,
+        leaseMs: 100,
+      };
+      await expect(adapter.reserve(request)).resolves.toEqual([]);
+      advanceStorage(100);
+      await expect(adapter.reserve(request)).resolves.toMatchObject([{ attempt: 2 }]);
+    } finally {
+      finish.resolve();
+      await cycle;
+      await app.dispose();
+    }
+  });
+
+  it("preserves a real batch failure when it coincides with shutdown", async () => {
+    const entered = vi.fn();
+    const finish = Promise.withResolvers<void>();
+    const failure = new Error("handler failed independently of shutdown");
+    const worker = defineWorker({
+      name: "failed-on-shutdown", queue: "failed-on-shutdown", input: z.null(), maxAttempts: 1,
+      batch: { size: 2 },
+      async handler() {
+        entered();
+        await finish.promise;
+        throw failure;
+      },
+    });
+    const { app, adapter, scheduler } = await fixture([worker]);
+    const completed = vi.fn();
+    app.eventBus.listen(executionCompletedEvent, (event) => completed(event.outcome), { scope: "descendants" });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await setImmediate();
+      expect(entered).toHaveBeenCalledOnce();
+      await scheduler.stop("expire");
+      finish.resolve();
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 1 }]);
+      expect(completed).toHaveBeenCalledExactlyOnceWith("failure");
+      expect(adapter.inspectDeadLetters()).toMatchObject([{
+        originalJobId: "job-1", error: { message: failure.message },
+      }]);
+    } finally {
+      finish.resolve();
+      await cycle;
+      await app.dispose();
+    }
+  });
+
+  it.each([
+    { held: false, error: new ThrottlingAcquisitionAbortedError(pressure.id) },
+    { held: true, error: new ThrottlingClosedError() },
+  ])("leaves pending admission to expire when throttling stops during shutdown ($held)", async ({ held, error }) => {
+    const admission = Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>();
+    const complete = vi.fn(async () => undefined);
+    const acquire = vi.fn<Throttling["acquire"]>().mockReturnValue(admission.promise);
+    if (held) acquire.mockRejectedValueOnce(new ThrottlingRejectedError(pressure.id));
+    const handler = vi.fn();
+    const worker = defineWorker({
+      name: "shutdown-admission", queue: "shutdown-admission", input: z.null(), handler,
+      throttling: { requirements: () => ({ admission: pressure }), buffering: { strategy: "hold", maxHoldMs: 20 } },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const defer = vi.spyOn(adapter, "defer");
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await setImmediate();
+      expect(acquire).toHaveBeenCalledTimes(held ? 2 : 1);
+      const signal = acquire.mock.lastCall?.[1]?.signal;
+      expect(signal?.aborted).toBe(false);
+      await scheduler.stop("expire");
+      expect(signal?.aborted).toBe(true);
+      admission.reject(error);
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 1 }]);
+      expect(handler).not.toHaveBeenCalled();
+      expect(defer).not.toHaveBeenCalled();
+      expect(adapter.inspectJobs()).toMatchObject([{ attempt: 1, reservationToken: "token-1" }]);
+    } finally {
+      admission.resolve({ definitionId: pressure.id, complete });
+      await cycle;
+      await app.dispose();
     }
   });
 

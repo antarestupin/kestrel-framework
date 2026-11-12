@@ -54,7 +54,8 @@ export class MemoryCacheAdapter implements
     this.entries.delete(key);
     this.entries.set(key, entry);
 
-    return entry;
+    // Each read gets its own snapshot, including the mutable dates and value.
+    return structuredClone(entry);
   }
 
   /** Stores an entry and evicts old entries until every limit is respected. */
@@ -66,10 +67,12 @@ export class MemoryCacheAdapter implements
       return;
     }
 
+    // Snapshot before pruning yields so callers cannot mutate the pending write.
+    const stored = structuredClone(entry);
     await this.prune({ limit: this.pruneBatchSize });
     this.remove(key);
-    this.entries.set(key, entry);
-    this.sizeBytes += entry.sizeBytes;
+    this.entries.set(key, stored);
+    this.sizeBytes += stored.sizeBytes;
 
     while (
       this.entries.size > this.options.maxEntries

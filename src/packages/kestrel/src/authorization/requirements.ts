@@ -1,3 +1,4 @@
+import { definePermission } from "./definition.js";
 import type {
   AuthorizationRequirement,
   PermissionDefinition,
@@ -7,7 +8,8 @@ import type {
 export function permission(
   definition: PermissionDefinition,
 ): AuthorizationRequirement {
-  return Object.freeze({ type: "permission", permission: definition });
+  // Detach the requirement from caller-owned definitions before enforcing it.
+  return Object.freeze({ type: "permission", permission: definePermission(definition) });
 }
 
 /** Requires every nested requirement. */

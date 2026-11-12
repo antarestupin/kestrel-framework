@@ -629,6 +629,72 @@ describe("AtlasProvider", () => {
         }),
     ).toThrow("sign-out URL");
   });
+
+  it.each([
+    ["passwordSignInUrl", "/\\external.test/login", "sign-in URL"],
+    ["signOutUrl", "/\t/external.test/logout", "sign-out URL"],
+    ["loginPath", "/\\external.test/login", "login path"],
+  ])("rejects authentication paths that browsers can treat as external (%s)", (option, path, error) => {
+    const requiredSession = defineHttpMiddleware("atlas-path-session", {
+      handler: (_context, next) => next(),
+    });
+
+    expect(() => new AtlasProvider(viteAtlasClient({}), {
+      atlas: createTestAtlas(),
+      authentication: {
+        passwordSignInUrl: "/authentication/password/sign-in",
+        signOutUrl: "/authentication/sign-out",
+        requiredSession,
+        isAuthenticationRequired: () => false,
+        [option]: path,
+      },
+    })).toThrow(error);
+  });
+
+  it("preserves root-mounted login redirects and propagates non-session errors", async () => {
+    // Injection parses URLs first. Rewrite a test route to exercise the raw request path.
+    const server = Fastify({
+      rewriteUrl: (request) => request.url === "/untrusted"
+        ? "/segment/%2e%2e//external.test/path"
+        : request.url!,
+    });
+    const app = new App({});
+    const client = new TestAtlasClientAdapter();
+    const session = defineHttpMiddleware("atlas-root-session", {
+      handler: ({ request }) => {
+        if (request.url === "/failed") throw new Error("Session service failed");
+        throw new AuthenticationRequiredError();
+      },
+    });
+    app.register(new AtlasProvider(
+      defineAtlasClientAdapter({ dependencies: {}, capabilities: {}, create: () => client }),
+      {
+        atlas: defineAtlas({ basePath: "/", resources: [] }),
+        authentication: {
+          passwordSignInUrl: "/sign-in",
+          signOutUrl: "/sign-out",
+          requiredSession: session,
+          isAuthenticationRequired: (error) => error instanceof AuthenticationRequiredError,
+        },
+      },
+    ));
+    try {
+      for (const extension of app.httpExtensions.definitions) await extension.mount({ app, server });
+      await app.start();
+
+      expect((await server.inject("/nested?view=all")).headers.location)
+        .toBe("/login?returnTo=%2Fnested%3Fview%3Dall");
+      const untrusted = await server.inject("/untrusted");
+      expect(untrusted.statusCode).toBe(302);
+      expect(untrusted.headers.location).toBe("/login?returnTo=%2F");
+      const failure = await server.inject("/failed");
+      expect(failure.statusCode).toBe(500);
+      expect(failure.headers.location).toBeUndefined();
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
 });
 
 describe("Atlas record link gateway", () => {

@@ -1,5 +1,5 @@
 import type { AnyScheduledTask } from "./task.js";
-import type { CatalogTree } from "../utils/index.js";
+import { insertCatalogEntry, type CatalogTree } from "../utils/catalog.js";
 import { isScheduledTask } from "../utils/index.js";
 import type { CatalogDefinitionSource } from "../definitions/index.js";
 
@@ -94,19 +94,7 @@ export class ScheduledTaskRegistry {
     const catalog: Record<string, AnyScheduledTask | CatalogTree<AnyScheduledTask>> = {};
 
     for (const { path, task } of this.registrationsById.values()) {
-      let branch = catalog;
-
-      for (const [index, part] of path.entries()) {
-        if (index === path.length - 1) {
-          branch[part] = task;
-        } else {
-          const child = branch[part] ??= {};
-          branch = child as Record<
-            string,
-            AnyScheduledTask | CatalogTree<AnyScheduledTask>
-          >;
-        }
-      }
+      insertCatalogEntry(catalog, path, task);
     }
 
     return catalog;

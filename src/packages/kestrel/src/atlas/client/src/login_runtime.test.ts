@@ -42,6 +42,13 @@ describe("atlas login runtime", () => {
     }
   });
 
+  it("rejects root-mounted targets that normalize to protocol-relative paths", () => {
+    const target = "/segment/%2e%2e//external.test/path";
+    expect(getAtlasLoginReturnTo(
+      `?returnTo=${encodeURIComponent(target)}`, "/", "/login",
+    )).toBe("/");
+  });
+
   it("posts credentials to the configured endpoint", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(
       new Response("{}", { status: 200 }),

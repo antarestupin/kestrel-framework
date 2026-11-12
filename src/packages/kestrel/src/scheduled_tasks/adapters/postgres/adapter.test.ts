@@ -168,6 +168,42 @@ describe("PostgresScheduledTaskAdapter", () => {
     expect((await adapter.listStates(["first"]))[0]).toMatchObject({ paused: true, nextScheduledAt: initial, activeRuns: 1 });
   });
 
+  it("rolls back the consumed occurrence when the run insert returns no row", async () => {
+    const scheduledAt = new Date("2026-01-01T00:00:00.000Z");
+    const nextScheduledAt = new Date("2026-01-01T00:01:00.000Z");
+    await adapter.reconcile([{ taskId: "maintenance", nextScheduledAt: scheduledAt }]);
+    // A trigger on the connection-local table can suppress INSERT ... RETURNING.
+    await client.query(`
+      CREATE FUNCTION pg_temp.skip_scheduled_run_insert() RETURNS trigger
+        LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END; $$;
+      CREATE TRIGGER skip_scheduled_run_insert BEFORE INSERT ON scheduled_task_run
+        FOR EACH ROW EXECUTE FUNCTION pg_temp.skip_scheduled_run_insert();
+    `);
+    const request = {
+      taskId: "maintenance",
+      expectedScheduledAt: scheduledAt,
+      nextScheduledAt,
+      overlap: "wait",
+      leaseMs: 60_000,
+    } as const;
+
+    try {
+      await expect(adapter.reserve(request)).rejects.toThrow(
+        "PostgreSQL did not return the scheduled task run.",
+      );
+      expect(await adapter.listStates(["maintenance"])).toStrictEqual([
+        { taskId: "maintenance", paused: false, nextScheduledAt: scheduledAt, activeRuns: 0 },
+      ]);
+    } finally {
+      await client.query(`
+        DROP TRIGGER skip_scheduled_run_insert ON scheduled_task_run;
+        DROP FUNCTION pg_temp.skip_scheduled_run_insert();
+      `);
+    }
+
+    await expect(adapter.reserve(request)).resolves.toMatchObject({ status: "reserved" });
+  });
+
   it("completes only the current owner and retains the later deferral and error summary", async () => {
     const firstToken = "00000000-0000-4000-8000-000000000001";
     const otherToken = "00000000-0000-4000-8000-000000000002";

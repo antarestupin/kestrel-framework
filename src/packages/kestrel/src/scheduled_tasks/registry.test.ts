@@ -99,4 +99,21 @@ describe("scheduled task catalog ownership", () => {
     path.push("mutated");
     expect(registry.catalog).toEqual({ branch: { first: task } });
   });
+
+  it("projects a prototype-named branch as catalog data", () => {
+    const key = "__kestrelScheduledTaskCatalogProjection";
+    const registry = new ScheduledTaskRegistry().registerCatalog({
+      ["__proto__"]: { [key]: task },
+      constructor: other,
+    }, { kind: "application" });
+
+    // Clean up the prototype even when running this regression against the old code.
+    try {
+      const catalog = registry.catalog;
+      expect(Object.hasOwn(Object.prototype, key)).toBe(false);
+      expect(catalog).toEqual({ ["__proto__"]: { [key]: task }, constructor: other });
+    } finally {
+      Reflect.deleteProperty(Object.prototype, key);
+    }
+  });
 });

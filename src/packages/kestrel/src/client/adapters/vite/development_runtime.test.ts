@@ -201,6 +201,75 @@ describe("ViteDevelopmentRuntime", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("installs middleware once when callers mount the same scope concurrently", async () => {
+    const close = vi.fn(async () => {});
+    const createServer = vi.fn(async () => ({
+      close, middlewares: vi.fn(),
+    }) as unknown as ViteDevServer);
+    const runtime = new ViteDevelopmentRuntime({
+      root: "/workspace",
+      configFile: "/workspace/vite.config.ts",
+    }, { createServer });
+    const scope = createFastifyScope();
+
+    try {
+      // Both calls enter before the shared server has finished initializing.
+      await Promise.all([runtime.mount(scope.server), runtime.mount(scope.server)]);
+      await runtime.mount(scope.server);
+      expect(createServer).toHaveBeenCalledOnce();
+      expect(scope.use).toHaveBeenCalledOnce();
+      expect(scope.server.addHook).toHaveBeenCalledExactlyOnceWith("preClose", expect.any(Function));
+      await scope.runPreClose();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("allows another mount after registration fails before installing middleware", async () => {
+    const createServer = vi.fn(async () => ({
+      close: vi.fn(async () => {}), middlewares: vi.fn(),
+    }) as unknown as ViteDevServer);
+    const runtime = new ViteDevelopmentRuntime({
+      root: "/workspace",
+      configFile: "/workspace/vite.config.ts",
+    }, { createServer });
+    const scope = createFastifyScope();
+    vi.mocked(scope.server.register).mockRejectedValueOnce(new Error("registration failed"));
+
+    try {
+      await expect(runtime.mount(scope.server)).rejects.toThrow("registration failed");
+      expect(scope.use).not.toHaveBeenCalled();
+      await expect(runtime.mount(scope.server)).resolves.toBeUndefined();
+      expect(scope.use).toHaveBeenCalledOnce();
+      expect(createServer).toHaveBeenCalledOnce();
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("inserts a filesystem module URL containing a literal replacement pattern", async () => {
+    const runtime = new ViteDevelopmentRuntime({
+      root: "/workspace",
+      configFile: "/workspace/vite.config.ts",
+    }, {
+      createServer: async () => ({
+        close: vi.fn(), middlewares: vi.fn(),
+        transformIndexHtml: async (_url: string, html: string) => html,
+      }) as unknown as ViteDevServer,
+      readHtml: vi.fn(async () => '<script type="module" src="/src/main.tsx"></script>') as never,
+    });
+    const { entry } = runtime.externalEntry({ root: join(tmpdir(), "external$&") });
+
+    try {
+      await runtime.mount(createFastifyScope().server);
+      const document = await runtime.transformHtml("/admin", entry);
+      expect(document).toBe(`<script type="module" src="${entry.developmentModulePath}"></script>`);
+    } finally {
+      await runtime.close();
+    }
+  });
+
   it("can disable dependency receipt watching", async () => {
     const createServer = vi.fn(async (_config: import("vite").InlineConfig) => ({
       close: vi.fn(async () => {}), middlewares: vi.fn(),
@@ -231,15 +300,19 @@ describe("ViteDevelopmentRuntime", () => {
     );
     const scope = createFastifyScope();
 
-    await runtime.mount(scope.server);
-
-    await expect(runtime.transformHtml("/", {
+    const entry = {
       htmlPath: "/workspace/client/index.html",
       templateModulePath: "/src/main.tsx",
       developmentModulePath: "/src/client/src/main.tsx",
-    })).rejects.toThrowError(
-      "does not reference /src/main.tsx",
-    );
+    };
+
+    try {
+      await expect(runtime.transformHtml("/", entry)).rejects.toThrow("must be mounted");
+      await runtime.mount(scope.server);
+      await expect(runtime.transformHtml("/", entry)).rejects.toThrow("does not reference /src/main.tsx");
+    } finally {
+      await runtime.close();
+    }
   });
 });
 

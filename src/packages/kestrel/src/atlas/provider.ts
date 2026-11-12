@@ -20,6 +20,7 @@ import {
   type AtlasClientConfig,
 } from "./client_config.js";
 import { AtlasLoginRequiredError } from "./errors.js";
+import { isAtlasAbsolutePath } from "./urls.js";
 
 export interface AtlasAuthenticationOptions {
   /** Relative route below Atlas base path. */
@@ -241,8 +242,7 @@ function normalizeAuthenticationOptions(
   const relativeLoginPath = options.loginPath ?? "/login";
 
   if (
-    !relativeLoginPath.startsWith("/") ||
-    relativeLoginPath.startsWith("//") ||
+    !isAtlasAbsolutePath(relativeLoginPath) ||
     relativeLoginPath === "/" ||
     relativeLoginPath.endsWith("/") ||
     relativeLoginPath.includes("?") ||
@@ -255,15 +255,13 @@ function normalizeAuthenticationOptions(
     );
   }
   if (
-    !options.passwordSignInUrl.startsWith("/") ||
-    options.passwordSignInUrl.startsWith("//") ||
+    !isAtlasAbsolutePath(options.passwordSignInUrl) ||
     options.passwordSignInUrl.includes("#")
   ) {
     throw new TypeError("An Atlas password sign-in URL must start with a slash.");
   }
   if (
-    !options.signOutUrl.startsWith("/") ||
-    options.signOutUrl.startsWith("//") ||
+    !isAtlasAbsolutePath(options.signOutUrl) ||
     options.signOutUrl.includes("#")
   ) {
     throw new TypeError("An Atlas sign-out URL must start with a slash.");
@@ -295,12 +293,11 @@ function getSafeNavigationTarget(requestUrl: string, basePath: string): string {
   try {
     const url = new URL(requestUrl, "http://atlas.local");
 
-    const isBelowBasePath =
-      basePath === "/"
-        ? url.pathname.startsWith("/")
-        : url.pathname === basePath || url.pathname.startsWith(`${basePath}/`);
+    const isBelowBasePath = basePath === "/"
+      || url.pathname === basePath || url.pathname.startsWith(`${basePath}/`);
 
-    return url.origin === "http://atlas.local" && isBelowBasePath
+    // Dot segments can normalize a local path into a protocol-relative target.
+    return url.origin === "http://atlas.local" && isBelowBasePath && isAtlasAbsolutePath(url.pathname)
       ? `${url.pathname}${url.search}${url.hash}`
       : fallback;
   } catch {

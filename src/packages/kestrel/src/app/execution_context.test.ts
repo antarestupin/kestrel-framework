@@ -69,6 +69,63 @@ describe("ExecutionContext", () => {
     }]);
   });
 
+  it("accumulates internal and diagnostic values under normalized keys without mixing policies", () => {
+    const context = new ExecutionContext();
+    const internal = { id: 1 };
+    context.set(" items ", internal);
+    context.append("items", 2);
+    context.append("items", 3);
+    context.appendDiagnostic(" points ", 10, { destinations: ["log"] });
+    context.appendDiagnostic("points", 20, { destinations: ["observation", "log"] });
+
+    expect(context.get(" items ")).toEqual([internal, 2, 3]);
+    expect((context.get("items") as unknown[])[0]).toBe(internal);
+    expect(() => context.append("points", 30)).toThrow("internal value to diagnostic");
+    expect(() => context.appendDiagnostic("items", 4)).toThrow("diagnostic value to internal");
+    expect(context.toRecord("log")).toEqual({ points: [10, 20] });
+    expect(context.toRecord("observation")).toEqual({ points: [10, 20] });
+  });
+
+  it("copies sparse arrays and records with no prototype into JSON-safe values", () => {
+    const context = new ExecutionContext();
+    const details = Object.assign(Object.create(null) as { enabled: boolean }, { enabled: false });
+    const values = new Array<ExecutionContextValue>(3);
+    values[1] = details;
+
+    context.setDiagnostic("details", values);
+    details.enabled = true;
+
+    expect(context.toRecord("observation")).toEqual({ details: [null, { enabled: false }, null] });
+  });
+
+  it("rejects array accessors and named properties before exporting diagnostics", () => {
+    const context = new ExecutionContext();
+    const arrayWithAccessor = Object.defineProperty([1], "0", {
+      get: () => { throw new Error("The array getter must not run."); },
+    });
+    const arrayWithNamedProperty = Object.assign([1], { "01": "not an index" });
+    const arrayWithNegativeIndex = Object.assign([1], { "-1": "not an index" });
+    const arrayWithLabel = Object.assign([1], { label: "not an index" });
+
+    expect(() => context.setDiagnostic("accessor", arrayWithAccessor)).toThrow("accessor properties");
+    for (const value of [arrayWithNamedProperty, arrayWithNegativeIndex, arrayWithLabel]) {
+      expect(() => context.setDiagnostic("named", value)).toThrow("named properties");
+    }
+    expect(context.entries()).toEqual([]);
+  });
+
+  it("bounds nested values and rejects unknown diagnostic destinations", () => {
+    const context = new ExecutionContext();
+    let value: ExecutionContextValue = true;
+    for (let depth = 0; depth < 101; depth++) value = { child: value };
+
+    expect(() => context.setDiagnostic("deep", value)).toThrow("100 nested levels");
+    expect(() => context.setDiagnostic("destination", true, {
+      destinations: ["unknown" as "log"],
+    })).toThrow('Unknown execution context diagnostic destination "unknown"');
+    expect(context.entries()).toEqual([]);
+  });
+
   it.each([
     ["cyclic objects", () => {
       const value: { self?: unknown } = {};

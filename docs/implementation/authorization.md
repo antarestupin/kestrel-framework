@@ -94,6 +94,8 @@ Custom integrations register `permissionResolver` directly and omit `RolePermiss
 
 `permission`, `allOf`, and `anyOf` create immutable, inspectable requirement expressions. Empty combinations are rejected. Requirements refer to capabilities, not role names. This keeps enforcement stable as applications regroup permissions into roles.
 
+`permission` snapshots the validated permission definition when the requirement is declared. Later mutations to a caller-owned definition cannot change the permission checked at execution.
+
 `AuthorizationManager.check` returns an explicit decision; `require` throws on denial. Missing authentication produces `AuthenticationRequiredError` with HTTP 401 semantics. An authenticated subject lacking a required permission produces `AuthorizationDeniedError` with HTTP 403 semantics. External denial responses do not expose role names, permission identifiers, or resolver details. Backend failures propagate and never permit the protected operation.
 
 The manager shares one in-flight resolution per execution and copies returned sets into private state. It has no cross-execution cache. Assignment changes affect subsequent executions without requiring session revocation; checks already performed in an execution retain their coherent snapshot.

@@ -87,7 +87,7 @@ export function installAtlas<Config>(app: App<Config>, enabled: boolean) {
 }
 ```
 
-`authentication.requiredSession` runs before `access.required` on protected pages, the manifest, APIs and operations, including delegated controllers. Unsafe requests also cross `access.unsafe`. Anonymous page navigation redirects to the public login page; anonymous API calls return `401`, authenticated callers without the permission return `403`, and missing or untrusted mutation origins return `403`. Packaged client assets and the login document remain public and do not grant data access. See [login navigation](../implementation/atlas.md#login-navigation) for the full behavior.
+`authentication.requiredSession` runs before `access.required` on protected pages, the manifest, APIs and operations, including delegated controllers. Unsafe requests also cross `access.unsafe`. Anonymous page navigation redirects to the public login page; anonymous API calls return `401`, authenticated callers without the permission return `403`, and missing or untrusted mutation origins return `403`. The password sign-in and sign-out endpoints use same-origin paths starting with a single slash. Packaged client assets and the login document remain public and do not grant data access. See [login navigation](../implementation/atlas.md#login-navigation) for the full behavior.
 
 If another system owns login navigation, omit `authentication` and put both the required-session middleware and the operator-permission middleware in `access.required`; retain `access.unsafe` for cookie-authenticated mutations. Do not replace authorization with a session check alone.
 

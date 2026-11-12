@@ -248,6 +248,50 @@ describe("WorkflowReplayer", () => {
     expect(result).toEqual({ status: "waiting", commands: [{ sequence: 3, kind: "activity", target: "compensate", payload: null }] });
   });
 
+  it.each(["existing capture", "new capture", "new command"] as const)(
+    "injects cancellation at the %s boundary without staging work", async (boundary) => {
+      const cancellation = new WorkflowCancellationError(baseSnapshot.executionId);
+      const history = boundary === "existing capture"
+        ? [{ ...scheduled(0, "capture"), kind: "capture" }]
+        : [];
+      const snapshot = {
+        ...baseSnapshot,
+        cancellationRequested: true,
+        revision: history.length + 1,
+        history: [...history, { type: "cancellation-requested" as const, eventIndex: history.length, occurredAt: new Date(1) }],
+      };
+      const capture = vi.fn(() => "a side effect must not run after cancellation");
+
+      const result = await new WorkflowReplayer().replay(snapshot, (_input, context) => {
+        expect(context.canDeliverCancellation).toBe(true);
+        return boundary === "new command"
+          ? context.command("activity", "read", null, cancellation)
+          : context.capture("capture", capture, cancellation);
+      });
+
+      expect(result).toEqual({ status: "failed", error: cancellation, commands: [] });
+      expect(capture).not.toHaveBeenCalled();
+    },
+  );
+
+  it("blocks replay when a capture replaces a different recorded capture", async () => {
+    const capture = vi.fn(() => "different");
+    const snapshot = {
+      ...baseSnapshot,
+      revision: 1,
+      history: [{ ...scheduled(0, "original"), kind: "capture" }],
+    };
+
+    // Replay must not silently rerun a side effect after its identity changes.
+    await expect(new WorkflowReplayer().replay(snapshot, (_input, context) =>
+      context.capture("renamed", capture))).resolves.toMatchObject({
+      status: "blocked",
+      error: { name: "WorkflowNondeterminismError", sequence: 0 },
+      commands: [],
+    });
+    expect(capture).not.toHaveBeenCalled();
+  });
+
   it("captures clock and UUID values with stable targets", async () => {
     const result = await new WorkflowReplayer().replay(baseSnapshot, (_input, workflow) => {
       const context = new DurableWorkflowExecutionContext(workflow, {

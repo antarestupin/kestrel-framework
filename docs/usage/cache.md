@@ -93,6 +93,8 @@ Applications generated with `--cache redis` share one lazy connection through `r
 
 Cache storage failures normally degrade to misses or skipped writes. Loader errors propagate; cache locks follow the lock library's failure policy. Do not use cache success as a correctness guarantee. TTL and entry-size limits are enforced; capacity and pruning settings depend on the adapter.
 
+`undefined` indicates a miss. You can cache JSON `null` as a value. With the built-in adapters, changing an object returned by a cache hit leaves the stored value intact.
+
 ## Use cases still to document
 
 - Schedule PostgreSQL cache pruning.

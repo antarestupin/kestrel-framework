@@ -34,8 +34,24 @@ const edit = defineAction({
 const relatedInput = atlasCollectionQuerySchema.extend({ teamId: z.string() });
 const relatedHandler = vi.fn((_input: z.output<typeof relatedInput>) => ({ items: [] }));
 const related = defineAction({ name: "resource.related", input: relatedInput, output: listOutput, handler: relatedHandler });
+const relatedWithoutSearch = defineAction({
+  name: "resource.relatedWithoutSearch",
+  input: relatedInput.omit({ search: true }),
+  output: listOutput,
+  handler: () => ({ items: [] }),
+});
+const invalidRead = defineAction({
+  name: "resource.invalidRead", input: z.object({ id: z.string() }),
+  output: z.string(), handler: () => "value",
+});
+const nullableFirstRead = defineAction({
+  name: "resource.nullableFirstRead", input: z.object({ id: z.string() }),
+  output: z.union([z.null(), row]), handler: () => null,
+});
 const otherSource = defineCatalogAtlasSource({ id: "other", actions: { read } });
-const source = defineCatalogAtlasSource({ id: "catalog", actions: { list, read, readMany, edit, related } });
+const source = defineCatalogAtlasSource({
+  id: "catalog", actions: { list, read, readMany, edit, related, relatedWithoutSearch, invalidRead, nullableFirstRead },
+});
 const capabilities = { list: source.collectionQuery(list), read: source.query(read), readMany: source.query(readMany) };
 const base: AtlasResourceOptions = { id: "item", label: "Items", source, identity: "id", capabilities };
 const owner = { resource: "team", cardinality: "one" } as const;
@@ -47,13 +63,18 @@ describe("Atlas resource declarations", () => {
     [{ identity: " " }, "resource identity cannot be empty"],
     [{ identity: "missing" }, 'identity "missing" does not exist'],
     [{ identity: "constructor" }, 'identity "constructor" does not exist'],
+    [{ capabilities: { ...capabilities, read: source.query(invalidRead) } }, 'identity "id" does not exist'],
     [{ displayField: "toString" }, 'display field "toString" does not exist'],
     [{ display: "name", displayField: "id" }, "Use either display or displayField"],
     [{ readManyBatchSize: 0 }, "readManyBatchSize must be a positive safe integer"],
     [{ fields: { __atlas_display: {} } }, "__atlas_display field is reserved"],
+    [{ navigationGroup: " " }, "navigation group label cannot be empty"],
+    [{ recordLinks: { detail: { label: " ", href: () => "/item" } } }, "record link label cannot be empty"],
     [{ capabilities: { ...capabilities, read: otherSource.query(read) } }, 'operation from source "other"'],
     [{ capabilities: { ...capabilities, readMany: source.action(readMany) } }, "readMany capability must reference a Query"],
     [{ capabilities: { ...capabilities, readMany: source.query(read) } }, 'readMany capability must accept an "ids" input'],
+    [{ capabilities: { ...capabilities, history: source.query(list) } }, "must reference a Query accepting an id input"],
+    [{ capabilities: { ...capabilities, history: source.action(read) } }, "must reference a Query accepting an id input"],
     [{ views: { preview: { label: " ", query: source.query(read) } } }, "non-empty label"],
     [{ views: { preview: { label: "Preview", query: source.action(read) } } }, "must reference a Query"],
     [{ recordActions: { edit: { ...recordAction, label: " " } } }, "non-empty label"],
@@ -71,6 +92,7 @@ describe("Atlas resource declarations", () => {
     [{ kind: "number", relation: owner }, 'cannot combine kind "number" with a relation'],
     [{ relation: { ...owner, resource: " " } }, "must reference a Resource"],
     [{ relation: { ...owner, lookup: { pageSize: 101 } } }, "lookup page size"],
+    [{ relation: { ...owner, lookup: { query: { ...source.collectionQuery(list), effect: "write" } } } }, "lookup must reference a Query"],
     [{ relation: { ...owner, lookup: { minimumSearchLength: -1 } } }, "lookup minimum search length"],
     [{ relation: { ...owner, relatedRecords: { pageSize: 2.5 } } }, "related records page size"],
     [{ relation: { ...owner, relatedRecords: { label: " " } } }, "related records label cannot be empty"],
@@ -80,6 +102,7 @@ describe("Atlas resource declarations", () => {
     [{ relation: { ...owner, relatedRecords: { query: source.query(related), recordInput: "pagination" } } }, "reserved"],
     [{ relation: { ...owner, relatedRecords: { query: source.query(related), recordInput: "unknown" } } }, 'input "unknown" does not exist'],
     [{ relation: { ...owner, relatedRecords: { query: source.query(read), recordInput: "id" } } }, 'must accept a "pagination" input'],
+    [{ relation: { ...owner, relatedRecords: { query: source.query(relatedWithoutSearch), recordInput: "teamId" } } }, 'enables search but its related records Query does not accept a "search" input'],
     [{ relation: { ...owner, relatedRecords: { recordInput: "teamId" } } }, "without a Query"],
   ] satisfies readonly [NonNullable<AtlasResourceOptions["fields"]>[string], string][])("validates relation declarations (%s)", (field, message) => {
     expect(() => defineAtlasResource({ ...base, fields: { ownerId: field } })).toThrow(message);
@@ -117,6 +140,36 @@ describe("Atlas resource declarations", () => {
   it("rejects field operators whose kind cannot satisfy the collection contract", () => {
     expect(() => defineAtlasResource({ ...base, fields: { active: { filterable: ["contains"] } } }).toManifest())
       .toThrow('cannot use filter operator "contains" with kind "boolean"');
+  });
+
+  it("uses an empty schema for presentation fields absent from the read schema", () => {
+    const manifest = defineAtlasResource({
+      ...base,
+      fields: { constructor: { label: "Constructor metadata" } },
+    }).toManifest();
+
+    // The manifest is a JSON contract, including fields named after inherited properties.
+    expect(JSON.parse(JSON.stringify(manifest)).fields).toContainEqual(expect.objectContaining({
+      id: "constructor", label: "Constructor metadata", kind: "json", schema: {},
+    }));
+  });
+
+  it("finds the object after a null alternative and allows list-backed related records", () => {
+    const item = defineAtlasResource({
+      ...base,
+      capabilities: { ...capabilities, read: source.query(nullableFirstRead) },
+      fields: {
+        ownerId: { filterable: ["equals"], relation: { ...owner, relatedRecords: { pageSize: 4 } } },
+      },
+    });
+    const team = defineAtlasResource({ ...base, id: "team", label: "Teams" });
+    const [manifest] = defineAtlas({ resources: [item, team] }).getManifest().resources;
+
+    expect(manifest?.fields.find(({ id }) => id === "ownerId")).toMatchObject({
+      kind: "relation", filterOperators: ["equals"],
+      relation: { optional: true, relatedRecords: { pageSize: 4 } },
+    });
+    expect(manifest?.relatedCollections).toEqual([]);
   });
 
   it("compiles a join-backed inverse collection and a bounded specialized lookup", () => {
@@ -157,6 +210,29 @@ describe("Atlas resource declarations", () => {
       expect(() => defineAtlas({ resources: [item, team] })).toThrow(error);
     },
   );
+});
+
+describe("Atlas resource record links", () => {
+  function resolveLink(href: string) {
+    const resource = defineAtlasResource({
+      ...base, recordLinks: { detail: { label: "Details", href: () => href } },
+    });
+    const exposure = resource.getOperationExposures().find(({ id }) => id === "resource:item:read");
+    return exposure!.resolveRecordLinks!({ id: "item-1" });
+  }
+
+  it.each([
+    "/items/one%20two", "https://example.test/items/1", "http://example.test/items/1",
+  ])("preserves a valid record link %s", (href) => {
+    expect(resolveLink(href)).toEqual([{ id: "detail", label: "Details", href }]);
+  });
+
+  it.each([
+    "//example.test/item", "javascript:alert(1)", "/\\example.test", "/two words",
+    "/tab\titem", "/delete\u007fitem", "/nonbreaking\u00a0space", " /item",
+  ])("rejects an unsafe or unescaped record link %j", (href) => {
+    expect(() => resolveLink(href)).toThrow('Atlas record link "detail" returned an invalid URL.');
+  });
 });
 
 describe("Atlas contextual operation gateway", () => {

@@ -11,7 +11,10 @@ import { testHttpAccess } from "../testing/http_access.js";
 import { defineWorker } from "../workers/index.js";
 import {
   type AtlasHttpController,
+  atlasNotification,
   defineCatalogAtlasSource,
+  mapAtlasOperationInput,
+  mapAtlasOperationOutput,
 } from "./index.js";
 
 const modelSchema = z.object({ id: z.string(), name: z.string() });
@@ -52,6 +55,32 @@ describe("catalog atlas operation exposures", () => {
       .resolves.toEqual({ data: "VALUE", effects: [] });
     const syncOutput = reference.mapOutput(z.string(), (value) => value);
     expect(syncOutput.validation).toEqual({ input: "async", output: "sync" });
+  });
+
+  it("validates catalog-facing input and preserves effects through standalone derivations", async () => {
+    const operation = defineAction({
+      name: "derived.count",
+      input: z.int().positive(),
+      output: z.int(),
+      handler: (count) => count,
+    });
+    const source = defineCatalogAtlasSource({ id: "count", actions: { operation } });
+    const notification = atlasNotification({ level: "success", message: "Saved" });
+    const reference = source.action(operation)
+      .onSuccess(function* ({ output }) {
+        yield notification;
+        return output + 1;
+      })
+      .derive(mapAtlasOperationInput(z.object({ count: z.int() }), ({ count }) => count))
+      .derive(mapAtlasOperationOutput(z.string(), (count) => String(count)));
+    const execute = vi.fn(async (_operation: unknown, input: unknown) => input);
+
+    // Reject mapped input before entering the catalog operation.
+    await expect(reference.execute({ count: -1 }, { execute })).rejects.toBeInstanceOf(z.ZodError);
+    expect(execute).not.toHaveBeenCalled();
+    await expect(reference.execute({ count: 3 }, { execute }))
+      .resolves.toEqual({ data: "4", effects: [notification] });
+    expect(execute).toHaveBeenCalledExactlyOnceWith(operation, 3);
   });
 
   it("classifies HTTP controllers as reads or writes and workers as writes", async () => {

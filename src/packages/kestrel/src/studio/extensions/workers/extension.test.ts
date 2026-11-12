@@ -253,6 +253,9 @@ describe("workers Studio extension", () => {
         host: z.hostname(), day: z.iso.date(), time: z.iso.datetime(), site: z.url(),
         id: z.uuid(), email: z.email(), note: z.string(), locale: z.string().default("en"),
         hint: z.string().meta({ examples: ["configured"] }),
+        pair: z.tuple([z.literal("report"), z.int().min(3)]),
+        empty: z.tuple([]),
+        details: z.record(z.string(), z.number()),
       }),
       handler: () => undefined,
     });
@@ -276,6 +279,7 @@ describe("workers Studio extension", () => {
         site: "https://example.com", hint: "configured",
         id: "00000000-0000-4000-8000-000000000000", email: "user@example.com",
         note: "example", locale: "en",
+        pair: ["report", 3], empty: [], details: {},
       });
       vi.spyOn(adapter, "enqueue").mockResolvedValueOnce([]);
       expect((await server.inject({

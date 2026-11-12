@@ -134,6 +134,28 @@ describe("DeferredTasks", () => {
     await expect(secondWait).rejects.toBe(failure);
   });
 
+  it.each(["wait", "close"] as const)("preserves an undefined rejection at an active %s boundary", async (boundary) => {
+    const tasks = new DeferredTasks();
+    tasks.defer(() => Promise.reject(undefined));
+
+    const first = tasks[boundary]();
+    const second = tasks.wait();
+
+    expect(await Promise.allSettled([first, second])).toEqual([
+      { status: "rejected", reason: undefined },
+      { status: "rejected", reason: undefined },
+    ]);
+    await expect(tasks.wait()).resolves.toBeUndefined();
+  });
+
+  it.each(["wait", "close"] as const)("preserves a settled undefined rejection at an idle %s boundary", async (boundary) => {
+    const tasks = new DeferredTasks();
+    await expect(tasks.track(Promise.reject(undefined))).rejects.toBeUndefined();
+
+    await expect(tasks[boundary]()).rejects.toBeUndefined();
+    await expect(tasks.wait()).resolves.toBeUndefined();
+  });
+
   it("reports failures immediately and contains reporter failures", async () => {
     const failure = new Error("task failed");
     const report = vi.fn(() => {
@@ -152,6 +174,25 @@ describe("DeferredTasks", () => {
     expect(report).toHaveBeenCalledWith(failure, {
       name: "email.send",
     });
+  });
+
+  it("preserves the task failure when an asynchronous reporter rejects", async () => {
+    const failure = new Error("task failed");
+    const report = Promise.withResolvers<void>();
+    const onError = vi.fn(() => report.promise);
+    const tasks = new DeferredTasks({ onError });
+    tasks.defer(() => { throw failure; });
+
+    // Reporters do not delay the group's quiescence or replace the original error.
+    try {
+      await expect(tasks.close()).rejects.toBe(failure);
+      expect(onError).toHaveBeenCalledExactlyOnceWith(failure, {});
+      expect(tasks.state).toBe("closed");
+    } finally {
+      if (onError.mock.calls.length === 0) report.resolve();
+      else report.reject(new Error("reporter unavailable"));
+    }
+    await expect(tasks.close()).rejects.toBe(failure);
   });
 
   it("accepts child work while closing and closes at quiescence", async () => {

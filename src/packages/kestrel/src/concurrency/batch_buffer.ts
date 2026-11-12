@@ -144,12 +144,10 @@ export class BatchBuffer<Value, Result = void> {
       return this.runPromise;
     }
 
-    const promise = this.drain().finally(() => {
-      if (this.runPromise === promise) {
-        this.runPromise = undefined;
-      }
-    });
+    // Publish ownership before synchronously starting the incomplete batch.
+    const { promise, resolve, reject } = Promise.withResolvers<BatchBufferResult<Value, Result>>();
     this.runPromise = promise;
+    void this.drain().then(resolve, reject);
 
     return promise;
   }
@@ -169,29 +167,35 @@ export class BatchBuffer<Value, Result = void> {
   }
 
   private async drain(): Promise<BatchBufferResult<Value, Result>> {
-    while (this.pending.length > 0 || this.activeBatches.size > 0) {
-      this.clearTimer();
-      this.startIncompleteBatch();
+    try {
+      while (this.pending.length > 0 || this.activeBatches.size > 0) {
+        this.clearTimer();
+        this.startIncompleteBatch();
 
-      // Work admitted by handlers or other callers before this snapshot
-      // settles is discovered by the next loop iteration.
-      await Promise.all([...this.activeBatches]);
+        // Work admitted by handlers or other callers before this snapshot
+        // settles is discovered by the next loop iteration.
+        await Promise.all([...this.activeBatches]);
+      }
+
+      const completed = this.completedBatches
+        .splice(0)
+        .sort((left, right) => left.sequence - right.sequence);
+      const builder = new AggregatedResultBuilder<
+        readonly Value[],
+        Result,
+        unknown
+      >();
+
+      for (const batch of completed) {
+        builder.add(batch.outcome);
+      }
+
+      return builder.build();
+    } finally {
+      // Release the drain at the boundary itself. A later close must start
+      // a new drain if work enters before this promise settles.
+      this.runPromise = undefined;
     }
-
-    const completed = this.completedBatches
-      .splice(0)
-      .sort((left, right) => left.sequence - right.sequence);
-    const builder = new AggregatedResultBuilder<
-      readonly Value[],
-      Result,
-      unknown
-    >();
-
-    for (const batch of completed) {
-      builder.add(batch.outcome);
-    }
-
-    return builder.build();
   }
 
   private startFullBatches(): void {
@@ -306,13 +310,9 @@ export class BatchBuffer<Value, Result = void> {
   }
 
   private scheduleIncompleteBatch(): void {
-    if (this.pending.length === 0 || this.timer !== undefined) {
-      return;
-    }
-
     const first = this.pending[0];
 
-    if (first === undefined) {
+    if (first === undefined || this.timer !== undefined) {
       return;
     }
 

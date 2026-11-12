@@ -170,6 +170,10 @@ function createAtlas(textMaxLength?: number | false, resourceLimit?: number | fa
 }
 
 describe("Atlas", () => {
+  it.each(["//external.test", "/\\external.test"])("rejects a cross-origin mount path %s", (basePath) => {
+    expect(() => defineAtlas({ basePath, resources: [] })).toThrow("absolute URL path");
+  });
+
   it("serializes default and resource list text limits without losing false", () => {
     expect(createAtlas().getManifest().defaults.textMaxLength).toBe(50);
     expect(createAtlas(80, 100).getManifest()).toMatchObject({

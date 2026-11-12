@@ -188,7 +188,7 @@ The scheduler reconciles only its selected definitions and never deletes unrelat
 
 ## Scheduler
 
-`ScheduledTaskScheduler` polls state adapters, orders due occurrences, admits at most its available slots and executes each reservation in a dedicated `ExecutionScope`. Dependencies are resolved from that scope. Start and completion observations use the `scheduled-task` transport, and handler failures are persisted without terminating the polling loop. If both admission and overlap lock release fail, the reported aggregate retains both failures.
+`ScheduledTaskScheduler` polls state adapters, orders due occurrences, admits at most its available slots and executes each reservation in a dedicated `ExecutionScope`. A due occurrence blocked by overlap or rejected by its adapter leaves the slot available for the next candidate. Dependencies are resolved from the execution scope. Start and completion observations use the `scheduled-task` transport, and handler failures are persisted without terminating the polling loop. If both admission and overlap lock release fail, the reported aggregate retains both failures.
 
 Scheduler startup ownership is published before reconciliation can reenter admission. Concurrent scheduler starts are rejected while reconciliation or polling is active; the public runtime wrapper shares its published startup promise with reentrant callers. Stop waits for pending reconciliation and admission, prevents a late handler start, and restores a reservation obtained after stop was requested. Polling and one-shot executions share the same handler cancellation owner. Application drain expiry also stops polling and returns a reservation acquired after the budget elapsed.
 

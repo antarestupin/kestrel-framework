@@ -312,46 +312,58 @@ export class App<
       run: async (input) => {
         await this.start();
         const execution = await this.createExecutionScope();
-        setExecutionLogContext(execution.context, {
-          operation: action.name,
-          transport: "direct",
-        });
-        const observer = this.resolveObserver(execution.container);
-        const startedAt = performance.now();
-        let outcome: "failure" | "success" = "success";
-        let executionError: unknown;
-
-        return this.runInObservationContext(observer, async () => {
-          observer?.record(executionStartedObservation, {
+        try {
+          setExecutionLogContext(execution.context, {
             operation: action.name,
             transport: "direct",
           });
+          const observer = this.resolveObserver(execution.container);
+          const startedAt = performance.now();
+          let outcome: "failure" | "success" = "failure";
 
-          try {
-            return await execution.get(action).run(input);
-          } catch (error: unknown) {
-            outcome = "failure";
-            executionError = error;
-            throw error;
-          } finally {
-            observer?.record(
-              executionCompletedObservation,
-              {
+          return await this.runInObservationContext(observer, async () => {
+            try {
+              observer?.record(executionStartedObservation, {
                 operation: action.name,
                 transport: "direct",
-                ...getExecutionObservationContext(execution.context),
-                ...(executionError === undefined
-                  ? {}
-                  : getExecutionObservationError(executionError)),
-              },
-              {
-                outcome,
-                durationMs: performance.now() - startedAt,
-              },
-            );
-            await execution.dispose(outcome);
-          }
-        });
+              });
+
+              let executionError: unknown;
+              try {
+                const result = await execution.get(action).run(input);
+                outcome = "success";
+                return result;
+              } catch (error: unknown) {
+                executionError = error;
+                throw error;
+              } finally {
+                observer?.record(
+                  executionCompletedObservation,
+                  {
+                    operation: action.name,
+                    transport: "direct",
+                    ...getExecutionObservationContext(execution.context),
+                    // A rejected promise can carry undefined as its reason.
+                    ...(outcome === "success"
+                      ? {}
+                      : getExecutionObservationError(executionError)),
+                  },
+                  {
+                    outcome,
+                    durationMs: performance.now() - startedAt,
+                  },
+                );
+              }
+            } finally {
+              // Completion listeners retain the execution's observer during cleanup.
+              await execution.dispose(outcome);
+            }
+          });
+        } catch (error: unknown) {
+          // Setup can fail before entering the observer context. Disposal is idempotent.
+          await execution.dispose("failure").catch(() => undefined);
+          throw error;
+        }
       },
     };
   }

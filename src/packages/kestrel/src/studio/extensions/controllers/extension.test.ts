@@ -176,6 +176,9 @@ describe("controllers Studio extension", () => {
         date: z.iso.date(), timestamp: z.iso.datetime(),
         homepage: z.url(), hostname: z.hostname(), id: z.uuid(),
         example: z.string().meta({ examples: ["supplied"] }),
+        pair: z.tuple([z.literal("report"), z.int().min(3)]),
+        empty: z.array(z.string()).max(0),
+        details: z.record(z.string(), z.number()),
       }),
       handler: ({ input }) => input,
     });
@@ -207,6 +210,7 @@ describe("controllers Studio extension", () => {
           ref: "draft", date: "2026-01-01", timestamp: "2026-01-01T12:00:00.000Z",
           homepage: "https://example.com", hostname: "example.com",
           id: "00000000-0000-4000-8000-000000000000", example: "supplied",
+          pair: ["report", 3], empty: [], details: {},
         } }],
       });
       expect(catalog.nodes[2]).toMatchObject({

@@ -32,9 +32,14 @@ describe("scheduled-tasks Studio extension", () => {
       schedule: every({ hours: 1 }),
       handler: () => undefined,
     });
+    const nestedTask = defineScheduledTask({
+      id: "billing.reminders",
+      schedule: every({ minutes: 15 }),
+      handler: () => undefined,
+    });
     const registry = new ScheduledTaskRegistry()
       .registerCatalog(
-        { billing: { reconciliation: applicationTask } },
+        { billing: { reconciliation: applicationTask, reminders: { send: nestedTask } } },
         { kind: "application" },
       )
       .register(
@@ -86,6 +91,10 @@ describe("scheduled-tasks Studio extension", () => {
               paused: false,
               nextScheduledAt: "2026-01-01T00:05:00.000Z",
             },
+          }, {
+            kind: "group",
+            name: "reminders",
+            children: [{ kind: "task", id: "billing.reminders", controllable: false }],
           }],
         }],
       },
@@ -182,6 +191,30 @@ describe("scheduled-tasks Studio extension", () => {
     await app.dispose();
   });
 
+  it("uses the current system time when resuming without an injected clock", async () => {
+    const adapter = new MemoryScheduledTaskAdapter();
+    const task = defineScheduledTask({
+      id: "example.wall-clock",
+      schedule: every({ minutes: 1, start: "immediate" }),
+      handler: () => undefined,
+    });
+    const registry = new ScheduledTaskRegistry().register(task, { kind: "application" });
+    await adapter.reconcile([{ taskId: task.id, nextScheduledAt: now }]);
+    const { server, app } = await createTestApp(registry, adapter, { defaultState: "persistent" });
+
+    try {
+      const before = Date.now();
+      expect((await control(server, task.id, "resume")).statusCode).toBe(204);
+      const after = Date.now();
+      const [state] = await adapter.listStates([task.id]);
+      expect(state?.nextScheduledAt?.getTime()).toBeGreaterThanOrEqual(before + 60_000);
+      expect(state?.nextScheduledAt?.getTime()).toBeLessThanOrEqual(after + 60_000);
+    } finally {
+      await server.close();
+      await app.dispose();
+    }
+  });
+
   it("distinguishes missing runtime state and publishes cron, loop, and prior run details", async () => {
     const adapter = new MemoryScheduledTaskAdapter({ now: () => now });
     const cronTask = defineScheduledTask({
@@ -255,12 +288,13 @@ describe("scheduled-tasks Studio extension", () => {
 async function createTestApp(
   registry: ScheduledTaskRegistry,
   adapter: MemoryScheduledTaskAdapter,
-) {
-  const server = Fastify();
-  const extension = defineScheduledTasksStudioExtension(registry, adapter, {
+  options: Parameters<typeof defineScheduledTasksStudioExtension>[2] = {
     defaultState: "persistent",
     now: () => now,
-  });
+  },
+) {
+  const server = Fastify();
+  const extension = defineScheduledTasksStudioExtension(registry, adapter, options);
   const studio = new Studio({ extensions: [extension] });
   const app = new App({});
   const manager = new HttpControllerManager(app, server);

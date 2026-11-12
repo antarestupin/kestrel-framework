@@ -124,10 +124,6 @@ export class DeferredTasks {
       return this.closePromise;
     }
 
-    if (this.currentState === "closed") {
-      return Promise.resolve();
-    }
-
     this.currentState = "closing";
 
     if (this.pendingTasks.size === 0) {
@@ -202,26 +198,26 @@ export class DeferredTasks {
       return;
     }
 
-    const error = this.takeError();
+    const failure = this.takeFailure();
 
     for (const waiter of waiters) {
-      if (error === undefined) {
+      if (failure === undefined) {
         waiter.resolve();
       } else {
-        waiter.reject(error);
+        waiter.reject(failure.reason);
       }
     }
   }
 
   private consumeErrors(): Promise<void> {
-    const error = this.takeError();
+    const failure = this.takeFailure();
 
-    return error === undefined
+    return failure === undefined
       ? Promise.resolve()
-      : Promise.reject(error);
+      : Promise.reject(failure.reason);
   }
 
-  private takeError(): unknown | undefined {
+  private takeFailure(): { reason: unknown } | undefined {
     if (this.errors.length === 0) {
       return undefined;
     }
@@ -229,12 +225,12 @@ export class DeferredTasks {
     const errors = this.errors;
     this.errors = [];
 
-    return errors.length === 1
-      ? errors[0]
-      : new AggregateError(
-          errors,
-          "Multiple deferred tasks failed.",
-        );
+    // A promise can reject with undefined, so absence needs its own marker.
+    return {
+      reason: errors.length === 1
+        ? errors[0]
+        : new AggregateError(errors, "Multiple deferred tasks failed."),
+    };
   }
 
   private reportError(error: unknown, task: PendingTask): void {

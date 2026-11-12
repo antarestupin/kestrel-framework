@@ -4,6 +4,22 @@ import {
   ExecutionContext,
   type ExecutionContextDiagnosticDestination,
 } from "./execution_context.js";
+import { getExecutionObservationError } from "./observations.js";
+
+describe("execution error diagnostics", () => {
+  it("preserves a non-Error cause and omits an absent stack", () => {
+    const error = new Error("Outer failure", { cause: "inner failure" });
+    delete error.stack;
+
+    expect(getExecutionObservationError(error)).toEqual({
+      error: {
+        name: "Error",
+        message: "Outer failure",
+        causes: [{ name: "UnknownError", message: "inner failure" }],
+      },
+    });
+  });
+});
 
 describe("ExecutionContext diagnostic budgets", () => {
   it("accepts the exact UTF-8 entry boundary and refuses one extra byte atomically", () => {

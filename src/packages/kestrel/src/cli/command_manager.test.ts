@@ -39,12 +39,13 @@ interface TestCli {
   errors: string[];
 }
 
-function createTestCli(): TestCli {
+function createTestCli(version?: string): TestCli {
   const output: string[] = [];
   const errors: string[] = [];
   const app = new App({});
   const manager = new CliCommandManager(app, {
     name: "test",
+    ...(version === undefined ? {} : { version }),
     writeOutput: (value) => output.push(value),
     writeError: (value) => errors.push(value),
   });
@@ -184,6 +185,202 @@ describe("CliCommandManager", () => {
     expect(boot).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { arguments: [], text: "Usage: test" },
+    { arguments: ["-V"], text: "1.2.3" },
+    { arguments: ["--version"], text: "1.2.3" },
+    { arguments: ["help", "echo"], text: "Usage: test echo" },
+    { arguments: ["echo", "-h"], text: "Usage: test echo" },
+  ])("renders $arguments without selecting workloads or booting providers", async (invocation) => {
+    const cli = createTestCli("1.2.3");
+    const boot = vi.fn();
+    const prepareWorkloads = vi.fn(() => {
+      throw new Error("Workload preparation requires execution arguments.");
+    });
+    cli.app.register({ register() {}, boot });
+    cli.manager.register(defineCliController({
+      command: "echo",
+      prepareWorkloads,
+      handler: () => "echo",
+    }));
+
+    try {
+      expect(await cli.manager.run(invocation.arguments)).toBe(0);
+      expect(cli.output.join("")).toContain(invocation.text);
+      expect(cli.errors).toEqual([]);
+      expect(cli.app.state).toBe("composing");
+      expect(prepareWorkloads).not.toHaveBeenCalled();
+      expect(boot).not.toHaveBeenCalled();
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it.each([
+    { input: ["--", "--help"], value: "--help", binding: param(0) },
+    { input: ["--message", "--help"], value: "--help", binding: option() },
+    { input: ["--message", "-V"], value: "-V", binding: option("message") },
+  ])("executes a command with literal input $input", async (invocation) => {
+    const cli = createTestCli();
+    const boot = vi.fn();
+    cli.app.register({ register() {}, boot });
+    cli.manager.register(defineCliController({
+      command: "echo",
+      input: z.object({ message: z.string() }),
+      bindings: { message: invocation.binding },
+      handler: ({ input }) => input.message,
+    }));
+
+    try {
+      expect(await cli.manager.run(["echo", ...invocation.input])).toBe(0);
+      expect(cli.output).toEqual([`${JSON.stringify(invocation.value)}\n`]);
+      expect(cli.errors).toEqual([]);
+      expect(boot).toHaveBeenCalledOnce();
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("prepares the selected nested action with its original invocation arguments", async () => {
+    const cli = createTestCli();
+    const arguments_ = ["--_format", "json", "work", "start"];
+    const prepareWorkloads = vi.fn(() => ["workers"] as const);
+    const start = defineAction({
+      name: "work.start",
+      input: z.object({}),
+      output: z.object({ status: z.string() }),
+      handler: () => ({ status: "started" }),
+    });
+    cli.manager.register(defineCliController({ command: "work", handler: () => "parent" }));
+    cli.manager.register(defineActionCliController(start, "work start", {
+      input: z.object({ note: z.string().optional() }),
+      bindings: { note: param(0) },
+      runtime: "worker",
+      workloads: ["scheduled-tasks"],
+      prepareWorkloads,
+      handler: ({ action, input, writeProgress }) => {
+        writeProgress?.(input.note ?? "Starting work");
+        return action.run({});
+      },
+    }));
+
+    try {
+      expect(await cli.manager.run(arguments_)).toBe(0);
+      expect(prepareWorkloads).toHaveBeenCalledExactlyOnceWith(arguments_);
+      expect(cli.app.bootPlan).toMatchObject({ runtime: "worker", workloads: ["workers"] });
+      expect(cli.output).toEqual(['{"status":"started"}\n']);
+      expect(cli.errors).toEqual(["Starting work\n"]);
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("can prepare the deepest matching controller before execution", async () => {
+    const cli = createTestCli();
+    cli.manager.register(defineCliController({ command: "work", handler: () => undefined }));
+    cli.manager.register(defineCliController({
+      command: "work start",
+      workloads: ["workers"],
+      runningMode: "minimal",
+      handler: () => undefined,
+    }));
+
+    try {
+      cli.manager.prepare(["work", "--_format=pretty", "start"]);
+      expect(cli.app.bootPlan).toMatchObject({ runningMode: "minimal", workloads: ["workers"] });
+
+      cli.manager.prepare(["--_format", "json", "work"]);
+      expect(cli.app.bootPlan).toMatchObject({ runningMode: "standard", workloads: [] });
+      expect(cli.app.state).toBe("composing");
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("reports usage for a missing subcommand without booting providers", async () => {
+    const cli = createTestCli();
+    const boot = vi.fn();
+    cli.app.register({ register() {}, boot });
+    cli.manager.register(defineCliController({ command: "work start", handler: () => undefined }));
+
+    try {
+      expect(await cli.manager.run(["work"])).toBe(2);
+      expect(cli.errors.join("")).toContain("Usage: test work");
+      expect(boot).not.toHaveBeenCalled();
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("returns a safe startup failure without invoking the handler", async () => {
+    const cli = createTestCli();
+    const handler = vi.fn();
+    cli.app.register({
+      register() {},
+      boot() { throw new Error("Private infrastructure failure"); },
+    });
+    cli.manager.register(defineCliController({ command: "run", handler }));
+
+    try {
+      expect(await cli.manager.run(["run"])).toBe(1);
+      expect(cli.output).toEqual([]);
+      expect(cli.errors).toEqual(["An unexpected CLI error occurred.\n"]);
+      expect(handler).not.toHaveBeenCalled();
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it.each([
+    { bindings: { first: param(0), second: param(0) } },
+    { bindings: { first: param(0), second: param(2) } },
+  ])("rejects non-contiguous or conflicting positional bindings $bindings", async ({ bindings }) => {
+    const cli = createTestCli();
+    try {
+      expect(() => cli.manager.register(defineCliController({
+        command: "echo",
+        input: z.object({ first: z.string(), second: z.string() }),
+        bindings,
+        handler: () => undefined,
+      }))).toThrow("CLI positional parameter indexes must be unique and contiguous.");
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("rejects a schema field reserved for global output formatting", async () => {
+    const cli = createTestCli();
+    try {
+      expect(() => cli.manager.register(defineCliController({
+        command: "echo",
+        input: z.object({ _format: z.string() }),
+        handler: () => undefined,
+      }))).toThrow('The CLI input field "_format" is reserved.');
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it("rejects registering an exact command path twice", async () => {
+    const cli = createTestCli();
+    try {
+      const echo = defineCliController({ command: "text echo", handler: () => undefined });
+      cli.manager.register(echo);
+      expect(() => cli.manager.register(echo)).toThrow('CLI command "text echo" is already registered.');
+    } finally {
+      await cli.app.dispose();
+    }
+  });
+
+  it.each([-1, 1.5])("rejects invalid positional index %s", (index) => {
+    expect(() => param(index)).toThrow("A CLI parameter index must be a non-negative integer.");
+  });
+
+  it("rejects a blank command path", () => {
+    expect(() => defineCliController({ command: " \t", handler: () => undefined }))
+      .toThrow("A CLI command path cannot be empty.");
+  });
+
   it("collects repeatable options into array inputs", async () => {
     const cli = createTestCli();
     const handler = vi.fn();
@@ -228,7 +425,7 @@ describe("CliCommandManager", () => {
     expect(ended).toHaveBeenCalledOnce();
   });
 
-  it("records the lifecycle of a CLI execution", async () => {
+  it.each(["success", "failure"] as const)("records the lifecycle of a %s CLI execution", async (outcome) => {
     const cli = createTestCli();
     const events: ObservationEvent[] = [];
     const observerContext = new AsyncLocalObserverContext();
@@ -251,6 +448,12 @@ describe("CliCommandManager", () => {
     );
     cli.manager.register(defineCliController({
       command: "observed run",
+      input: z.object({
+        input: z.string().transform((value) => {
+          if (outcome === "failure") throw new Error("Schema transform failed");
+          return value;
+        }),
+      }),
       handler: () => {
         expect(observerContext.get()).toBeDefined();
 
@@ -258,26 +461,68 @@ describe("CliCommandManager", () => {
       },
     }));
 
-    const exitCode = await cli.manager.run(["observed", "run"]);
-
-    expect(exitCode).toBe(0);
-    expect(events.map((event) => event.name)).toEqual([
-      "execution.started",
-      "execution.completed",
-    ]);
-    expect(events[0]?.data).toEqual({
-      operation: "observed run",
-      transport: "cli",
-    });
-    expect(events[1]).toMatchObject({
-      executionId: events[0]?.executionId,
-      outcome: "success",
-      data: {
+    try {
+      expect(await cli.manager.run(["observed", "run", "--input=value"])).toBe(outcome === "success" ? 0 : 1);
+      expect(events.map((event) => event.name)).toEqual([
+        "execution.started",
+        "execution.completed",
+      ]);
+      expect(events[0]?.data).toEqual({
         operation: "observed run",
         transport: "cli",
-      },
-    });
+      });
+      expect(events[1]).toMatchObject({
+        executionId: events[0]?.executionId,
+        outcome,
+        data: {
+          operation: "observed run",
+          transport: "cli",
+          ...(outcome === "failure" ? { error: { message: "Schema transform failed" } } : {}),
+        },
+      });
+    } finally {
+      await cli.app.dispose();
+    }
   });
+
+  it.each(["resolve", "execution.started", "execution.completed"] as const)(
+    "disposes the execution when the observer fails at %s",
+    async (failurePoint) => {
+      const app = new App({}, { shutdown: { timeoutMs: 100, drainMs: 20 } });
+      const completed = vi.fn();
+      const handler = vi.fn(() => "done");
+      const manager = new CliCommandManager(app, { writeOutput() {}, writeError() {} });
+      const failure = new Error("Observation unavailable");
+      const recorder: ObservationRecorder = {
+        enqueue(event) {
+          if (event.name === failurePoint) throw failure;
+        },
+        flush: async () => {},
+        close: async () => {},
+        getHealth: () => emptyRecorderHealth(),
+      };
+      app.eventBus.listen(executionCompletedEvent, completed, { scope: "descendants" });
+      app.container.registerFactory(
+        "observer",
+        ({ executionId }: { executionId: string }) => {
+          if (failurePoint === "resolve") throw failure;
+          return new ScopedObserver(executionId, recorder);
+        },
+        { lifetime: "scoped" },
+      );
+      manager.register(defineCliController({ command: "run", handler }));
+
+      try {
+        expect(await manager.run(["run"])).toBe(1);
+        expect(completed).toHaveBeenCalledOnce();
+        expect(handler).toHaveBeenCalledTimes(failurePoint === "execution.completed" ? 1 : 0);
+        await expect(app.dispose()).resolves.toBeUndefined();
+      } finally {
+        // The short deadline also releases a scope if this regression reappears.
+        await app.dispose().catch(() => undefined);
+      }
+    },
+  );
 
   it("can disable observations for infrastructure maintenance", async () => {
     const cli = createTestCli();

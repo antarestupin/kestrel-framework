@@ -184,6 +184,25 @@ describe("configuration", () => {
     expectTypeOf(config.token).toEqualTypeOf<string>();
   });
 
+  it("reads only variables owned by the supplied environment map", () => {
+    const definition = defineConfig({
+      name: envVar("toString"),
+      endpoint: envVar("SERVICE_ENDPOINT", { fallback: "https://example.com" }),
+      retries: envVar("SERVICE_RETRIES", z.coerce.number().int().default(3)),
+    });
+    const env: Record<string, string> = {};
+    Object.setPrototypeOf(env, {
+      SERVICE_ENDPOINT: "https://inherited.example.com",
+      SERVICE_RETRIES: "9",
+    });
+
+    expect(resolveConfig(definition, { env })).toEqual({
+      name: undefined,
+      endpoint: "https://example.com",
+      retries: 3,
+    });
+  });
+
   it("reports the variable and config path when validation fails", () => {
     const definition = defineConfig({
       http: {
@@ -226,6 +245,17 @@ describe("conventional environment overrides", () => {
     environmentOverrides: {
       prefix: "APP_CONFIG",
     },
+  });
+
+  it.each([
+    ["app_CONFIG", "Expected uppercase letters"],
+    ["APP__CONFIG", "Double underscores are reserved"],
+  ])("rejects malformed override prefix %s", (prefix, error) => {
+    expect(() => createConfigurationApi({
+      environments: ["test"],
+      defaultEnvironment: "test",
+      environmentOverrides: { prefix },
+    })).toThrowError(error);
   });
 
   it("overrides configured values and omitted library defaults", () => {
@@ -274,6 +304,107 @@ describe("conventional environment overrides", () => {
     });
   });
 
+  it("discovers conventional targets in the contribution selected for the active environment", () => {
+    const { defineConfig, fromEnv, resolveConfig } = createConventionalApi();
+    const primary = defineConfigBase(z.object({
+      enabled: z.boolean().default(false),
+      retries: z.number().default(3),
+    }));
+    const alternative = defineConfigBase(z.object({ region: z.string().default("eu") }));
+    const definition = defineConfig({
+      service: fromEnv({
+        test: configure(primary, {}),
+        default: configure(alternative, {}),
+      }),
+    });
+
+    expect(resolveConfig(definition, {
+      environment: "test",
+      env: { APP_CONFIG__SERVICE__ENABLED: "true" },
+    }).service).toEqual({ enabled: true, retries: 3 });
+    expect(() => resolveConfig(definition, {
+      environment: "production",
+      env: { APP_CONFIG__SERVICE__ENABLED: "true" },
+    })).toThrowError('Unknown conventional environment variable "APP_CONFIG__SERVICE__ENABLED".');
+  });
+
+  it("ignores inherited conventional overrides even when they would create an optional object", () => {
+    const { resolveConfig } = createConventionalApi();
+    const base = defineConfigBase(z.object({
+      limit: z.number().default(3),
+      queue: z.object({ limit: z.number() }).optional(),
+    }));
+    const env = Object.create({
+      APP_CONFIG__SERVICE__LIMIT: "11",
+      APP_CONFIG__SERVICE__QUEUE__LIMIT: "12",
+    }) as Record<string, string>;
+
+    expect(resolveConfig({ service: configure(base, {}) }, { env }).service)
+      .toEqual({ limit: 3 });
+  });
+
+  it("materializes an optional object using the override and its leaf defaults", () => {
+    const { resolveConfig } = createConventionalApi();
+    const base = defineConfigBase(z.object({
+      queue: z.object({
+        limit: z.number().positive(),
+        enabled: z.boolean().default(true),
+      }).optional(),
+    }));
+    const config = resolveConfig({ service: configure(base, {}) }, {
+      env: { APP_CONFIG__SERVICE__QUEUE__LIMIT: "7" },
+    });
+
+    expect(config.service.queue).toEqual({ limit: 7, enabled: true });
+  });
+
+  it("preserves nested default siblings across independent resolutions", () => {
+    const { resolveConfig } = createConventionalApi();
+    const initial = { queue: { limit: 3, enabled: true }, label: "standard" };
+    const base = defineConfigBase(z.object({
+      policy: z.object({
+        queue: z.object({ limit: z.number().positive(), enabled: z.boolean() }),
+        label: z.string(),
+      }).default(initial),
+    }));
+    const definition = { service: configure(base, {}) };
+    const config = resolveConfig(definition, {
+      env: { APP_CONFIG__SERVICE__POLICY__QUEUE__LIMIT: "7" },
+    });
+
+    expect(config.service.policy).toEqual({
+      queue: { limit: 7, enabled: true },
+      label: "standard",
+    });
+    expect(initial.queue.limit).toBe(3);
+    expect(resolveConfig(definition, { env: {} }).service.policy).toEqual(initial);
+  });
+
+  it("keeps prototype keys out of the conventional override catalog", () => {
+    const { defineConfig, resolveConfig } = createConventionalApi();
+    const sentinel = "configurationOverridePrototypeRegression";
+    const base = defineConfigBase(z.object({
+      ["__proto__"]: z.object({ [sentinel]: z.string().optional() }).optional(),
+    }));
+    const definition = defineConfig({ service: configure(base, {}) });
+    const name = "APP_CONFIG__SERVICE____PROTO____CONFIGURATION_OVERRIDE_PROTOTYPE_REGRESSION";
+
+    let failure: unknown;
+    try {
+      try {
+        resolveConfig(definition, { env: { [name]: "injected" } });
+      } catch (error: unknown) {
+        failure = error;
+      }
+      expect(Object.hasOwn(Object.prototype, sentinel)).toBe(false);
+      expect(failure).toBeInstanceOf(ConfigurationError);
+      expect(failure).toMatchObject({ message: `Unknown conventional environment variable "${name}".` });
+    } finally {
+      // Running this regression against the old implementation can pollute the prototype.
+      Reflect.deleteProperty(Object.prototype, sentinel);
+    }
+  });
+
   it("keeps an explicit envVar binding authoritative", () => {
     const { defineConfig, envVar, resolveConfig } = createConventionalApi();
     const base = defineConfigBase(z.object({
@@ -318,7 +449,7 @@ describe("conventional environment overrides", () => {
     );
   });
 
-  it("reports the variable and config path for invalid overrides", () => {
+  it.each(["invalid", "-1"])("reports the variable and config path for invalid override %s", (raw) => {
     const { defineConfig, resolveConfig } = createConventionalApi();
     const base = defineConfigBase(z.object({
       port: z.coerce.number().int().positive().default(3_333),
@@ -326,10 +457,18 @@ describe("conventional environment overrides", () => {
     const definition = defineConfig({ http: configure(base, {}) });
 
     expect(() => resolveConfig(definition, {
-      env: { APP_CONFIG__HTTP__PORT: "invalid" },
+      env: { APP_CONFIG__HTTP__PORT: raw },
     })).toThrowError(
       'Invalid conventional environment variable "APP_CONFIG__HTTP__PORT" at "http.port"',
     );
+  });
+
+  it("reports a schema key that cannot be represented in a conventional variable", () => {
+    const { resolveConfig } = createConventionalApi();
+    const base = defineConfigBase(z.object({ "retry-limit": z.number().default(3) }));
+
+    expect(() => resolveConfig({ service: configure(base, {}) }, { env: {} }))
+      .toThrowError('Configuration path "service.retry-limit" cannot be converted');
   });
 
   it("rejects names that collapse two schema paths", () => {
@@ -364,6 +503,21 @@ describe("conventional environment overrides", () => {
     })).toThrowError(
       'Unknown conventional environment variable "APP_CONFIG__SERVICE__ORIGINS".',
     );
+  });
+
+  it("resolves explicit bindings inside an array of configuration contributions", () => {
+    const { envVar, resolveConfig } = createConventionalApi();
+    const base = defineConfigBase(z.object({
+      limit: z.coerce.number().int().positive(),
+    }));
+    // Explicit names remain usable even when an array has no conventional path.
+    const definition = { queues: [configure(base, { limit: envVar("APP_CONFIG__QUEUE_LIMIT") })] };
+    const env = { APP_CONFIG__QUEUE_LIMIT: "7" };
+
+    expect(resolveConfig(definition, { env }).queues).toEqual([{ limit: 7 }]);
+    expect(() => resolveConfig(definition, {
+      env: { ...env, APP_CONFIG__QUEUES__0__LIMIT: "9" },
+    })).toThrowError('Unknown conventional environment variable "APP_CONFIG__QUEUES__0__LIMIT".');
   });
 });
 

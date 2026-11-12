@@ -175,11 +175,13 @@ The complete application path is part of the name, so two instances of the same 
 
 Conventional values are applied after `fromEnv()` and every other `ConfigSource` has resolved, but before the contribution's final Zod parse. They therefore override both static values supplied to `configure()` and fields selected for an application environment. Fields omitted from `configure()` remain addressable because the catalog comes from the library schema rather than the application definition. Zod defaults still apply when neither the definition nor the environment supplies a value.
 
+When a source selects a whole configuration contribution, only the selected contribution exposes its schema fields. Variable lookup uses the supplied environment map's own properties. The conventional catalog skips `__proto__` fields because Zod excludes them from parsed object output.
+
 Raw strings are tried first so string schemas and coercing schemas retain their normal behavior. If a raw string is rejected, JSON primitive decoding is tried before the value is rejected; this allows `true`, `false` and values accepted only as numbers to reach boolean and numeric schemas without making string values ambiguous.
 
 The reserved prefix is strict. Resolution fails when a defined variable under `APP_CONFIG__` has no known target, when two paths collapse to the same name, or when an invalid value is supplied. Errors include both the variable name and configuration path. This turns misspellings and ambiguous conversions into boot failures instead of ignored deployment settings.
 
-Arrays, tuples, records, maps, sets, lazy or intersected schemas, and unions containing object branches are intentionally excluded. Indices and dynamic keys are not stable deployment interfaces, while polymorphic objects require an explicit discriminator-aware representation. Such fields can still use `envVar()` with application-owned parsing.
+Arrays, tuples, records, maps, sets, lazy or intersected schemas, and unions containing object branches are intentionally excluded. Indices and dynamic keys are not stable deployment interfaces, while polymorphic objects require an explicit discriminator-aware representation. Such fields can still use `envVar()` with application-owned parsing. Configuration contributions inside arrays can also resolve explicit bindings.
 
 Purely application-owned sections declared with `defineConfig()` are also excluded because they have no runtime schema from which to derive validation or supported paths. They continue to use static values, `fromEnv()` or explicit `envVar()` sources.
 

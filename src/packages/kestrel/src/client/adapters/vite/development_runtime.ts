@@ -51,7 +51,7 @@ interface ViteDevelopmentRuntimeDependencies {
  * lower-level runtime owns the common watcher, module graph and HMR socket.
  */
 export class ViteDevelopmentRuntime {
-  private readonly mountedScopes = new WeakSet<FastifyInstance>();
+  private readonly scopeMounts = new WeakMap<FastifyInstance, Promise<void>>();
   private readonly createServer: CreateViteServer;
   private readonly readHtml: typeof readFile;
   private serverPromise: Promise<ViteDevServer> | undefined;
@@ -111,10 +111,23 @@ export class ViteDevelopmentRuntime {
 
   /** Attaches the shared middleware to one encapsulated client scope. */
   public async mount(server: FastifyInstance, assetBasePath?: string): Promise<void> {
-    if (this.mountedScopes.has(server)) {
-      return;
+    const existing = this.scopeMounts.get(server);
+    if (existing !== undefined) {
+      return existing;
     }
 
+    // Cache the in-progress setup so concurrent calls share one middleware mount.
+    const mounting = this.mountScope(server, assetBasePath);
+    this.scopeMounts.set(server, mounting);
+    try {
+      await mounting;
+    } catch (error) {
+      this.scopeMounts.delete(server);
+      throw error;
+    }
+  }
+
+  private async mountScope(server: FastifyInstance, assetBasePath?: string): Promise<void> {
     const vite = await this.getServer(server);
 
     await server.register(middie);
@@ -136,7 +149,6 @@ export class ViteDevelopmentRuntime {
       });
     }
     server.addHook("preClose", async () => this.close());
-    this.mountedScopes.add(server);
   }
 
   /** Transforms one client's standalone HTML for the shared development root. */
@@ -155,7 +167,8 @@ export class ViteDevelopmentRuntime {
 
     const developmentHtml = template.replace(
       entry.templateModulePath,
-      entry.developmentModulePath,
+      // Module URLs can contain literal JavaScript replacement patterns.
+      () => entry.developmentModulePath,
     );
 
     return vite.transformIndexHtml(requestUrl, developmentHtml);

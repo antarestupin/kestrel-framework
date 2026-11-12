@@ -34,6 +34,7 @@ import {
   atlasCollectionQuerySchema,
   createResourceCollectionQuerySchema,
 } from "./collection.js";
+import { hasForbiddenUrlCharacters, isAtlasAbsolutePath } from "./urls.js";
 
 export interface AtlasFieldOptions {
   readonly label?: string;
@@ -338,10 +339,11 @@ function compileResource(
       `Atlas resource "${options.id}" display field "${displayField}" does not exist in its read output.`,
     );
   }
+  // Presentation-only fields can have names inherited from Object.prototype.
   const fields = [...fieldIds].map((id) => compileField(
     options.id,
     id,
-    properties[id] ?? {},
+    Object.hasOwn(properties, id) ? properties[id]! : {},
     writableFields,
     options.fields?.[id],
   ));
@@ -1243,10 +1245,8 @@ function resolveRecordLinks<RecordData>(
     const href = link.href(record as RecordData);
     if (href === undefined) return [];
     // Limit navigation to HTTP(S) URLs and same-origin absolute paths.
-    if (typeof href !== "string" || href !== href.trim()
-      || /[\\\u0000-\u0020]/u.test(href)
-      || !(href.startsWith("/") && !href.startsWith("//")
-        || /^https?:\/\//iu.test(href))) {
+    if (typeof href !== "string" || !(isAtlasAbsolutePath(href)
+      || /^https?:\/\//iu.test(href) && !hasForbiddenUrlCharacters(href))) {
       throw new TypeError(`Atlas record link "${id}" returned an invalid URL.`);
     }
     const url = new URL(href, "https://atlas.invalid");

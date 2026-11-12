@@ -23,6 +23,44 @@ const startRequest = {
 } as const;
 
 describe("MemoryWorkflowAdapter", () => {
+  it("validates query limits and reservation bounds before selecting work", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    await adapter.start(startRequest);
+    for (const limit of [0, 201, 1.5]) {
+      await expect(adapter.listExecutions({ limit })).rejects.toThrow("limit must be between 1 and 200");
+    }
+    for (const invalid of [0, 1.5]) {
+      await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: invalid, leaseMs: 1_000 }))
+        .rejects.toThrow(TypeError);
+      await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: invalid }))
+        .rejects.toThrow(TypeError);
+      await expect(adapter.reserveActivityDispatches({ limit: 1, leaseMs: invalid }))
+        .rejects.toThrow(TypeError);
+    }
+    // Validation failures leave the first delivery and its attempt unchanged.
+    await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 }))
+      .resolves.toMatchObject([{ executionId: startRequest.executionId, attempt: 1 }]);
+  });
+
+  it("summarizes multiple executions by definition, version and status", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const fixtures = [
+      { ...startRequest, executionId: "queued-2a", workflowVersion: 2 },
+      { ...startRequest, executionId: "queued-2b", workflowVersion: 2 },
+      { ...startRequest, executionId: "failed-2", workflowVersion: 2 },
+      { ...startRequest, executionId: "queued-1" },
+      { ...startRequest, executionId: "other", workflowName: "other.run" },
+    ];
+    await adapter.startMany(fixtures);
+    adapter.failExecution("failed-2", { name: "FixtureFailure", message: "Closed." });
+    await expect(adapter.summarizeExecutionVersions()).resolves.toEqual([
+      { workflowName: "example.run", workflowVersion: 1, status: "queued", count: 1 },
+      { workflowName: "example.run", workflowVersion: 2, status: "failed", count: 1 },
+      { workflowName: "example.run", workflowVersion: 2, status: "queued", count: 2 },
+      { workflowName: "other.run", workflowVersion: 1, status: "queued", count: 1 },
+    ]);
+  });
+
   it("continues from self-contained keys even when the boundary execution is absent", async () => {
     const now = () => new Date("2026-09-18T12:00:00.123Z");
     const original = new MemoryWorkflowAdapter({ now });
@@ -519,6 +557,55 @@ describe("MemoryWorkflowAdapter", () => {
       status: "queued",
     });
     expect(adapter.inspectActivityDispatches()).toMatchObject([{ sequence: 0 }]);
+  });
+
+  it("rejects a linked child whose definition or input differs from the scheduled command", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    await adapter.start(startRequest);
+    const [activation] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 });
+    const child = {
+      executionId: "linked-child",
+      workflowName: "example.child",
+      workflowVersion: 2,
+      input: { value: "child input" },
+      parentExecutionId: startRequest.executionId,
+      parentCommandSequence: 0,
+    };
+    await adapter.start(child);
+
+    const command = {
+      sequence: 0,
+      kind: "child",
+      target: child.workflowName,
+      payload: { executionId: child.executionId, version: child.workflowVersion, input: child.input },
+    } as const;
+    const commit = {
+      taskId: activation!.id,
+      reservationToken: activation!.reservationToken,
+      executionId: startRequest.executionId,
+      expectedRevision: 0,
+      outcome: { status: "waiting" },
+    } as const;
+
+    // Matching lineage alone cannot establish the identity of an existing child.
+    for (const incompatible of [
+      { ...command, sequence: 1 },
+      { ...command, target: "example.wrong-child" },
+      { ...command, payload: { ...command.payload, version: 1 } },
+      { ...command, payload: { ...command.payload, input: { value: "different input" } } },
+    ]) {
+      const commands = incompatible.sequence === 0 ? [incompatible] : [
+        { sequence: 0, kind: "capture", target: "first", payload: null },
+        incompatible,
+      ];
+      await expect(adapter.commitActivation({ ...commit, commands }))
+        .rejects.toBeInstanceOf(WorkflowExecutionConflictError);
+      await expect(adapter.getHistory(startRequest.executionId)).resolves.toEqual([]);
+    }
+
+    await expect(adapter.commitActivation({ ...commit, commands: [command] })).resolves.toBe(true);
+    await expect(adapter.get(child.executionId)).resolves.toMatchObject(child);
+    expect(adapter.inspectTasks().filter(({ executionId }) => executionId === child.executionId)).toHaveLength(1);
   });
 
   it("validates every sequence and timer payload before scheduling work", async () => {

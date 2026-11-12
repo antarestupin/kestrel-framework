@@ -40,6 +40,7 @@ import type {
   AtlasOperationExposure,
 } from "./resource.js";
 import { createResourceCollectionQuerySchema } from "./collection.js";
+import { isAtlasAbsolutePath } from "./urls.js";
 
 interface RecordActionInvocation {
   readonly resourceId: string;
@@ -550,7 +551,8 @@ function normalizeBasePath(basePath: string): string {
   const trimmedPath = basePath.trim();
 
   if (
-    !trimmedPath.startsWith("/")
+    // The mount also supplies the fallback navigation target after sign-in.
+    !isAtlasAbsolutePath(trimmedPath)
     || trimmedPath.includes("?")
     || trimmedPath.includes("#")
     || trimmedPath.includes("*")

@@ -134,6 +134,18 @@ describe("PostgresCacheAdapter", () => {
     });
   });
 
+  it("stores JSON null as a hit when inserting or replacing an entry", async () => {
+    const adapter = createAdapter();
+
+    await adapter.set(key("new"), entry(null));
+    await adapter.set(key("existing"), entry("before"));
+    await adapter.set(key("existing"), entry(null));
+
+    await expect(adapter.get(key("new"))).resolves.toMatchObject({ value: null });
+    await expect(adapter.get(key("existing"))).resolves.toMatchObject({ value: null });
+    await expect(adapter.get(key("missing"))).resolves.toBeUndefined();
+  });
+
   it("does not return an expired row", async () => {
     const adapter = createAdapter();
     await adapter.set(key("expired"), entry("value", {
@@ -141,6 +153,20 @@ describe("PostgresCacheAdapter", () => {
     }));
 
     await expect(adapter.get(key("expired"))).resolves.toBeUndefined();
+  });
+
+  it("uses the system clock when an adapter clock is omitted", async () => {
+    const adapter = new PostgresCacheAdapter(database, {
+      maxEntries: 10,
+      maxEntrySizeBytes: 100,
+    }, testCacheEntries as unknown as typeof cacheEntries);
+    await adapter.set(key("expired"), entry("old", { expiresAt: new Date(0) }));
+    await adapter.set(key("fresh"), entry("fresh", {
+      expiresAt: new Date(Date.now() + 60_000),
+    }));
+
+    await expect(adapter.get(key("expired"))).resolves.toBeUndefined();
+    await expect(adapter.get(key("fresh"))).resolves.toMatchObject({ value: "fresh" });
   });
 
   it("does not persist an oversized entry", async () => {
@@ -174,6 +200,19 @@ describe("PostgresCacheAdapter", () => {
     await expect(adapter.get(key("partial"))).resolves.toBeDefined();
     await expect(adapter.get(key("other", "other")))
       .resolves.toBeDefined();
+  });
+
+  it("rejects empty tag invalidation without deleting cache rows", async () => {
+    const adapter = createAdapter();
+    await adapter.set(key("key"), entry("value", { tags: ["original"] }));
+
+    await expect(adapter.invalidateAllTags([])).rejects.toThrow("At least one cache tag");
+    await expect(adapter.get(key("key"))).resolves.toMatchObject({ value: "value" });
+  });
+
+  it("rejects an invalid maintenance batch at construction", () => {
+    expect(() => createAdapter({ defaultPruneLimit: 0 }))
+      .toThrow("defaultPruneLimit must be a positive integer");
   });
 
   it("resets the complete adapter", async () => {

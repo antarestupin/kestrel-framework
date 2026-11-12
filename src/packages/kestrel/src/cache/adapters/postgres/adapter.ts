@@ -81,11 +81,13 @@ export class PostgresCacheAdapter implements
       return;
     }
 
+    // Drizzle binds JavaScript null as SQL NULL, so use the JSON null literal.
+    const value = entry.value === null ? sql`'null'::jsonb` : entry.value;
     await this.database
       .insert(this.table)
       .values({
         key,
-        value: entry.value,
+        value,
         tags: [...entry.tags],
         expiresAt: entry.expiresAt,
         createdAt: entry.createdAt,
@@ -94,7 +96,7 @@ export class PostgresCacheAdapter implements
       .onConflictDoUpdate({
         target: this.table.key,
         set: {
-          value: entry.value,
+          value,
           tags: [...entry.tags],
           expiresAt: entry.expiresAt,
           createdAt: entry.createdAt,

@@ -169,6 +169,9 @@ describe("CachePool", () => {
     await expect(cache.set("key", undefined)).rejects.toThrow(
       "cannot be undefined",
     );
+    await expect(cache.set("key", () => "not JSON")).rejects.toThrow(
+      "must be JSON serializable",
+    );
     await expect(cache.set("key", "value", { ttlSeconds: 0 }))
       .rejects.toThrow("positive finite");
     await expect(cache.set("key", "value", { tags: [""] }))
@@ -185,6 +188,22 @@ describe("CachePool", () => {
     await cache.set("large", "larger than five bytes");
 
     expect(adapter.entries).toHaveLength(0);
+  });
+
+  it("returns oversized read-through values without storing them", async () => {
+    const adapter = new TestAdapter();
+    const instrumentation = new RecordingCacheInstrumentation();
+    const cache = createPool(adapter, { maxEntrySizeBytes: 5, instrumentation });
+    const loader = vi.fn(async () => "larger than five bytes");
+
+    await expect(cache.remember("large", loader, { lock: false })).resolves.toBe("larger than five bytes");
+    await expect(cache.remember("large", loader)).resolves.toBe("larger than five bytes");
+    expect(loader).toHaveBeenCalledTimes(2);
+    expect(adapter.entries.size).toBe(0);
+    expect(instrumentation.events.filter((event) => event.type === "write")).toMatchObject([
+      { outcome: "success", data: { key: "test:large", operation: "remember", result: "oversized" } },
+      { outcome: "success", data: { key: "test:large", operation: "remember", result: "oversized" } },
+    ]);
   });
 
   it("includes keys and tags in entry size accounting", async () => {
@@ -530,11 +549,23 @@ describe("CachePool", () => {
     const cache = createPool(adapter, { instrumentation });
 
     await cache.set("key", "value", { tags: ["a", "b"] });
+    await cache.set("to-delete", "value");
     instrumentation.events.length = 0;
+    await expect(cache.delete("to-delete")).resolves.toBe(true);
     await cache.delete("missing");
     await cache.invalidateAllTags(["a", "b"]);
 
     expect(instrumentation.events).toMatchObject([
+      {
+        type: "invalidation",
+        outcome: "success",
+        data: {
+          operation: "delete",
+          result: "deleted",
+          key: "test:to-delete",
+          affectedEntries: 1,
+        },
+      },
       {
         type: "invalidation",
         outcome: "success",
@@ -556,6 +587,27 @@ describe("CachePool", () => {
         },
       },
     ]);
+  });
+
+  it("propagates invalidation failures and records only key and tag metadata", async () => {
+    const adapter = new TaggedTestAdapter();
+    const instrumentation = new RecordingCacheInstrumentation();
+    const cache = createPool(adapter, {
+      instrumentation,
+      formatObservationKey: () => "redacted",
+    });
+    const failure = new Error("storage unavailable");
+    vi.spyOn(adapter, "delete").mockRejectedValueOnce(failure);
+    const invalidate = vi.spyOn(adapter, "invalidateAllTags").mockRejectedValueOnce(failure);
+
+    await expect(cache.delete("sensitive")).rejects.toBe(failure);
+    await expect(cache.invalidateAllTags(["sensitive", "sensitive"])).rejects.toBe(failure);
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith(["test:sensitive"]);
+    expect(instrumentation.events.map((event) => event.data)).toEqual([
+      { operation: "delete", result: "error", key: "redacted" },
+      { operation: "invalidate-all-tags", result: "error", tagCount: 1 },
+    ]);
+    expect(instrumentation.events.every((event) => event.outcome === "failure")).toBe(true);
   });
 
   it("ignores instrumentation, formatting and clock failures", async () => {
@@ -592,6 +644,13 @@ describe("CachePool", () => {
     expect(clockInstrumentation.events[0]?.durationMs).toSatisfy(
       Number.isFinite,
     );
+
+    const nonfiniteClock = createPool(adapter, {
+      instrumentation: clockInstrumentation,
+      monotonicNow: () => Number.NaN,
+    });
+    await expect(nonfiniteClock.get("key")).resolves.toBe("value");
+    expect(clockInstrumentation.events[1]?.durationMs).toSatisfy(Number.isFinite);
   });
 
   it("isolates composed tags between pools sharing an adapter", async () => {
@@ -627,6 +686,20 @@ describe("CachePool", () => {
     expect(() => createPool(new TestAdapter(), {
       lockKeyPrefix: "cache:fill",
     })).toThrow("Cache lock key prefixes cannot contain a colon");
+  });
+
+  it("rejects namespaces that are empty or make composed keys ambiguous", () => {
+    expect(() => createPool(new TestAdapter(), { namespace: "" }))
+      .toThrow("Cache namespaces cannot be empty");
+    expect(() => createPool(new TestAdapter(), { namespace: "test:shared" }))
+      .toThrow("Cache namespaces cannot contain a colon");
+  });
+
+  it("rejects nonpositive and nonfinite pool limits at construction", () => {
+    expect(() => createPool(new TestAdapter(), { maxEntrySizeBytes: 0 }))
+      .toThrow("maxEntrySizeBytes must be a positive finite number");
+    expect(() => createPool(new TestAdapter(), { maxTtlSeconds: Infinity }))
+      .toThrow("maxTtlSeconds must be a positive finite number");
   });
 });
 

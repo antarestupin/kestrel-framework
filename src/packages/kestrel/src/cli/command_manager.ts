@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import {
   Command,
   CommanderError,
@@ -74,6 +76,8 @@ export class CliCommandManager<Config> {
   private readonly controllers: AnyRegisteredCliController[] = [];
   private readonly writeOutput: (value: string) => void;
   private readonly writeError: (value: string) => void;
+  // Keep the caller's raw arguments available to prepareWorkloads after parsing.
+  private readonly invocationArguments = new AsyncLocalStorage<readonly string[]>();
 
   public constructor(
     private readonly app: App<Config>,
@@ -131,107 +135,123 @@ export class CliCommandManager<Config> {
     }
 
     command.action(async () => {
-      const execution = await this.app.createExecutionScope();
-      const observer = controller.observe
-        ? this.resolveObserver(execution.container)
-        : undefined;
-      const operation = controller.command;
-      setExecutionLogContext(execution.context, {
-        operation,
-        transport: "cli",
-      });
-      const startedAt = performance.now();
-      let outcome: "failure" | "success" = "success";
-      let executionError: unknown;
+      // Capture Commander state before any async work can allow another parse.
+      const rawInput = this.readInput(command, fieldBindings);
+      const { _format: format } = command.optsWithGlobals<{ _format: CliOutputFormat }>();
 
-      await this.app.runInObservationContext(observer, async () => {
-        observer?.record(executionStartedObservation, {
+      // Commander only calls the action for a parsed command. Help and version
+      // flags can also appear as literal input, so raw tokens cannot select boot.
+      if (this.app.state === "composing") {
+        this.prepareController(controller as AnyRegisteredCliController, this.invocationArguments.getStore() ?? []);
+        await this.app.start();
+      }
+
+      const execution = await this.app.createExecutionScope();
+      try {
+        const observer = controller.observe
+          ? this.resolveObserver(execution.container)
+          : undefined;
+        const operation = controller.command;
+        setExecutionLogContext(execution.context, {
           operation,
           transport: "cli",
         });
+        const startedAt = performance.now();
+        let outcome: "failure" | "success" = "success";
+        let executionError: unknown;
 
-        try {
-          const rawInput = this.readInput(command, fieldBindings);
-          let input: output<ControllerInputSchema>;
+        await this.app.runInObservationContext(observer, async () => {
+          observer?.record(executionStartedObservation, {
+            operation,
+            transport: "cli",
+          });
 
           try {
-            input = await parseSchema(
-              controller.inputSchema,
-              rawInput,
-              controller.validation.input,
-            );
-          } catch (error: unknown) {
-            if (error instanceof ZodError) {
-              throw new CliInputError(error);
+            let input: output<ControllerInputSchema>;
+
+            try {
+              input = await parseSchema(
+                controller.inputSchema,
+                rawInput,
+                controller.validation.input,
+              );
+            } catch (error: unknown) {
+              if (error instanceof ZodError) {
+                throw new CliInputError(error);
+              }
+
+              throw error;
             }
 
-            throw error;
-          }
+            const parsedResult = await runMiddlewarePipeline(
+              controller.middleware,
+              { controller, input, execution },
+              execution.container,
+              async () => {
+                const dependencies = await execution.container.resolveDependenciesAsync(
+                  controller.dependencies,
+                );
+                const result = controller.source === "standalone"
+                  ? await controller.handler({
+                      input,
+                      deps: dependencies,
+                      execution,
+                      writeProgress: (message) => this.writeError(`${message}\n`),
+                    })
+                  : await this.runActionController(
+                      controller,
+                      input,
+                      dependencies,
+                      execution,
+                    );
 
-          const parsedResult = await runMiddlewarePipeline(
-            controller.middleware,
-            { controller, input, execution },
-            execution.container,
-            async () => {
-              const dependencies = await execution.container.resolveDependenciesAsync(
-                controller.dependencies,
+                return controller.outputSchema === undefined
+                  ? result
+                  : parseSchema(controller.outputSchema, result, controller.validation.output);
+              },
+            );
+            this.printResult(parsedResult, format);
+          } catch (error: unknown) {
+            outcome = "failure";
+            executionError = error;
+            // Input errors retain Commander's dedicated usage-oriented rendering.
+            if (error instanceof CliInputError) {
+              throw error;
+            }
+
+            throw new CliHandledError(
+              execution.errorHandler.handleCli(error, {
+                executionId: execution.id,
+              }),
+            );
+          } finally {
+            try {
+              observer?.record(
+                executionCompletedObservation,
+                {
+                  operation,
+                  transport: "cli",
+                  ...getExecutionObservationContext(execution.context),
+                  ...(executionError === undefined
+                    ? {}
+                    : getExecutionObservationError(executionError)),
+                },
+                {
+                  outcome,
+                  durationMs: performance.now() - startedAt,
+                },
               );
-              const result = controller.source === "standalone"
-                ? await controller.handler({
-                    input,
-                    deps: dependencies,
-                    execution,
-                    writeProgress: (message) => this.writeError(`${message}\n`),
-                  })
-                : await this.runActionController(
-                    controller,
-                    input,
-                    dependencies,
-                    execution,
-                  );
-
-              return controller.outputSchema === undefined
-                ? result
-                : parseSchema(controller.outputSchema, result, controller.validation.output);
-            },
-          );
-          const format =
-            command.optsWithGlobals<{ _format: CliOutputFormat }>()
-              ._format;
-
-          this.printResult(parsedResult, format);
-        } catch (error: unknown) {
-          outcome = "failure";
-          executionError = error;
-          // Input errors retain Commander's dedicated usage-oriented rendering.
-          if (error instanceof CliInputError) {
-            throw error;
+            } finally {
+              // Finish the scope in its observer context even if completion recording throws.
+              await execution.dispose(outcome);
+            }
           }
-
-          throw new CliHandledError(
-            execution.errorHandler.handleCli(error, {
-              executionId: execution.id,
-            }),
-          );
-        } finally {
-          observer?.record(
-            executionCompletedObservation,
-            {
-              operation,
-              transport: "cli",
-              ...getExecutionObservationContext(execution.context),
-              ...(executionError === undefined
-                ? {}
-                : getExecutionObservationError(executionError)),
-            },
-            {
-              outcome,
-              durationMs: performance.now() - startedAt,
-            },
-          );
-          await execution.dispose(outcome);
-        }
-      });
+        });
+      } catch (error: unknown) {
+        // Observer setup and start recording can fail before the command runs.
+        await execution.dispose("failure").catch(() => undefined);
+        throw error;
+      }
     });
 
     return this;
@@ -250,23 +270,12 @@ export class CliCommandManager<Config> {
    */
   public async run(arguments_: readonly string[]): Promise<number> {
     try {
-      if (this.app.state === "composing") {
-        this.prepare(arguments_);
-
-        // Help and version only inspect declarative metadata and must not
-        // initialize application infrastructure.
-        if (!isInformationalInvocation(arguments_)) {
-          await this.app.start();
-        }
-      }
-
       // An empty invocation shows the discoverable command catalog.
       const normalizedArguments =
         arguments_.length === 0 ? ["--help"] : [...arguments_];
 
-      await this.program.parseAsync(normalizedArguments, {
-        from: "user",
-      });
+      await this.invocationArguments.run(arguments_, () =>
+        this.program.parseAsync(normalizedArguments, { from: "user" }));
 
       return 0;
     } catch (error: unknown) {
@@ -274,6 +283,8 @@ export class CliCommandManager<Config> {
         if (
           error.code === "commander.helpDisplayed"
           || error.code === "commander.version"
+          // An explicit help subcommand succeeds. Usage help for a missing subcommand fails.
+          || (error.code === "commander.help" && error.exitCode === 0)
         ) {
           return 0;
         }
@@ -305,8 +316,13 @@ export class CliCommandManager<Config> {
 
   /** Resolves controller metadata before application bootstrap begins. */
   public prepare(arguments_: readonly string[]): void {
-    const controller = this.resolveController(arguments_);
+    this.prepareController(this.resolveController(arguments_), arguments_);
+  }
 
+  private prepareController(
+    controller: AnyRegisteredCliController | undefined,
+    arguments_: readonly string[],
+  ): void {
     this.app.prepareBootPlan(
       controller?.prepareWorkloads?.(arguments_)
         ?? controller?.workloads
@@ -565,17 +581,6 @@ export class CliCommandManager<Config> {
         writeErr: this.writeError,
       });
   }
-}
-
-/** Detects invocations that Commander resolves without executing a handler. */
-function isInformationalInvocation(arguments_: readonly string[]): boolean {
-  return arguments_.length === 0
-    || arguments_.some((argument) =>
-      argument === "--help"
-      || argument === "-h"
-      || argument === "--version"
-      || argument === "-V"
-    );
 }
 
 type AnyRegisteredCliController = CliController<any, any, any, any, any, any>;

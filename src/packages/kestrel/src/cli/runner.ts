@@ -30,13 +30,22 @@ export async function runCli<Config>(
   arguments_: readonly string[],
   options: CliCommandManagerOptions = {},
 ): Promise<number> {
-  const cli = buildCli(app, options);
-
+  let exitCode: number;
   try {
-    return await cli.run(arguments_);
-  } finally {
-    await app.dispose();
+    exitCode = await buildCli(app, options).run(arguments_);
+  } catch (error: unknown) {
+    // Command catalog construction can fail before parsing. Dispose the app
+    // and retain the original failure alongside any shutdown diagnostics.
+    try {
+      await app.dispose();
+    } catch (disposalError: unknown) {
+      throw new AggregateError([error, disposalError], "CLI invocation and application disposal failed.");
+    }
+    throw error;
   }
+
+  await app.dispose();
+  return exitCode;
 }
 
 /** Loads the project-supplied application module without coupling Kestrel to it. */

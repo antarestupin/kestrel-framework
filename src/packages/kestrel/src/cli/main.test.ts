@@ -3,7 +3,34 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+
+import { main } from "./main.js";
+
+it("requires an application module path", async () => {
+  await expect(main([])).rejects.toThrow("An application module path is required.");
+});
+
+it("runs an embedded invocation against a module path containing spaces", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "kestrel-cli-embedded-"));
+  try {
+    const fixture = join(directory, "application module.mjs");
+    await writeFile(fixture, `
+      import { App } from ${JSON.stringify(new URL("../app/index.ts", import.meta.url).href)};
+      import { defineCliController } from ${JSON.stringify(new URL("./index.ts", import.meta.url).href)};
+      const app = new App({});
+      app.catalog.contribute({ controllers: { cli: {
+        embedded: defineCliController({ command: "embedded", handler: () => undefined }),
+      } } }, { kind: "application" });
+      export default app;
+    `);
+    const timeout = vi.fn();
+    await expect(main([fixture, "embedded"], timeout)).resolves.toBe(0);
+    expect(timeout).not.toHaveBeenCalled();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 it("the executable prints leaf errors nested beneath shutdown aggregates", async () => {
   const directory = await mkdtemp(join(tmpdir(), "kestrel-diagnostics-"));

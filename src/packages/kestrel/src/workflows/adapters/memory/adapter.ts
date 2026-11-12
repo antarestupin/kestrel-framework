@@ -1563,9 +1563,14 @@ export class MemoryWorkflowAdapter implements WorkflowAdapter {
     const existing = this.executions.get(childId) ?? stagedChildren.get(childId);
 
     if (existing !== undefined) {
+      // An explicit ID can point to an earlier child with matching lineage.
+      // Verify its definition and input before recording a command for it.
       if (
-        existing.parentExecutionId !== parent.executionId
+        existing.workflowName !== command.target
+        || existing.workflowVersion !== version
+        || existing.parentExecutionId !== parent.executionId
         || existing.parentCommandSequence !== command.sequence
+        || !isDeepStrictEqual(existing.input, childInput)
       ) {
         throw new WorkflowExecutionConflictError(childId);
       }

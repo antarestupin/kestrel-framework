@@ -36,6 +36,7 @@ async function setup(options: {
   slots?: number;
   extraTasks?: readonly AnyScheduledTask[];
   pollIntervalMs?: number;
+  reportErrors?: boolean;
   schedule?: ScheduledTaskSchedule;
   overlap?: ScheduledTaskOverlap;
   now?: () => Date;
@@ -69,7 +70,8 @@ async function setup(options: {
   });
   const reportError = vi.fn();
   const scheduler = new ScheduledTaskScheduler(app, { memory: adapter }, options.distributed ? locks : undefined, [task, ...options.extraTasks ?? []], {
-    slots: options.slots ?? 1, leaseMs: 1_000, now: options.now ?? (() => epoch), reportError,
+    slots: options.slots ?? 1, leaseMs: 1_000, now: options.now ?? (() => epoch),
+    ...(options.reportErrors === false ? {} : { reportError }),
     ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
     ...(options.pollIntervalMs === undefined ? {} : { pollIntervalMs: options.pollIntervalMs }),
   });
@@ -215,6 +217,31 @@ describe("scheduled task lifecycle and ownership contracts", () => {
       exitPolling.resolve();
       await Promise.allSettled([starting, stopping]);
     }
+  });
+
+  it.each(["reconcile", "listStates"] as const)("drains a failed %s operation during stop", async (method) => {
+    const state = await setup({ handler: () => undefined });
+    const entered = Promise.withResolvers<void>();
+    const rejected = Promise.withResolvers<never>();
+    const failure = new Error(`Could not ${method}`);
+    vi.spyOn(state.adapter, method).mockImplementation(() => {
+      entered.resolve();
+      return rejected.promise;
+    });
+    const running = observeSettlement(state.scheduler.runOnce());
+    await entered.promise;
+    const stopping = state.scheduler.stop();
+    const stopped = observeSettlement(stopping);
+
+    try {
+      await setImmediate();
+      expect(stopped()).toBeUndefined();
+    } finally {
+      rejected.reject(failure);
+      await stopping;
+    }
+    expect(running()).toEqual({ status: "rejected", reason: failure });
+    expect(state.handler).not.toHaveBeenCalled();
   });
 
   it("does not admit an invocation after stop while loading states", async () => {
@@ -512,6 +539,32 @@ describe("scheduled task admission and error boundaries", () => {
     expect(state.handler).not.toHaveBeenCalled();
   });
 
+  it("uses a free slot for an unrelated due task when an earlier lock is busy", async () => {
+    const later = vi.fn();
+    const independent = defineScheduledTask({
+      id: "later.task",
+      schedule: every({ milliseconds: 1_000, start: "immediate" }),
+      runtime: { state: "memory", coordination: "local" },
+      handler: later,
+    });
+    const state = await setup({
+      distributed: true,
+      handler: () => undefined,
+      extraTasks: [independent],
+    });
+    vi.mocked(state.locks.tryAcquire).mockResolvedValue(undefined);
+
+    // The blocked occurrence remains due and must not monopolize the only slot.
+    expect(await state.scheduler.runOnce()).toBe(1);
+    expect(state.handler).not.toHaveBeenCalled();
+    expect(later).toHaveBeenCalledOnce();
+    const states = await state.adapter.listStates([state.task.id, independent.id]);
+    expect(states).toMatchObject([
+      { nextScheduledAt: epoch, activeRuns: 0 },
+      { nextScheduledAt: new Date(epoch.getTime() + 1_000), activeRuns: 0 },
+    ]);
+  });
+
   it.each(["local", "distributed"] as const)("retains a %s wait occurrence under contention and runs it later", async (coordination) => {
     const distributed = coordination === "distributed";
     const state = await setup({ distributed, overlap: "wait", slots: 2 });
@@ -543,6 +596,20 @@ describe("scheduled task admission and error boundaries", () => {
     expect(state.reportError).toHaveBeenCalledExactlyOnceWith(failure);
     expect(state.lock.release).toHaveBeenCalledOnce();
     expect(await state.scheduler.runOnce()).toBe(0);
+  });
+
+  it("persists a failure when no error reporter is configured", async () => {
+    const state = await setup({
+      reportErrors: false,
+      handler: () => { throw new Error("handler failed"); },
+    });
+
+    expect(await state.scheduler.runOnce()).toBe(1);
+    expect((await state.adapter.listStates([state.task.id]))[0]).toMatchObject({
+      activeRuns: 0,
+      lastOutcome: "failure",
+      lastError: { message: "handler failed" },
+    });
   });
 
   it("reports each task failure once even when the injected reporter itself throws", async () => {

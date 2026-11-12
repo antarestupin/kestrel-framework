@@ -254,17 +254,18 @@ export function createConfigurationApi<
     schemaOrOptions?: Schema | EnvVarOptions<Fallback>,
   ): ConfigSource<output<Schema> | string | Fallback | undefined> {
     return createEnvironmentVariableConfigSource(name, (context) => {
+      const rawValue = readEnvironmentVariable(context.env, name);
       // A configuration base validates raw variables after all sources have
       // been resolved. Standalone application fields may still validate here.
       if (schemaOrOptions === undefined) {
-        return context.env[name];
+        return rawValue;
       }
 
       if (isEnvVarOptions(schemaOrOptions)) {
-        return context.env[name] ?? schemaOrOptions.fallback;
+        return rawValue ?? schemaOrOptions.fallback;
       }
 
-      const result = schemaOrOptions.safeParse(context.env[name]);
+      const result = schemaOrOptions.safeParse(rawValue);
 
       if (!result.success) {
         const details = result.error.issues
@@ -455,6 +456,11 @@ function resolveValue(
       path,
     });
 
+    // Only the active branch can expose schema leaves from a dynamic source.
+    if (conventionalOverrides !== undefined) {
+      collectConventionalTargets(resolvedValue, path, conventionalOverrides, state);
+    }
+
     // Sources may return another source, allowing environment-specific
     // environment variables without adding a separate primitive.
     return resolveValue(
@@ -467,13 +473,14 @@ function resolveValue(
   }
 
   if (Array.isArray(value)) {
+    // Array indices are not conventional names, but explicit sources still resolve.
     return value.map((item, index) =>
       resolveValue(
         item,
         context,
         [...path, String(index)],
         state,
-        conventionalOverrides,
+        undefined,
       ),
     );
   }
@@ -509,13 +516,6 @@ function collectConventionalTargets(
     return;
   }
 
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => {
-      collectConventionalTargets(item, [...path, String(index)], options, state);
-    });
-    return;
-  }
-
   if (isPlainObject(value) && !isConfigSource(value)) {
     Object.entries(value).forEach(([key, item]) => {
       collectConventionalTargets(item, [...path, key], options, state);
@@ -529,11 +529,7 @@ function collectSchemaTargets(
   options: ConventionalEnvironmentOverrideOptions,
   state: ConfigResolutionState,
 ): void {
-  const shape = getObjectShape(schema);
-
-  if (shape === undefined) return;
-
-  Object.entries(shape).forEach(([key, fieldSchema]) => {
+  getConventionalFields(schema).forEach(([key, fieldSchema]) => {
     const fieldPath = [...path, key];
     const nestedShape = getObjectShape(fieldSchema);
 
@@ -573,18 +569,14 @@ function applyConventionalOverrides(
 ): void {
   if (!isPlainObject(value)) return;
 
-  const shape = getObjectShape(schema);
-
-  if (shape === undefined) return;
-
-  Object.entries(shape).forEach(([key, fieldSchema]) => {
+  getConventionalFields(schema).forEach(([key, fieldSchema]) => {
     const fieldPath = [...path, key];
     const nestedShape = getObjectShape(fieldSchema);
 
     if (nestedShape !== undefined) {
       if (!hasConventionalOverrideBelow(fieldPath, env, state)) return;
 
-      if (!isPlainObject(value[key])) {
+      if (!hasOwnProperty(value, key) || !isPlainObject(value[key])) {
         value[key] = createDefaultObject(fieldSchema);
       }
 
@@ -602,7 +594,9 @@ function applyConventionalOverrides(
 
     const target = findTargetByPath(fieldPath, state);
 
-    if (target === undefined || env[target.name] === undefined) return;
+    if (target === undefined) return;
+    const rawValue = readEnvironmentVariable(env, target.name);
+    if (rawValue === undefined) return;
 
     const explicitVariables = state.explicitEnvironmentVariables.get(
       createPathKey(fieldPath),
@@ -622,10 +616,7 @@ function applyConventionalOverrides(
       return;
     }
 
-    value[key] = decodeConventionalValue(
-      env[target.name] as string,
-      target,
-    );
+    value[key] = decodeConventionalValue(rawValue, target);
   });
 }
 
@@ -692,6 +683,11 @@ function getObjectShape(schema: ZodType): ConfigShape | undefined {
   return unwrapped instanceof z.ZodObject
     ? unwrapped.shape as ConfigShape
     : undefined;
+}
+
+/** Zod skips __proto__ in object output. It cannot be an override target. */
+function getConventionalFields(schema: ZodType): [string, ZodType][] {
+  return Object.entries(getObjectShape(schema) ?? {}).filter(([key]) => key !== "__proto__");
 }
 
 function unwrapSchema(schema: ZodType): ZodType {
@@ -781,7 +777,7 @@ function hasConventionalOverrideBelow(
 
   return [...state.conventionalTargets.values()].some((target) =>
     createPathKey(target.path).startsWith(pathKey)
-    && env[target.name] !== undefined
+    && readEnvironmentVariable(env, target.name) !== undefined
   );
 }
 
@@ -857,6 +853,11 @@ function hasOwnProperty(
   property: PropertyKey,
 ): boolean {
   return Object.prototype.hasOwnProperty.call(value, property);
+}
+
+/** Environment maps contribute their own variables, including when they lack a prototype. */
+function readEnvironmentVariable(env: RuntimeEnvironment, name: string): string | undefined {
+  return hasOwnProperty(env, name) ? env[name] : undefined;
 }
 
 function formatPath(path: readonly string[]): string {
