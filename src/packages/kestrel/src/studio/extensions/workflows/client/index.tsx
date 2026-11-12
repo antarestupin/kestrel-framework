@@ -216,9 +216,10 @@ function WorkflowExecutionPage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page workflows-page">
       <StudioPageHeader page={page} eyebrow="Durable workflow" />
+      {/* A parameter change must discard the previous execution's controls and form. */}
       {page.dataPath === undefined || executionId === undefined
         ? <p className="error-panel">The workflow execution link is incomplete.</p>
-        : <WorkflowExecutionWorkspace dataPath={page.dataPath} executionId={executionId} />}
+        : <WorkflowExecutionWorkspace key={JSON.stringify([page.dataPath, executionId])} dataPath={page.dataPath} executionId={executionId} />}
     </div>
   );
 }
@@ -404,7 +405,11 @@ function SignalPanel({
   onDelivered: () => Promise<void>;
 }) {
   const signals = details.declaredSignals;
-  const [signalName, setSignalName] = useState(signals[0] ?? "");
+  const [selectedSignal, setSelectedSignal] = useState("");
+  // A poll may change the options when the execution advances to another version.
+  const signalName = signals.length === 0 || signals.includes(selectedSignal)
+    ? selectedSignal
+    : signals[0]!;
   const [payload, setPayload] = useState("null");
   const [message, setMessage] = useState<string>();
 
@@ -435,9 +440,9 @@ function SignalPanel({
     >
       <h3>Send signal</h3>
       {signals.length === 0
-        ? <input onChange={(event) => setSignalName(event.target.value)} placeholder="signal.name" value={signalName} />
+        ? <input onChange={(event) => setSelectedSignal(event.target.value)} placeholder="signal.name" value={signalName} />
         : (
-            <select onChange={(event) => setSignalName(event.target.value)} value={signalName}>
+            <select onChange={(event) => setSelectedSignal(event.target.value)} value={signalName}>
               {signals.map((signal) => <option key={signal} value={signal}>{signal}</option>)}
             </select>
           )}

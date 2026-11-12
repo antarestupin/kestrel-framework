@@ -167,6 +167,8 @@ export function RelationInput({
     cardinality,
   );
   const submitted = mode === "identifier" ? parsedDirectIdentifiers : selected;
+  const cleared = cardinality === "one" && relation?.optional === true
+    && submitted.length === 0 && normalizeRelationIdentifiers(value, cardinality).length > 0;
   const selectedKeys = selected.map(serializeIdentifier);
   const candidatesByKey = new Map(candidates.map((candidate) => [
     serializeIdentifier(candidate.identity),
@@ -264,6 +266,8 @@ export function RelationInput({
           value={String(identifier)}
         />
       ))}
+      {/* A cleared selection differs from a relation that was never supplied. */}
+      {cleared ? <input name={definition.id} type="hidden" value="" /> : null}
       {mode === "autocomplete" ? (
         <>
           {selected.length === 0 ? null : (

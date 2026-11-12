@@ -4,6 +4,7 @@ import { FieldValue } from "./field_value.js";
 export { FieldValue } from "./field_value.js";
 import { HistoryMatrix } from "./history_matrix.js";
 import {
+  type QueryClient,
   useMutation,
   useQuery,
   useQueryClient,
@@ -457,7 +458,7 @@ export function ResourceRead({
     ),
     onSuccess: async () => {
       // Labels can depend on records in another Resource.
-      await queryClient.invalidateQueries({ predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]) });
+      await invalidateAtlasResourceQueries(queryClient, manifest);
       onDeleted();
     },
   });
@@ -705,6 +706,7 @@ export function ResourceForm({
   onSuccess: (record: Record<string, unknown>) => void;
   recordId?: string;
 }) {
+  const queryClient = useQueryClient();
   const operation = mode === "create"
     ? resource.capabilities.create
     : resource.capabilities.update;
@@ -721,18 +723,24 @@ export function ResourceForm({
         requireCapability(operation),
         input,
       ),
-    onSuccess,
+    onSuccess: async (record) => {
+      // A write can change lists, history and labels that depend on this Resource.
+      onSuccess(record);
+      await invalidateAtlasResourceQueries(queryClient, manifest);
+    },
   });
   // Only updates bind the identity from the route. A create action may require an explicit identity.
   const bodyInputs = (operation?.inputs ?? []).filter(
     (input) => mode === "create" || input.id !== resource.identity,
-  );
+  ).map((definition) => ({
+    definition, field: resource.fields.find((field) => field.id === definition.id),
+  }));
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const input = Object.fromEntries(bodyInputs.flatMap((definition) => {
-      const value = readFormValue(form, definition);
+    const input = Object.fromEntries(bodyInputs.flatMap(({ definition, field }) => {
+      const value = readFormValue(form, definition, field);
 
       return value === undefined ? [] : [[definition.id, value]];
     }));
@@ -750,7 +758,7 @@ export function ResourceForm({
     return <div className="page"><LoadingState /></div>;
   }
 
-  if (recordQuery.isError) {
+  if (recordQuery.isError && recordQuery.data === undefined) {
     return <div className="page"><ErrorState error={recordQuery.error} /></div>;
   }
 
@@ -760,15 +768,17 @@ export function ResourceForm({
         eyebrow={resource.labelSingular}
         title={mode === "create" ? `Create ${resource.labelSingular}` : "Edit record"}
       />
+      {/* A refresh failure must not replace the existing form and discard edits. */}
+      {recordQuery.isError ? <ErrorState error={recordQuery.error} /> : null}
       <form className="form-panel" onSubmit={submit}>
-        {bodyInputs.map((input) => (
+        {bodyInputs.map(({ definition, field }) => (
           <OperationInput
-            definition={input}
-            field={resource.fields.find((field) => field.id === input.id)}
-            key={input.id}
+            definition={definition}
+            field={field}
+            key={definition.id}
             manifest={manifest}
             resource={resource}
-            value={recordQuery.data?.[input.id]}
+            value={recordQuery.data?.[definition.id]}
           />
         ))}
         {mutation.isError ? <ErrorState error={mutation.error} /> : null}
@@ -846,7 +856,9 @@ export function RecordActionForm({
   const confirm = useAtlasConfirmation();
   const queryClient = useQueryClient();
   const trackAction = useAtlasActionFeedback();
-  const parameters = getRecordActionParameters(action);
+  const parameters = getRecordActionParameters(action).map((definition) => ({
+    definition, field: getRecordActionParameterField(action, resource, definition.id),
+  }));
   const mutation = useMutation({
     mutationFn: (input: Record<string, unknown>) => trackAction(
       executeAtlasRecordAction(
@@ -867,7 +879,7 @@ export function RecordActionForm({
       onSuccess(response);
       // Every record Action can affect the record, main list and Resource Views.
       // Labels can depend on records in another Resource.
-      await queryClient.invalidateQueries({ predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]) });
+      await invalidateAtlasResourceQueries(queryClient, manifest);
     },
   });
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -878,8 +890,8 @@ export function RecordActionForm({
       [action.recordInput]: recordId,
     };
 
-    for (const definition of parameters) {
-      const value = readFormValue(form, definition);
+    for (const { definition, field } of parameters) {
+      const value = readFormValue(form, definition, field);
 
       if (value !== undefined) {
         input[definition.id] = value;
@@ -903,21 +915,17 @@ export function RecordActionForm({
       className="form-panel"
       onChange={(event) => onEmptyChange?.(
         !hasAtlasFormContent(
-          parameters.map((definition) =>
-            readFormValue(new FormData(event.currentTarget), definition)),
+          parameters.map(({ definition, field }) =>
+            readFormValue(new FormData(event.currentTarget), definition, field)),
         ),
       )}
       onSubmit={submit}
     >
-      {parameters.map((parameter) => (
+      {parameters.map(({ definition, field }) => (
         <OperationInput
-          definition={parameter}
-          field={getRecordActionParameterField(
-            action,
-            resource,
-            parameter.id,
-          )}
-          key={parameter.id}
+          definition={definition}
+          field={field}
+          key={definition.id}
           manifest={manifest}
           resource={resource}
         />
@@ -1064,6 +1072,13 @@ export function RecordActionDialog({
       </Dialog.Portal>
     </Dialog.Root>
   );
+}
+
+/** Refreshes resource data, including labels derived through other resources. */
+function invalidateAtlasResourceQueries(queryClient: QueryClient, manifest: AtlasManifest): Promise<void> {
+  return queryClient.invalidateQueries({
+    predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]),
+  });
 }
 
 function useResourceRecord(
@@ -1292,11 +1307,14 @@ function createCollectionFilter(
     return undefined;
   }
 
-  const normalizedValue: unknown = operator === "in" || operator === "not-in"
-    ? value.split(",").map((item) => normalizeFilterValue(field, item.trim()))
-    : normalizeFilterValue(field, value.trim());
+  if (operator === "in" || operator === "not-in") {
+    // An empty token is not an operand. Converting it to a number would add 0.
+    const operands = value.split(",").map((item) => item.trim()).filter(Boolean);
+    if (operands.length === 0) return undefined;
+    return { field: field.id, operator, value: operands.map((item) => normalizeFilterValue(field, item)) };
+  }
 
-  return { field: field.id, operator, value: normalizedValue };
+  return { field: field.id, operator, value: normalizeFilterValue(field, value.trim()) };
 }
 
 function normalizeFilterValue(
@@ -1529,7 +1547,7 @@ function RowRecordActions({
     onSuccess: async () => {
       // Refresh every collection and View that may contain the deleted record.
       // Labels can depend on records in another Resource.
-      await queryClient.invalidateQueries({ predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]) });
+      await invalidateAtlasResourceQueries(queryClient, manifest);
     },
   });
   const deleteRecord = async () => {
@@ -1723,7 +1741,7 @@ function RecordActionControl({
     onSuccess: async (response) => {
       // Refresh the record, main list and every View owned by this Resource.
       // Labels can depend on records in another Resource.
-      await queryClient.invalidateQueries({ predicate: (query) => manifest.resources.some((target) => target.id === query.queryKey[0]) });
+      await invalidateAtlasResourceQueries(queryClient, manifest);
       const redirect = getAtlasRedirectPath(
         manifest,
         response.effects,
@@ -1873,7 +1891,7 @@ function StandardOperationInput({
     );
   }
 
-  const schema = getFormInputSchema(definition.schema);
+  const { schema } = describeFormInputSchema(definition.schema);
   const label = field?.label ?? humanize(definition.id);
   const commonProperties = {
     id: definition.id,
@@ -1887,6 +1905,8 @@ function StandardOperationInput({
         <input
           {...commonProperties}
           defaultChecked={value === true}
+          // An unchecked box is submitted as false. Only a true literal requires a check.
+          required={schema.const === true && definition.required}
           type="checkbox"
           value="true"
         />
@@ -1922,7 +1942,7 @@ function StandardOperationInput({
 function getOperationInputRendererKey(
   definition: AtlasOperationInputManifest,
 ): string {
-  const schema = getFormInputSchema(definition.schema);
+  const { schema } = describeFormInputSchema(definition.schema);
 
   if (schema.type === "boolean") {
     return "boolean";
@@ -1997,8 +2017,9 @@ function ErrorState({ error }: { error: unknown }) {
 export function readFormValue(
   form: FormData,
   definition: AtlasOperationInputManifest,
+  field?: AtlasFieldManifest,
 ): unknown {
-  const schema = getFormInputSchema(definition.schema);
+  const { schema, nullable } = describeFormInputSchema(definition.schema);
 
   if (schema.type === "boolean") {
     return form.has(definition.id);
@@ -2013,6 +2034,11 @@ export function readFormValue(
 
   const value = form.get(definition.id);
 
+  // The relation picker emits a blank control only when an existing selection is cleared.
+  if (value === "" && nullable && field?.relation?.cardinality === "one") {
+    return null;
+  }
+
   if (typeof value !== "string" || value === "") {
     return definition.required ? value : undefined;
   }
@@ -2021,25 +2047,31 @@ export function readFormValue(
 }
 
 function coerceFormValue(value: string, schema: unknown): unknown {
-  const { type } = getFormInputSchema(schema);
+  const { schema: { type } } = describeFormInputSchema(schema);
   return type === "number" || type === "integer" ? Number(value) : value;
 }
 
 /** Selects a concrete control for nullable inputs without guessing between other unions. */
-function getFormInputSchema(schema: unknown): Record<string, unknown> {
-  if (!isRecord(schema)) return {};
+function describeFormInputSchema(schema: unknown): { schema: Record<string, unknown>; nullable: boolean } {
+  if (!isRecord(schema)) return { schema: {}, nullable: schema === true };
 
-  if (Array.isArray(schema.type) && schema.type.length === 2 && schema.type.includes("null")) {
-    return { ...schema, type: schema.type.find((type) => type !== "null") };
+  if (Array.isArray(schema.type) && schema.type.includes("null")) {
+    return {
+      schema: schema.type.length === 2 ? { ...schema, type: schema.type.find((type) => type !== "null") } : schema,
+      nullable: true,
+    };
   }
 
   const alternatives = schema.anyOf ?? schema.oneOf;
-  if (Array.isArray(alternatives) && alternatives.length === 2
+  if (Array.isArray(alternatives)
     && alternatives.some((alternative) => isRecord(alternative) && alternative.type === "null")) {
-    return alternatives.filter(isRecord).find((alternative) => alternative.type !== "null") ?? schema;
+    const alternative = alternatives.length === 2
+      ? alternatives.filter(isRecord).find((item) => item.type !== "null")
+      : undefined;
+    return { schema: alternative ?? schema, nullable: true };
   }
 
-  return schema;
+  return { schema, nullable: schema.type === "null" };
 }
 
 /** Returns whether schema-derived form values contain user-entered content. */

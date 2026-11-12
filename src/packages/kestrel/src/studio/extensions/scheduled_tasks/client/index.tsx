@@ -44,7 +44,7 @@ function ScheduledTasksStudioPage({ page }: { page: StudioPageManifest }) {
 
 function ScheduledTaskWorkspace({ dataPath }: { dataPath: string }) {
   const [resource, setResource] = useState<CatalogResource>({ status: "loading" });
-  const [updatingTask, setUpdatingTask] = useState<string>();
+  const [updatingTasks, setUpdatingTasks] = useState<ReadonlySet<string>>(() => new Set());
   const [controlError, setControlError] = useState<string>();
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
@@ -86,7 +86,8 @@ function ScheduledTaskWorkspace({ dataPath }: { dataPath: string }) {
     task: StudioScheduledTask,
     action: StudioScheduledTaskControlAction,
   ) => {
-    setUpdatingTask(task.id);
+    // Independent controls stay disabled until their own requests settle.
+    setUpdatingTasks((current) => new Set(current).add(task.id));
     setControlError(undefined);
 
     try {
@@ -107,7 +108,11 @@ function ScheduledTaskWorkspace({ dataPath }: { dataPath: string }) {
     } catch (error) {
       setControlError(error instanceof Error ? error.message : String(error));
     } finally {
-      setUpdatingTask(undefined);
+      setUpdatingTasks((current) => {
+        const pending = new Set(current);
+        pending.delete(task.id);
+        return pending;
+      });
     }
   };
 
@@ -167,7 +172,7 @@ function ScheduledTaskWorkspace({ dataPath }: { dataPath: string }) {
                 now={currentTime}
                 onControl={control}
                 task={node}
-                updating={updatingTask === node.id}
+                updating={updatingTasks.has(node.id)}
               />
             ))}
       </div>

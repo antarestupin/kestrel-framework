@@ -78,9 +78,10 @@ function EmailCapturePage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page email-page">
       <StudioPageHeader page={page} eyebrow="Development email" />
+      {/* A different capture must load before its preview and resend are available. */}
       {page.dataPath === undefined || captureId === undefined
         ? <p className="error-panel">The captured email link is incomplete.</p>
-        : <EmailCaptureDetail dataPath={page.dataPath} captureId={captureId} />}
+        : <EmailCaptureDetail key={JSON.stringify([page.dataPath, captureId])} dataPath={page.dataPath} captureId={captureId} />}
     </div>
   );
 }
@@ -148,16 +149,29 @@ function EmailInbox({ dataPath }: { dataPath: string }) {
   const resource = usePaginatedEmailResource<StudioEmailCaptureSummary>(
     `${dataPath}/captures`,
   );
+  const [clearError, setClearError] = useState<string>();
+  const [clearing, setClearing] = useState(false);
   const clear = async () => {
     if (!window.confirm("Clear every locally captured email? This cannot be undone.")) return;
-    const response = await fetch(`${dataPath}/captures`, { method: "DELETE" });
-    if (!response.ok) throw new Error(`Unable to clear the inbox (${response.status}).`);
-    await resource.refresh();
+
+    setClearing(true);
+    setClearError(undefined);
+    try {
+      const response = await fetch(`${dataPath}/captures`, { method: "DELETE" });
+      if (!response.ok) throw new Error(`Unable to clear the inbox (${response.status}).`);
+      await resource.refresh();
+    } catch (error) {
+      // Keep the current inbox visible and let the user retry a failed clear.
+      setClearError(error instanceof Error ? error.message : "Unable to clear the inbox.");
+    } finally {
+      setClearing(false);
+    }
   };
 
   return (
     <section className="email-workspace" aria-label="Local email capture inbox">
-      <EmailToolbar onRefresh={resource.refresh} onClear={clear} />
+      <EmailToolbar onRefresh={resource.refresh} onClear={clear} clearing={clearing} />
+      {clearError !== undefined && <p className="error-panel" role="alert">{clearError}</p>}
       <ResourceState resource={resource} empty="No emails have been captured locally." />
       {resource.status === "ready" && resource.items.length > 0 && (
         <div className="email-inbox-list">
@@ -198,6 +212,7 @@ function EmailCaptureDetail({
   const navigate = useNavigate();
   const [capture, setCapture] = useState<StudioEmailCaptureDetail>();
   const [error, setError] = useState<string>();
+  const [resendError, setResendError] = useState<string>();
   const [preview, setPreview] = useState<"html" | "text">("html");
   const [resending, setResending] = useState(false);
   const load = useCallback(async () => {
@@ -232,6 +247,7 @@ function EmailCaptureDetail({
       "Replay this message through the configured local email transport using its original recipients?",
     )) return;
     setResending(true);
+    setResendError(undefined);
     try {
       const response = await fetch(
         `${dataPath}/captures/${encodeURIComponent(captureId)}/resend`,
@@ -244,8 +260,9 @@ function EmailCaptureDetail({
       } else {
         await load();
       }
-    } catch (resendError) {
-      setError(resendError instanceof Error ? resendError.message : String(resendError));
+    } catch (error) {
+      // Action errors must not replace the loaded capture or hide its retry control.
+      setResendError(error instanceof Error ? error.message : "Unable to resend captured email.");
     } finally {
       setResending(false);
     }
@@ -256,6 +273,7 @@ function EmailCaptureDetail({
 
   return (
     <section className="email-detail" aria-label="Captured email detail">
+      {resendError !== undefined && <p className="error-panel" role="alert">{resendError}</p>}
       <header className="email-detail-header">
         <div>
           <h2>{capture.subject}</h2>
@@ -360,9 +378,11 @@ function ObservationCard({ capture }: { capture: StudioEmailCaptureDetail }) {
 }
 
 function EmailToolbar({
+  clearing = false,
   onRefresh,
   onClear,
 }: {
+  clearing?: boolean;
   onRefresh(): Promise<void>;
   onClear?: () => Promise<void>;
 }) {
@@ -372,7 +392,7 @@ function EmailToolbar({
         <Icon name="refresh" /> Refresh
       </button>
       {onClear !== undefined && (
-        <button className="danger" onClick={() => void onClear()} type="button">
+        <button className="danger" disabled={clearing} onClick={() => void onClear()} type="button">
           <Icon name="delete" /> Clear inbox
         </button>
       )}

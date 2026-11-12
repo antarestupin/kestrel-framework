@@ -49,7 +49,8 @@ function ControllersStudioPage({ page }: { page: StudioPageManifest }) {
       <StudioPageHeader page={page} eyebrow="HTTP" />
       {page.dataPath === undefined
         ? <p className="error-panel">The controllers page has no data endpoint.</p>
-        : <ControllerExplorer dataPath={page.dataPath} />}
+        // A new endpoint must never expose actions from the previous catalog.
+        : <ControllerExplorer key={page.dataPath} dataPath={page.dataPath} />}
     </div>
   );
 }

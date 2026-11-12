@@ -29,6 +29,8 @@ export function HistoryMatrix({ manifest, resource, recordId, onOpenRelation }: 
   });
   const events = history.data?.pages.flatMap((page) => page.events).reverse() ?? [];
   const fields = history.data?.pages[0]?.fields ?? [];
+  // Refetching only loaded pages cannot recover a failed older cursor.
+  const retry = () => history.isFetchNextPageError ? history.fetchNextPage() : history.refetch();
   // Keep the current events visible when older columns are prepended.
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -40,7 +42,7 @@ export function HistoryMatrix({ manifest, resource, recordId, onOpenRelation }: 
     <summary>History</summary>
     {open ? <>
       {history.isPending ? <p role="status">Loading history…</p> : null}
-      {history.isError ? <p role="alert">History could not be loaded. <button type="button" onClick={() => void history.refetch()}>Retry</button></p> : null}
+      {history.isError ? <p role="alert">History could not be loaded. <button type="button" onClick={() => void retry()}>Retry</button></p> : null}
       {history.hasNextPage ? <button type="button" disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>Load older changes</button> : null}
       {history.data && events.length === 0 ? <p>No history recorded.</p> : null}
       <div className="history-viewport" ref={viewport} tabIndex={0} role="region" aria-label="Resource history">

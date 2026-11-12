@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -151,8 +152,10 @@ function useLogs(
     | { status: "error"; message: string }
     | { status: "ready"; items: readonly StudioLog[]; nextBefore: number | null }
   >({ status: "loading" });
+  const activeRequest = useRef<AbortController | undefined>(undefined);
 
-  const load = useCallback(async (before?: number) => {
+  const load = useCallback(async (signal: AbortSignal, before?: number) => {
+    if (signal.aborted) return;
     try {
       const url = new URL(dataPath, window.location.origin);
       url.searchParams.set("limit", "50");
@@ -171,6 +174,7 @@ function useLogs(
 
       const response = await fetch(url, {
         headers: { accept: "application/json" },
+        signal,
       });
 
       if (!response.ok) {
@@ -178,6 +182,7 @@ function useLogs(
       }
 
       const page = await response.json() as StudioLogPage;
+      if (signal.aborted) return;
 
       setState((current) => ({
         status: "ready",
@@ -187,6 +192,7 @@ function useLogs(
         nextBefore: page.nextBefore,
       }));
     } catch (error: unknown) {
+      if (signal.aborted) return;
       setState({
         status: "error",
         message: error instanceof Error
@@ -197,31 +203,43 @@ function useLogs(
   }, [dataPath, level, workload]);
 
   useEffect(() => {
+    // A filter change invalidates every read started for the old filter.
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setState({ status: "loading" });
-    void load();
+    void load(controller.signal);
 
     // Keep the newest page live without requiring a manual refresh.
-    const interval = window.setInterval(() => void load(), 2_000);
+    const interval = window.setInterval(() => void load(controller.signal), 2_000);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+    };
   }, [load]);
 
   const clear = useCallback(async () => {
-    const response = await fetch(dataPath, { method: "DELETE" });
-
-    if (!response.ok) {
+    const signal = activeRequest.current?.signal;
+    if (signal === undefined || signal.aborted) return;
+    try {
+      // Clearing applies to the full log, independently of the selected filter.
+      const response = await fetch(dataPath, { method: "DELETE" });
+      if (!response.ok) {
+        throw new Error(`Clearing logs failed with status ${response.status}.`);
+      }
+      await load(signal);
+    } catch (error: unknown) {
+      if (signal.aborted) return;
       setState({
         status: "error",
-        message: `Clearing logs failed with status ${response.status}.`,
+        message: error instanceof Error ? error.message : "Unable to clear logs.",
       });
-      return;
     }
-
-    await load();
   }, [dataPath, load]);
   const loadMore = useCallback(async () => {
-    if (state.status === "ready" && state.nextBefore !== null) {
-      await load(state.nextBefore);
+    const signal = activeRequest.current?.signal;
+    if (signal !== undefined && state.status === "ready" && state.nextBefore !== null) {
+      await load(signal, state.nextBefore);
     }
   }, [load, state]);
 

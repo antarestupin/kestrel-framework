@@ -220,9 +220,10 @@ function WorkerStudioPage({ page }: { page: StudioPageManifest }) {
   return (
     <div className="page workers-page">
       <StudioPageHeader page={page} eyebrow="Operations" />
+      {/* A different route must retire the publisher for the previous queue. */}
       {page.dataPath === undefined || workerId === undefined
         ? <p className="error-panel">The worker link is incomplete.</p>
-        : <WorkerDetailWorkspace dataPath={page.dataPath} workerId={workerId} />}
+        : <WorkerDetailWorkspace key={JSON.stringify([page.dataPath, workerId])} dataPath={page.dataPath} workerId={workerId} />}
     </div>
   );
 }
@@ -558,7 +559,9 @@ function flattenCatalogRows(
 }
 
 function formatPayload(worker: StudioWorkerQueue, exampleIndex: number): string {
-  return JSON.stringify(worker.examples[exampleIndex]?.payload ?? {}, null, 2);
+  const payload = worker.examples[exampleIndex]?.payload;
+  // Null is a valid input; only a missing example falls back to an object.
+  return JSON.stringify(payload === undefined ? {} : payload, null, 2);
 }
 
 function formatEnqueueError(status: number, body: string): string {

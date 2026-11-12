@@ -40,6 +40,8 @@ Run `npm run test:coverage` after preparing the [integration-test infrastructure
 
 Open `artifacts/coverage/kestrel/index.html` for file-level detail or read `artifacts/coverage/kestrel/coverage-summary.json` for machine-readable counts. The command has no coverage threshold. Test and infrastructure failures still fail the run. Coverage measures code executed inside Vitest workers. Code exercised only in a separate CLI process or a browser needs separate coverage collection.
 
+The terminal report also shows client and server branch totals for Atlas and Studio. Their server totals include the adapters that deliver the browser assets. DOM interaction tests select jsdom per file with `// @vitest-environment jsdom`, mount the React component, and supply controlled HTTP responses. Unmount components and restore test globals after each test so these files can share the normal Vitest run.
+
 ## Framework mutation testing
 
 Use the [mutation-testing contributor guide](contributing/mutation-testing.md) for Stryker profiles, ten-minute budgets, isolated test infrastructure, incremental reports and the framework coverage inventory. These repository checks assess framework tests; they are separate from testing an application that uses Kestrel.

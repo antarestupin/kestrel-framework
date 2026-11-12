@@ -373,15 +373,9 @@ function useObservations(
   }, [load]);
 
   const clear = useCallback(async () => {
-    const response = await fetch(`${dataPath}/observations`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      setState({
-        status: "error",
-        message: `Clearing observations failed with status ${response.status}.`,
-      });
+    const message = await deleteObservations(`${dataPath}/observations`);
+    if (message !== undefined) {
+      setState({ status: "error", message });
       return;
     }
 
@@ -562,15 +556,9 @@ function useExecutions(dataPath: string) {
   }, [load]);
 
   const clear = useCallback(async () => {
-    const response = await fetch(`${dataPath}/executions`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      setState({
-        status: "error",
-        message: `Clearing observations failed with status ${response.status}.`,
-      });
+    const message = await deleteObservations(`${dataPath}/executions`);
+    if (message !== undefined) {
+      setState({ status: "error", message });
       return;
     }
 
@@ -583,4 +571,14 @@ function useExecutions(dataPath: string) {
   }, [load, state]);
 
   return { ...state, clear, loadMore };
+}
+
+/** Both explorers surface network rejections as well as HTTP failures. */
+async function deleteObservations(url: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(url, { method: "DELETE" });
+    return response.ok ? undefined : `Clearing observations failed with status ${response.status}.`;
+  } catch (error) {
+    return error instanceof Error ? error.message : "Unable to clear observations.";
+  }
 }
