@@ -93,7 +93,8 @@ export function getReferenceCounterDefinitions(schema: Readonly<Record<string, u
   const destinations = new Set<string>();
   for (const value of Object.values(schema)) {
     if (typeof value !== "object" || value === null || !(metadata in value)) continue;
-    for (const definition of (value as CounterTable)[metadata] ?? []) {
+    // Counter declarations attach a real array before exposing the metadata symbol.
+    for (const definition of (value as CounterTable)[metadata]!) {
       const previous = counters.get(definition.id);
       if (previous === definition) continue;
       const destination = `${tableIdentifier(definition.target.table)}.${quoteIdentifier(definition.counter.name)}`;

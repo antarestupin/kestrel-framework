@@ -170,6 +170,49 @@ describe("WorkflowScheduler", () => {
     ]);
   });
 
+  it("runs an activity without a schedule-to-close deadline even after a long wait", async () => {
+    let now = 0;
+    const adapter = new MemoryWorkflowAdapter({ now: () => new Date(now) });
+    const action = defineAction({ name: "deadline.unbounded", output: z.null(), handler: () => null });
+    const workflow = defineWorkflow({ name: "deadline.optional", output: z.null(), handler: (_input, context) => context.run(action, null) });
+    const handler = vi.fn(() => null);
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => handler), {
+      now: () => now, completionBatchSize: 1,
+    });
+    await new WorkflowClient(adapter).start(workflow, null);
+    await scheduler.runOnce();
+    now = 86_400_000;
+    await expect(scheduler.runOnce()).resolves.toMatchObject({ completed: 1 });
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the embedded activity deadline referenced while the handler owns the lease", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const action = defineAction({ name: "deadline.referenced", output: z.null(), handler: () => null });
+    const deadline = 12_345;
+    const workflow = defineWorkflow({ name: "deadline.embedded", output: z.null(), handler: (_input, context) =>
+      context.run(action, null, { startToCloseTimeout: { milliseconds: deadline } }) });
+    const entered = Promise.withResolvers<void>();
+    const result = Promise.withResolvers<null>();
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => () => {
+      entered.resolve();
+      return result.promise;
+    }), { completionBatchSize: 1 });
+    await new WorkflowClient(adapter).start(workflow, null);
+    await scheduler.runOnce();
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    const cycle = scheduler.runOnce();
+    try {
+      // A malformed deadline must fail a bounded assertion, even if the handler never starts.
+      await Promise.race([entered.promise, cycle]);
+      const index = timers.mock.calls.findIndex(([, delay]) => delay === deadline);
+      expect(timers.mock.results[index]?.value.hasRef()).toBe(true);
+    } finally {
+      result.resolve(null);
+      try { await cycle; } finally { timers.mockRestore(); }
+    }
+  });
+
   it("caps infrastructure retry delays and keeps the final failure durable", async () => {
     let now = 5_000;
     const adapter = new MemoryWorkflowAdapter({ now: () => new Date(now) });
@@ -342,6 +385,21 @@ describe("WorkflowScheduler", () => {
       },
     });
   });
+
+  it("records the committed task even when the adapter no longer returns the execution", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const workflow = defineWorkflow({ name: "replay.missing", handler: () => undefined });
+    await new WorkflowClient(adapter).start(workflow, null);
+    vi.spyOn(adapter, "get").mockResolvedValue(undefined);
+    const record = vi.fn();
+    const scheduler = new WorkflowScheduler([workflow], adapter, new EmbeddedWorkflowActivityTransport(() => undefined), {
+      instrumentation: { record },
+    });
+
+    await expect(scheduler.runOnce()).resolves.toEqual({ reserved: 1, completed: 1, stale: 0 });
+    expect(record).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "task", outcome: "success" }));
+  });
+
 
   it.each(["waiting", "completed"] as const)("handles pending cancellation when replay is %s without opening a context", async (status) => {
     const adapter = new MemoryWorkflowAdapter();

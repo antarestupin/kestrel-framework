@@ -2,6 +2,127 @@ import { expect, it } from "vitest";
 
 import { MemoryWorkflowAdapter } from "./index.js";
 
+it.each(["cancel", "resume"] as const)("preserves a waiting execution when its %s wake cannot be allocated", async (operation) => {
+  let next = 0;
+  let failWake = false;
+  const failure = new Error("No workflow task ID available.");
+  const adapter = new MemoryWorkflowAdapter({ createTaskId: () => {
+    if (failWake) throw failure;
+    return `task-${++next}`;
+  } });
+  const executionId = "waiting";
+  await adapter.start({ executionId, workflowName: "workflow.waiting", workflowVersion: 1, input: null });
+  const [task] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 });
+  await adapter.commitActivation({
+    taskId: task!.id, reservationToken: task!.reservationToken, executionId, expectedRevision: 0,
+    commands: [{ sequence: 0, kind: "timer", target: "sleep", payload: { durationMs: 60_000 } }],
+    outcome: { status: "waiting" },
+  });
+  if (operation === "resume") await adapter.setPaused(executionId, true);
+  const transition = () => operation === "cancel" ? adapter.requestCancellation(executionId) : adapter.setPaused(executionId, false);
+  const execution = await adapter.get(executionId);
+  const history = await adapter.getHistory(executionId);
+  const tasks = adapter.inspectTasks();
+
+  failWake = true;
+  await expect(transition()).rejects.toBe(failure);
+  await expect(adapter.get(executionId)).resolves.toEqual(execution);
+  await expect(adapter.getHistory(executionId)).resolves.toEqual(history);
+  expect(adapter.inspectTasks()).toEqual(tasks);
+
+  failWake = false;
+  await expect(transition()).resolves.toBe(true);
+  await expect(adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 }))
+    .resolves.toMatchObject([{ executionId }]);
+});
+
+it.each(["cancel", "commit"] as const)("keeps %s of a parent and its waiting child retryable when the child's wake fails", async (operation) => {
+  let next = 0;
+  let allocationsBeforeFailure = Infinity;
+  const failure = new Error("No child wake ID available.");
+  const adapter = new MemoryWorkflowAdapter({ createTaskId: () => {
+    if (--allocationsBeforeFailure === 0) throw failure;
+    return `task-${++next}`;
+  } });
+  const executionIds = ["parent", "child"];
+  await adapter.start({ executionId: "parent", workflowName: "workflow.parent", workflowVersion: 1, input: null });
+  const reserve = async () => (await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 }))[0]!;
+  for (const executionId of executionIds) {
+    const task = await reserve();
+    await adapter.commitActivation({
+      taskId: task.id, reservationToken: task.reservationToken, executionId, expectedRevision: 0,
+      commands: executionId === "parent" ? [{
+        sequence: 0, kind: "child", target: "workflow.child", payload: { executionId: "child", version: 1, input: null },
+      }] : [],
+      outcome: { status: "waiting" },
+    });
+  }
+  let transition = () => adapter.requestCancellation("parent");
+  if (operation === "commit") {
+    await adapter.sendSignal({ executionId: "parent", workflowName: "workflow.parent", signalName: "ready", payload: null });
+    const task = await reserve();
+    transition = () => adapter.commitActivation({
+      taskId: task.id, reservationToken: task.reservationToken, executionId: "parent", expectedRevision: 2,
+      commands: [], outcome: { status: "completed" },
+    });
+  }
+  const state = async () => ({
+    executions: await Promise.all(executionIds.map((id) => adapter.get(id))),
+    histories: await Promise.all(executionIds.map((id) => adapter.getHistory(id))),
+    tasks: adapter.inspectTasks(),
+  });
+  const before = await state();
+
+  allocationsBeforeFailure = operation === "cancel" ? 2 : 1;
+  await expect(transition()).rejects.toBe(failure);
+  expect(await state()).toEqual(before);
+
+  allocationsBeforeFailure = Infinity;
+  await expect(transition()).resolves.toBe(true);
+  const after = await state();
+  expect(after.executions).toMatchObject([
+    operation === "cancel" ? { cancellationRequested: true } : { status: "completed" },
+    { executionId: "child", cancellationRequested: true },
+  ]);
+  expect(after.tasks.map(({ executionId }) => executionId).sort()).toEqual(operation === "cancel" ? ["child", "parent"] : ["child"]);
+});
+
+it("leaves every embedded completion retryable when a later wake allocation fails", async () => {
+  let next = 0;
+  let allocationsBeforeFailure = Infinity;
+  const failure = new Error("No workflow task ID available.");
+  const adapter = new MemoryWorkflowAdapter({ createTaskId: () => {
+    if (--allocationsBeforeFailure === 0) throw failure;
+    return `task-${++next}`;
+  } });
+  const executionIds = ["first", "second"];
+  await adapter.startMany(executionIds.map((executionId) => ({ executionId, workflowName: "workflow.batch", workflowVersion: 1, input: null })));
+  for (const task of await adapter.reserveTasks({ kinds: ["workflow"], limit: 2, leaseMs: 1_000 })) {
+    await adapter.commitActivation({
+      taskId: task.id, reservationToken: task.reservationToken, executionId: task.executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "activity", target: "test.activity", payload: null }], outcome: { status: "waiting" },
+    });
+  }
+  const tasks = await adapter.reserveTasks({ kinds: ["activity"], limit: 2, leaseMs: 1_000 });
+  const requests = tasks.map(({ id: taskId, reservationToken, executionId }) => ({ taskId, reservationToken, executionId, sequence: 0, status: "completed", result: null } as const));
+  const state = async () => ({
+    executions: await Promise.all(executionIds.map((id) => adapter.get(id))),
+    histories: await Promise.all(executionIds.map((id) => adapter.getHistory(id))),
+    tasks: adapter.inspectTasks(),
+  });
+  const before = await state();
+
+  allocationsBeforeFailure = 2;
+  await expect(adapter.completeActivities(requests)).rejects.toBe(failure);
+  expect(await state()).toEqual(before);
+
+  allocationsBeforeFailure = Infinity;
+  await expect(adapter.completeActivities(requests)).resolves.toEqual(tasks.map(({ id: taskId, reservationToken }) => ({ taskId, reservationToken })));
+  for (const id of executionIds) {
+    expect((await adapter.getHistory(id)).at(-1)).toMatchObject({ type: "command-completed", sequence: 0, result: null });
+  }
+});
+
 it.each(["activation", "termination", "pending cancellation"] as const)(
   "leaves the child and parent retryable when wake allocation fails during %s",
   async (operation) => {

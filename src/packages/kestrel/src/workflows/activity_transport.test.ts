@@ -19,6 +19,23 @@ import {
 } from "./activity_transport.js";
 
 describe("ActionWorkflowActivityTransport", () => {
+  it.each([false, true])("uses the requested process ownership for an activity deadline (ref=%s)", async (ref) => {
+    const result = Promise.withResolvers<null>();
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    const running = executeWorkflowActivityWithTimeout(
+      { execute: () => result.promise }, { ...createActivity(), startToCloseTimeoutMs: 10_000 },
+      new AbortController().signal, ref,
+    );
+    try {
+      expect(timers.mock.results).toHaveLength(1);
+      expect(timers.mock.results[0]?.value.hasRef()).toBe(ref);
+    } finally {
+      result.resolve(null);
+      await running;
+      timers.mockRestore();
+    }
+  });
+
   it("projects a legacy activity as generation one without exposing its payload", () => {
     const context = new ExecutionContext();
     const activity = createActivity();
@@ -68,6 +85,15 @@ describe("ActionWorkflowActivityTransport", () => {
         new TypeError('Workflow task "task" is not a valid activity.'),
       );
     }
+  });
+
+  it.each(["3", null, true])("falls back for nonnumeric retry values (%j)", (value) => {
+    const activity = toWorkflowActivityExecution({
+      id: "task", executionId: "execution", commandSequence: 0, kind: "activity", target: "example.activity",
+      payload: { input: null, options: { maxAttempts: value, initialDelayMs: value } },
+      attempt: 1,
+    });
+    expect(activity.retry).toEqual({ maxAttempts: 1, initialDelayMs: 1_000, backoffCoefficient: 2 });
   });
 
   it.each([null, [1, "input"], "input", false, { options: {} }, { input: 2, options: null }, { input: 2, options: [] }])(

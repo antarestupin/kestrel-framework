@@ -71,12 +71,12 @@ describe("workflow definitions", () => {
     expect(() => defineWorkflow({
       name: "Invalid Name",
       handler: () => undefined,
-    })).toThrow("lowercase segments");
+    })).toThrow("Workflow workflow names must contain lowercase segments");
 
     expect(() => defineWorkflowSignal({
       name: "",
       payload: z.string(),
-    })).toThrow("cannot be empty");
+    })).toThrow("Workflow signal names cannot be empty.");
 
     expect(() => defineWorkflow({
       name: "invalid.version",

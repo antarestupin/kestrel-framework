@@ -199,6 +199,28 @@ describe("reference counter definitions", () => {
     })).toThrow("The counter target must be a single-column primary key.");
   });
 
+  it("rejects mismatched foreign-key arities and multiple inline primary keys", () => {
+    const parent = pgTable("counter_arity_owner", {
+      id: integer().primaryKey(), other: integer().notNull(), count: integer().notNull().default(0),
+    });
+    const child = pgTable("counter_arity_member", { reference: integer(), extra: integer() }, (row) => [
+      // An untyped declaration can defeat Drizzle's equal-arity compile-time contract.
+      foreignKey({ columns: [row.reference, row.extra], foreignColumns: [parent.id] } as never),
+      foreignKey({ columns: [row.extra], foreignColumns: [parent.id, parent.other] } as never),
+    ]);
+    for (const reference of [child.reference, child.extra]) {
+      expect(() => defineReferenceCounter(child, { id: "count", reference, target: parent.id, counter: parent.count }))
+        .toThrow("The reference must declare a single-column foreign key to the target.");
+    }
+
+    const invalid = pgTable("counter_ambiguous_owner", {
+      id: integer().primaryKey(), other: integer().primaryKey(), count: integer().notNull().default(0),
+    });
+    const member = pgTable("counter_ambiguous_member", { reference: integer().references(() => invalid.id) });
+    expect(() => defineReferenceCounter(member, { id: "count", reference: member.reference, target: invalid.id, counter: invalid.count }))
+      .toThrow("The counter target must be a single-column primary key.");
+  });
+
   it("accepts a single-column foreign key declared through Drizzle table configuration", () => {
     const parent = pgTable("parent", { id: integer("id").primaryKey(), count: integer("count").notNull().default(0) });
     const child = pgTable("child", { parentId: integer("parent_id") }, (row) => [
@@ -208,6 +230,21 @@ describe("reference counter definitions", () => {
     expect(defineReferenceCounter(child, {
       id: "parent.count", reference: child.parentId, target: parent.id, counter: parent.count,
     }).reference).toBe(child.parentId);
+  });
+
+  it("prevents a second source from claiming the same destination counter", () => {
+    const { parent, child } = tables();
+    const second = pgTable("second_counter_source", { parentId: integer().references(() => parent.id) });
+    const destination = { target: parent.id, counter: parent.count };
+    const definition = defineReferenceCounter(child, { ...destination, reference: child.parentId, id: "first.counter" });
+    // Destination ownership is internal metadata, independent of column enumeration.
+    const ownership = Object.getOwnPropertySymbols(parent.count)
+      .map((key) => Object.getOwnPropertyDescriptor(parent.count, key))
+      .find((descriptor) => descriptor?.value === definition);
+    expect(ownership).toMatchObject({ enumerable: false });
+    expect(() => defineReferenceCounter(second, { ...destination, reference: second.parentId, id: "second.counter" }))
+      .toThrow("Duplicate reference counter id or destination column.");
+    expect(getReferenceCounterDefinitions({ second })).toEqual([]);
   });
 
   it("accepts the supported text, UUID and integer key families in the generated SQL", () => {

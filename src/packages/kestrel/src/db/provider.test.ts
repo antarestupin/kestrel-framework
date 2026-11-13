@@ -12,6 +12,7 @@ import type { PostgresDrizzleConfig } from "./configuration.js";
 import { postgresDrizzleConfigBase } from "./configuration.js";
 import { PostgresDrizzleManager } from "./database_manager.js";
 import { type PostgresDrizzleClient, PostgresDrizzleProvider } from "./provider.js";
+import type { ReferenceCounterMaintenance } from "./reference_counter/maintenance.js";
 
 const databaseConfig: PostgresDrizzleConfig = postgresDrizzleConfigBase.schema.parse({
   host: "localhost",
@@ -95,6 +96,24 @@ describe("PostgresDrizzleProvider", () => {
     }
   });
 
+  it("does not resolve the optional observer registration for a pool without observability", async () => {
+    const app = createTestApp();
+    const resolve = vi.spyOn(app.container, "resolve");
+    try {
+      const { pool } = app.container.resolve(dep<PostgresDrizzleClient>("databaseClient"));
+      resolve.mockClear();
+      const result = { command: "SELECT", rowCount: 1, rows: [] };
+      const connection = Object.assign(new EventEmitter(), { query: vi.fn(async () => result) });
+      pool.emit("connect", connection);
+      await expect(connection.query()).resolves.toBe(result);
+      expect(resolve).not.toHaveBeenCalled();
+      connection.emit("end");
+    } finally {
+      resolve.mockRestore();
+      await app.dispose();
+    }
+  });
+
   it("uses security-conscious query observation defaults", () => {
     const parsed = postgresDrizzleConfigBase.schema.parse({
       host: "localhost",
@@ -170,6 +189,21 @@ describe("PostgresDrizzleProvider", () => {
     await app.dispose();
 
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("shares the independently owned reference-counter service across execution scopes", async () => {
+    const app = createTestApp();
+    await app.start();
+    const first = await app.createExecutionScope();
+    const second = await app.createExecutionScope();
+    const dependency = dep<ReferenceCounterMaintenance>("referenceCounterMaintenance");
+    try {
+      expect(first.container.resolve(dependency)).toBe(second.container.resolve(dependency));
+    } finally {
+      await first.dispose();
+      await second.dispose();
+      await app.dispose();
+    }
   });
 
   it("shares a manager inside one execution scope", async () => {

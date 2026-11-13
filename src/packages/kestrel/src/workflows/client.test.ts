@@ -368,6 +368,10 @@ describe("WorkflowClient", () => {
       { idempotencyKey: "approval" },
     )).resolves.toEqual({ id: "signal-id", accepted: false });
     expect(adapter.inspectSignals()[0]?.payload).toEqual({ approved: true });
+    // A typed signal without a key remains distinct from earlier deduplicated deliveries.
+    const send = vi.spyOn(adapter, "sendSignal");
+    await expect(handle.signal(approvalSignal, { approved: "yes" })).resolves.toMatchObject({ accepted: true });
+    expect(send.mock.lastCall?.[0]).not.toHaveProperty("idempotencyKey");
 
     if (false) {
       // @ts-expect-error Signal payloads retain their input contract.

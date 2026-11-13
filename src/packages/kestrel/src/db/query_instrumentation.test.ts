@@ -204,6 +204,15 @@ describe("PostgreSQL query instrumentation", () => {
     expect(first.select()).toBe(42);
   });
 
+  it("passes callback values through non-transaction database methods unchanged", () => {
+    const register = vi.fn((listener: () => void) => listener);
+    const listener = vi.fn();
+    const database = instrumentDrizzleDatabase({ register }, { parameters: "omit", origin: "none" },
+      () => ({ record() {} }));
+    database.register(listener);
+    expect(register).toHaveBeenCalledExactlyOnceWith(listener);
+  });
+
   it("attributes a queued pool query to the requesting execution, even when another execution releases the connection", async () => {
     const config = { ...createPostgresTestConfig(), max: 1 };
     const pool = new Pool(config);
@@ -304,6 +313,41 @@ describe("PostgreSQL query instrumentation", () => {
     // A failed diagnostic inspection must still delegate the original configuration object.
     await expect(Promise.resolve().then(() => client.query(config))).resolves.toBe(successfulResult);
     expect(query).toHaveBeenCalledExactlyOnceWith(config);
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("lets the driver handle submit objects without SQL text", async () => {
+    const handle = { submit() {} };
+    const query = vi.fn(() => successfulResult);
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    const client = createClient(query);
+    instrumentPostgresClient(client, { parameters: "include", origin: "none" }, () => ({ record }));
+
+    // node-postgres accepts its own query objects as well as QueryConfig records.
+    const callback = vi.fn();
+    Reflect.apply(client.query, client, [handle, callback]);
+    expect(query).toHaveBeenCalledExactlyOnceWith(handle, callback);
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("passes through primitive database fields and method results", () => {
+    const raw = { query: { users: { empty: null, enabled: true } }, read: () => 42 };
+    const database = instrumentDrizzleDatabase(raw, { parameters: "omit", origin: "none" },
+      () => ({ record() {} }));
+    expect(database.query.users.empty).toBeNull();
+    expect(database.query.users.enabled).toBe(true);
+    expect(database.read()).toBe(42);
+  });
+
+  it("does not decorate an unsupported query input before the driver validates it", () => {
+    const submit = Object.assign(() => undefined, { text: "select 42" });
+    const invalid = new Error("Invalid native query input.");
+    const query = vi.fn(() => { throw invalid; });
+    const record = vi.fn<DatabaseQueryInstrumentation["record"]>();
+    const client = createClient(query);
+    instrumentPostgresClient(client, { parameters: "include", origin: "none" }, () => ({ record }));
+    expect(() => Reflect.apply(client.query, client, [submit])).toThrow(invalid);
+    expect(query).toHaveBeenCalledExactlyOnceWith(submit);
     expect(record).not.toHaveBeenCalled();
   });
 
@@ -533,6 +577,7 @@ describe("PostgreSQL query instrumentation", () => {
       "    at query (/app/node_modules/pg/lib/client.js:42:10)",
       "    at observe (/app/db/query_instrumentation.mjs:7:9)",
       "    at read (/app/src/read.ts:12:34)",
+      "    at helper (/app/db/query_instrumentation.ts.fixture:56:78)",
       "    at /app/src/caller.ts:56:78",
     ].join("\n"), () => client.query("select 42"));
 
@@ -541,7 +586,7 @@ describe("PostgreSQL query instrumentation", () => {
       data: expect.objectContaining({
         origin: {
           function: "read", file: "/app/src/read.ts", line: 12, column: 34,
-          stack: ["at read (/app/src/read.ts:12:34)", "at /app/src/caller.ts:56:78"],
+          stack: ["at read (/app/src/read.ts:12:34)", "at helper (/app/db/query_instrumentation.ts.fixture:56:78)", "at /app/src/caller.ts:56:78"],
         },
       }),
     }));
@@ -642,6 +687,11 @@ describe("PostgreSQL query instrumentation", () => {
 
     await expect(database.read()).resolves.toBe(successfulResult);
     expect(query).toHaveBeenCalledExactlyOnceWith("select 42");
+  });
+
+  it("loads the public database transaction middleware as a named action middleware", async () => {
+    const { databaseTransaction } = await import("./middleware.js");
+    expect(databaseTransaction.name).toBe("database.transaction");
   });
 });
 

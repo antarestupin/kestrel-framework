@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { dep } from "../../di/index.js";
 import type { AdapterDependencyResolver } from "../../di/adapter.js";
 import { MemoryWorkflowAdapter, memoryWorkflows } from "./memory/index.js";
-import { PostgresWorkflowAdapter, postgresWorkflows, postgresWorkflowsConfigBase, type PostgresWorkflowDatabase } from "./postgres/index.js";
+import type { PostgresWorkflowDatabase } from "./postgres/index.js";
 
 describe("built-in workflow adapter definitions", () => {
   it("creates memory adapters with the declared transport and without infrastructure", () => {
@@ -19,7 +19,8 @@ describe("built-in workflow adapter definitions", () => {
     expect(unused).not.toHaveBeenCalled();
   });
 
-  it("resolves the declared database only during PostgreSQL creation", () => {
+  it("resolves the declared database only during PostgreSQL creation", async () => {
+    const { PostgresWorkflowAdapter, postgresWorkflows } = await import("./postgres/index.js");
     const dependency = dep<PostgresWorkflowDatabase>("workflowDatabase");
     const database = drizzle.mock();
     const resolve = vi.fn((descriptor: unknown) => {
@@ -39,7 +40,9 @@ describe("built-in workflow adapter definitions", () => {
     expect(postgresWorkflows(dependency).capabilities).toEqual({ activityDispatchMode: "embedded" });
   });
 
-  it("coerces a positive integer terminal poll interval and rejects invalid inputs", () => {
+  it("coerces a positive integer terminal poll interval and rejects invalid inputs", async () => {
+    vi.resetModules();
+    const { postgresWorkflowsConfigBase } = await import("./postgres/configuration.js");
     const { schema } = postgresWorkflowsConfigBase;
     expect(schema.parse({})).toEqual({ terminalPollIntervalMs: 25 });
     for (const input of ["17", 17]) {

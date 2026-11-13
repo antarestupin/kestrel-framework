@@ -18,6 +18,13 @@ import { integer, pgTable, text } from "drizzle-orm/pg-core";
 import type { PgSelect } from "drizzle-orm/pg-core";
 
 describe("database pagination helpers", () => {
+  it("rejects a fractional size even when the first-page offset is zero", () => {
+    for (const pageSize of [0, -1, 1.5]) {
+      expect(() => getPaginationQueryWindow({ type: "page", page: 1, pageSize }))
+        .toThrow("The page and page size must be positive safe integers");
+    }
+  });
+
   it("uses keyset predicates with existing filters and no offset", () => {
     const records = pgTable("record", {
       id: integer("id").primaryKey(),

@@ -75,7 +75,12 @@ describe("MemoryWorkflowAdapter command contracts", () => {
   });
 
   it("keeps one parent completion for an already settled child command", async () => {
-    const adapter = new MemoryWorkflowAdapter({ now });
+    let next = 0;
+    let failWake = false;
+    const adapter = new MemoryWorkflowAdapter({ now, createTaskId: () => {
+      if (failWake) throw new Error("The existing child completion must not allocate another wake.");
+      return `task-${++next}`;
+    } });
     await adapter.start(start("parent"));
     await adapter.commitActivation({
       ...reference((await reserve(adapter))[0]), expectedRevision: 0, outcome: { status: "waiting" },
@@ -100,9 +105,26 @@ describe("MemoryWorkflowAdapter command contracts", () => {
       ...reference(wake), expectedRevision: 2, commands: [], outcome: { status: "waiting" },
     });
 
+    failWake = true;
     await expect(settle("second")).resolves.toBe(true);
     await expect(adapter.getHistory("parent")).resolves.toEqual(history);
     await expect(reserve(adapter)).resolves.toEqual([]);
+  });
+
+  it("records only one completion when cancelling two pending children with the same low-level link", async () => {
+    const adapter = new MemoryWorkflowAdapter({ now });
+    const concurrency = { keyed: { key: "shared", limit: 1, conflict: "enqueue", scope: "execution" } } as const;
+    await adapter.startMany([
+      start("parent"),
+      { ...start("holder", "workflow.child"), concurrency },
+      { ...start("first", "workflow.child"), concurrency, parentExecutionId: "parent", parentCommandSequence: 0 },
+      { ...start("second", "workflow.child"), concurrency, parentExecutionId: "parent", parentCommandSequence: 0 },
+    ]);
+    await expect(adapter.requestCancellation("parent")).resolves.toBe(true);
+    expect((await adapter.getHistory("parent")).filter(({ type }) => type === "command-completed")).toMatchObject([
+      { sequence: 0, error: { name: "WorkflowCancellationError", details: { executionId: "first" } } },
+    ]);
+    await expect(adapter.get("second")).resolves.toMatchObject({ status: "cancelled" });
   });
 
   it("rejects reusing an otherwise compatible child ID linked to a different parent", async () => {

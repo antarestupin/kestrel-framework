@@ -64,7 +64,6 @@ export class WorkflowRuntime<Config> {
     activityWorker?: AnyWorker,
     workerClient?: WorkerClient,
   ) {
-    app.shutdown?.registerDrain(() => this.stop());
     this.dispatcherPolling = new PollingSupervisor({
       ...options.polling,
       isRecoverable: options.polling?.isRecoverable ?? ((error) => adapter.isRecoverablePollingError?.(error) ?? false),
@@ -119,6 +118,8 @@ export class WorkflowRuntime<Config> {
         "Outbox workflow activities require a Worker client and activity Worker.",
       );
     }
+    // Register lifecycle ownership only after the runtime is fully configured.
+    app.shutdown?.registerDrain(() => this.stop());
   }
 
   /** Starts polling without owning process-signal coordination. */
@@ -219,7 +220,12 @@ export class WorkflowRuntime<Config> {
         return this.runObservedTask(execution, observer, operation, startedAt, run);
       });
     } catch (error) {
-      await execution.dispose("failure");
+      try {
+        await execution.dispose("failure");
+      } catch (disposalError) {
+        // Scope setup and resource disposal fail independently.
+        throw new AggregateError([error, disposalError], "Workflow scope setup and disposal failed.");
+      }
       throw error;
     }
   }
@@ -233,30 +239,38 @@ export class WorkflowRuntime<Config> {
     run: () => Promise<Result>,
   ): Promise<Result> {
     let outcome: "failure" | "success" = "success";
-    let executionError: unknown;
+    let result: Result;
+    const failures: unknown[] = [];
     try {
-      return await this.executions.run(execution, run);
+      result = await this.executions.run(execution, run);
     } catch (error) {
-      executionError = error;
       outcome = "failure";
-      throw error;
-    } finally {
-      try {
-        observer?.record(
-          executionCompletedObservation,
-          {
-            operation,
-            transport: "workflow",
-            ...getExecutionObservationContext(execution.context),
-            // A rejected task may have thrown undefined, which still represents a failure.
-            ...(outcome === "failure" ? getExecutionObservationError(executionError) : {}),
-          },
-          { outcome, durationMs: performance.now() - startedAt },
-        );
-      } finally {
-        await execution.dispose(outcome);
-      }
+      failures.push(error);
     }
+    try {
+      observer?.record(
+        executionCompletedObservation,
+        {
+          operation,
+          transport: "workflow",
+          ...getExecutionObservationContext(execution.context),
+          // A rejected task may have thrown undefined, which still represents a failure.
+          ...(outcome === "failure" ? getExecutionObservationError(failures[0]) : {}),
+        },
+        { outcome, durationMs: performance.now() - startedAt },
+      );
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      await execution.dispose(outcome);
+    } catch (error) {
+      failures.push(error);
+    }
+    // Preserve the task failure even if reporting or releasing the scope fails.
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, "Workflow execution and cleanup failed.");
+    return result!;
   }
 
   private async runDispatcher(signal: AbortSignal): Promise<void> {

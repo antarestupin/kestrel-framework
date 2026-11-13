@@ -13,7 +13,7 @@ import {
 import type { Pool } from "pg";
 import {
   afterAll,
-  beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -43,36 +43,44 @@ const records = historySchema.table("record", {
     withTimezone: true,
   }).notNull(),
 });
-const recordHistory = defineHistoryTable(records);
+let recordHistory: ReturnType<typeof createRecordHistory>;
+const createRecordHistory = () => defineHistoryTable(records);
 const existingRecords = historySchema.table("existing_record", {
   id: uuid("id").primaryKey(),
   value: text("value").notNull(),
 });
-const existingRecordHistory = defineHistoryTable(existingRecords, {
-  baseline: "existing_rows",
-});
+const createExistingRecordHistory = () => defineHistoryTable(existingRecords, { baseline: "existing_rows" });
+let existingRecordHistory: ReturnType<typeof createExistingRecordHistory>;
 // Two audit tables exercise both public selection modes against real triggers.
 const selectedRecords = historySchema.table("selected_record", {
   id: uuid("id").primaryKey(), value: text("value"), count: integer("count"),
 });
-const includedHistory = defineHistoryTable(selectedRecords, {
+const createIncludedHistory = () => defineHistoryTable(selectedRecords, {
   name: "included_history", include: [selectedRecords.value], baseline: "existing_rows",
 });
-const excludedHistory = defineHistoryTable(selectedRecords, {
+let includedHistory: ReturnType<typeof createIncludedHistory>;
+const createExcludedHistory = () => defineHistoryTable(selectedRecords, {
   name: "excluded_history", exclude: [selectedRecords.count], baseline: "existing_rows",
 });
-const schema = {
-  selectedRecords, includedHistory,
-  records,
-  recordHistory,
-  existingRecords,
-  existingRecordHistory,
-};
-
+let excludedHistory: ReturnType<typeof createExcludedHistory>;
+const createSchema = () => ({
+  selectedRecords, includedHistory, excludedHistory,
+  records, recordHistory,
+  existingRecords, existingRecordHistory,
+});
+let schema: ReturnType<typeof createSchema>;
 let pool: Pool;
+let initialized = false;
 
-beforeAll(async () => {
-  pool = createPostgresTestPool();
+beforeEach(async () => {
+  if (initialized) return;
+  // Attribute a schema or trigger installation failure to the exercising test.
+  recordHistory = createRecordHistory();
+  existingRecordHistory = createExistingRecordHistory();
+  includedHistory = createIncludedHistory();
+  excludedHistory = createExcludedHistory();
+  schema = createSchema();
+  pool ??= createPostgresTestPool();
   await pool.query(`
     DROP SCHEMA IF EXISTS kestrel_history_test CASCADE;
     CREATE SCHEMA kestrel_history_test;
@@ -128,11 +136,12 @@ beforeAll(async () => {
     }
     await pool.query(createHistoryTriggerSql(definition));
   }
+  initialized = true;
 });
 
 afterAll(async () => {
-  await pool.query("DROP SCHEMA IF EXISTS kestrel_history_test CASCADE;");
-  await pool.end();
+  try { await pool?.query("DROP SCHEMA IF EXISTS kestrel_history_test CASCADE;"); }
+  finally { await pool?.end(); }
 });
 
 describe("database history", () => {

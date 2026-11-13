@@ -436,10 +436,14 @@ describe("PostgresWorkflowAdapter", () => {
       CREATE TRIGGER skip_workflow_start BEFORE INSERT ON pg_temp.workflow_execution
         FOR EACH ROW WHEN (NEW.id = 'suppressed') EXECUTE FUNCTION pg_temp.skip_workflow_start();
     `);
-    await expect(adapter.startMany([startRequest("ordinary"), startRequest("suppressed")]))
-      .rejects.toThrow("PostgreSQL did not resolve a workflow start request.");
-    await expect(database.select().from(testExecutions)).resolves.toEqual([]);
-    await expect(database.select().from(testTasks)).resolves.toEqual([]);
+    try {
+      await expect(adapter.startMany([startRequest("ordinary"), startRequest("suppressed")]))
+        .rejects.toThrow("PostgreSQL did not resolve a workflow start request.");
+      await expect(database.select().from(testExecutions)).resolves.toEqual([]);
+      await expect(database.select().from(testTasks)).resolves.toEqual([]);
+    } finally {
+      await client.query("DROP TRIGGER skip_workflow_start ON pg_temp.workflow_execution; DROP FUNCTION pg_temp.skip_workflow_start()");
+    }
   });
 
   it("wakes a resumed waiting root after its previous activation was consumed", async () => {
@@ -490,6 +494,59 @@ describe("PostgresWorkflowAdapter", () => {
     expect((await client.query("SELECT * FROM workflow_task WHERE execution_id = $1", ["pending-child-parent"])).rows).toMatchObject([{ kind: "workflow" }]);
     expect(await adapter.requestCancellation("capacity-pending-child")).toBe(false);
     expect(await adapter.getHistory("pending-child-parent")).toEqual(history);
+  });
+
+  it.each(["cancel", "terminate"] as const)("does not requeue a parent when a second linked child settles via %s", async (operation) => {
+    const parent = startRequest("already-settled-cancel-parent");
+    await adapter.start(parent);
+    const activation = await reserveOne("workflow");
+    await adapter.commitActivation({
+      ...toRef(activation), executionId: parent.executionId, expectedRevision: 0,
+      commands: [{ kind: "child", sequence: 0, target: "example.child", payload: { input: null, version: 1 } }],
+      outcome: { status: "waiting" },
+    });
+    const firstChild = await reserveOne("workflow");
+    await adapter.commitActivation({
+      ...toRef(firstChild), executionId: firstChild.executionId, expectedRevision: 0,
+      commands: [], outcome: { status: "completed", output: true },
+    });
+    const replay = await reserveOne("workflow");
+    await adapter.commitActivation({
+      ...toRef(replay), executionId: parent.executionId, expectedRevision: 2,
+      commands: [], outcome: { status: "waiting" },
+    });
+    const holder = { ...startRequest("settled-cancel-holder"), workflowName: "example.child" };
+    const later = { ...holder, executionId: "settled-cancel-later", parentExecutionId: parent.executionId, parentCommandSequence: 0 };
+    const concurrency = { keyed: { key: "settled-cancel", limit: 1, scope: "execution", conflict: "enqueue" } } as const;
+    await adapter.startMany([{ ...holder, concurrency }, { ...later, concurrency }]);
+    await expect(adapter.get(later.executionId)).resolves.toMatchObject({ status: "pending" });
+    const settle = operation === "cancel" ? adapter.requestCancellation.bind(adapter) : adapter.forceTerminate.bind(adapter);
+    await expect(settle(later.executionId)).resolves.toBe(true);
+    await expect(adapter.get(parent.executionId)).resolves.toMatchObject({ status: "waiting", revision: 2 });
+    const history = await adapter.getHistory(parent.executionId);
+    expect(history).toHaveLength(2);
+    expect(history[1]).toMatchObject({ type: "command-completed", sequence: 0, result: true });
+    expect((await database.select().from(testTasks)).map(({ executionId }) => executionId)).toEqual([holder.executionId]);
+  });
+
+  it("cancels pending children with incomplete or absent parent links", async () => {
+    const parent = startRequest("incomplete-cancel-parent");
+    const concurrency = { keyed: { key: "incomplete-cancel", limit: 1, conflict: "enqueue", scope: "execution" } } as const;
+    await adapter.start({ ...parent, concurrency });
+    const base = { ...parent, concurrency };
+    await adapter.startMany([
+      { ...base, executionId: "missing-parent-id", parentCommandSequence: 0 },
+      { ...base, executionId: "missing-parent-sequence", parentExecutionId: parent.executionId },
+      { ...base, executionId: "nonexistent-parent", parentExecutionId: "unknown-parent", parentCommandSequence: 0 },
+    ]);
+    for (const executionId of ["missing-parent-id", "missing-parent-sequence", "nonexistent-parent"]) {
+      await expect(adapter.get(executionId)).resolves.toMatchObject({ status: "pending" });
+      await expect(adapter.requestCancellation(executionId)).resolves.toBe(true);
+      await expect(adapter.get(executionId)).resolves.toMatchObject({ status: "cancelled" });
+    }
+    await expect(adapter.get(parent.executionId)).resolves.toMatchObject({ status: "queued", revision: 0 });
+    await expect(adapter.getHistory(parent.executionId)).resolves.toEqual([]);
+    expect((await database.select().from(testTasks)).map(({ executionId }) => executionId)).toEqual([parent.executionId]);
   });
 
   it("keeps a failed parent immutable when cancellation immediately closes its pending child", async () => {
@@ -725,6 +782,78 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(adapter.retryExecution({ sourceExecutionId: sourceId, executionId: targetId, workflowVersion: 2 }))
       .resolves.toMatchObject({ created: true, execution: { status: "queued", concurrencyAdmitted: true } });
     expect((await reserveOne("workflow")).executionId).toBe(targetId);
+  });
+
+  it("retries legacy execution-scoped metadata that has a limit without a key", async () => {
+    const source = startRequest("legacy-retry-missing-key");
+    await adapter.start(source);
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({
+      ...toRef(task), executionId: source.executionId, expectedRevision: 0, commands: [],
+      outcome: { status: "failed", error: { name: "Failure", message: "Original failure." } },
+    });
+    await client.query("UPDATE workflow_execution SET concurrency_scope = 'execution', concurrency_key_limit = 1 WHERE id = $1", [source.executionId]);
+    const queries = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.retryExecution({ sourceExecutionId: source.executionId, executionId: "legacy-retry-target", workflowVersion: 2 }))
+        .resolves.toMatchObject({ created: true, execution: { status: "queued", concurrencyAdmitted: true } });
+      const admissionLock = queries.mock.calls.some(([, values]: readonly unknown[]) =>
+        Array.isArray(values) && values.some((value) => typeof value === "string" && value.startsWith("workflow-key:")));
+      expect(admissionLock).toBe(false);
+    } finally {
+      queries.mockRestore();
+    }
+  });
+
+  it("rejects a retry whose insert is suppressed without creating a wake-up", async () => {
+    const source = startRequest("suppressed-retry-source");
+    const executionId = "suppressed-retry-target";
+    await adapter.start(source);
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({
+      ...toRef(task), executionId: source.executionId, expectedRevision: 0, commands: [],
+      outcome: { status: "failed", error: { name: "Failure", message: "Original failure." } },
+    });
+    await client.query(`
+      CREATE FUNCTION pg_temp.skip_workflow_retry() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+      CREATE TRIGGER skip_workflow_retry BEFORE INSERT ON pg_temp.workflow_execution
+        FOR EACH ROW WHEN (NEW.id = 'suppressed-retry-target') EXECUTE FUNCTION pg_temp.skip_workflow_retry();
+    `);
+    try {
+      await expect(adapter.retryExecution({ sourceExecutionId: source.executionId, executionId, workflowVersion: 2 }))
+        .rejects.toThrow("PostgreSQL did not return the retried workflow execution.");
+      await expect(adapter.get(executionId)).resolves.toBeUndefined();
+      await expect(database.select().from(testTasks)).resolves.toEqual([]);
+    } finally {
+      await client.query("DROP TRIGGER skip_workflow_retry ON pg_temp.workflow_execution; DROP FUNCTION pg_temp.skip_workflow_retry()");
+    }
+  });
+
+  it("does not attempt an insert when a retry target already belongs to the source", async () => {
+    const source = startRequest("idempotent-retry-source");
+    const executionId = "idempotent-retry-target";
+    await adapter.start(source);
+    const task = await reserveOne("workflow");
+    await adapter.commitActivation({
+      ...toRef(task), executionId: source.executionId, expectedRevision: 0, commands: [],
+      outcome: { status: "failed", error: { name: "Failure", message: "Original failure." } },
+    });
+    const retry = { sourceExecutionId: source.executionId, executionId, workflowVersion: 2 };
+    await expect(adapter.retryExecution(retry)).resolves.toMatchObject({ created: true });
+    await client.query(`
+      CREATE FUNCTION pg_temp.reject_duplicate_retry() RETURNS trigger
+      LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'unexpected retry insert'; END $$;
+      CREATE TRIGGER reject_duplicate_retry BEFORE INSERT ON pg_temp.workflow_execution
+        FOR EACH ROW WHEN (NEW.id = 'idempotent-retry-target') EXECUTE FUNCTION pg_temp.reject_duplicate_retry();
+    `);
+    try {
+      await expect(adapter.retryExecution({ ...retry, workflowVersion: 3 })).resolves.toMatchObject({
+        created: false, execution: { executionId, workflowVersion: 2 },
+      });
+    } finally {
+      await client.query("DROP TRIGGER reject_duplicate_retry ON pg_temp.workflow_execution; DROP FUNCTION pg_temp.reject_duplicate_retry()");
+    }
   });
 
   describe("concurrent PostgreSQL retries", () => {
@@ -1376,6 +1505,39 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(adapter.sendSignal({ ...signal, idempotencyKey: "new" })).rejects.toBeInstanceOf(WorkflowExecutionClosedError);
   });
 
+  it("buffers signals without creating a workflow task before retained permit admission", async () => {
+    const holder = startRequest("signal-permit-holder");
+    const waiting = startRequest("signal-permit-waiting");
+    const concurrency = { keyed: { key: "signal-permit", limit: 1, conflict: "enqueue", scope: "execution" } } as const;
+    await adapter.startMany([{ ...holder, concurrency }, { ...waiting, concurrency }]);
+    const signal = {
+      executionId: waiting.executionId, workflowName: waiting.workflowName, signalName: "approved", payload: true,
+    };
+    const queries = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.sendSignal(signal)).resolves.toMatchObject({ accepted: true });
+      // A signal with no idempotency key has no reason to query for a duplicate.
+      expect(queries.mock.calls.some(([query]: readonly unknown[]) => {
+        const statement = typeof query === "string" ? query : (query as { text: string }).text;
+        return /\bfrom\s+"workflow_signal"/iu.test(statement);
+      })).toBe(false);
+    } finally {
+      queries.mockRestore();
+    }
+    await expect(adapter.sendSignal(signal)).resolves.toMatchObject({ accepted: true });
+    await expect(adapter.get(waiting.executionId)).resolves.toMatchObject({ status: "pending", revision: 2, concurrencyAdmitted: false });
+    expect((await database.select().from(testTasks)).map(({ executionId }) => executionId)).toEqual([holder.executionId]);
+    await expect(adapter.forceTerminate(holder.executionId)).resolves.toBe(true);
+    const task = await reserveOne("workflow");
+    expect(task.executionId).toBe(waiting.executionId);
+    const snapshot = await loadOne(task);
+    expect(snapshot.history).toEqual([
+      expect.objectContaining({ type: "signal-received", eventIndex: 0, payload: true }),
+      expect.objectContaining({ type: "signal-received", eventIndex: 1, payload: true }),
+    ]);
+    expect((await database.select().from(testSignals)).every(({ idempotencyKey }) => idempotencyKey === null)).toBe(true);
+  });
+
   it("atomically rotates history generations for continue-as-new", async () => {
     const request = { ...startRequest("execution-continue"), input: null };
     await adapter.start(request);
@@ -1430,7 +1592,9 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(adapter.continueAsNew(rotate)).rejects.toThrow("pending command 0");
     await expect(adapter.continueAsNew({ ...rotate, expectedRevision: 1 })).rejects.toBeInstanceOf(WorkflowJournalConflictError);
     await expect(adapter.continueAsNew({ ...rotate, reservationToken: "00000000-0000-0000-0000-000000000000" })).resolves.toBe(false);
-    await expect(adapter.continueAsNew({ ...rotate, executionId: "unrelated" })).resolves.toBe(false);
+    await adapter.start(startRequest("unrelated"));
+    await expect(adapter.continueAsNew({ ...rotate, executionId: "unrelated", expectedRevision: 0 })).resolves.toBe(false);
+    await expect(adapter.get("unrelated")).resolves.toMatchObject({ historyGeneration: 1, workflowVersion: 1 });
     await expect(adapter.getHistory(request.executionId)).resolves.toEqual(history);
     await expect(adapter.getHistoryArchives(request.executionId)).resolves.toEqual([]);
 
@@ -1497,11 +1661,38 @@ describe("PostgresWorkflowAdapter", () => {
     ]);
     await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "blocked", revision: 0 });
     await expect(adapter.recoverVersionBlockedExecution(recovery)).resolves.toBe(true);
-    await expect(adapter.recoverVersionBlockedExecution(recovery)).resolves.toBe(false);
     const recovered = await adapter.get(request.executionId);
     expect(recovered).toMatchObject({ status: "queued", revision: 0 });
     expect(recovered).not.toHaveProperty("error");
+    // Legacy records can still retain a replay diagnostic after another operation requeues them.
+    await client.query("UPDATE workflow_execution SET error = $2::jsonb WHERE id = $1", [request.executionId,
+      JSON.stringify({ name: "WorkflowExecutionVersionUnsupportedError", message: "Previous version diagnostic." })]);
+    await expect(adapter.recoverVersionBlockedExecution(recovery)).resolves.toBe(false);
     await expect(reserveOne("workflow")).resolves.toBeDefined();
+  });
+
+  it("clears a stale replay error when generic cancellation replay handles cancellation and completes", async () => {
+    const request = startRequest("blocked-cancellation-completes");
+    await adapter.start(request);
+    const first = await reserveOne("workflow");
+    const error = { name: "WorkflowNondeterminismError", message: "Replay was blocked." };
+    await expect(adapter.commitActivation({
+      ...toRef(first), executionId: request.executionId, expectedRevision: 0,
+      commands: [{ kind: "timer", target: "sleep", sequence: 0, payload: { durationMs: 60_000 } }],
+      outcome: { status: "blocked", error },
+    })).resolves.toBe(true);
+    await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "blocked", error });
+    await expect(adapter.requestCancellation(request.executionId)).resolves.toBe(true);
+    const resumed = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(resumed), executionId: request.executionId, expectedRevision: 2,
+      commands: [{ kind: "capture", target: "handled-cancellation", sequence: 1, payload: true }],
+      outcome: { status: "completed" },
+    })).resolves.toBe(true);
+    const execution = await adapter.get(request.executionId);
+    expect(execution).toMatchObject({ status: "completed", revision: 4 });
+    expect(execution).not.toHaveProperty("error");
+    expect(execution).not.toHaveProperty("output");
   });
 
   it.each([
@@ -1767,6 +1958,27 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(reserveOne("workflow")).resolves.toMatchObject({ executionId: childId });
   });
 
+  it("rejects an otherwise matching child already linked to a different parent", async () => {
+    const request = startRequest("child-identity-owner");
+    await adapter.start(request);
+    const parent = await reserveOne("workflow");
+    const child = {
+      ...startRequest("child-identity-taken"), workflowName: "example.child", input: null,
+      parentExecutionId: "another-parent", parentCommandSequence: 0,
+    };
+    await adapter.start(child);
+    await expect(adapter.commitActivation({
+      ...toRef(parent), executionId: request.executionId, expectedRevision: 0,
+      commands: [{
+        sequence: 0, kind: "child", target: child.workflowName,
+        payload: { input: null, version: 1, executionId: child.executionId },
+      }],
+      outcome: { status: "waiting" },
+    })).rejects.toBeInstanceOf(WorkflowExecutionConflictError);
+    await expect(adapter.getHistory(request.executionId)).resolves.toEqual([]);
+    await expect(adapter.get(child.executionId)).resolves.toMatchObject({ parentExecutionId: "another-parent" });
+  });
+
   it("rolls back the activation when a trigger suppresses its child insert", async () => {
     const request = startRequest("suppressed-child-parent");
     await adapter.start(request);
@@ -1808,6 +2020,7 @@ describe("PostgresWorkflowAdapter", () => {
       ["timer", []], ["timer", "duration", "Workflow command payload must be an object."],
       ["timer", { durationMs: -1 }, 'Workflow command field "durationMs" must be non-negative.'],
       ["timer", { durationMs: 0.5 }], ["signal", { timeoutMs: "soon" }],
+      ["child", { input: null, version: "1" }, 'Workflow command field "version" must be non-negative.'],
       ["child", { version: 1 }, 'Workflow command field "input" is required.'],
       ["child", { input: null, version: 1, executionId: "" }, 'Workflow command field "executionId" must be non-empty.'],
       ["child", { version: 1, input: null, executionId: 5 }],
@@ -1850,6 +2063,69 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(adapter.get(`${request.executionId}:0`)).resolves.toMatchObject({
       concurrency: { definitionLimit: 1, keyed }, concurrencyAdmitted: true,
     });
+  });
+
+  it("accepts independent optional child concurrency fields and normalizes child conflict to enqueue", async () => {
+    const request = startRequest("optional-child-limits");
+    await adapter.start(request);
+    const parent = await reserveOne("workflow");
+    const keyed = { key: "account", limit: 2, scope: "execution", conflict: "reject" } as const;
+    await expect(adapter.commitActivation({
+      ...toRef(parent), executionId: request.executionId, expectedRevision: 0,
+      commands: [
+        { sequence: 0, kind: "child", target: "example.keyed", payload: { input: null, version: 1, concurrency: { keyed } } },
+        { sequence: 1, kind: "child", target: "example.limited", payload: { input: null, version: 1, concurrency: { definitionLimit: 2 } } },
+      ],
+      outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    const first = await adapter.get(`${request.executionId}:0`);
+    const second = await adapter.get(`${request.executionId}:1`);
+    expect(first?.concurrency).toEqual({ keyed: { ...keyed, conflict: "enqueue" } });
+    expect(second?.concurrency).toEqual({ definitionLimit: 2 });
+  });
+
+  it("retains the original child input when retrying a failed child after continuation", async () => {
+    const request = startRequest("child-retry-original");
+    await adapter.start(request);
+    const parent = await reserveOne("workflow");
+    const input = { original: true };
+    await expect(adapter.commitActivation({
+      ...toRef(parent), executionId: request.executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "child", target: "example.child", payload: { input, version: 1 } }],
+      outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    const child = await reserveOne("workflow");
+    await expect(adapter.continueAsNew({
+      ...toRef(child), executionId: child.executionId, expectedRevision: 0, workflowVersion: 2, input: { original: false },
+    })).resolves.toBe(true);
+    const successor = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(successor), executionId: successor.executionId, expectedRevision: 0, commands: [],
+      outcome: { status: "failed", error: { name: "ChildFailure", message: "Failed in the successor." } },
+    })).resolves.toBe(true);
+    await expect(adapter.retryExecution({ sourceExecutionId: child.executionId, executionId: "child-retry", workflowVersion: 3 }))
+      .resolves.toMatchObject({ created: true, execution: { input } });
+  });
+
+  it("does not look up a child again after its insert returned a new row", async () => {
+    const request = startRequest("new-child-round-trip");
+    await adapter.start(request);
+    const task = await reserveOne("workflow");
+    const queries = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.commitActivation({
+        ...toRef(task), executionId: request.executionId, expectedRevision: 0,
+        commands: [{ sequence: 0, kind: "child", target: "example.child", payload: { input: null, version: 1 } }],
+        outcome: { status: "waiting" },
+      })).resolves.toBe(true);
+      const childLookup = queries.mock.calls.some(([query]: readonly unknown[]) => {
+        const statement = typeof query === "string" ? query : (query as { text: string }).text;
+        return /\bfrom\s+"workflow_execution"\s+where\s+"workflow_execution"\."id"\s*=/iu.test(statement);
+      });
+      expect(childLookup).toBe(false);
+    } finally {
+      queries.mockRestore();
+    }
   });
 
   it("orders synchronous completions and preserves only unmatched timers", async () => {
@@ -2097,6 +2373,37 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(database.select().from(testTasks)).resolves.toEqual([]);
   });
 
+  it("cancels a cyclic low-level tree without re-locking its already visited root", async () => {
+    await adapter.startMany([
+      { ...startRequest("cancel-cycle-root"), parentExecutionId: "cancel-cycle-child", parentCommandSequence: 0 },
+      { ...startRequest("cancel-cycle-child"), parentExecutionId: "cancel-cycle-root", parentCommandSequence: 0 },
+    ]);
+    const spy = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.requestCancellation("cancel-cycle-root")).resolves.toBe(true);
+      // Re-locking the root would hide an unnecessary extra round trip behind the cancellation flag.
+      const rowLocks = spy.mock.calls.filter(([query]: readonly unknown[]) => {
+        const statement = typeof query === "string" ? query : (query as { text: string }).text;
+        return /\bfor update\b/i.test(statement);
+      });
+      expect(rowLocks).toHaveLength(2);
+    } finally {
+      spy.mockRestore();
+    }
+    for (const executionId of ["cancel-cycle-root", "cancel-cycle-child"]) {
+      await expect(adapter.getHistory(executionId)).resolves.toMatchObject([{ type: "cancellation-requested", eventIndex: 0 }]);
+    }
+  });
+
+  it("uses the default operator termination reason for a root execution", async () => {
+    const request = startRequest("default-termination-reason");
+    await adapter.start(request);
+    await expect(adapter.forceTerminate(request.executionId)).resolves.toBe(true);
+    await expect(adapter.waitForTerminal(request.executionId)).resolves.toMatchObject({
+      status: "terminated", error: { name: "WorkflowExecutionTerminatedError", message: "Terminated by an operator." },
+    });
+  });
+
   it("terminates orphan, partial and closed-parent links without waking a parent", async () => {
     await adapter.startMany([
       startRequest("terminal-link-parent"),
@@ -2172,6 +2479,10 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(outboxAdapter.completeExternalActivity({ ...previous, historyGeneration: 1 })).resolves.toBe(true);
     await expect(adapter.getHistory(request.executionId)).resolves.toEqual(current);
     await expect(outboxAdapter.completeExternalActivity({ ...previous, historyGeneration: 3 })).resolves.toBe(false);
+    const { dispatchId: _dispatchId, ...unversioned } = previous;
+    // Before generation metadata was deployed, some callers did not have a dispatch identity either.
+    await expect(outboxAdapter.completeExternalActivity(unversioned)).resolves.toBe(true);
+    await expect(adapter.getHistory(request.executionId)).resolves.toEqual(current);
     const [currentDispatch] = await outboxAdapter.reserveActivityDispatches({ limit: 2, leaseMs: 1_000 });
     expect(currentDispatch).toMatchObject({ historyGeneration: 2, sequence: 0 });
     await expect(outboxAdapter.completeExternalActivity({ ...previous, dispatchId: currentDispatch!.id, sequence: 99 }))
@@ -2662,6 +2973,33 @@ describe("PostgresWorkflowAdapter", () => {
     }
   });
 
+  it("does not extend the pending-admission cooldown on activity-only or early workflow polls", async () => {
+    await client.query(`TRUNCATE ${qualifiedSchemaName}.task, ${qualifiedSchemaName}.execution`);
+    const id = "recovery-after-activity-polls";
+    await seedPendingAdmissions([id]);
+    const owner = qualifiedWorkflowAdapter(database);
+    const clock = vi.spyOn(performance, "now").mockReturnValue(10_000);
+    const reserve = (kind: "workflow" | "activity") => owner.reserveTasks({ kinds: [kind], limit: 1, leaseMs: 60_000 });
+    try {
+      await expect(reserve("activity")).resolves.toEqual([]);
+      await expect(owner.get(id)).resolves.toMatchObject({ status: "pending" });
+      // A first workflow poll may repair admission immediately despite the preceding activity poll.
+      await expect(reserve("workflow")).resolves.toEqual([]);
+      await expect(owner.get(id)).resolves.toMatchObject({ status: "queued" });
+
+      const second = "recovery-after-early-workflow-poll";
+      await seedPendingAdmissions([second]);
+      clock.mockReturnValue(10_999);
+      await expect(reserve("workflow")).resolves.toMatchObject([{ executionId: id }]);
+      await expect(owner.get(second)).resolves.toMatchObject({ status: "pending" });
+      clock.mockReturnValue(11_000);
+      await expect(reserve("workflow")).resolves.toEqual([]);
+      await expect(owner.get(second)).resolves.toMatchObject({ status: "queued" });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("recounts available capacity after another transaction takes the discovered slot", async () => {
     await client.query(`TRUNCATE ${qualifiedSchemaName}.task, ${qualifiedSchemaName}.execution`);
     const waiterId = "recovery-stale";
@@ -2670,9 +3008,11 @@ describe("PostgresWorkflowAdapter", () => {
     const owner = qualifiedWorkflowAdapter(database);
     const peer = await pool.connect();
     const originalQuery = client.query;
+    const statements: string[] = [];
     const query = vi.spyOn(client, "query").mockImplementation(((...arguments_: unknown[]) => {
       const request = arguments_[0] as string | { text?: string };
       const statement = typeof request === "string" ? request : request.text;
+      if (statement !== undefined) statements.push(statement);
       const run = () => Reflect.apply(originalQuery, client, arguments_);
       if (!statement?.includes("pg_try_advisory_xact_lock")) return run();
       // Commit another admission after discovery and before recovery takes the key.
@@ -2685,8 +3025,36 @@ describe("PostgresWorkflowAdapter", () => {
     }) as typeof client.query);
     try {
       await expect(owner.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 60_000 })).resolves.toEqual([]);
+      // The recount uses a fresh READ COMMITTED snapshot and needs no row locks once full.
+      expect(statements).toContainEqual(expect.stringMatching(/^(begin|set transaction) isolation level read committed$/iu));
+      expect(statements.some((statement) => /for update skip locked/iu.test(statement))).toBe(false);
       await expect(owner.get(incomingId)).resolves.toMatchObject({ status: "queued", concurrencyAdmitted: true });
       await expect(owner.get(waiterId)).resolves.toMatchObject({ status: "pending", concurrencyAdmitted: false });
+    } finally {
+      query.mockRestore();
+      peer.release();
+    }
+  });
+
+  it("skips a stale admission candidate removed before the recovery lock", async () => {
+    await client.query(`TRUNCATE ${qualifiedSchemaName}.task, ${qualifiedSchemaName}.execution`);
+    const id = "recovery-removed";
+    await seedPendingAdmissions([id]);
+    const owner = qualifiedWorkflowAdapter(database);
+    const peer = await pool.connect();
+    const originalQuery = client.query;
+    const query = vi.spyOn(client, "query").mockImplementation(((...arguments_: unknown[]) => {
+      const request = arguments_[0] as string | { text?: string };
+      const statement = typeof request === "string" ? request : request.text;
+      const run = () => Reflect.apply(originalQuery, client, arguments_);
+      if (!statement?.includes("pg_try_advisory_xact_lock")) return run();
+      // Model a concurrent cancellation after candidate discovery, before its locking transaction.
+      return peer.query(`DELETE FROM ${qualifiedSchemaName}.execution WHERE id = $1`, [id]).then(run);
+    }) as typeof client.query);
+    try {
+      await expect(owner.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 60_000 })).resolves.toEqual([]);
+      await expect(owner.get(id)).resolves.toBeUndefined();
+      expect((await client.query(`SELECT id FROM ${qualifiedSchemaName}.task`)).rows).toEqual([]);
     } finally {
       query.mockRestore();
       peer.release();
@@ -2750,6 +3118,25 @@ describe("PostgresWorkflowAdapter", () => {
       });
     } finally {
       peer.release();
+    }
+  });
+
+  it.each([
+    { key: null, limit: 1 }, { key: "legacy", limit: null },
+  ])("does not take a retained admission lock with incomplete release metadata (%#)", async ({ key, limit }) => {
+    const request = startRequest("legacy-release-metadata");
+    await adapter.start(request);
+    await client.query(`
+      UPDATE workflow_execution SET concurrency_scope = 'execution', concurrency_key = $2, concurrency_key_limit = $3 WHERE id = $1
+    `, [request.executionId, key, limit]);
+    const queries = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.forceTerminate(request.executionId)).resolves.toBe(true);
+      const admissionLock = queries.mock.calls.some(([, values]: readonly unknown[]) =>
+        Array.isArray(values) && values.some((value) => typeof value === "string" && value.startsWith("workflow-key:")));
+      expect(admissionLock).toBe(false);
+    } finally {
+      queries.mockRestore();
     }
   });
 
@@ -2947,6 +3334,91 @@ describe("PostgresWorkflowAdapter", () => {
     ]);
   });
 
+  it("does not query buffered signals for nonsignal commands even when their target matches", async () => {
+    const request = startRequest("nonsignal-query-budget");
+    await adapter.start(request);
+    await adapter.sendSignal({
+      executionId: request.executionId, workflowName: request.workflowName, signalName: "same-target", payload: 5,
+    });
+    const task = await reserveOne("workflow");
+    const queries = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.commitActivation({
+        ...toRef(task), executionId: request.executionId, expectedRevision: 1,
+        commands: [
+          { sequence: 0, kind: "activity", target: "same-target", payload: null },
+          { sequence: 1, kind: "activity", target: "another-target", payload: null },
+        ],
+        outcome: { status: "waiting" },
+      })).resolves.toBe(true);
+      const readSignals = queries.mock.calls.some(([query]: readonly unknown[]) => {
+        const statement = typeof query === "string" ? query : (query as { text: string }).text;
+        return /\bfrom\s+"workflow_signal"/iu.test(statement);
+      });
+      expect(readSignals).toBe(false);
+    } finally {
+      queries.mockRestore();
+    }
+    await expect(adapter.getHistory(request.executionId)).resolves.toMatchObject([
+      { type: "signal-received", payload: 5 }, { type: "command-scheduled", sequence: 0, kind: "activity" },
+      { type: "command-scheduled", sequence: 1, kind: "activity" },
+    ]);
+    await expect(database.select().from(testSignals)).resolves.toMatchObject([{ consumedAt: null }]);
+  });
+
+  it("does not consume a durable signal through a malformed historical signal command", async () => {
+    const request = startRequest("malformed-historical-signal");
+    await adapter.start(request);
+    const receipt = await adapter.sendSignal({
+      executionId: request.executionId, workflowName: request.workflowName, signalName: "ready", payload: true,
+    });
+    await database.insert(testHistory).values([
+      { executionId: request.executionId, eventIndex: 1, type: "command-scheduled", commandKind: "signal", target: "ready" },
+      { executionId: request.executionId, eventIndex: 2, type: "command-scheduled", commandSequence: 0, commandKind: "signal" },
+      { executionId: request.executionId, eventIndex: 3, type: "cancellation-requested", commandSequence: 1, commandKind: "signal", target: "ready" },
+    ]);
+    await client.query("UPDATE workflow_execution SET revision = 4 WHERE id = $1", [request.executionId]);
+    const task = await reserveOne("workflow");
+    const queries = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.commitActivation({
+        ...toRef(task), executionId: request.executionId, expectedRevision: 4,
+        commands: [], outcome: { status: "waiting" },
+      })).resolves.toBe(true);
+      expect(queries.mock.calls.some(([query]: readonly unknown[]) => {
+        const statement = typeof query === "string" ? query : (query as { text: string }).text;
+        return /\bfrom\s+"workflow_signal"/iu.test(statement);
+      })).toBe(false);
+    } finally {
+      queries.mockRestore();
+    }
+    await expect(database.select().from(testSignals)).resolves.toMatchObject([{ id: receipt.id, consumedAt: null }]);
+    await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "waiting", revision: 4 });
+  });
+
+  it("does not run a permit handoff when an execution waits with its retained permit", async () => {
+    const request = startRequest("waiting-keeps-keyed-permit");
+    const concurrency = { keyed: { key: "waiting", limit: 1, conflict: "enqueue", scope: "execution" } } as const;
+    await adapter.start({ ...request, concurrency });
+    const task = await reserveOne("workflow");
+    const queries = vi.spyOn(client, "query");
+    try {
+      await expect(adapter.commitActivation({
+        ...toRef(task), executionId: request.executionId, expectedRevision: 0,
+        commands: [{ sequence: 0, kind: "signal", target: "continue", payload: {} }],
+        outcome: { status: "waiting" },
+      })).resolves.toBe(true);
+      const attemptedHandoff = queries.mock.calls.some(([query]: readonly unknown[]) => {
+        const statement = typeof query === "string" ? query : (query as { text: string }).text;
+        return /\bpg_advisory_xact_lock\b/iu.test(statement);
+      });
+      expect(attemptedHandoff).toBe(false);
+    } finally {
+      queries.mockRestore();
+    }
+    await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "waiting", concurrencyAdmitted: true });
+  });
+
   it.each([
     { status: "completed" }, { status: "completed", output: null },
     { status: "failed", error: { name: "RootFailure", message: "Failed." } }, { status: "cancelled" },
@@ -2972,11 +3444,45 @@ describe("PostgresWorkflowAdapter", () => {
     await expect(adapter.commitActivation({
       ...toRef(activation), executionId: request.executionId, expectedRevision: 0,
       commands: [{ sequence: 0, kind: "activity", target: "work", payload: null }],
-      outcome: { status: "completed", output: null },
+      outcome: { status: "completed", output: { answer: 42 } },
     })).resolves.toBe(true);
-    await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "completed", output: null, revision: 1 });
+    await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "completed", output: { answer: 42 }, revision: 1 });
     await expect(adapter.getHistory(request.executionId)).resolves.toMatchObject([{ type: "command-scheduled", sequence: 0 }]);
     await expect(database.select().from(testTasks)).resolves.toEqual([]);
+  });
+
+  it("does not wake a linked parent while its child is still waiting", async () => {
+    const request = startRequest("parent-of-waiting-child");
+    await adapter.start(request);
+    const parent = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(parent), executionId: request.executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "child", target: "example.child", payload: { input: null, version: 1 } }],
+      outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    const child = await reserveOne("workflow");
+    await expect(adapter.commitActivation({
+      ...toRef(child), executionId: child.executionId, expectedRevision: 0,
+      commands: [{ sequence: 0, kind: "signal", target: "advance", payload: {} }],
+      outcome: { status: "waiting" },
+    })).resolves.toBe(true);
+    await expect(adapter.get(request.executionId)).resolves.toMatchObject({ status: "waiting", revision: 1 });
+    await expect(adapter.getHistory(request.executionId)).resolves.toHaveLength(1);
+    await expect(database.select().from(testTasks)).resolves.toEqual([]);
+  });
+
+  it("does not write a parent completion for a partially linked terminal child", async () => {
+    const parent = startRequest("partial-activation-parent");
+    const child = { ...startRequest("partial-activation-child"), parentExecutionId: parent.executionId };
+    await adapter.startMany([parent, child]);
+    const tasks = await adapter.reserveTasks({ kinds: ["workflow"], limit: 2, leaseMs: 60_000 });
+    const task = tasks.find(({ executionId }) => executionId === child.executionId)!;
+    await expect(adapter.commitActivation({
+      ...toRef(task), executionId: child.executionId, expectedRevision: 0,
+      commands: [], outcome: { status: "completed" },
+    })).resolves.toBe(true);
+    await expect(adapter.get(parent.executionId)).resolves.toMatchObject({ status: "running", revision: 0 });
+    await expect(adapter.getHistory(parent.executionId)).resolves.toEqual([]);
   });
 
   it("loads a batch of activation snapshots in one query", async () => {

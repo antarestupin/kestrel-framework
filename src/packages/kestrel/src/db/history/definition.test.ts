@@ -40,10 +40,9 @@ const source = testSchema.table("article", {
     withTimezone: true,
   }),
 });
-const history = defineHistoryTable(source);
-
 describe("defineHistoryTable", () => {
   it("derives nullable source columns and compact event metadata", () => {
+    const history = defineHistoryTable(source);
     const config = getTableConfig(history);
     const columns = getTableColumns(history);
 
@@ -88,6 +87,7 @@ describe("defineHistoryTable", () => {
   });
 
   it("filters tracked columns and preserves inferred identity and result types", () => {
+    const history = defineHistoryTable(source);
     const excluded = defineHistoryTable(source, { exclude: [source.revision] });
     const included = defineHistoryTable(source, { include: [source.id, source.title] });
     const identityOnly = defineHistoryTable(source, { include: [] });
@@ -134,6 +134,7 @@ describe("defineHistoryTable", () => {
   });
 
   it("discovers definitions without adding enumerable schema properties", () => {
+    const history = defineHistoryTable(source);
     expect(getHistoryTableDefinitions({ source, history })).toEqual([
       expect.objectContaining({
         source,
@@ -167,6 +168,7 @@ describe("defineHistoryTable", () => {
   });
 
   it("keeps reserved history metadata names under Drizzle column casing", () => {
+    const history = defineHistoryTable(source);
     const query = drizzle.mock({ casing: "snake_case" }).select().from(history).toSQL();
     // PostgreSQL triggers refer to the physical names, including the reserved prefix.
     for (const column of ["__sequence", "__operation", "__changed_columns", "__changed_at", "__actor", "__reason"]) {
@@ -198,6 +200,17 @@ describe("defineHistoryTable", () => {
     expect(definition?.identityKeys).toEqual(["recordId", "tenantId"]);
     expect(getTableConfig(derived).indexes[0]?.config.columns.map((column) =>
       "name" in column ? column.name : undefined)).toEqual(["record_id", "tenant_id", "__sequence"]);
+  });
+
+  it("rejects identity columns from another declaration even when the SQL name matches", () => {
+    const declared = pgTable("identity_owner", { id: integer().primaryKey() });
+    const other = pgTable("identity_other", { id: integer().primaryKey() });
+    expect(() => defineHistoryTable(declared, { identity: [other.id] as never }))
+      .toThrow("Every history identity column must belong to the source table.");
+
+    const invalid = pgTable("identity_invalid", { id: integer().notNull() }, () => [primaryKey({ columns: [other.id] })]);
+    expect(() => defineHistoryTable(invalid))
+      .toThrow("Every history identity column must belong to the source table.");
   });
 
   it("rejects missing identities and reserved source columns", () => {
@@ -241,6 +254,7 @@ describe("defineHistoryTable", () => {
   });
 
   it("preserves the compact operation encoding and rejects corrupt event codes", () => {
+    const history = defineHistoryTable(source);
     const operation = getTableColumns(history).__operation;
     // Old history rows depend on these codes remaining stable across migrations.
     expect(operation.mapToDriverValue("update")).toBe(2);

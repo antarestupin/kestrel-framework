@@ -18,9 +18,16 @@ const schemaTests = [
   "studio/extensions/database/schema_source*.test.ts",
 ];
 
-// Limit costly DB profiles at Vitest discovery so Stryker still activates static mutants
+// Limit costly profiles at Vitest discovery so Stryker still activates static mutants
 // before imports. The explicit Stryker testFiles filter activates them after collection.
 const focusedIncludes = new Map<string, string[]>([
+  // The declaration tests import the schema inside test bodies, so invalid declarations
+  // are attributed to a test instead of failing collection in unrelated integration suites.
+  ["workflow-adapter-contracts", [
+    "workflows/adapters/definition.test.ts",
+    "workflows/adapters/postgres/polling_error.test.ts",
+    "workflows/adapters/postgres/schema.test.ts",
+  ]],
   ["db-history-declarations", historyTests],
   ["db-history-column-types", historyTests],
   ["db-history-identities", historyTests],

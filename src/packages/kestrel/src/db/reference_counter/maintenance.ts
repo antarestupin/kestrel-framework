@@ -54,7 +54,7 @@ export class ReferenceCounterMaintenance {
       if (options.signal?.aborted) break;
       if (batch.processed < batchSize) return { ...progress, completed: true };
       if (pauseMs > 0) {
-        try { await pause(pauseMs, undefined, options.signal === undefined ? {} : { signal: options.signal }); }
+        try { await pause(pauseMs, undefined, { signal: options.signal }); }
         catch (error) { if (!options.signal?.aborted) throw error; }
       }
     }
@@ -70,10 +70,11 @@ export class ReferenceCounterMaintenance {
     return this.database.transaction(async (transaction) => {
       // Count in a separate command after locking: READ COMMITTED then sees
       // writers that committed while this batch was waiting for its locks.
+      // Qualify the key so ORDER BY cannot resolve to the text cursor alias.
       const selected = await transaction.execute<{ cursor: string }>(sql`
-        SELECT ${key}::text AS cursor FROM ${target}
-        ${after === undefined ? sql`` : sql`WHERE ${key} > ${after}`}
-        ORDER BY ${key} LIMIT ${batchSize} FOR NO KEY UPDATE
+        SELECT parent.${key}::text AS cursor FROM ${target} AS parent
+        ${after === undefined ? sql`` : sql`WHERE parent.${key} > ${after}`}
+        ORDER BY parent.${key} LIMIT ${batchSize} FOR NO KEY UPDATE
       `);
       const cursors = selected.rows.map((row) => row.cursor);
       if (cursors.length === 0) return { processed: 0, updated: 0, cursor: after };

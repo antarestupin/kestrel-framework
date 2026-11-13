@@ -1,7 +1,7 @@
 import { once } from "node:events";
 import { sql } from "drizzle-orm";
 import { type PoolClient } from "pg";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { App } from "../app/index.js";
 import { dep } from "../di/index.js";
@@ -12,7 +12,7 @@ import { PostgresDrizzleProvider, type PostgresDrizzleClient } from "./provider.
 /** Each case owns its pool and session settings; no shared database objects are required. */
 function fixture(overrides: Record<string, unknown> = {}) {
   const config = postgresDrizzleConfigBase.schema.parse({
-    ...createPostgresTestConfig(), max: 1, connectionTimeoutMillis: 150,
+    ...createPostgresTestConfig(), max: 1, connectionTimeoutMillis: 1_000,
     statement_timeout: 100, lock_timeout: 50, idle_in_transaction_session_timeout: 300,
     options: "-c transaction_timeout=2000", query_timeout: 1_000,
     resourcePolicy: { maxWaitingRequests: 1, shutdownTimeoutMs: 100 },
@@ -28,13 +28,19 @@ describe("PostgreSQL provider failure recovery", () => {
     const { app, client } = fixture();
     let held: PoolClient | undefined;
     try {
-      held = await client.pool.connect();
+      const acquired = vi.fn();
+      client.pool.connect(acquired);
+      await vi.waitFor(() => expect(acquired).toHaveBeenCalledExactlyOnceWith(undefined, expect.any(Object), expect.any(Function)), { timeout: 1_500 });
+      held = acquired.mock.calls[0]![1] as PoolClient;
       const start = performance.now();
-      const waiting = client.pool.connect();
-      const expired = expect(waiting).rejects.toThrow(/timeout/);
-      await expect(client.pool.connect()).rejects.toMatchObject({ code: "queue_full" });
+      const expired = vi.fn();
+      client.pool.connect(expired);
+      const overflow = vi.fn();
+      client.pool.connect(overflow);
+      await Promise.resolve();
+      expect(overflow).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ code: "queue_full" }));
       expect(client.snapshot()).toMatchObject({ active: 1, waiting: 1 });
-      await expired;
+      await vi.waitFor(() => expect(expired).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: expect.stringMatching(/timeout/) })), { timeout: 1_500 });
       expect(performance.now() - start).toBeLessThan(1_500);
       expect(client.snapshot().waiting).toBe(0);
       held.release();
@@ -153,20 +159,27 @@ describe("PostgreSQL provider failure recovery", () => {
 
   it.each([false, true])("forces eviction at the shutdown deadline and rejects pending and future work (pipeline=%s)", async (pipeline) => {
     const { app, client } = fixture({ statement_timeout: 5_000, pipeline });
-    const held = await client.pool.connect();
+    const acquired = vi.fn();
+    client.pool.connect(acquired);
+    await vi.waitFor(() => expect(acquired).toHaveBeenCalledExactlyOnceWith(undefined, expect.any(Object), expect.any(Function)), { timeout: 1_500 });
+    const held = acquired.mock.calls[0]![1] as PoolClient;
     const running = held.query("select pg_sleep(4)");
-    const failedQuery = expect(running).rejects.toThrow();
-    const pending = client.pool.connect();
-    const failedAcquire = expect(pending).rejects.toMatchObject({ code: "closing" });
+    const failedQuery = vi.fn();
+    void running.then(failedQuery, failedQuery);
+    const failedAcquire = vi.fn();
+    client.pool.connect(failedAcquire);
     const start = performance.now();
     try {
       await expect(client.close()).rejects.toMatchObject({ code: "shutdown_timeout" });
-      await failedAcquire;
-      await failedQuery;
+      expect(failedAcquire).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ code: "closing" }));
+      await vi.waitFor(() => expect(failedQuery).toHaveBeenCalledExactlyOnceWith(expect.any(Error)), { timeout: 1_500 });
       expect(performance.now() - start).toBeLessThan(1_500);
       expect(client.snapshot()).toMatchObject({ state: "closed", total: 0 });
       held.release();
-      await expect(client.pool.query("select 1")).rejects.toMatchObject({ code: "closing" });
+      const lateQuery = vi.fn();
+      client.pool.query("select 1", lateQuery);
+      await Promise.resolve();
+      expect(lateQuery).toHaveBeenCalledWith(expect.objectContaining({ code: "closing" }));
     } finally {
       held.release();
       // Application disposal preserves the same observable forced-shutdown failure.

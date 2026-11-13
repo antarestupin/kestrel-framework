@@ -33,10 +33,10 @@ import { defineWorkflow } from "./workflow.js";
 import { WorkflowActivityInfrastructureError } from "./errors.js";
 
 describe("Worker-backed workflow activities", () => {
-  it.each(["schedule-to-close", "before-deadline", "retry-limit"] as const)("preserves %s behavior through Worker delivery", async (scenario) => {
+  it.each(["schedule-to-close", "before-deadline", "without-deadline", "retry-limit"] as const)("preserves %s behavior through Worker delivery", async (scenario) => {
     let now = 5_000;
     const invoke = vi.fn(() => {
-      if (scenario === "before-deadline") return null;
+      if (scenario === "before-deadline" || scenario === "without-deadline") return null;
       throw new WorkflowActivityInfrastructureError("transient transport failure");
     });
     const action = defineAction({ name: "worker.deadline", input: z.null(), handler: invoke });
@@ -52,7 +52,7 @@ describe("Worker-backed workflow activities", () => {
     });
     const options = scenario === "retry-limit"
       ? { maxAttempts: 4, initialDelayMs: 20, backoffCoefficient: 3, maxDelayMs: 35 }
-      : { scheduleToCloseTimeoutMs: 50 };
+      : scenario === "without-deadline" ? {} : { scheduleToCloseTimeoutMs: 50 };
     const job = await new WorkerClient(workers).enqueue(worker, {
       taskId: "outbox-row", executionId: "workflow", sequence: 0, target: action.name,
       payload: { input: null, options }, scheduledAtMs: now - (scenario === "before-deadline" ? 49 : 50),
@@ -70,8 +70,9 @@ describe("Worker-backed workflow activities", () => {
       }
     }
     await expect(scheduler.runOnce()).resolves.toBe(1);
-    expect(invoke).toHaveBeenCalledTimes(scenario === "schedule-to-close" ? 0 : scenario === "before-deadline" ? 1 : 4);
-    const result = scenario === "before-deadline"
+    const succeeds = scenario === "before-deadline" || scenario === "without-deadline";
+    expect(invoke).toHaveBeenCalledTimes(scenario === "schedule-to-close" ? 0 : succeeds ? 1 : 4);
+    const result = succeeds
       ? { type: "workflow.activity.result", status: "completed", dispatchId: "outbox-row", result: null }
       : { type: "workflow.activity.result", status: "failed", dispatchId: "outbox-row", error: expect.objectContaining({
           name: scenario === "schedule-to-close" ? "WorkflowActivityTimeoutError" : "WorkflowActivityInfrastructureError",
@@ -205,6 +206,57 @@ describe("Worker-backed workflow activities", () => {
     expect(next?.correlation?.id).toBe(next?.identity);
     expect(next?.correlation?.data).toEqual({ executionId: "same-execution", sequence: 0, historyGeneration: 2 });
     expect(next?.payload).toHaveProperty("historyGeneration", 2);
+  });
+
+  it("omits the generation for a legacy dispatch that has no generation metadata", async () => {
+    const adapter = new MemoryWorkflowAdapter({ activityDispatchMode: "outbox" });
+    const now = new Date(0);
+    vi.spyOn(adapter, "reserveActivityDispatches").mockResolvedValue([{
+      id: "legacy", executionId: "legacy-run", sequence: 0, target: "example.activity", payload: null,
+      attempt: 1, availableAt: now, reservedAt: now, reservationToken: "lease", createdAt: now,
+    }]);
+    vi.spyOn(adapter, "markActivityDispatchesPublished").mockImplementation(async (requests) => requests);
+    const app = new App({});
+    const client = new WorkerClient(new MemoryWorkerAdapter());
+    const enqueue = vi.spyOn(client, "enqueue");
+    try {
+      const dispatcher = new WorkflowActivityOutboxDispatcher(adapter, client, createWorkflowActivityWorker(app));
+      await expect(dispatcher.runOnce()).resolves.toBe(1);
+      const [_, payload, options] = enqueue.mock.calls[0]!;
+      expect(payload).not.toHaveProperty("historyGeneration");
+      expect(options?.correlation?.data).toStrictEqual({ executionId: "legacy-run", sequence: 0 });
+    } finally { await app.dispose(); }
+  });
+
+  it("does not retain the process with a Worker activity deadline", async () => {
+    const deadline = 12_345;
+    const entered = Promise.withResolvers<void>();
+    const output = Promise.withResolvers<null>();
+    const action = defineAction({ name: "worker.unreferenced", output: z.null(), handler: () => {
+      entered.resolve();
+      return output.promise;
+    } });
+    const app = new App({}, { catalog: { actions: { action } } });
+    try {
+      await app.start();
+      const workers = new MemoryWorkerAdapter();
+      const worker = createWorkflowActivityWorker(app);
+      const scheduler = new WorkerScheduler(app, workers, [worker], { slots: 1, leaseMs: 1_000 });
+      await new WorkerClient(workers).enqueue(worker, {
+        taskId: "row", executionId: "run", sequence: 0, target: action.name, scheduledAtMs: Date.now(),
+        payload: { input: null, options: { startToCloseTimeoutMs: deadline } },
+      });
+      const timers = vi.spyOn(globalThis, "setTimeout");
+      const cycle = scheduler.runOnce();
+      try {
+        await Promise.race([entered.promise, cycle]);
+        const index = timers.mock.calls.findIndex(([, delay]) => delay === deadline);
+        expect(timers.mock.results[index]?.value.hasRef()).toBe(false);
+      } finally {
+        output.resolve(null);
+        try { await cycle; } finally { timers.mockRestore(); }
+      }
+    } finally { await app.dispose(); }
   });
 
   it("routes both Worker failures and activity outcomes using the original generation", async () => {

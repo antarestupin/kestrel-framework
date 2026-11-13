@@ -77,6 +77,8 @@ The [95% follow-up](../implementation/mutation_testing_95_followup.md) records t
 
 To bound the dependent suites for a static-heavy named profile, configure its Vitest includes in `vitest.mutation.config.ts`. Stryker's `--testFiles` option switches the activation to runtime after test module collection. Named profiles that retain static mutants reject that option and its `-t` alias.
 
+The [database and workflow residual review](../implementation/mutation_testing_db_workflow_residuals.md) follows the remaining outcomes in those two components. For a targeted recheck, preserve the complete reference report. Rerun the residual outcomes when assertions inside an existing test change. Stryker's incremental cache can reuse a prior survivor when the same covering test keeps its identity.
+
 From the repository root, prepare the dedicated PostgreSQL and Redis test infrastructure, then validate the instrumented test run before starting a complete mutation assessment:
 
 ```sh

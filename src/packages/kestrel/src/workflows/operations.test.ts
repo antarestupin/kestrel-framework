@@ -30,6 +30,8 @@ describe("WorkflowOperations", () => {
     await expect(operations.signal({ ...request, signalName: "other" })).rejects.toThrow('Signal "other" is not declared by workflow "approval".');
     await expect(operations.signal({ ...request, idempotencyKey: "" })).rejects.toThrow("Workflow signal idempotency keys cannot be empty.");
     expect(send).not.toHaveBeenCalled();
+    await expect(operations.signal(request)).resolves.toEqual({ id: "approval-signal", accepted: true });
+    expect(send.mock.lastCall?.[0]).not.toHaveProperty("idempotencyKey");
     await expect(operations.signal({ ...request, idempotencyKey: "once" })).resolves.toEqual({ id: "approval-signal", accepted: true });
     await expect(operations.signal({ ...request, idempotencyKey: "once" })).resolves.toEqual({ id: "approval-signal", accepted: false });
   });
@@ -256,9 +258,11 @@ describe("getWorkflowExecutionWaits", () => {
       { type: "command-completed", eventIndex: 4, sequence: 1, completionOrder: 0, occurredAt },
       { type: "signal-received", eventIndex: 5, signalId: "notice", name: "other", payload: null, occurredAt },
     ];
-    expect(getWorkflowExecutionWaits(history, "waiting")).toEqual([{
+    const expected = [{
       sequence: 2, kind: "timer", target: "sleep", scheduledAt: occurredAt, deadline: new Date(occurredAt.getTime() + 8),
-    }]);
+    }];
+    expect(getWorkflowExecutionWaits(history)).toEqual(expected);
+    expect(getWorkflowExecutionWaits(history, "waiting")).toEqual(expected);
     for (const status of ["cancelled", "completed", "failed", "terminated"] as const) {
       expect(getWorkflowExecutionWaits(history, status)).toEqual([]);
     }
@@ -266,6 +270,33 @@ describe("getWorkflowExecutionWaits", () => {
 });
 
 describe("buildWorkflowExecutionGraph", () => {
+  it("omits completion timestamps on an active root and its waiting child", async () => {
+    const workflow = defineWorkflow({ name: "graph.active", handler: () => undefined });
+    const adapter = new MemoryWorkflowAdapter();
+    const handle = await new WorkflowClient(adapter).start(workflow, null, { executionId: "active-root" });
+    const execution = await handle.status();
+    const child = { ...execution, executionId: "legacy-child", parentExecutionId: execution.executionId, status: "waiting" } as const;
+
+    const graph = buildWorkflowExecutionGraph(execution, [], [child]);
+    expect(graph.nodes).toHaveLength(2);
+    for (const node of graph.nodes) expect(node).not.toHaveProperty("completedAt");
+    expect(graph.edges).toEqual([{ kind: "child", from: "execution:active-root", to: "execution:legacy-child" }]);
+  });
+
+  it("does not associate a child with an activity that uses the same command position", async () => {
+    const workflow = defineWorkflow({ name: "graph.position", handler: () => undefined });
+    const adapter = new MemoryWorkflowAdapter();
+    const handle = await new WorkflowClient(adapter).start(workflow, null, { executionId: "parent" });
+    const execution = { ...await handle.status(), historyGeneration: 2 };
+    // An explicit child ID from an earlier generation can match the generated
+    // identity of this generation without belonging to its activity command.
+    const child = { ...execution, executionId: "parent:0:generation-2", parentExecutionId: "parent", parentCommandSequence: 0 };
+    const graph = buildWorkflowExecutionGraph(execution, [{
+      type: "command-scheduled", eventIndex: 0, sequence: 0, kind: "activity", target: "work",
+      payload: null, occurredAt: execution.createdAt,
+    }], [child]);
+    expect(graph.edges).toContainEqual({ kind: "child", from: "execution:parent", to: "execution:parent:0:generation-2" });
+  });
   it("separates cancelled work from later compensation and preserves completion timestamps", async () => {
     const workflow = defineWorkflow({ name: "graph.cancelled", handler: () => undefined });
     const adapter = new MemoryWorkflowAdapter();

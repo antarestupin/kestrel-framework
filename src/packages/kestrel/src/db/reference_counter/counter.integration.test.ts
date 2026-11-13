@@ -1,9 +1,11 @@
 import { setTimeout as pause } from "node:timers/promises";
+import timerPromises from "node:timers/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { bigint, integer, pgSchema, pgTable, text } from "drizzle-orm/pg-core";
 import type { Pool, PoolClient } from "pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../../app/index.js";
 import { buildCli } from "../../cli/runner.js";
@@ -40,8 +42,10 @@ let pool: Pool;
 let database: ReturnType<typeof drizzle<typeof schema>>;
 let maintenance: ReferenceCounterMaintenance;
 
-beforeAll(async () => {
-  pool = createPostgresTestPool();
+let initialized = false;
+
+async function installCounterFixture() {
+  pool ??= createPostgresTestPool();
   database = drizzle(pool, { schema });
   maintenance = new ReferenceCounterMaintenance(database, getReferenceCounterDefinitions(schema));
   await pool.query(`
@@ -60,9 +64,14 @@ beforeAll(async () => {
   await applyDatabaseSchemaContributions(schema, async (statement) => { await pool.query(statement); });
   // Replaying the contribution must not scan data or install duplicate triggers.
   await applyDatabaseSchemaContributions(schema, async (statement) => { await pool.query(statement); });
-});
+}
 
 beforeEach(async () => {
+  if (!initialized) {
+    // Fail the exercising test if PostgreSQL rejects the generated trigger.
+    await installCounterFixture();
+    initialized = true;
+  }
   await pool.query("TRUNCATE kestrel_counter_test.item, kestrel_counter_test.topic, kestrel_counter_test.owner, kestrel_counter_test.large_item, kestrel_counter_test.large;");
   await database.insert(topic).values([{ id: 1 }, { id: 2 }, { id: 3 }]);
 });
@@ -201,7 +210,15 @@ describe("synchronous reference counters", () => {
     });
     expect(first).toMatchObject({ processed: 1, updated: 1, cursor: "1", completed: false });
     expect(progress).toHaveLength(1);
-    const rest = await maintenance.rebuild(filtered.id, { after: first.cursor!, batchSize: 1, pauseMs: 0 });
+    const cursors: (string | undefined)[] = [];
+    const rest = await maintenance.rebuild(filtered.id, {
+      after: first.cursor!, batchSize: 1, pauseMs: 0,
+      onProgress: ({ cursor }) => {
+        expect(cursors.length).toBeLessThan(2);
+        cursors.push(cursor);
+        expect(cursors).toEqual(["2", "3"].slice(0, cursors.length));
+      },
+    });
     expect(rest).toMatchObject({ processed: 2, updated: 2, cursor: "3", completed: true });
     expect((await maintenance.rebuild(filtered.id, { pauseMs: 0 })).updated).toBe(0);
     const emptyProgress: ReferenceCounterProgress[] = [];
@@ -236,6 +253,51 @@ describe("synchronous reference counters", () => {
     expect(reported).toEqual(["1", "2", "3"]);
     expect(result).toStrictEqual({ id: filtered.id, cursor: "3", processed: 3, updated: 3, completed: true });
     expect((await counts()).map(({ count }) => count)).toEqual([0, 0, 0]);
+  });
+
+  it("orders a primary key physically named cursor by its native type", async () => {
+    const parent = namespace.table("cursor_parent", {
+      id: integer("cursor").primaryKey(), count: integer("count").notNull().default(0),
+    });
+    const child = namespace.table("cursor_child", {
+      parentId: integer("parent_id").references(() => parent.id),
+    });
+    const definition = defineReferenceCounter(child, {
+      id: "cursor.count", reference: child.parentId, target: parent.id, counter: parent.count,
+    });
+    await pool.query(`
+      CREATE TABLE ${tableIdentifier(parent)} (cursor integer PRIMARY KEY, count integer NOT NULL DEFAULT 0);
+      CREATE TABLE ${tableIdentifier(child)} (parent_id integer REFERENCES ${tableIdentifier(parent)});
+    `);
+    try {
+      await database.insert(parent).values([{ id: 2, count: 8 }, { id: 10, count: 8 }]);
+      const cursors: (string | undefined)[] = [];
+      const service = new ReferenceCounterMaintenance(database, [definition]);
+      const result = await service.rebuild(definition.id, {
+        batchSize: 1, pauseMs: 0, onProgress: ({ cursor }) => { cursors.push(cursor); },
+      });
+      expect(cursors).toEqual(["2", "10"]);
+      expect(result).toMatchObject({ processed: 2, updated: 2, cursor: "10", completed: true });
+      expect(await database.select().from(parent).orderBy(parent.id)).toEqual([{ id: 2, count: 0 }, { id: 10, count: 0 }]);
+    } finally {
+      await pool.query(`DROP TABLE ${tableIdentifier(child)}, ${tableIdentifier(parent)}`);
+    }
+  });
+
+  it("advances exactly once per full batch and stops on an empty page", async () => {
+    await database.update(topic).set({ count: 8 });
+    const progress: (string | undefined)[] = [];
+    const result = await maintenance.rebuild(filtered.id, {
+      batchSize: 1, after: "1", pauseMs: 0,
+      onProgress: ({ cursor }) => {
+        expect(progress.length).toBeLessThan(2);
+        expect(cursor).toBeDefined();
+        expect(Number(cursor)).toBeGreaterThan(Number(progress.at(-1) ?? "1"));
+        progress.push(cursor);
+      },
+    });
+    expect(progress).toEqual(["2", "3"]);
+    expect(result).toMatchObject({ processed: 2, updated: 2, cursor: "3", completed: true });
   });
 
   it("validates rebuild limits and preserves the resume cursor when cancelled before work", async () => {
@@ -276,20 +338,43 @@ describe("synchronous reference counters", () => {
   it("interrupts the inter-batch pause without starting another batch", async () => {
     await database.update(topic).set({ count: 99 });
     const controller = new AbortController();
-    let cancellation: ReturnType<typeof setImmediate> | undefined;
+    const sleep = vi.spyOn(timerPromises, "setTimeout");
+    sleep.mockImplementation(async (_milliseconds, _value, options) => {
+      // The real timer adapter receives the same signal that owns the rebuild.
+      expect(options?.signal).toBe(controller.signal);
+      controller.abort();
+      throw new DOMException("Aborted", "AbortError");
+    });
+    syncBuiltinESMExports();
     try {
       const result = await maintenance.rebuild(filtered.id, {
         batchSize: 1, pauseMs: 60_000, signal: controller.signal,
-        // Cancel on the next event-loop turn, once the committed cursor has been delivered.
-        onProgress: () => { cancellation = setImmediate(() => controller.abort()); },
       });
+      expect(sleep).toHaveBeenCalledExactlyOnceWith(60_000, undefined, { signal: controller.signal });
       expect(result).toEqual({ id: filtered.id, cursor: "1", completed: false, processed: 1, updated: 1 });
       expect((await counts()).map(({ count }) => count)).toEqual([0, 99, 99]);
     } finally {
-      if (cancellation !== undefined) clearImmediate(cancellation);
+      sleep.mockRestore();
+      syncBuiltinESMExports();
     }
     expect(await maintenance.rebuild(filtered.id, { after: "1", batchSize: 1, pauseMs: 1 }))
       .toMatchObject({ completed: true, updated: 2, cursor: "3" });
+  });
+
+
+  it("skips the timer at zero delay and propagates a non-cancellation timer failure", async () => {
+    const failure = new Error("Timer adapter failed.");
+    const sleep = vi.spyOn(timerPromises, "setTimeout").mockRejectedValue(failure);
+    syncBuiltinESMExports();
+    try {
+      await expect(maintenance.rebuild(filtered.id, { batchSize: 1, pauseMs: 0 }))
+        .resolves.toMatchObject({ processed: 3, completed: true });
+      expect(sleep).not.toHaveBeenCalled();
+      await expect(maintenance.rebuild(filtered.id, { batchSize: 1, pauseMs: 1 })).rejects.toBe(failure);
+    } finally {
+      sleep.mockRestore();
+      syncBuiltinESMExports();
+    }
   });
 
   it("initializes pre-existing references without counting them during schema installation", async () => {
@@ -358,7 +443,7 @@ describe("synchronous reference counters", () => {
       const service = new ReferenceCounterMaintenance(drizzle(rebuildClient), [filtered]);
       rebuilding = service.rebuild(filtered.id, { pauseMs: 0 });
       void rebuilding.catch(() => {});
-      await waitForLock('SELECT "id"::text AS cursor');
+      await waitForLock('SELECT parent."id"::text AS cursor');
       await writer.query("COMMIT");
       await rebuilding;
       expect((await counts())[0]?.count).toBe(1);

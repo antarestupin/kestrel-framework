@@ -15,8 +15,6 @@ import {
   getDatabaseSchemaContributions,
 } from "./definition.js";
 import { defineUnloggedTable } from "./unlogged_table.js";
-import { devSchema } from "../dev_schema.js";
-import { utilsSchema } from "../utils_schema.js";
 import { quoteSqlBody } from "../sql_dollar_quote.js";
 
 describe("database schema contributions", () => {
@@ -94,6 +92,7 @@ describe("database schema contributions", () => {
 
   it.each([
     [null, "A database schema contribution must be an object."],
+    [42, "A database schema contribution must be an object."],
     [{ id: 42, installSql: "SELECT 1;" }, "A database schema contribution requires a stable id."],
     [{ id: "test:invalid", installSql: 42 }, 'Database schema contribution "test:invalid" requires install SQL.'],
     [{ id: "test:invalid", installSql: "SELECT 1;", updateSql: [] },
@@ -138,7 +137,9 @@ describe("database schema contributions", () => {
     expect(contribution?.uninstallAfterSql).toContain(`ALTER TABLE ${identifier} SET LOGGED;`);
   });
 
-  it("preserves the normal SQL delimiter and the framework schema names", () => {
+  it("preserves the normal SQL delimiter and the framework schema names", async () => {
+    const { devSchema } = await import("../dev_schema.js");
+    const { utilsSchema } = await import("../utils_schema.js");
     expect(quoteSqlBody("SELECT 1;", "migration")).toBe("$migration$\nSELECT 1;\n$migration$");
     expect([devSchema.schemaName, utilsSchema.schemaName]).toEqual(["dev", "utils"]);
     expect(getDatabaseSchemaContributions({ devSchema, utilsSchema }).map(({ installSql }) => installSql)).toEqual([

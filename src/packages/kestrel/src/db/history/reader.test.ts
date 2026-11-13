@@ -5,7 +5,7 @@ import { defineHistoryTable } from "./definition.js";
 import { readHistoryPage } from "./reader.js";
 
 const source = pgTable("entry", { tenant: text("tenant").notNull(), id: text("id").notNull(), title: text("title"), secret: text("secret"), count: bigint("count", { mode: "bigint" }) });
-const table = defineHistoryTable(source, { identity: [source.tenant, source.id] });
+const createHistory = () => defineHistoryTable(source, { identity: [source.tenant, source.id] });
 
 /** Inject a bounded query result without mocking module imports or database state. */
 function database(rows: Record<string, unknown>[]) {
@@ -24,6 +24,7 @@ const event = (sequence: bigint, operation = "update") => ({ __sequence: sequenc
 
 describe("sparse history reader", () => {
   it("preserves explicit NULL and bigint cursors, bounds pages and projects only selected fields", async () => {
+    const table = createHistory();
     const db = database([event(9007199254740993n), event(2n)]);
     const page = await readHistoryPage(db.client, table, { identity: { tenant: "t", id: "i" }, fields: ["title"], pageSize: 1, before: "9007199254740994" });
     expect(page.events[0]?.values).toEqual({ title: null });
@@ -34,17 +35,20 @@ describe("sparse history reader", () => {
     expect(sql.params).toEqual(["t", "i", 9007199254740994n]);
   });
   it("leaves unchanged values absent and deletions empty", async () => {
+    const table = createHistory();
     const db = database([{ ...event(3n), __changedColumns: [] }, event(2n, "delete")]);
     const page = await readHistoryPage(db.client, table, { identity: { tenant: "t", id: "i" }, fields: ["title"] });
     expect(page.events.map((item) => item.values)).toEqual([{}, {}]);
     expect(page.nextCursor).toBeNull();
   });
   it("serializes changed bigint column values without losing precision", async () => {
+    const table = createHistory();
     const db = database([{ ...event(4n), __changedColumns: ["count"], count: 9007199254740993n }]);
     const page = await readHistoryPage(db.client, table, { identity: { tenant: "t", id: "i" }, fields: ["count"] });
     expect(page.events[0]?.values).toEqual({ count: "9007199254740993" });
   });
   it("rejects invalid identities, fields, page sizes and cursors before reading", async () => {
+    const table = createHistory();
     const db = database([]);
     const request = { identity: { tenant: "t", id: "i" }, fields: ["title"] };
     for (const override of [{ identity: { id: "i" } }, { fields: ["missing"] }, { pageSize: 101 }, { before: "9223372036854775808" }]) {
@@ -54,6 +58,7 @@ describe("sparse history reader", () => {
   });
 
   it("validates page boundaries, cursor syntax, and explicit identity ownership", async () => {
+    const table = createHistory();
     const db = database([]);
     const request = { identity: { tenant: "t", id: "i" }, fields: ["title"] };
     for (const pageSize of [0, 1.5, Number.NaN, 101]) {
@@ -73,6 +78,7 @@ describe("sparse history reader", () => {
   });
 
   it("returns each selected field once and omits a cursor on an exactly full last page", async () => {
+    const table = createHistory();
     const db = database([event(9n)]);
     const result = await readHistoryPage(db.client, table, {
       identity: { tenant: "t", id: "i" }, fields: ["title", "title"], pageSize: 1,

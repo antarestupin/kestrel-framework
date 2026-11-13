@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { CompleteWorkflowActivityRequest } from "../../adapter.js";
 import { MemoryWorkflowAdapter } from "./index.js";
 
 const start = (executionId: string) => ({
@@ -27,6 +28,18 @@ async function scheduleActivities(adapter: MemoryWorkflowAdapter, executionId: s
 }
 
 describe("Memory workflow activity outbox", () => {
+  it("rejects a malformed activity completion that presents an owned workflow lease", async () => {
+    const adapter = new MemoryWorkflowAdapter();
+    const executionId = "activation-is-not-an-activity";
+    await adapter.start(start(executionId));
+    const [task] = await adapter.reserveTasks(workflowReservation);
+    const reference = reservation(task!);
+    const request = { ...reference, executionId, sequence: undefined, status: "completed" } as unknown as CompleteWorkflowActivityRequest;
+    await expect(adapter.completeActivities([request])).resolves.toEqual([]);
+    await expect(adapter.getHistory(executionId)).resolves.toEqual([]);
+    await expect(adapter.loadActivations([reference])).resolves.toHaveLength(1);
+  });
+
   it("reserves only the earliest due dispatch and returns detached publication timestamps", async () => {
     const now = new Date("2026-01-01T00:00:00.000Z");
     const adapter = new MemoryWorkflowAdapter({ activityDispatchMode: "outbox", now: () => now });
@@ -120,7 +133,12 @@ describe("Memory workflow activity outbox", () => {
     // An explicit old generation cannot borrow a current dispatch ID. Legacy results without an ID are only acknowledged.
     await expect(adapter.completeExternalActivity({ ...late, historyGeneration: 1, dispatchId: currentDispatch.id })).resolves.toBe(true);
     await expect(adapter.completeExternalActivity(late)).resolves.toBe(true);
+    await expect(adapter.completeExternalActivity({ ...late, historyGeneration: 3 })).resolves.toBe(false);
     await expect(adapter.getHistory(executionId)).resolves.toEqual(history);
+    // Legacy jobs carrying the current dispatch identity may finish after the
+    // upgrade. Explicitly old or unidentified jobs above must remain fenced.
+    await expect(adapter.completeExternalActivity({ ...late, dispatchId: currentDispatch.id, result: "current" })).resolves.toBe(true);
+    expect((await adapter.getHistory(executionId)).at(-1)).toMatchObject({ type: "command-completed", result: "current" });
   });
 
   it("protects a reserved task snapshot and rejects continuation using an activity lease", async () => {
@@ -151,17 +169,25 @@ describe("Memory workflow activity outbox", () => {
     const adapter = new MemoryWorkflowAdapter();
     const executionId = "embedded-results";
     await adapter.start(start(executionId));
-    await scheduleActivities(adapter, executionId, [0, 1]);
-    const tasks = await adapter.reserveTasks({ kinds: ["activity"], limit: 2, leaseMs: 1_000 });
-    const omitted = tasks.find(({ commandSequence }) => commandSequence === 0);
-    const explicit = tasks.find(({ commandSequence }) => commandSequence === 1);
+    await scheduleActivities(adapter, executionId, [0, 1, 2]);
+    const tasks = await adapter.reserveTasks({ kinds: ["activity"], limit: 3, leaseMs: 1_000 });
+    const earlier = tasks.find(({ commandSequence }) => commandSequence === 0)!;
+    const omitted = tasks.find(({ commandSequence }) => commandSequence === 1)!;
+    const explicit = tasks.find(({ commandSequence }) => commandSequence === 2)!;
     await expect(adapter.completeActivities([
-      { ...reservation(omitted!), executionId, sequence: 0, status: "completed" },
-      { ...reservation(explicit!), executionId, sequence: 1, status: "completed", result: null },
-    ])).resolves.toEqual([reservation(omitted!), reservation(explicit!)]);
+      { ...reservation(earlier), executionId, sequence: 0, status: "completed", result: "earlier" },
+    ])).resolves.toEqual([reservation(earlier)]);
+    await expect(adapter.completeActivities([
+      { ...reservation(omitted), executionId, sequence: 1, status: "completed" },
+      { ...reservation(explicit), executionId, sequence: 2, status: "completed", result: null },
+    ])).resolves.toEqual([reservation(omitted), reservation(explicit)]);
 
     const results = (await adapter.getHistory(executionId)).filter((event) => event.type === "command-completed");
-    expect(results).toMatchObject([{ sequence: 0, completionOrder: 0 }, { sequence: 1, completionOrder: 1, result: null }]);
-    expect(results[0]).not.toHaveProperty("result");
+    expect(results).toMatchObject([
+      { eventIndex: 3, sequence: 0, completionOrder: 0, result: "earlier" },
+      { eventIndex: 4, sequence: 1, completionOrder: 1 },
+      { eventIndex: 5, sequence: 2, completionOrder: 2, result: null },
+    ]);
+    expect(results[1]).not.toHaveProperty("result");
   });
 });

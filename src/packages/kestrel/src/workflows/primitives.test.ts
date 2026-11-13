@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import {
   describe,
   expect,
@@ -19,6 +20,7 @@ import {
   WorkflowActivityTimeoutError,
   WorkflowSignalTimeoutError,
 } from "./errors.js";
+import { WorkflowReplayer } from "./replayer.js";
 import { WorkflowScheduler } from "./scheduler.js";
 import { defineWorkflowSignal } from "./signal.js";
 import { defineWorkflow, type AnyWorkflow } from "./workflow.js";
@@ -410,11 +412,18 @@ function createRuntime(
   const adapter = new MemoryWorkflowAdapter({
     ...(time.adapterNow === undefined ? {} : { now: time.adapterNow }),
   });
+  let replayTurns = 0;
+  const replayer = new WorkflowReplayer({ yieldExecution: () => {
+    // The fixtures have finite histories and all preparation is locally settled.
+    expect(++replayTurns).toBeLessThan(100);
+    return setImmediate();
+  } });
   const scheduler = new WorkflowScheduler(
     workflows,
     adapter,
     new EmbeddedWorkflowActivityTransport(resolve),
     {
+      replayer,
       ...(time.schedulerNow === undefined ? {} : { now: time.schedulerNow }),
     },
   );

@@ -21,7 +21,7 @@ import {
   WorkflowSignalTimeoutError,
 } from "./errors.js";
 import type { WorkflowActivationSnapshot } from "./history.js";
-import { WorkflowReplayer } from "./replayer.js";
+import { WorkflowCaptureEncodingError, WorkflowReplayer } from "./replayer.js";
 import { WorkflowScheduler } from "./scheduler.js";
 import { jsonWorkflowPayloadCodec } from "./serialization.js";
 import { defineWorkflowSignal } from "./signal.js";
@@ -39,6 +39,26 @@ const baseSnapshot: WorkflowActivationSnapshot = {
 };
 
 describe("WorkflowReplayer", () => {
+  it("retains the original cause when wrapping a capture encoding error", () => {
+    const cause = new Error("codec failed");
+    const error = new WorkflowCaptureEncodingError(cause);
+    expect(error.message).toBe("Workflow capture encoding failed.");
+    expect(error.cause).toBe(cause);
+  });
+
+  it("reuses the saved capture value when its replay placeholder differs", async () => {
+    const snapshot: WorkflowActivationSnapshot = {
+      ...baseSnapshot,
+      revision: 2,
+      history: [
+        { type: "command-scheduled", kind: "capture", target: "value", sequence: 0, eventIndex: 0, occurredAt: new Date(0), payload: "saved" },
+        { type: "command-completed", sequence: 0, eventIndex: 1, occurredAt: new Date(0), completionOrder: 0, result: "saved" },
+      ],
+    };
+    await expect(new WorkflowReplayer().replay(snapshot, (_input, replay) => replay.command("capture", "value", null)))
+      .resolves.toStrictEqual({ status: "completed", output: "saved", commands: [] });
+  });
+
   it("settles after the handler's completed preparation is removed from the pending set", async () => {
     let replayTurns = 0;
     const replayer = new WorkflowReplayer({ yieldExecution: () => {
@@ -133,6 +153,19 @@ describe("WorkflowReplayer", () => {
     await expect(handle.status()).resolves.toMatchObject({ status: "failed", error: { message: failure.message } });
     await expect(adapter.getHistory(handle.executionId)).resolves.toEqual([]);
     expect(caught).toHaveBeenCalledExactlyOnceWith(failure);
+  });
+
+  it("returns the codec error and no commands to the activation owner", async () => {
+    const failure = new Error("invalid encoded capture");
+    const replayer = new WorkflowReplayer();
+    const result = replayer.replay(baseSnapshot, async (_input, replay) => {
+      const context = new DurableWorkflowExecutionContext(replay, {
+        codec: { encode: () => { throw failure; }, decode: jsonWorkflowPayloadCodec.decode },
+        cancellationRequested: false, createUuid: () => "unused", now: () => 0, signals: [],
+      });
+      await context.sideEffect(() => "unsupported");
+    });
+    await expect(result).resolves.toStrictEqual({ status: "failed", error: failure, commands: [] });
   });
 
   it("reserves the first continuation while its asynchronous encoding is pending", async () => {
@@ -552,15 +585,18 @@ describe("WorkflowReplayer", () => {
     await expect(handle.result()).resolves.toBe("child finished");
   });
 
-  it.each([{ maxAttempts: 0 }, { backoffCoefficient: 0.5 }])(
+  it.each([
+    { retry: { maxAttempts: 0 }, message: "Workflow activity maxAttempts must be positive." },
+    { retry: { backoffCoefficient: 0.5 }, message: "Workflow activity backoffCoefficient must be at least one." },
+  ])(
     "rejects invalid activity retry tuning before staging a command (%j)",
-    async (retry) => {
+    async ({ retry, message }) => {
       const action = defineAction({ name: "activity.invalid-retry", output: z.null(), handler: () => null });
       const result = await new WorkflowReplayer().replay(baseSnapshot, (_input, workflow) =>
         new DurableWorkflowExecutionContext(workflow, {
           codec: jsonWorkflowPayloadCodec, cancellationRequested: false, createUuid: () => "unused", now: () => 0, signals: [],
         }).run(action, null, { retry }));
-      expect(result).toEqual({ status: "failed", error: expect.any(TypeError), commands: [] });
+      expect(result).toEqual({ status: "failed", error: new TypeError(message), commands: [] });
     },
   );
 

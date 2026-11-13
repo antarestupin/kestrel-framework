@@ -12,6 +12,7 @@ describe("PostgreSQL pool lifecycle", () => {
     const pool = new Pool({ max: 1, connectionString: "postgresql://[" });
     const runtime = new PostgresPoolRuntime(pool, { ...policy, maxWaitingRequests: 0 });
     const callback = vi.fn();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 
     try {
       expect(() => pool.connect(callback)).toThrow(TypeError);
@@ -22,10 +23,17 @@ describe("PostgreSQL pool lifecycle", () => {
       });
 
       // The next promise-form call still reaches pg and sees its native error.
-      await expect(pool.connect()).rejects.toBeInstanceOf(TypeError);
+      const second = pool.connect();
+      expect(runtime.snapshot().acquiring).toBe(0);
+      await expect(second).rejects.toBeInstanceOf(TypeError);
       expect(runtime.snapshot()).toMatchObject({ acquiring: 0, acquisitions: 2, acquisitionFailures: 2 });
     } finally {
-      await runtime.close();
+      const closed = vi.fn();
+      void runtime.close().then(() => closed(), closed);
+      try {
+        await vi.advanceTimersByTimeAsync(0);
+        expect(closed).toHaveBeenCalledExactlyOnceWith();
+      } finally { vi.useRealTimers(); }
     }
     expect(callback).not.toHaveBeenCalled();
   });
@@ -38,27 +46,30 @@ describe("PostgreSQL pool lifecycle", () => {
       .mockImplementation((callback) => callback(new Error("unexpected native checkout"), undefined, () => {}))
       .mockImplementationOnce((callback) => callback(undefined, client, release));
     pool.connect = nativeConnect as unknown as Pool["connect"];
-    let reentrant: Promise<PoolClient> | undefined;
+    const reentrant = vi.fn();
     const runtime = new PostgresPoolRuntime(pool, { ...policy, maxWaitingRequests: 0 }, (event) => {
       if (event.type === "acquisition" && event.outcome === "success") {
         // The sink runs synchronously and can reenter before connect returns.
-        reentrant = pool.connect();
-        void reentrant.catch(() => undefined);
+        pool.connect(reentrant);
       }
     });
 
     try {
-      await expect(pool.connect()).resolves.toBe(client);
-      await expect(reentrant).rejects.toMatchObject({
+      const acquired = vi.fn();
+      pool.connect(acquired);
+      expect(acquired).toHaveBeenCalledExactlyOnceWith(undefined, client, client.release);
+      // A full queue rejects asynchronously without entering the native driver.
+      await Promise.resolve();
+      expect(reentrant).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
         code: "queue_full", name: "PostgresPoolPolicyError", message: "PostgreSQL pool policy: queue_full",
-      });
+      }));
       expect(runtime.snapshot()).toMatchObject({
         state: "unknown", acquisitionFailures: 1,
         lastFailure: { type: "acquisition", failure: "queue_full" },
       });
       expect(nativeConnect).toHaveBeenCalledOnce();
     } finally {
-      client.release();
+      client.release?.();
       await runtime.close();
     }
   });
@@ -140,6 +151,27 @@ describe("PostgreSQL pool lifecycle", () => {
     }
   });
 
+  it("contains synchronous observer throws and rejected observer promises", async () => {
+    const pool = new Pool();
+    const rejection = new Error("observer rejected");
+    const rejectObservation = vi.fn((_resolve: (value: void) => void, reject: (error: Error) => void) => reject(rejection));
+    // A thenable lets the test observe assimilation without leaking a native rejection under mutation.
+    const observation = { then: rejectObservation } as unknown as Promise<void>;
+    const onEvent = vi.fn()
+      .mockImplementationOnce(() => { throw new Error("observer failed"); })
+      .mockImplementationOnce(() => observation);
+    const runtime = new PostgresPoolRuntime(pool, policy, onEvent);
+    try {
+      pool.emit("error", new Error("first driver failure"));
+      pool.emit("error", new Error("second driver failure"));
+      // Promise.resolve assimilates the returned observation on the next microtask.
+      await Promise.resolve();
+      expect(onEvent).toHaveBeenCalledTimes(2);
+      expect(rejectObservation).toHaveBeenCalledExactlyOnceWith(expect.any(Function), expect.any(Function));
+      expect(runtime.snapshot().state).toBe("degraded");
+    } finally { await runtime.close(); }
+  });
+
   it("deduplicates a forwarded connection error and removes its listener when the connection ends", async () => {
     const pool = new Pool();
     const client = new EventEmitter();
@@ -173,6 +205,55 @@ describe("PostgreSQL pool lifecycle", () => {
       pool.emit("error", failure);
       expect(runtime.snapshot().state).toBe("degraded");
       expect(onEvent).toHaveBeenCalledTimes(2);
+    } finally {
+      await runtime.close();
+    }
+  });
+
+  it("does not report recovery when two different failures invalidate the same check", async () => {
+    const pool = new Pool();
+    const health = Promise.withResolvers<unknown>();
+    pool.query = vi.fn().mockReturnValueOnce(health.promise).mockRejectedValueOnce(new Error("probe failed")) as Pool["query"];
+    const runtime = new PostgresPoolRuntime(pool, policy);
+    try {
+      const checking = runtime.checkHealth();
+      pool.emit("error", new Error("idle client failed"));
+      await expect(runtime.checkHealth()).rejects.toThrow("probe failed");
+      health.resolve({});
+      expect((await checking).state).toBe("degraded");
+    } finally {
+      health.resolve({});
+      await runtime.close();
+    }
+  });
+
+  it("invalidates a pending health result after a native acquisition and idle-client failure", async () => {
+    const pool = new Pool();
+    const health = Promise.withResolvers<unknown>();
+    const failure = new Error("checkout failed");
+    pool.query = vi.fn(() => health.promise) as unknown as Pool["query"];
+    pool.connect = vi.fn((callback) => callback(failure)) as unknown as Pool["connect"];
+    const runtime = new PostgresPoolRuntime(pool, policy);
+    try {
+      const checking = runtime.checkHealth();
+      pool.emit("error", new Error("idle client failed"));
+      await expect(pool.connect()).rejects.toBe(failure);
+      health.resolve({});
+      expect((await checking).state).toBe("degraded");
+    } finally {
+      health.resolve({});
+      await runtime.close();
+    }
+  });
+
+  it("preserves a native checkout error code when its construction throws synchronously", async () => {
+    const pool = new Pool();
+    const failure = Object.assign(new Error("construction failed"), { code: "ECONNRESET" });
+    pool.connect = vi.fn(() => { throw failure; }) as Pool["connect"];
+    const runtime = new PostgresPoolRuntime(pool, policy);
+    try {
+      expect(() => pool.connect(vi.fn())).toThrow(failure);
+      expect(runtime.snapshot().lastFailure).toMatchObject({ errorCode: "ECONNRESET", failure: "acquisition_failed" });
     } finally {
       await runtime.close();
     }
@@ -229,22 +310,30 @@ describe("PostgreSQL pool lifecycle", () => {
     Object.assign(client, { connection: { stream: new PassThrough() } });
     const release = vi.fn();
     pool.connect = vi.fn((callback) => callback(undefined, client, release)) as unknown as Pool["connect"];
-    pool.end = vi.fn(() => new Promise<void>(() => {})) as Pool["end"];
+    const nativeEnd = Promise.withResolvers<void>();
+    pool.end = vi.fn(() => nativeEnd.promise) as Pool["end"];
     const runtime = new PostgresPoolRuntime(pool, policy);
-    await new Promise<void>((resolve, reject) => pool.connect((error, acquired, done) => {
-      if (error) return reject(error);
-      expect(acquired).toBe(client);
-      expect(done).toBe(client.release);
-      resolve();
-    }));
-    const close = runtime.close();
-    expect(runtime.close()).toBe(close);
-    await expect(close).rejects.toMatchObject({ code: "shutdown_timeout" });
-    expect(release).toHaveBeenCalledExactlyOnceWith(true);
-    expect(client.connection.stream.destroyed).toBe(true);
-    client.release();
-    expect(release).toHaveBeenCalledOnce();
-    expect(runtime.snapshot().state).toBe("closed");
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const acquired = vi.fn();
+      pool.connect(acquired);
+      expect(acquired).toHaveBeenCalledExactlyOnceWith(undefined, client, client.release);
+      const close = runtime.close();
+      const observeClose = vi.fn();
+      void close.then(() => observeClose(), observeClose);
+      expect(runtime.close()).toBe(close);
+      await vi.advanceTimersByTimeAsync(policy.shutdownTimeoutMs);
+      expect(observeClose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ code: "shutdown_timeout" }));
+      expect(release).toHaveBeenCalledExactlyOnceWith(true);
+      expect(client.connection.stream.destroyed).toBe(true);
+      client.release();
+      expect(release).toHaveBeenCalledOnce();
+      expect(runtime.snapshot().state).toBe("closed");
+    } finally {
+      nativeEnd.resolve();
+      client.connection.stream.destroy();
+      vi.useRealTimers();
+    }
   });
 
   it("rejects pending acquisitions on close and evicts a late native connection", async () => {
@@ -252,15 +341,32 @@ describe("PostgreSQL pool lifecycle", () => {
     let complete!: (error: Error | undefined, client: PoolClient, release: PoolClient["release"]) => void;
     pool.connect = vi.fn((callback) => { complete = callback; }) as unknown as Pool["connect"];
     const runtime = new PostgresPoolRuntime(pool, policy);
-    const pending = pool.connect();
-    const rejected = expect(pending).rejects.toMatchObject({ code: "closing" });
+    const rejected = vi.fn();
+    pool.connect(rejected);
     await runtime.close();
-    await rejected;
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ code: "closing" }));
     const client = new EventEmitter() as PoolClient;
     const release = vi.fn();
     complete(undefined, client, release);
     expect(release).toHaveBeenCalledExactlyOnceWith(true);
-    await expect(pool.connect()).rejects.toMatchObject({ code: "closing" });
+    const afterClose = vi.fn();
+    pool.connect(afterClose);
+    await Promise.resolve();
+    expect(afterClose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ code: "closing" }));
+  });
+
+  it("preserves the single callback when the native checkout fails after closing", async () => {
+    const pool = new Pool();
+    let complete!: Parameters<Pool["connect"]>[0];
+    pool.connect = vi.fn((callback) => { complete = callback; }) as unknown as Pool["connect"];
+    const runtime = new PostgresPoolRuntime(pool, policy);
+    const checkout = vi.fn();
+    pool.connect(checkout);
+    await runtime.close();
+    // A queued native failure can follow Kestrel's synthetic close notification.
+    expect(() => Reflect.apply(complete, undefined, [new Error("native checkout cancelled")])).not.toThrow();
+    expect(checkout).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ code: "closing" }));
+    expect(runtime.snapshot()).toMatchObject({ acquisitionFailures: 1, acquisitions: 1 });
   });
 
   it("rejects a connection completing between close admission and native drain", async () => {

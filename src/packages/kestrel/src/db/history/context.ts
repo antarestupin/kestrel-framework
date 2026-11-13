@@ -50,7 +50,8 @@ async function readHistoryContext(
       nullif(current_setting('kestrel.history.reason', true), '') AS reason`,
   );
 
-  return result.rows[0] ?? { actor: null, reason: null };
+  // A SELECT of expressions without a FROM always produces one row.
+  return result.rows[0]!;
 }
 
 async function writeHistoryContext(

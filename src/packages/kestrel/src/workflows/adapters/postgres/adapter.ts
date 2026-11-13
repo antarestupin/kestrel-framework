@@ -571,17 +571,17 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
       cursorCreatedAt: sql<string>`to_char(${this.executionsTable.createdAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
     })
       .from(this.executionsTable)
-      .where(predicates.length === 0 ? undefined : and(...predicates))
+      .where(and(...predicates))
       .orderBy(
         desc(this.executionsTable.createdAt),
         desc(this.executionsTable.id),
       )
       .limit(query.limit + 1);
-    const hasMore = rows.length > query.limit;
     const items = rows.slice(0, query.limit).map(mapExecution);
     return {
       items,
-      ...(hasMore && items.length > 0
+      // A lookahead row implies a nonempty page because the validated limit is positive.
+      ...(rows.length > query.limit
         ? { nextCursor: z.encode(workflowExecutionCursorCodec, {
           id: items.at(-1)!.executionId,
           createdAt: rows[items.length - 1]!.cursorCreatedAt,
@@ -591,20 +591,14 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
   }
 
   public async waitForTerminal(executionId: string): Promise<WorkflowExecution> {
-    for (;;) {
-      const execution = await this.get(executionId);
-
-      if (execution === undefined) {
-        throw new WorkflowExecutionNotFoundError(executionId);
-      }
-
-      if (isTerminalWorkflowStatus(execution.status)) {
-        return execution;
-      }
-
+    let execution = await this.get(executionId);
+    while (execution !== undefined && !isTerminalWorkflowStatus(execution.status)) {
       await new Promise((resolve) =>
         setTimeout(resolve, this.terminalPollIntervalMs));
+      execution = await this.get(executionId);
     }
+    if (execution === undefined) throw new WorkflowExecutionNotFoundError(executionId);
+    return execution;
   }
 
   public async sendSignal(
@@ -655,9 +649,7 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         executionId: request.executionId,
         name: request.signalName,
         payload: request.payload,
-        ...(request.idempotencyKey === undefined
-          ? {}
-          : { idempotencyKey: request.idempotencyKey }),
+        idempotencyKey: request.idempotencyKey ?? null,
       }).returning();
 
       if (signal === undefined) {
@@ -678,10 +670,13 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         revision: execution.revision + 1,
         updatedAt: sql`statement_timestamp()`,
       }).where(eq(this.executionsTable.id, request.executionId));
-      await transaction.insert(this.tasksTable).values({
-        executionId: request.executionId,
-        kind: "workflow",
-      }).onConflictDoNothing();
+      // A pending execution receives its first task only when its permit is admitted.
+      if (execution.concurrencyAdmitted) {
+        await transaction.insert(this.tasksTable).values({
+          executionId: request.executionId,
+          kind: "workflow",
+        }).onConflictDoNothing();
+      }
 
       return { id: signal.id, accepted: true };
     });
@@ -822,16 +817,19 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
 
     const rows = result.rows as unknown as ReservationQueryRow[];
     const tasks = rows.flatMap((row) => row.id === null ? [] : [mapReservedTask(row)]);
-    if (checkPendingAdmission) {
-      const keys = rows[0]?.pending_admission_keys ?? [];
+    // The discovery aggregate produces one row even when there is no runnable task.
+    const discovery = rows[0];
+    if (discovery && "pending_admission_cursor" in discovery) {
       // Advance past every examined group, including full groups or groups that remain locked.
-      this.pendingAdmissionCursor = rows[0]?.pending_admission_cursor ?? undefined;
+      this.pendingAdmissionCursor = discovery.pending_admission_cursor ?? undefined;
       let recoveryError: unknown;
-      for (const key of keys) {
-        try {
-          await this.recoverPendingAdmission(key);
-        } catch (error) {
-          recoveryError ??= error;
+      if (discovery.pending_admission_keys != null) {
+        for (const key of discovery.pending_admission_keys) {
+          try {
+            await this.recoverPendingAdmission(key);
+          } catch (error) {
+            recoveryError ??= error;
+          }
         }
       }
       // A repair failure must not abandon leases acquired by the reservation statement.
@@ -931,8 +929,7 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
     if (fastPathCommitted) return true;
 
     return this.database.transaction(async (transaction) => {
-      // PostgreSQL requires unqualified relation names after `FOR UPDATE OF`.
-      // Explicit aliases keep the lock query valid for schema-qualified tables.
+      // Explicit aliases keep the joined projections valid for schema-qualified tables.
       const lockedTask = alias(this.tasksTable, "workflow_task");
       const lockedExecution = alias(
         this.executionsTable,
@@ -965,7 +962,7 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
           eq(lockedTask.kind, "workflow"),
           eq(lockedTask.executionId, request.executionId),
         ))
-        .for("update", { of: [lockedTask, lockedExecution] });
+        .for("update");
 
       if (state === undefined) return false;
       const execution = state.execution;
@@ -1221,14 +1218,11 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         ...(terminal ? { concurrencyAdmitted: false } : {}),
         updatedAt: sql`statement_timestamp()`,
         ...(terminal ? { completedAt: sql`statement_timestamp()` } : {}),
-        ...(request.outcome.status === "completed"
-          ? request.outcome.output === undefined
-            ? { outputPresent: false }
-            : { output: request.outcome.output, outputPresent: true }
-          : request.outcome.status === "failed"
-            || request.outcome.status === "blocked"
-            ? { error: request.outcome.error }
-            : {}),
+        // Replaying after an operator cancellation can leave a previous blocked error on the row.
+        error: request.outcome.status === "failed" || request.outcome.status === "blocked"
+          ? request.outcome.error : null,
+        output: request.outcome.status === "completed" ? request.outcome.output ?? null : null,
+        outputPresent: request.outcome.status === "completed" && request.outcome.output !== undefined,
       }).where(eq(this.executionsTable.id, request.executionId));
 
       await transaction.delete(this.tasksTable).where(and(
@@ -1283,9 +1277,7 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
             commandSequence: execution.parentCommandSequence,
             completionOrder: parentCompletionOrder,
             ...(request.outcome.status === "completed"
-              ? request.outcome.output === undefined
-                ? { payloadPresent: false }
-                : { payload: request.outcome.output, payloadPresent: true }
+              ? { payload: request.outcome.output ?? null, payloadPresent: request.outcome.output !== undefined }
               : {
                   error: request.outcome.status === "failed"
                     ? request.outcome.error
@@ -1510,8 +1502,7 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
     request: CommitWorkflowActivationRequest,
     outcome: Extract<CommitWorkflowActivationRequest["outcome"], { status: "completed" | "failed" | "cancelled" }>,
   ): Promise<boolean> {
-    const completed = outcome.status === "completed";
-    const hasOutput = completed && outcome.output !== undefined;
+    const hasOutput = outcome.status === "completed" && outcome.output !== undefined;
     const output = hasOutput
       ? outcome.output
       : null;
@@ -2041,10 +2032,12 @@ export class PostgresWorkflowAdapter implements WorkflowAdapter {
         concurrencyScope: source.concurrencyScope,
       }).onConflictDoNothing({ target: this.executionsTable.id }).returning();
       if (created === undefined) {
-        // An ordinary start can claim this identity after the first lookup.
-        // Read the winner in a new statement after PostgreSQL resolves the insert conflict.
-        const competing = await readExistingRetry();
-        if (competing !== undefined) return competing;
+        // Other retries of this target are serialized by the advisory lock above.
+        // A plain start can still win, and PostgreSQL exposes it in this new statement.
+        const [competing] = await transaction.select({ id: this.executionsTable.id })
+          .from(this.executionsTable)
+          .where(eq(this.executionsTable.id, request.executionId));
+        if (competing !== undefined) throw new WorkflowExecutionConflictError(request.executionId);
         throw new Error("PostgreSQL did not return the retried workflow execution.");
       }
       if (concurrencyAdmitted) {
@@ -2686,7 +2679,8 @@ function getStartLockKeys(
     }
   }
 
-  return [...keys].sort();
+  // PostgreSQL sorts the deduplicated key set before acquiring locks.
+  return [...keys];
 }
 
 function startRequestValues(
@@ -2812,12 +2806,12 @@ function assertCommandsSettledBeforeContinuation(
   const completed = new Set(history
     .filter((event) => event.type === "command-completed")
     .map((event) => event.sequence));
-  const pending = history.find((event) =>
-    event.type === "command-scheduled" && !completed.has(event.sequence));
-  if (pending !== undefined && pending.type === "command-scheduled") {
-    throw new TypeError(
-      `Workflow execution "${executionId}" cannot continue as new with pending command ${pending.sequence}.`,
-    );
+  for (const event of history) {
+    if (event.type === "command-scheduled" && !completed.has(event.sequence)) {
+      throw new TypeError(
+        `Workflow execution "${executionId}" cannot continue as new with pending command ${event.sequence}.`,
+      );
+    }
   }
 }
 
@@ -2892,8 +2886,7 @@ function completionRequestValues(
   requests: readonly CompleteWorkflowActivityRequest[],
 ) {
   return sql.join(requests.map((request, requestOrder) => {
-    const completed = request.status === "completed";
-    const resultPresent = completed && request.result !== undefined;
+    const resultPresent = request.status === "completed" && request.result !== undefined;
     const result = resultPresent ? request.result : null;
     const error = request.status === "failed" ? request.error : null;
 

@@ -37,7 +37,7 @@ describe("createHistoryBaselineSql", () => {
       baseline: "existing_rows",
     });
     const [baselineDefinition] = getHistoryTableDefinitions({ baselineHistory });
-    const [regularDefinition] = getHistoryTableDefinitions({ articleHistory });
+    const [regularDefinition] = getHistoryTableDefinitions({ articleHistory: defineHistoryTable(articles) });
     const baselineSql = createHistoryBaselineSql(baselineDefinition!);
 
     expect(createHistoryBaselineSql(regularDefinition!)).toBeUndefined();
@@ -50,11 +50,9 @@ describe("createHistoryBaselineSql", () => {
     );
   });
 });
-const articleHistory = defineHistoryTable(articles);
-
 describe("createHistoryTriggerSql", () => {
   it("rejects stale source-column metadata before rendering SQL", () => {
-    const [definition] = getHistoryTableDefinitions({ articleHistory });
+    const [definition] = getHistoryTableDefinitions({ articleHistory: defineHistoryTable(articles) });
     const stale = { ...definition!, baseline: "existing_rows" as const, sourceColumnKeys: ["oldColumn"] };
     expect(() => createHistoryTriggerSql(stale)).toThrow('Missing history source column "oldColumn"');
     expect(() => createHistoryBaselineSql(stale)).toThrow('Missing history source column "oldColumn"');
@@ -74,7 +72,7 @@ describe("createHistoryTriggerSql", () => {
   });
 
   it("generates sparse insert, update and delete event triggers", () => {
-    const [definition] = getHistoryTableDefinitions({ articleHistory });
+    const [definition] = getHistoryTableDefinitions({ articleHistory: defineHistoryTable(articles) });
     const triggerSql = createHistoryTriggerSql(definition!);
 
     expect(triggerSql).toContain(
@@ -98,6 +96,11 @@ describe("createHistoryTriggerSql", () => {
     expect(triggerSql).toContain(
       "current_setting('kestrel.history.actor', true)",
     );
+    for (const key of ["actor", "reason"]) {
+      expect(triggerSql.match(new RegExp(`current_setting\\('kestrel\\.history\\.${key}', true\\)`, "gu")))
+        .toHaveLength(3);
+    }
+    expect(triggerSql).toMatch(/AS \$history\$[\s\S]+\$history\$;/u);
   });
 
   it("combines every column of a composite identity in the immutability check", () => {

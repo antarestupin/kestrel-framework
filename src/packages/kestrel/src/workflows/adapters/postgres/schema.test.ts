@@ -1,24 +1,30 @@
 import { SQL } from "drizzle-orm";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { getFrameworkDatabaseTableKeys } from "../../../db/framework_table.js";
-import { getDatabaseSchemaContributions } from "../../../db/schema_contributions/definition.js";
-import {
-  workflowDispatchOutbox,
-  workflowExecutions,
-  workflowHistoryArchives,
-  workflowHistoryEvents,
-  workflowSignals,
-  workflowTasks,
-  workflowsSchema,
-} from "./schema.js";
-
-const tables = { workflowDispatchOutbox, workflowExecutions, workflowHistoryArchives, workflowHistoryEvents, workflowSignals, workflowTasks };
+/** Load the production declarations within a test so import-time failures are observable. */
+async function loadSchema() {
+  // Mutation testing can run this test against a module cached by another schema assertion.
+  vi.resetModules();
+  const {
+    workflowDispatchOutbox,
+    workflowExecutions,
+    workflowHistoryArchives,
+    workflowHistoryEvents,
+    workflowSignals,
+    workflowTasks,
+    workflowsSchema,
+  } = await import("./schema.js");
+  const { getFrameworkDatabaseTableKeys } = await import("../../../db/framework_table.js");
+  const { getDatabaseSchemaContributions } = await import("../../../db/schema_contributions/definition.js");
+  const tables = { workflowDispatchOutbox, workflowExecutions, workflowHistoryArchives, workflowHistoryEvents, workflowSignals, workflowTasks };
+  return { ...tables, tables, workflowsSchema, getFrameworkDatabaseTableKeys, getDatabaseSchemaContributions };
+}
 
 /** Exercise production migration metadata independently from adapter fixtures. */
 describe("workflow PostgreSQL schema", () => {
-  it("exposes the singular framework-owned tables and their column comments", () => {
+  it("exposes the singular framework-owned tables and their column comments", async () => {
+    const { tables, workflowsSchema, getFrameworkDatabaseTableKeys, getDatabaseSchemaContributions } = await loadSchema();
     const tableNames = ["dispatch_outbox", "execution", "history_archive", "history_event", "signal", "task"];
     expect(getFrameworkDatabaseTableKeys(tables)).toEqual(new Set(tableNames.map((name) => JSON.stringify(["workflows", name]))));
     const contributions = getDatabaseSchemaContributions({ workflowsSchema, ...tables });
@@ -41,7 +47,8 @@ describe("workflow PostgreSQL schema", () => {
     }
   });
 
-  it("enforces one journal position, completion, wakeup, signal key and dispatch per identity", () => {
+  it("enforces one journal position, completion, wakeup, signal key and dispatch per identity", async () => {
+    const { tables, workflowHistoryEvents, workflowHistoryArchives, workflowTasks, workflowSignals, workflowDispatchOutbox } = await loadSchema();
     const primary = (table: typeof workflowHistoryEvents | typeof workflowHistoryArchives) =>
       getTableConfig(table).primaryKeys.map(({ columns }) => columns.map(({ name }) => name));
     expect(primary(workflowHistoryEvents)).toEqual([["execution_id", "event_index"]]);
@@ -63,7 +70,8 @@ describe("workflow PostgreSQL schema", () => {
     expect(unique(workflowDispatchOutbox)).toEqual([{ columns: ["execution_id", "command_sequence", "transport"], predicate: undefined }]);
   });
 
-  it("preserves the journal defaults, nullable values and Date-valued lease columns", () => {
+  it("preserves the journal defaults, nullable values and Date-valued lease columns", async () => {
+    const { workflowExecutions, workflowHistoryEvents, workflowTasks, workflowSignals, workflowDispatchOutbox, workflowHistoryArchives } = await loadSchema();
     expect(workflowExecutions.historyGeneration).toMatchObject({ default: 1, notNull: true });
     expect(workflowExecutions.revision).toMatchObject({ default: 0, notNull: true });
     expect(workflowExecutions.outputPresent).toMatchObject({ default: false, notNull: true });
@@ -95,7 +103,8 @@ describe("workflow PostgreSQL schema", () => {
     }
   });
 
-  it("indexes reservation order, signal delivery and workflow lineage", () => {
+  it("indexes reservation order, signal delivery and workflow lineage", async () => {
+    const { tables, workflowTasks, workflowDispatchOutbox, workflowSignals, workflowExecutions } = await loadSchema();
     const indexes = (table: typeof tables[keyof typeof tables]) => getTableConfig(table).indexes
       .filter(({ config }) => !config.unique)
       .map(({ config }) => config.columns.map((column) => "name" in column ? column.name : undefined));
@@ -108,7 +117,8 @@ describe("workflow PostgreSQL schema", () => {
     ]);
   });
 
-  it("preserves durable index identities and server-side timestamp defaults", () => {
+  it("preserves durable index identities and server-side timestamp defaults", async () => {
+    const { tables, workflowTasks, workflowDispatchOutbox, workflowExecutions, workflowHistoryArchives, workflowHistoryEvents, workflowSignals } = await loadSchema();
     // Migration tooling compares index names and defaults across revisions.
     const indexes = Object.fromEntries(Object.values(tables).map((table) => {
       const config = getTableConfig(table);

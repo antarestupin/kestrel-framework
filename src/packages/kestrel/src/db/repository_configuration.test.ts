@@ -54,7 +54,7 @@ class ConfiguredRepository extends DefaultRepository {
     return {
       search: { name: records.name },
       filters: {
-        name: { column: records.name, operators: ["equals"] },
+        name: { column: records.name, operators: ["equals", "not-equals"] },
         rank: { column: records.rank, operators: ["equals"] },
         active: { column: records.active, operators: ["equals"] },
         recordedAt: { column: records.recordedAt, operators: ["equals"] },
@@ -151,6 +151,13 @@ describe("repository configuration hooks", () => {
       pagination: page, filters: [{ field: "missing", operator: "equals", value: "ignored" }],
     })).rejects.toThrow('This repository does not support filter "missing".');
     expect(query).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a not-equals predicate distinct from the next comparison operator", async () => {
+    const { repository, query, sql } = setup(true);
+    await repository.findCollection({ pagination: page, filters: [{ field: "name", operator: "not-equals", value: "hidden" }] });
+    expect(sql()).toContain('"configuration_record"."name" <>');
+    expect(query.mock.calls[0]![1]).toEqual(["hidden", 3]);
   });
 
   it("rejects invalid numbered pagination before executing an unbounded select", async () => {

@@ -16,6 +16,18 @@ async function commitVersionError(adapter: MemoryWorkflowAdapter, status: "block
 }
 
 describe("Memory workflow version recovery", () => {
+  it("recovers with an existing activation from a signal received while blocked", async () => {
+    let number = 0;
+    const adapter = new MemoryWorkflowAdapter({ createTaskId: () => `task-${++number}` });
+    await commitVersionError(adapter, "blocked");
+    await adapter.sendSignal({ executionId: execution.executionId, workflowName: execution.workflowName, signalName: "ready", payload: null });
+    const [queued] = adapter.inspectTasks();
+    expect(queued).toBeDefined();
+    await expect(adapter.recoverVersionBlockedExecution(execution)).resolves.toBe(true);
+    const leased = await adapter.reserveTasks({ kinds: ["workflow"], limit: 2, leaseMs: 1_000 });
+    expect(leased.map(({ id }) => id)).toEqual([queued!.id]);
+  });
+
   it("leaves a blocked execution recoverable when allocating the wake-up fails", async () => {
     const failure = new Error("Workflow task identity is temporarily unavailable.");
     let rejectWakeUp = false;

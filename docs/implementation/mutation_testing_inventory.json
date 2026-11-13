@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-12",
+  "updated": "2026-11-13",
   "sourceRoot": "src/packages/kestrel/src",
   "excludes": [
     "**/*.test.ts",
@@ -174,7 +174,8 @@
       "evidence": [
         "configuration-sample",
         "db-storage-review",
-        "db-95-followup"
+        "db-95-followup",
+        "db-residual-review"
       ]
     },
     {
@@ -419,7 +420,8 @@
         "workflow-execution-retry",
         "workflow-terminal-control",
         "workflows-component-review",
-        "workflows-95-followup"
+        "workflows-95-followup",
+        "workflows-residual-review"
       ]
     }
   ],
@@ -3515,6 +3517,178 @@
         "workflow-task-ownership": 12,
         "workflow-execution-retry": 71,
         "postgres-ownership": 47
+      }
+    },
+    {
+      "id": "db-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "db"
+      ],
+      "extent": "13 complete profiles across 34 candidate sources in db/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 2548,
+        "Timeout": 10,
+        "Survived": 59,
+        "RuntimeError": 1
+      },
+      "baselineCounts": {
+        "Killed": 2386,
+        "Survived": 114,
+        "RuntimeError": 118,
+        "Timeout": 10,
+        "NoCoverage": 2
+      },
+      "mutationScore": 97.75,
+      "baselineMutationScore": 95.38,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 40,
+      "staticOrHybridCounts": {
+        "Killed": 609,
+        "RuntimeError": 1,
+        "Survived": 5
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 650,
+        "RuntimeError": 117,
+        "Survived": 18
+      },
+      "baselineRevision": "316591ce23073eb67dae58220cb0a72d9ab84371",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/residual-review/",
+      "analysis": "mutation_testing_db_workflow_residuals.md",
+      "profiles": [
+        "db-provider",
+        "db-instrumentation",
+        "db-repository",
+        "db-history-declarations",
+        "db-history-column-types",
+        "db-history-identities",
+        "db-history-events",
+        "db-reference-counter-declarations",
+        "db-reference-counter-discovery",
+        "db-reference-counter-runtime",
+        "db-schema-table-metadata",
+        "db-schema-migrations",
+        "db-schema-descriptions"
+      ],
+      "carriedProfiles": [],
+      "afterSeconds": {
+        "db-provider": 66,
+        "db-instrumentation": 25,
+        "db-repository": 36,
+        "db-history-declarations": 61,
+        "db-history-column-types": 69,
+        "db-history-identities": 21,
+        "db-history-events": 38,
+        "db-reference-counter-declarations": 5,
+        "db-reference-counter-discovery": 82,
+        "db-reference-counter-runtime": 90,
+        "db-schema-table-metadata": 36,
+        "db-schema-migrations": 44,
+        "db-schema-descriptions": 46
+      }
+    },
+    {
+      "id": "workflows-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "workflows"
+      ],
+      "extent": "26 complete profiles across 38 candidate sources in workflows/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 6861,
+        "Survived": 162,
+        "NoCoverage": 5,
+        "Timeout": 19,
+        "RuntimeError": 5
+      },
+      "baselineCounts": {
+        "Killed": 6672,
+        "Survived": 278,
+        "NoCoverage": 20,
+        "Timeout": 19,
+        "RuntimeError": 106
+      },
+      "mutationScore": 97.63,
+      "baselineMutationScore": 95.74,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 2,
+      "staticOrHybridCounts": {
+        "Killed": 161,
+        "RuntimeError": 5
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 296,
+        "Survived": 42,
+        "RuntimeError": 106
+      },
+      "baselineRevision": "316591ce23073eb67dae58220cb0a72d9ab84371",
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/residual-review/",
+      "analysis": "mutation_testing_db_workflow_residuals.md",
+      "profiles": [
+        "workflow-activation-memory",
+        "workflow-activation-postgres",
+        "workflow-memory-admission",
+        "workflow-memory-operations",
+        "workflow-memory-internals",
+        "workflow-memory-commands",
+        "workflow-memory-projections",
+        "workflow-memory-validation",
+        "workflow-postgres-start",
+        "workflow-postgres-reservation",
+        "workflow-postgres-activities",
+        "workflow-postgres-history",
+        "workflow-postgres-admission-internals",
+        "workflow-postgres-row-mapping",
+        "workflow-postgres-history-decoding",
+        "workflow-runtime",
+        "workflow-scheduler",
+        "workflow-transports",
+        "workflow-replay",
+        "workflow-operations",
+        "workflow-contracts",
+        "workflow-adapter-contracts",
+        "workflow-terminal-control",
+        "workflow-task-ownership",
+        "workflow-execution-retry",
+        "postgres-ownership"
+      ],
+      "carriedProfiles": [],
+      "afterSeconds": {
+        "workflow-activation-memory": 27,
+        "workflow-activation-postgres": 32,
+        "workflow-memory-admission": 13,
+        "workflow-memory-operations": 10,
+        "workflow-memory-internals": 10,
+        "workflow-memory-commands": 20,
+        "workflow-memory-projections": 10,
+        "workflow-memory-validation": 12,
+        "workflow-postgres-start": 96,
+        "workflow-postgres-reservation": 93,
+        "workflow-postgres-activities": 84,
+        "workflow-postgres-history": 173,
+        "workflow-postgres-admission-internals": 131,
+        "workflow-postgres-row-mapping": 449,
+        "workflow-postgres-history-decoding": 427,
+        "workflow-runtime": 69,
+        "workflow-scheduler": 61,
+        "workflow-transports": 126,
+        "workflow-replay": 15,
+        "workflow-operations": 122,
+        "workflow-contracts": 67,
+        "workflow-adapter-contracts": 23,
+        "workflow-terminal-control": 16,
+        "workflow-task-ownership": 36,
+        "workflow-execution-retry": 36,
+        "postgres-ownership": 11
       }
     }
   ]

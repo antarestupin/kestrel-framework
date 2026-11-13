@@ -119,6 +119,7 @@ describe("workflow replay fixtures", () => {
       { type: "cancellation-requested", occurredAt: occurredAt.toISOString() },
     ]);
     expect(redacted.history[3]).not.toHaveProperty("error.stack");
+    expect(redacted.history[4]).toStrictEqual({ type: "cancellation-requested", eventIndex: 4, occurredAt: occurredAt.toISOString() });
     expect(parseWorkflowReplayFixture(stringifyWorkflowReplayFixture(redacted))).toStrictEqual(redacted);
     const complete = await exportWorkflowReplayFixture(adapter, executionId, { includeErrorStacks: true });
     expect(complete.history[3]).toHaveProperty("error.stack", "private stack");

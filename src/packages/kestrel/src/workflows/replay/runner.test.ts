@@ -39,6 +39,30 @@ function createExecution(version = 1) {
 }
 
 describe("WorkflowReplayRunner", () => {
+  it("rejects an unknown command completion even when another command is scheduled", async () => {
+    const { executionId, journal } = createExecution();
+    const snapshot = await journal.appendCommands(executionId, 0, [{ sequence: 0, kind: "activity", target: "first" }]);
+
+    await expect(journal.completeCommand(executionId, 1, "unexpected"))
+      .rejects.toThrow('Workflow "test-execution" has no scheduled command 1.');
+    await expect(journal.getExecution(executionId)).resolves.toEqual(snapshot);
+  });
+
+  it("counts only schedules when appending after an earlier command completion", async () => {
+    const { executionId, journal } = createExecution();
+    await journal.appendCommands(executionId, 0, [
+      { sequence: 0, kind: "activity", target: "first" },
+      { sequence: 1, kind: "timer", target: "next" },
+    ]);
+    await journal.completeCommand(executionId, 1, null);
+    await expect(journal.appendCommands(executionId, 3, [
+      { sequence: 2, kind: "activity", target: "third" },
+    ])).resolves.toMatchObject({ revision: 4, history: [
+      { type: "command-scheduled", sequence: 0 }, { type: "command-scheduled", sequence: 1 },
+      { type: "command-completed", sequence: 1 }, { type: "command-scheduled", sequence: 2 },
+    ] });
+  });
+
   it.each([false, true])("persists a handler failure with its staged commands (async=%s)", async (asynchronous) => {
     const { executionId, runner } = createExecution();
     const failure = new Error("handler failed");
@@ -251,6 +275,7 @@ describe("WorkflowReplayRunner", () => {
       sequence: 0,
       expected: { target: "original" },
       actual: { kind, target },
+      message: `Workflow "test-execution" is non-deterministic at command 0: expected activity:original, received ${kind}:${target}.`,
     });
   });
 

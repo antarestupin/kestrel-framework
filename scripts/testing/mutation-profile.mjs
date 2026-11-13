@@ -78,7 +78,7 @@ const focusedProfiles = {
     ["workflows/adapters/memory/adapter.ts", "private deleteCommandTasks(", "private getOwnedTask("],
   ],
   "workflow-memory-commands": [
-    ["workflows/adapters/memory/adapter.ts", "private prepareCommand(", "private cancelOpenChildren("],
+    ["workflows/adapters/memory/adapter.ts", "private prepareCommand(", "private prepareCancellation("],
   ],
   "workflow-memory-projections": [
     ["workflows/adapters/memory/adapter.ts", "private getRequiredHistory(", "function readRecord("],
@@ -121,7 +121,7 @@ const focusedProfiles = {
   "workers-adapter-memory": [["workers/adapters/index.ts"], ["workers/adapters/memory/**/*.ts"]],
   "workers-adapter-postgres": [["workers/adapters/postgres/adapter.ts"], ["workers/adapters/postgres/definition.ts"], ["workers/adapters/postgres/index.ts"]],
   "workers-adapter-schema": [["workers/adapters/postgres/schema.ts"]],
-  "workflow-terminal-control": [["workflows/adapters/memory/adapter.ts", "public async requestCancellation(", "public async retryExecution("], ["workflows/adapters/memory/adapter.ts", "private cancelOpenChildren(", "private deleteCommandTasks("], ["workflows/adapters/postgres/adapter.ts", "public async requestCancellation(", "public async retryExecution("], ["workflows/adapters/postgres/adapter.ts", "private async terminateExecutionTree(", "private async admitPendingKeyedExecutions("]],
+  "workflow-terminal-control": [["workflows/adapters/memory/adapter.ts", "public async requestCancellation(", "public async retryExecution("], ["workflows/adapters/memory/adapter.ts", "private prepareCancellation(", "private deleteCommandTasks("], ["workflows/adapters/postgres/adapter.ts", "public async requestCancellation(", "public async retryExecution("], ["workflows/adapters/postgres/adapter.ts", "private async terminateExecutionTree(", "private async admitPendingKeyedExecutions("]],
   "workflow-task-ownership": [["workflows/adapters/memory/adapter.ts", "public async releaseTasks(", "public async getHistory("], ["workflows/adapters/memory/adapter.ts", "private getOwnedTask(", "private getRequiredHistory("], ["workflows/adapters/postgres/adapter.ts", "public async releaseTasks(", "public async getHistory("], ["workflows/adapters/postgres/adapter.ts", "private async mutateReservations<", "private async terminateExecutionTree("]],
   "workflow-execution-retry": [["workflows/adapters/memory/adapter.ts", "public async retryExecution(", "public async releaseTasks("], ["workflows/adapters/postgres/adapter.ts", "public async retryExecution(", "public async releaseTasks("]],
   "workers-delivery": [["workers/scheduler.ts", "public runOnce(", "private async canReserveUnderPressure("], ["workers/scheduler.ts", "private async runIndividual(", "private async runObservedInvocation("], ["workers/scheduler.ts", "private async flushOutcomes(", "function getReservationAllocation("], ["workers/scheduler.ts", "function getRetryDelay(", "function combineRequirements("]],

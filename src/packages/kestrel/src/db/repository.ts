@@ -520,10 +520,8 @@ function normalizeColumnValue(column: PgColumn, value: unknown): unknown {
     return value === "true" ? true : value === "false" ? false : value;
   }
 
-  if (
-    column.dataType === "date"
-    && !column.columnType.endsWith("String")
-  ) {
+  // Drizzle exposes Date-backed columns as "date" and string-backed columns as "string".
+  if (column.dataType === "date") {
     const date = new Date(value);
 
     return Number.isNaN(date.getTime()) ? value : date;

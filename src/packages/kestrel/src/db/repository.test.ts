@@ -54,6 +54,7 @@ const records = pgTable("repository_test_record", {
   })
     .defaultNow()
     .notNull(),
+  sentAt: timestamp("sent_at", { mode: "string", withTimezone: true }),
 });
 
 type RecordRow = typeof records.$inferSelect;
@@ -117,6 +118,7 @@ class TestRepository extends Repository<
         active: { column: records.active, operators: ["equals"] },
         note: { column: records.note, operators: ["is-null", "is-not-null"] },
         createdAt: { column: records.createdAt, operators: ["greater-than-or-equal"] },
+        sentAt: { column: records.sentAt, operators: ["greater-than-or-equal"] },
       },
       sorting: { value: records.value, category: records.category },
     };
@@ -175,7 +177,8 @@ beforeAll(async () => {
       amount integer DEFAULT 0 NOT NULL,
       active boolean DEFAULT false NOT NULL,
       note text,
-      created_at timestamp with time zone DEFAULT now() NOT NULL
+      created_at timestamp with time zone DEFAULT now() NOT NULL,
+      sent_at timestamp with time zone
     ) ON COMMIT PRESERVE ROWS
   `);
 });
@@ -377,11 +380,35 @@ describe("Repository", () => {
     })).rejects.toThrow('Collection filter "value.is-null" is not supported.');
   });
 
+  it("keeps collection filters and search disabled when the repository has no allowlist", async () => {
+    class UnconfiguredRepository extends Repository<typeof records, number, CreateRecordInput, UpdateRecordInput> {
+      public constructor() {
+        super(new PostgresDrizzleManager({ database: drizzle(client) }), { table: records, idColumn: records.id });
+      }
+    }
+    const repository = new UnconfiguredRepository();
+    const pagination = { type: "page", page: 1, pageSize: 10 } as const;
+    await expect(repository.findCollection({ pagination, search: { term: "example" } }))
+      .rejects.toThrow("This repository does not support collection search.");
+  });
+
+  it("rejects an invalid Drizzle search column with a search diagnostic", async () => {
+    class InvalidSearchRepository extends TestRepository {
+      protected override getCollectionConfiguration(): RepositoryCollectionOptions {
+        return { search: { value: undefined as never } };
+      }
+    }
+    const invalid = new InvalidSearchRepository(drizzle(client));
+    const pagination = { type: "page", page: 1, pageSize: 10 } as const;
+    await expect(invalid.findCollection({ pagination, search: { term: "example" } }))
+      .rejects.toThrow("This repository does not support search.");
+  });
+
   it("evaluates the allowed comparison, membership and null filters in PostgreSQL", async () => {
     const database = drizzle(client);
     await database.insert(records).values([
       { value: "alpha", amount: 10, category: "initial", active: false, createdAt: new Date("2026-01-01") },
-      { value: "beta", amount: 20, category: "selected", active: true, note: "", createdAt: new Date("2026-01-02") },
+      { value: "beta", amount: 20, category: "selected", active: true, note: "", createdAt: new Date("2026-01-02"), sentAt: "2026-01-02T00:00:00Z" },
       { value: "gamma", amount: 30, category: "selected", active: false, note: "text", createdAt: new Date("2026-01-03") },
     ]);
 
@@ -397,6 +424,7 @@ describe("Repository", () => {
       [{ field: "active", operator: "equals", value: "true" }, ["beta"]],
       [{ field: "active", operator: "equals", value: "false" }, ["alpha", "gamma"]],
       [{ field: "createdAt", operator: "greater-than-or-equal", value: "2026-01-02T00:00:00Z" }, ["beta", "gamma"]],
+      [{ field: "sentAt", operator: "greater-than-or-equal", value: "2026-01-02T00:00:00Z" }, ["beta"]],
       [{ field: "note", operator: "is-null" }, ["alpha"]],
       [{ field: "note", operator: "is-not-null" }, ["beta", "gamma"]],
     ];
@@ -428,8 +456,20 @@ describe("Repository", () => {
     expect(search.items).toEqual(contains.items);
   });
 
+  it("preserves PostgreSQL's microsecond precision for string-backed timestamp filters", async () => {
+    await drizzle(client).insert(records).values([
+      { value: "earlier", sentAt: "2026-01-02T00:00:00.000100Z" },
+      { value: "boundary", sentAt: "2026-01-02T00:00:00.000300Z" },
+    ]);
+    const page = await repository.findCollection({
+      pagination: { type: "page", page: 1, pageSize: 10 },
+      filters: [{ field: "sentAt", operator: "greater-than-or-equal", value: "2026-01-02T00:00:00.000300Z" }],
+    });
+    expect(page.items.map(({ value }) => value)).toEqual(["boundary"]);
+  });
+
   it.each([
-    [{ field: "value", operator: "contains", value: 5 }, "requires a string value"],
+    [{ field: "value", operator: "contains", value: 5 }, 'Collection filter "value.contains" requires a string value.'],
     [{ field: "amount", operator: "in", value: [] }, "requires a non-empty array value"],
     [{ field: "amount", operator: "not-in", value: 5 }, "requires a non-empty array value"],
   ] satisfies [CollectionFilter, string][])("rejects invalid operands for %j", async (filter, error) => {

@@ -87,7 +87,12 @@ describe("database descriptions", () => {
     );
     expect(() => defineDatabaseTableDescriptions(entries, {
       description: " ",
-    })).toThrow("cannot be empty");
+    })).toThrow("Database description for table public.entry cannot be empty.");
+    expect(() => defineDatabaseTableDescriptions(entries, {
+      columns: { title: " " },
+    })).toThrow("Database description for column public.entry.title cannot be empty.");
+    expect(() => defineDatabaseSchemaDescription(pgSchema("entry"), " "))
+      .toThrow("Database description for schema entry cannot be empty.");
     expect(() => defineDatabaseTableDescriptions(entries, {
       columns: { missing: "Unknown." },
     } as never)).toThrow("does not match a Drizzle column property");

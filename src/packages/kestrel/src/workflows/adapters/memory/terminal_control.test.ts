@@ -1,5 +1,5 @@
 import { setImmediate } from "node:timers/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { WorkflowExecutionNotFoundError } from "../../errors.js";
 import { MemoryWorkflowAdapter } from "./adapter.js";
@@ -9,6 +9,59 @@ const start = (executionId: string) => ({ executionId, workflowName: "controls.r
 
 /** Exercise terminal behavior through real start/reserve/commit transitions, not private map writes. */
 describe("MemoryWorkflowAdapter terminal controls", () => {
+  it("cannot resurrect a fixture-completed execution by releasing its former activation", async () => {
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch });
+    const executionId = "settled-fixture";
+    await adapter.start(start(executionId));
+    const [task] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 });
+    expect(adapter.completeExecution(executionId, null)).toBe(true);
+    await expect(adapter.releaseTasks([{ taskId: task!.id, reservationToken: task!.reservationToken }])).resolves.toEqual([]);
+    await expect(adapter.get(executionId)).resolves.toMatchObject({ status: "completed", output: null, concurrencyAdmitted: false });
+    expect(adapter.inspectTasks()).toEqual([]);
+  });
+
+  it("settles a fixture parent and cancels only its own child", async () => {
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch });
+    await adapter.start(start("parent"));
+    const [task] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 });
+    await adapter.commitActivation({
+      taskId: task!.id, reservationToken: task!.reservationToken, executionId: "parent", expectedRevision: 0,
+      commands: [{ kind: "child", sequence: 0, target: "child.run", payload: { version: 1, input: null, executionId: "child" } }],
+      outcome: { status: "waiting" },
+    });
+    await adapter.start(start("unrelated"));
+    const unrelated = await adapter.get("unrelated");
+    expect(adapter.completeExecution("parent")).toBe(true);
+    await expect(adapter.get("child")).resolves.toMatchObject({ cancellationRequested: true });
+    await expect(adapter.get("unrelated")).resolves.toEqual(unrelated);
+  });
+
+  it.each(["completed", "cancelled", "waiting"] as const)("clears a blocked diagnostic when cancellation replay is %s", async (status) => {
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch });
+    const executionId = "recovered";
+    await adapter.start(start(executionId));
+    const reserve = async () => {
+      const [task] = await adapter.reserveTasks({ kinds: ["workflow"], limit: 1, leaseMs: 1_000 });
+      return { taskId: task!.id, reservationToken: task!.reservationToken };
+    };
+    const error = { name: "WorkflowExecutionVersionUnsupportedError", message: "Version unavailable." };
+    await adapter.commitActivation({
+      ...await reserve(), executionId, expectedRevision: 0, commands: [], outcome: { status: "blocked", error },
+    });
+    await expect(adapter.get(executionId)).resolves.toMatchObject({ status: "blocked", error });
+
+    await adapter.requestCancellation(executionId);
+    await adapter.commitActivation({
+      ...await reserve(), executionId, expectedRevision: 1, commands: [],
+      outcome: status === "completed" ? { status, output: null } : { status },
+    });
+    const updated = await adapter.get(executionId);
+    expect(updated).toMatchObject({ status });
+    expect(updated).not.toHaveProperty("error");
+    if (status === "completed") expect(updated).toHaveProperty("output", null);
+    else expect(updated).not.toHaveProperty("output");
+  });
+
   it("wakes a resumed waiting execution even when its previous activation was consumed", async () => {
     const adapter = new MemoryWorkflowAdapter({ now: () => epoch });
     await adapter.start(start("waiting"));
@@ -98,6 +151,84 @@ describe("MemoryWorkflowAdapter terminal controls", () => {
     expect(await adapter.get("holder")).toEqual(holder);
     expect((await adapter.get("still-pending"))?.status).toBe("pending");
     expect(adapter.inspectTasks().some(({ executionId }) => executionId === "pending")).toBe(false);
+  });
+
+  it("cancels descendants of a pending low-level parent without waking the cancelled parent", async () => {
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch });
+    const concurrency = { keyed: { key: "held", limit: 1, conflict: "enqueue", scope: "execution" } } as const;
+    await adapter.startMany([
+      { ...start("holder"), concurrency },
+      { ...start("parent"), concurrency },
+      { ...start("child"), parentExecutionId: "parent", parentCommandSequence: 0, concurrency },
+    ]);
+    await expect(adapter.requestCancellation("parent")).resolves.toBe(true);
+    for (const executionId of ["parent", "child"]) {
+      await expect(adapter.get(executionId)).resolves.toMatchObject({ status: "cancelled", cancellationRequested: true });
+      expect((await adapter.getHistory(executionId)).map(({ type }) => type)).toEqual(["cancellation-requested"]);
+    }
+    expect(adapter.inspectTasks().map(({ executionId }) => executionId)).toEqual(["holder"]);
+  });
+
+  it("reconsiders a group's retained capacity when cancelling an execution after a failed permit handoff", async () => {
+    let taskId = 0;
+    let failWake = false;
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch, createTaskId: () => {
+      if (failWake) throw new Error("Cannot allocate wake.");
+      return `task-${++taskId}`;
+    } });
+    const concurrency = (limit: number) => ({ keyed: { key: "retained", limit, conflict: "enqueue", scope: "execution" } } as const);
+    await adapter.startMany([
+      { ...start("holder"), concurrency: concurrency(2) },
+      { ...start("peer"), concurrency: concurrency(2) },
+      { ...start("cancelling"), concurrency: concurrency(2) },
+      { ...start("waiting"), concurrency: concurrency(2) },
+    ]);
+    failWake = true;
+    await adapter.forceTerminate("holder");
+    await expect(adapter.get("waiting")).resolves.toMatchObject({ status: "pending" });
+    failWake = false;
+    await expect(adapter.requestCancellation("cancelling")).resolves.toBe(true);
+    await expect(adapter.get("waiting")).resolves.toMatchObject({ status: "queued", concurrencyAdmitted: true });
+    expect(adapter.inspectTasks().map(({ executionId }) => executionId)).toContain("waiting");
+  });
+
+  it("shares one wake when cancelling a waiting parent and its capacity-pending child", async () => {
+    let taskId = 0;
+    const createTaskId = vi.fn(() => `task-${++taskId}`);
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch, createTaskId });
+    const concurrency = { keyed: { key: "child", limit: 1, conflict: "enqueue", scope: "execution" } } as const;
+    await adapter.start({ ...start("holder"), workflowName: "child.run", concurrency });
+    await adapter.start(start("parent"));
+    const tasks = await adapter.reserveTasks({ kinds: ["workflow"], limit: 2, leaseMs: 1_000 });
+    const parent = tasks.find(({ executionId }) => executionId === "parent")!;
+    await adapter.commitActivation({
+      taskId: parent.id, reservationToken: parent.reservationToken, executionId: "parent", expectedRevision: 0,
+      commands: [{ kind: "child", sequence: 0, target: "child.run", payload: { version: 1, input: null, executionId: "child", concurrency } }],
+      outcome: { status: "waiting" },
+    });
+    createTaskId.mockClear();
+    await expect(adapter.requestCancellation("parent")).resolves.toBe(true);
+    expect(createTaskId).toHaveBeenCalledTimes(1);
+    expect(adapter.inspectTasks().filter(({ executionId }) => executionId === "parent")).toHaveLength(1);
+    expect(await adapter.get("parent")).not.toHaveProperty("completedAt");
+    await expect(adapter.get("child")).resolves.toMatchObject({ status: "cancelled" });
+  });
+
+  it("cancels a cyclic low-level lineage once and keeps active permits for replay", async () => {
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch });
+    const concurrency = { keyed: { key: "held", limit: 1, conflict: "enqueue", scope: "execution" } } as const;
+    await adapter.startMany([
+      { ...start("cycle-a"), parentExecutionId: "cycle-b", parentCommandSequence: 0, concurrency },
+      { ...start("cycle-b"), parentExecutionId: "cycle-a", parentCommandSequence: 0, workflowName: "peer.run" },
+      { ...start("pending"), concurrency },
+    ]);
+    await expect(adapter.requestCancellation("cycle-a")).resolves.toBe(true);
+    for (const executionId of ["cycle-a", "cycle-b"]) {
+      await expect(adapter.get(executionId)).resolves.toMatchObject({ status: "queued", cancellationRequested: true, concurrencyAdmitted: true });
+      expect(await adapter.getHistory(executionId)).toEqual([{ type: "cancellation-requested", eventIndex: 0, occurredAt: epoch }]);
+    }
+    await expect(adapter.get("pending")).resolves.toMatchObject({ status: "pending", concurrencyAdmitted: false });
+    await expect(adapter.requestCancellation("cycle-a")).resolves.toBe(false);
   });
 
   it("pauses/resumes idempotently without duplicating queued activations", async () => {
@@ -309,5 +440,43 @@ describe("MemoryWorkflowAdapter terminal controls", () => {
     await expect(adapter.get("open-child")).resolves.toMatchObject({ status: "terminated" });
     await expect(adapter.get("closed-parent")).resolves.toEqual(parent);
     await expect(adapter.getHistory("closed-parent")).resolves.toEqual([]);
+  });
+
+  it("terminates a cyclic low-level lineage without recursively revisiting a closed parent", async () => {
+    const readTime = vi.fn(() => epoch);
+    const adapter = new MemoryWorkflowAdapter({ now: readTime });
+    await adapter.startMany([
+      { ...start("cycle-a"), parentExecutionId: "cycle-b", parentCommandSequence: 0 },
+      { ...start("cycle-b"), parentExecutionId: "cycle-a", parentCommandSequence: 0 },
+    ]);
+    // Bound the number of times an open execution may enter the transition.
+    readTime.mockClear();
+    await expect(adapter.forceTerminate("cycle-a", "Cycle cleanup")).resolves.toBe(true);
+    expect(readTime).toHaveBeenCalledTimes(2);
+    expect(adapter.inspectTasks()).toEqual([]);
+    await expect(adapter.get("cycle-a")).resolves.toMatchObject({ status: "terminated" });
+    await expect(adapter.get("cycle-b")).resolves.toMatchObject({ status: "terminated" });
+    await expect(adapter.getHistory("cycle-a")).resolves.toEqual([]);
+    await expect(adapter.getHistory("cycle-b")).resolves.toEqual([]);
+  });
+
+  it("preserves the parent's deferred handoff after a descendant with a different limit closes", async () => {
+    let next = 0;
+    let untilFailure = Infinity;
+    const adapter = new MemoryWorkflowAdapter({ now: () => epoch, createTaskId: () => {
+      if (--untilFailure === 0) throw new Error("Wake unavailable.");
+      return `task-${++next}`;
+    } });
+    const concurrency = (limit: number) => ({ keyed: { key: "held", limit, conflict: "enqueue", scope: "execution" } } as const);
+    await adapter.startMany([
+      { ...start("parent"), concurrency: concurrency(3) },
+      { ...start("child"), parentExecutionId: "parent", concurrency: concurrency(1) },
+      ...["waiting-a", "waiting-b", "waiting-c"].map((id) => ({ ...start(id), concurrency: concurrency(1) })),
+    ]);
+    untilFailure = 2;
+    await expect(adapter.forceTerminate("parent")).resolves.toBe(true);
+    expect(adapter.inspectTasks().map(({ executionId }) => executionId)).toEqual(["waiting-a"]);
+    const reserved = await adapter.reserveTasks({ kinds: ["workflow"], limit: 3, leaseMs: 1_000 });
+    expect(reserved.map(({ executionId }) => executionId).sort()).toEqual(["waiting-a", "waiting-b", "waiting-c"]);
   });
 });

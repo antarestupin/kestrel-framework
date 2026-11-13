@@ -82,8 +82,7 @@ describe("workflow error diagnostics", () => {
     ] as const;
     const error = new WorkflowDeploymentVersionError(diagnostics);
     expect(error).toMatchObject({ name: "WorkflowDeploymentVersionError", diagnostics });
-    expect(error.message).toContain("first.flow@1 (2: definition-missing)");
-    expect(error.message).toContain("second.flow@3 (5: version-unsupported)");
+    expect(error.message).toBe("Workflow deployment cannot replay active executions: first.flow@1 (2: definition-missing), second.flow@3 (5: version-unsupported).");
   });
 
   it("distinguishes a missing command from a changed command identity in replay diagnostics", () => {

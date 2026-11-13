@@ -179,16 +179,19 @@ describe("MemoryWorkflowAdapter validation", () => {
     await expect(reserve()).resolves.toMatchObject([{ executionId: "third", attempt: 1 }]);
   });
 
-  it("does not reserve a queued activity after its execution has failed", async () => {
+  it("retains pending activity work while an execution is blocked without reserving it", async () => {
     const adapter = new MemoryWorkflowAdapter();
     await adapter.start(start);
     await adapter.commitActivation({
       ...await reserveActivation(adapter), expectedRevision: 0, outcome: { status: "waiting" },
       commands: [{ sequence: 0, kind: "activity", target: "workflow.activity", payload: null }],
     });
-    adapter.failExecution(start.executionId, { name: "ExternalFailure", message: "Stopped." });
+    await adapter.sendSignal({ executionId: start.executionId, workflowName: start.workflowName, signalName: "ready", payload: null });
+    await adapter.commitActivation({
+      ...await reserveActivation(adapter), expectedRevision: 2, commands: [],
+      outcome: { status: "blocked", error: { name: "UnavailableVersion", message: "Stopped." } },
+    });
 
-    // The in-memory settlement seam leaves pending task records behind.
     expect(adapter.inspectTasks()).toMatchObject([{ kind: "activity", attempt: 0 }]);
     await expect(adapter.reserveTasks({ kinds: ["activity"], limit: 1, leaseMs: 1 }))
       .resolves.toEqual([]);

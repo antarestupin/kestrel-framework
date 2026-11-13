@@ -2,7 +2,7 @@
 
 [Testing reference](./testing.md#framework-mutation-testing) · [Running assessments](../contributing/mutation-testing.md#run-framework-mutation-testing) · [Results and classifications](./mutation_testing_framework.md) · [Machine-readable inventory](./mutation_testing_inventory.json)
 
-Updated November 12, 2026. The 35 primary lots partition all 640 TS/TSX candidate sources currently selected by the full Stryker configuration. The inventory tracks mutation assessment progress. Source candidates include type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly and may be absent in a fresh Git checkout.
+Updated November 13, 2026. The 35 primary lots partition all 640 TS/TSX candidate sources currently selected by the full Stryker configuration. The inventory tracks mutation assessment progress. Source candidates include type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly and may be absent in a fresh Git checkout.
 
 ## Scope and states
 
@@ -33,7 +33,7 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `configuration` | 1 | Reviewed | Environment resolution, override precedence, supported paths and diagnostics reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#configuration) |
 | `controllers` | 2 | Reviewed | Shared empty input schema and type exports with zero generated mutants | [Component review](mutation_testing_final_wave.md#controllers) |
 | `database` | 8 | Reviewed | Seed preflight, caller-owned transactions and generated identity ownership | [95% follow-up](mutation_testing_95_followup.md#database-maintenance) |
-| `db` | 34 | Reviewed | Query instrumentation, pool recovery, migration validation, history and reference counters | [95% follow-up](mutation_testing_95_followup.md#postgresql-database-runtime) |
+| `db` | 34 | Reviewed | Query instrumentation, pool recovery, migration validation, history and reference counters | [Residual review](mutation_testing_db_workflow_residuals.md) |
 | `definitions` | 5 | Reviewed | Path and identity validation, immutable registration metadata and schema parsing reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#definition-registries) |
 | `di` | 5 | Reviewed | Adapter ownership, dependency resolution, graph validation and disposal reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#dependency-injection) |
 | `email` | 34 | Reviewed | Composition, delivery, capture, adapter contracts and durable storage | [Component review](mutation_testing_final_wave.md#email) |
@@ -54,7 +54,7 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
 | `utils` | 5 | Reviewed | Cursor serialization, identifiers, catalog ownership and definition guards | [Component review](mutation_testing_final_wave.md#utilities) |
 | `workers` | 23 | Reviewed | Lease ownership, shutdown, adapter batches, scheduler and publication | [95% follow-up](mutation_testing_95_followup.md#workers) |
-| `workflows` | 38 | Reviewed | Replay, continuation, execution and child ownership, and durable adapters | [95% follow-up](mutation_testing_95_followup.md#workflows) |
+| `workflows` | 38 | Reviewed | Replay, continuation, execution and child ownership, and durable adapters | [Residual review](mutation_testing_db_workflow_residuals.md) |
 
 The current total is 0 not-assessed lots, 0 partially assessed lots, 34 reviewed lots, 0 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
 
@@ -290,7 +290,7 @@ Local reports and source audits are archived under `artifacts/mutation/wave-six/
 
 ## Follow-up on the 95% component target
 
-The [follow-up review](mutation_testing_95_followup.md) records the latest verified before and after results for these components.
+The [follow-up review](mutation_testing_95_followup.md) records the verified before and after results for the initial component target. Later measurements for `db` and `workflows` appear below.
 
 | Component | Profiles | Score before → after |
 | --- | ---: | ---: |
@@ -301,6 +301,15 @@ The [follow-up review](mutation_testing_95_followup.md) records the latest verif
 | `workflows` | 26/26 | 86.11% → 95.74% |
 
 Reports and execution records are archived under `artifacts/mutation/close95/`.
+
+## November 13 database and workflow residual review
+
+The [residual review](mutation_testing_db_workflow_residuals.md) records the exact scope, outcomes, corrected defects, and remaining classifications.
+
+| Component | Verified profiles | Score before → after | Survived + uncovered before → after |
+| --- | ---: | ---: | ---: |
+| `db` | 13/13 | 95.38% → 97.75% | 116 → 59 |
+| `workflows` | 26/26 | 95.74% → 97.63% | 298 → 167 |
 
 ## Updating the inventory
 

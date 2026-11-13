@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { defineAction } from "../actions/index.js";
 import { App, defineCatalog, executionCompletedEvent, executionContextDependency } from "../app/index.js";
+import { PollingSupervisor } from "../scheduling/index.js";
 import { MemoryWorkerAdapter, WorkerClient } from "../workers/index.js";
 import { MemoryWorkflowAdapter } from "./adapters/memory/index.js";
 import { WorkflowClient } from "./client.js";
@@ -91,6 +92,54 @@ describe("WorkflowRuntime", () => {
       await app.shutdown.drained();
       expect(runtime.state.scheduler.status).toBe("stopped");
     } finally { await runtime.stop(); await app.dispose(); }
+  });
+
+  it("preserves the setup error when disposing its execution also fails", async () => {
+    const setupFailure = new Error("Observer could not be constructed");
+    const disposalFailure = new Error("Scoped release failed");
+    const workflow = defineWorkflow({ name: "runtime.setup-failure", handler: () => undefined });
+    const app = new App({}, { catalog: defineCatalog({ runtime: { workflows: { workflow } } }) });
+    app.container.registerFactory("observer", () => { throw setupFailure; }, { lifetime: "scoped" });
+    const dispose = vi.fn(() => { throw disposalFailure; });
+    app.eventBus.listen(executionCompletedEvent, dispose, { scope: "descendants" });
+    const adapter = new MemoryWorkflowAdapter();
+    const runtime = new WorkflowRuntime(app, adapter, { error: vi.fn() } as never);
+    try {
+      await app.start();
+      await new WorkflowClient(adapter).start(workflow, null);
+      await expect(runtime.scheduler.runOnce()).rejects.toMatchObject({
+        name: "AggregateError",
+        message: "Workflow scope setup and disposal failed.",
+        errors: [setupFailure, disposalFailure],
+      });
+      expect(dispose).toHaveBeenCalledOnce();
+    } finally { await app.dispose(); }
+  });
+
+  it("reports task, observation and disposal failures from the same execution", async () => {
+    const taskFailure = new Error("Activation storage unavailable");
+    const observationFailure = new Error("Completion observation unavailable");
+    const disposalFailure = new Error("Scoped release failed");
+    const workflow = defineWorkflow({ name: "runtime.task-failure", handler: () => undefined });
+    const app = new App({}, { catalog: defineCatalog({ runtime: { workflows: { workflow } } }) });
+    app.container.registerValue("observer", {
+      record: ({ name }: { name: string }) => {
+        if (name === "execution.completed") throw observationFailure;
+      },
+    });
+    app.eventBus.listen(executionCompletedEvent, () => { throw disposalFailure; }, { scope: "descendants" });
+    const adapter = new MemoryWorkflowAdapter();
+    vi.spyOn(adapter, "commitActivation").mockRejectedValueOnce(taskFailure);
+    const runtime = new WorkflowRuntime(app, adapter, { error: vi.fn() } as never);
+    try {
+      await app.start();
+      await new WorkflowClient(adapter).start(workflow, null);
+      await expect(runtime.scheduler.runOnce()).rejects.toMatchObject({
+        name: "AggregateError",
+        message: "Workflow execution and cleanup failed.",
+        errors: [taskFailure, observationFailure, disposalFailure],
+      });
+    } finally { await app.dispose(); }
   });
 
   it("supervises standalone polling through its own shutdown listener", async () => {
@@ -251,7 +300,7 @@ describe("WorkflowRuntime", () => {
     } finally { await app.dispose(); }
   });
 
-  it("executes embedded Actions through the owned application execution scope", async () => {
+  it("executes embedded Actions through the owned application execution scope and codec", async () => {
     const activities: unknown[] = [];
     const action = defineAction({ name: "runtime.embedded", input: z.number(), output: z.number(),
       dependencies: { executionContext: executionContextDependency },
@@ -265,12 +314,16 @@ describe("WorkflowRuntime", () => {
     });
     const app = new App({}, { catalog: defineCatalog({ actions: { action }, runtime: { workflows: { workflow } } }) });
     const adapter = new MemoryWorkflowAdapter();
-    const runtime = new WorkflowRuntime(app, adapter, { error: vi.fn() } as never, { completionBatchSize: 1 });
+    const payloadCodec = {
+      encode: (value: unknown) => String(value),
+      decode: (value: unknown) => Number(value),
+    };
+    const runtime = new WorkflowRuntime(app, adapter, { error: vi.fn() } as never, { completionBatchSize: 1, payloadCodec });
     const diagnostics: unknown[] = [];
     app.eventBus.listen(executionCompletedEvent, ({ context, outcome }) => diagnostics.push({ outcome, ...context.toRecord("observation") }), { scope: "descendants" });
     try {
       await app.start();
-      const handle = await new WorkflowClient(adapter).start(workflow, 2, { executionId: "embedded" });
+      const handle = await new WorkflowClient(adapter, { payloadCodec }).start(workflow, 2, { executionId: "embedded" });
       for (let cycle = 0; cycle < 3; cycle++) await runtime.scheduler.runOnce();
       await expect(handle.status()).resolves.toMatchObject({ status: "completed" });
       await expect(handle.result()).resolves.toBe(3);
@@ -406,6 +459,47 @@ describe("WorkflowRuntime", () => {
     }
   });
 
+  it("keeps the outbox polling active for work and idles after an empty reservation", async () => {
+    const app = new App({});
+    const adapter = new MemoryWorkflowAdapter({ activityDispatchMode: "outbox" });
+    const dispatch = {
+      id: "dispatch", executionId: "run", sequence: 0, target: "example.activity", payload: null,
+      attempt: 1, availableAt: new Date(0), reservedAt: new Date(0), createdAt: new Date(0), reservationToken: "token",
+    };
+    vi.spyOn(adapter, "reserveActivityDispatches").mockResolvedValueOnce([dispatch]).mockResolvedValueOnce([]);
+    vi.spyOn(adapter, "markActivityDispatchesPublished").mockImplementation(async (requests) => requests);
+    const runtime = new WorkflowRuntime(app, adapter, { error: vi.fn() } as never, {},
+      createWorkflowActivityWorker(app), new WorkerClient(new MemoryWorkerAdapter()));
+    // Exercise the callback directly so incorrect busy-polling fails an assertion.
+    const polling = vi.spyOn(PollingSupervisor.prototype, "run");
+    try {
+      polling.mockImplementation(async function (this: PollingSupervisor, _signal, cycle, interval) {
+        if (this === runtime.scheduler.polling) return;
+        expect(interval).toBe(100);
+        await expect(cycle()).resolves.toBe(true);
+        await expect(cycle()).resolves.toBe(false);
+      });
+      await app.start();
+      await runtime.start();
+      await expect(runtime.completion).resolves.toBeUndefined();
+      expect(adapter.reserveActivityDispatches).toHaveBeenCalledTimes(2);
+    } finally {
+      polling.mockRestore();
+      await runtime.stop().catch(() => undefined);
+      await app.dispose().catch(() => undefined);
+    }
+  });
+
+  it("identifies the workflow drain to the application shutdown coordinator", async () => {
+    const app = new App({});
+    const wait = vi.spyOn(app.shutdown, "wait");
+    const runtime = new WorkflowRuntime(app, new MemoryWorkflowAdapter(), { error: vi.fn() } as never);
+    try {
+      await runtime.stop();
+      expect(wait).toHaveBeenCalledExactlyOnceWith("workflow drain", expect.any(Function));
+    } finally { await app.dispose(); }
+  });
+
   it("rejects startup if independently owned scheduler polling has already failed", async () => {
     const app = new App({});
     const adapter = new MemoryWorkflowAdapter();
@@ -421,11 +515,13 @@ describe("WorkflowRuntime", () => {
 
   it.each(["both", "worker", "client"] as const)("rejects an outbox runtime missing %s of its Worker transport", async (missing) => {
     const app = new App({});
+    const registerDrain = vi.spyOn(app.shutdown, "registerDrain");
     try {
       expect(() => new WorkflowRuntime(app, new MemoryWorkflowAdapter({ activityDispatchMode: "outbox" }), { error: vi.fn() } as never, {},
         missing === "client" ? createWorkflowActivityWorker(app) : undefined,
         missing === "worker" ? new WorkerClient(new MemoryWorkerAdapter()) : undefined))
         .toThrow("Outbox workflow activities require a Worker client and activity Worker.");
+      expect(registerDrain).not.toHaveBeenCalled();
     } finally { await app.dispose(); }
   });
 });
