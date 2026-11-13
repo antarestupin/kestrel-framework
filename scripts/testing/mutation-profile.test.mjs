@@ -69,9 +69,9 @@ const componentPartitions = {
   throttling: [
     "throttling-admission", "throttling-queues", "throttling-circuits", "throttling-completion",
     "throttling-postgres-admission", "throttling-postgres-leases", "throttling-leased",
-    "throttling-adapter-wrappers", "throttling-storage", "throttling-provider",
+    "throttling-adapter-wrappers", "throttling-storage", "throttling-redis-result-schema", "throttling-provider",
     "throttling-definitions-factories", "throttling-definitions-validation",
-    "throttling-schema", "throttling-public-contracts",
+    "throttling-schema", "throttling-public-contracts", "throttling-configuration",
   ],
   tokens: ["tokens-adapters", "tokens-adapters-schema", "tokens-strategies", "tokens-contracts"],
   authentication: [
@@ -87,6 +87,7 @@ const componentPartitions = {
   ],
   http: ["http-routing", "http-access", "http-access-policy", "http-runtime", "http-hardening-configuration", "http-clients"],
   authorization: ["authorization-runtime", "authorization-postgres-schema"],
+  scheduled_tasks: ["scheduled-runtime", "scheduled-adapters-runtime", "scheduled-adapters-schema", "scheduled-contracts"],
   lock: ["lock-acquisition", "lock-ownership", "lock-adapters", "lock-contracts"],
   outbound_http: ["outbound-resilience", "outbound-client", "outbound-contracts"],
   cli: focusedProfileNames().filter((mode) => mode.startsWith("cli-")),

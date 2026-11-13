@@ -93,6 +93,10 @@ export class MemoryScheduledTaskAdapter implements ScheduledTaskAdapter {
 
     const now = new Date(this.now());
     const reservationToken = this.createReservationToken();
+    // A duplicate token must leave both the current owner and the pending occurrence intact.
+    if (this.runs.has(reservationToken)) {
+      throw new Error("The generated scheduled task reservation token is already in use.");
+    }
     consumeOccurrence(state, trigger, request.nextScheduledAt);
     state.lastStartedAt = now;
     this.runs.set(reservationToken, {

@@ -19,6 +19,35 @@ describe("MemoryWorkerAdapter", () => {
   workerPayloadConformance((budgets) => new MemoryWorkerAdapter(budgets));
   workerReservationConformance(() => new MemoryWorkerAdapter());
 
+  it("preserves every pending job when allocating a later reservation token fails", async () => {
+    const failure = new Error("Reservation token unavailable.");
+    let nextToken = 0;
+    const adapter = new MemoryWorkerAdapter({ createReservationToken: () => {
+      if (++nextToken === 2) throw failure;
+      return `token-${nextToken}`;
+    } });
+    await adapter.enqueue([{ queue: "queue", payload: 1 }, { queue: "queue", payload: 2 }]);
+    const request = { queues: [{ queue: "queue", reservationLimit: 2, allowOverflow: true }], totalLimit: 2, leaseMs: 60_000 };
+    const before = adapter.inspectJobs();
+
+    await expect(adapter.reserve(request)).rejects.toBe(failure);
+    expect(adapter.inspectJobs()).toEqual(before);
+    const reserved = await adapter.reserve(request);
+    expect(reserved).toHaveLength(2);
+    expect(reserved.map(({ attempt }) => attempt)).toEqual([1, 1]);
+  });
+
+  it("rejects colliding generated job IDs before publishing any entries", async () => {
+    const ids = ["retained", "new", "retained"];
+    const adapter = new MemoryWorkerAdapter({ createId: () => ids.shift()! });
+    await adapter.enqueue([{ queue: "queue", payload: "retained" }]);
+    const before = adapter.inspectJobs();
+
+    await expect(adapter.enqueue([{ queue: "queue", payload: 1 }, { queue: "queue", payload: 2 }]))
+      .rejects.toThrow('Worker job ID "retained" is already in use.');
+    expect(adapter.inspectJobs()).toEqual(before);
+  });
+
   it("isolates publication, reservation, inspection and dead-letter payloads", async () => {
     const adapter = new MemoryWorkerAdapter();
     const payload = { nested: { value: 1 } };

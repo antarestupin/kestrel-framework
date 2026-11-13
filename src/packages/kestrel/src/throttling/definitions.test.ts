@@ -191,6 +191,13 @@ describe("throttling definitions", () => {
     }])).toThrow("Unsupported unavailable pressure behavior");
   });
 
+  it("rejects two pressure signals that normalize to the same identity", () => {
+    expect(() => localResourcePressure({ id: "process", signals: {
+      cpu: { degradedAt: 0.6, limitedAt: 0.8 },
+      " cpu ": { degradedAt: 0.8, limitedAt: 0.95 },
+    } })).toThrow('Local resource pressure signal "cpu" is duplicated.');
+  });
+
   it("revalidates limits and policy kinds from JavaScript callers", () => {
     const base = defineRateLimit({ id: "partner", requests: 1, per: seconds(1) });
 
@@ -230,6 +237,10 @@ describe("throttling definitions", () => {
       limits: [limit],
       costAccounting: { reconciliation: "synchronous" },
     }).costAccounting).toEqual({ reconciliation: "synchronous" });
+
+    expect(defineAdmissionPolicy({
+      id: "default-cost-accounting", limits: [limit], costAccounting: {},
+    }).costAccounting).toEqual({ reconciliation: "disabled" });
 
     expect(() => defineAdmissionPolicy({
       id: "invalid",

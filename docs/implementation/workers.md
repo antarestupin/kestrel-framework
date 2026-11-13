@@ -40,6 +40,8 @@ Queue state is adapter-owned; application catalogs remain the source of handler 
 
 `listReadyQueues()` is a scheduling hint and may return a subset only when queues have no currently eligible work. `listQueueStatistics()` returns coherent operational counts for requested queues. `setQueueEnabled()` changes future reservation without deleting or aborting active jobs. `acknowledgementGrouping` declares whether acknowledgements from different queues may share one call, allowing the scheduler to batch safely without assuming a backend transaction layout.
 
+The memory adapter rejects duplicate generated job IDs before publishing any entry. It allocates all reservation tokens before advancing attempts or lease deadlines, so a token factory failure leaves the entire selected batch available for retry. A custom `createReservationToken` factory must issue a fresh token on every call, including when a released or expired job is reserved again. Reusing a token can let a stale reservation reference match the current owner of that job.
+
 Adapter operations must reject infrastructure failures, use storage time consistently for availability and leases, bound returned work by the reservation request and never keep a transaction open during handler execution. A request can repeat a queue in its ordered allocations. Each allocation selects distinct jobs, and overflow considers each queue at its first overflow-enabled position. Expired leases may be reclaimed, so payload and retry transitions must preserve at-least-once delivery. The detailed reservation and result sequences below define the scheduler-visible semantics.
 
 ## Conceptual model
@@ -281,6 +283,8 @@ The optional `availableAt` value schedules a future delivery and `groupId` prepa
 `correlation` contains an adapter-neutral namespace, ID, and optional data. A successful individual handler calls `context.setResult(value)`; a batch uses `jobSuccess(jobId, value)`. Before acknowledging a correlated success or terminal failure, the scheduler invokes the optional `WorkerCorrelatedCompletionSink`. If result persistence fails, the queue mutation is not made and the leased delivery can be retried. Workflow activities use this ordering to durably append their completion before the Worker ACK.
 
 Pending correlated successes remain outside the acknowledgement buffer until the cycle's handoffs succeed. Reaching `ackBufferSize`, expiring `ackFlushIntervalMs`, or flushing during shutdown cannot acknowledge an uncommitted correlated result. The sink remains idempotent because a crash after result persistence and before queue acknowledgement can repeat the handoff. All selected result handoffs settle before a failure is propagated; a failed handoff cannot end lease maintenance while a sibling handoff is pending. Queue acknowledgements, retries and dead-letter writes likewise settle together, preserving a single original error or every cause in an `AggregateError`.
+
+Scope observation, disposal, permit reconciliation, and lease renewal can fail independently. The scheduler keeps each cause when multiple failures reach the same boundary and still drains the owned resources. A throwing diagnostic sink cannot stop polling after a recoverable queue failure. When a handler throws a non-Error value that cannot be converted to text, the scheduler persists a safe fallback message for retry or dead-letter processing.
 
 ```mermaid
 sequenceDiagram

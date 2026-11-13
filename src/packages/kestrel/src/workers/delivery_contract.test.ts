@@ -589,6 +589,29 @@ describe("worker delivery contracts", () => {
     expect(sleep).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps polling when reporting a transient cycle failure throws", async () => {
+    const failure = new Error("Temporary queue read failure.");
+    const reportError = vi.fn(() => { throw new Error("Logger unavailable."); });
+    const handler = vi.fn();
+    const worker = defineWorker({ name: "report-failure", queue: "report-failure", input: z.null(), handler });
+    let idlePolls = 0;
+    const { adapter, scheduler } = await setup([worker], { reportError, sleep: async () => {
+      if (handler.mock.calls.length > 0 || ++idlePolls >= 3) void scheduler.stop("expire");
+    } });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const ready = vi.spyOn(adapter, "listReadyQueues").mockRejectedValueOnce(failure);
+    scheduler.start();
+    try {
+      await expect(scheduler.completion).resolves.toBeUndefined();
+      expect(reportError).toHaveBeenCalledExactlyOnceWith(failure);
+      expect(ready).toHaveBeenCalledTimes(2);
+      expect(handler).toHaveBeenCalledOnce();
+      expect(adapter.inspectJobs()).toEqual([]);
+    } finally {
+      await scheduler.stop("expire");
+    }
+  });
+
   it("treats a delay rejected by cooperative shutdown as a clean polling completion", async () => {
     const sleeping = Promise.withResolvers<void>();
     const worker = defineWorker({ name: "cancelled-poll", queue: "cancelled-poll", input: z.null(), handler: () => undefined });
@@ -647,6 +670,63 @@ describe("worker delivery contracts", () => {
       message: "Several worker transitions failed.", errors: [invocationFailure, persistenceFailure],
     });
     expect(adapter.inspectJobs()).toHaveLength(2);
+  });
+
+  it("propagates a synchronous adapter snapshot error and relinquishes cycle ownership", async () => {
+    const failure = new Error("Reserved queue could not be read.");
+    const worker = defineWorker({ name: "unreadable-reservation", queue: "unreadable-reservation", input: z.null(), handler: vi.fn() });
+    const { adapter, scheduler } = await setup([worker]);
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const reserve = adapter.reserve.bind(adapter);
+    vi.spyOn(adapter, "reserve").mockImplementationOnce(async (request) => {
+      const [job] = await reserve(request);
+      // The adapter can construct snapshots with accessors, so reading a queue can fail before invocations start.
+      return [{ ...job!, get queue(): string { throw failure; } }];
+    });
+    await expect(scheduler.runOnce()).rejects.toBe(failure);
+    await expect(scheduler.runOnce()).resolves.toBe(0);
+    expect(worker.handler).not.toHaveBeenCalled();
+  });
+
+  it("preserves a queue transition failure alongside a lease heartbeat failure", async () => {
+    vi.useFakeTimers();
+    const finish = Promise.withResolvers<void>();
+    const handoffFailure = new Error("Correlated result could not be written.");
+    const leaseFailure = new Error("Lease renewal failed.");
+    const complete = vi.fn(async () => { throw handoffFailure; });
+    const worker = defineWorker({ name: "lease-and-result", queue: "lease-and-result", input: z.null(),
+      handler: async () => { await finish.promise; },
+    });
+    const { adapter, scheduler } = await setup([worker], { completeCorrelatedJob: complete });
+    const extend = vi.spyOn(adapter, "extendLease").mockRejectedValue(leaseFailure);
+    await adapter.enqueue([{ queue: worker.queue, payload: null, correlation: { namespace: "test", id: "result" } }]);
+    const cycle = scheduler.runOnce().catch((error: unknown) => error);
+    try {
+      // Enter the handler and install its heartbeat before advancing the lease clock.
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(extend).toHaveBeenCalledOnce();
+      finish.resolve();
+      expect(await cycle).toMatchObject({ errors: [handoffFailure, leaseFailure] });
+      expect(complete).toHaveBeenCalledOnce();
+      expect(adapter.inspectJobs()).toHaveLength(1);
+    } finally {
+      finish.resolve();
+      await cycle;
+    }
+  });
+
+  it("keeps an unprintable handler rejection eligible for dead-letter processing", async () => {
+    const worker = defineWorker({ name: "unprintable-rejection", queue: "unprintable-rejection", input: z.null(), maxAttempts: 1,
+      handler: () => { throw Object.create(null); },
+    });
+    const { adapter, scheduler } = await setup([worker]);
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    await expect(scheduler.runOnce()).resolves.toBe(1);
+    expect(adapter.inspectJobs()).toEqual([]);
+    expect(adapter.inspectDeadLetters()).toMatchObject([{
+      originalJobId: "job-1", error: { name: "Error", message: "The thrown value could not be converted to a string." },
+    }]);
   });
 
 });

@@ -1,3 +1,5 @@
+import { formatThrownValue } from "../errors/format_thrown_value.js";
+
 /** Independent optional limits for one enqueue call; omission means unlimited. */
 export interface WorkerPublicationBudgets {
   /** UTF-8 JSON bytes of a job's payload plus its optional correlation. */
@@ -196,6 +198,6 @@ export function serializeWorkerError(
 
   return {
     name: "Error",
-    message: String(error),
+    message: formatThrownValue(error),
   };
 }

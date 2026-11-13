@@ -21,4 +21,10 @@ describe("scheduled task persisted errors", () => {
       expect(serializeScheduledTaskError(value)).toEqual({ name: "Error", message: String(value) });
     }
   });
+
+  it("keeps an unprintable thrown value from interrupting failure persistence", () => {
+    expect(serializeScheduledTaskError(Object.create(null))).toEqual({
+      name: "Error", message: "The thrown value could not be converted to a string.",
+    });
+  });
 });

@@ -94,6 +94,8 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
       }
 
       const id = this.createId();
+      // Match the database primary key constraint before publishing the batch.
+      if (stagedJobs.has(id)) throw new Error(`Worker job ID "${id}" is already in use.`);
       stagedJobs.set(id, {
         id,
         ...(request.identity === undefined
@@ -163,8 +165,9 @@ export class MemoryWorkerAdapter implements WorkerAdapter {
       }
     }
 
-    return selected.map((job) => {
-      const reservationToken = this.createReservationToken();
+    // A token factory can fail. Allocate every token before advancing any lease.
+    const reservations = selected.map((job) => ({ job, reservationToken: this.createReservationToken() }));
+    return reservations.map(({ job, reservationToken }) => {
       const availableAt = new Date(now.getTime() + request.leaseMs);
       job.attempt += 1;
       job.availableAt = availableAt;

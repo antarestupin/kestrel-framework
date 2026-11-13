@@ -1,15 +1,16 @@
 import { SQL } from "drizzle-orm";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
-import { describe, expect, it } from "vitest";
-
-import { getFrameworkDatabaseTableKeys } from "../../../db/framework_table.js";
-import { getDatabaseSchemaContributions } from "../../../db/schema_contributions/index.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /** Review the actual migration exports independently of connection-local SQL fixtures. */
 describe("worker PostgreSQL schema contracts", () => {
+  // Evaluate declarations in test bodies, including their private metadata registries.
+  beforeEach(() => { vi.resetModules(); });
+
   it("keeps singular qualified table identities and migration provenance", async () => {
     // Observe import-time schema validation as a test failure when a declaration is malformed.
     const { workerDeadLetterJobs, workerJobs, workerQueueControls } = await import("./schema.js");
+    const { getFrameworkDatabaseTableKeys } = await import("../../../db/framework_table.js");
     expect(getFrameworkDatabaseTableKeys({ workerJobs, workerDeadLetterJobs, workerQueueControls })).toEqual(new Set([
       JSON.stringify(["workers", "job"]), JSON.stringify(["workers", "dead_letter_queue"]), JSON.stringify(["workers", "queue_control"]),
     ]));
@@ -81,6 +82,7 @@ describe("worker PostgreSQL schema contracts", () => {
 
   it("preserves operator-facing SQL descriptions for every exported column", async () => {
     const { workerDeadLetterJobs, workerJobs, workerQueueControls } = await import("./schema.js");
+    const { getDatabaseSchemaContributions } = await import("../../../db/schema_contributions/index.js");
     for (const table of [workerJobs, workerDeadLetterJobs, workerQueueControls]) {
       const { name, columns } = getTableConfig(table);
       const [descriptions] = getDatabaseSchemaContributions({ table });

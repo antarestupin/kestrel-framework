@@ -150,6 +150,36 @@ describe("LocalResourcePressureMonitor", () => {
     }
   });
 
+  it("keeps opaque constraint and signal coordinates separate", () => {
+    let nowMs = 0;
+    const limited = new MutablePressureSource("c", 0.95);
+    const fresh = new MutablePressureSource("b:c", 0.86);
+    const thresholds = { degradedAt: 0.8, limitedAt: 0.9, recoveryRatio: 0.9 };
+    const monitor = new LocalResourcePressureMonitor([limited, fresh], {
+      now: () => new Date(nowMs), monotonicNow: () => nowMs,
+    });
+    try {
+      expect(monitor.evaluate("a:b", [{ id: "c", ...thresholds }], "reject").state).toBe("limited");
+      nowMs = 250;
+      expect(monitor.evaluate("a", [{ id: "b:c", ...thresholds }], "reject")).toMatchObject({
+        state: "degraded", signals: [{ signalId: "b:c", state: "degraded", value: 0.86 }],
+      });
+    } finally {
+      monitor.close();
+    }
+  });
+
+  it("returns a finite refresh deadline without any signal to sample", () => {
+    const monitor = new LocalResourcePressureMonitor([], { now: () => new Date(500), monotonicNow: () => 100 });
+    try {
+      expect(monitor.evaluate("empty", [], "reject")).toEqual({
+        state: "healthy", signals: [], refreshAt: new Date(1_500),
+      });
+    } finally {
+      monitor.close();
+    }
+  });
+
   it("applies inclusive pressure thresholds and the earliest deadline across distinct signals", () => {
     let time = 0;
     const cpu = new MutablePressureSource("cpu", 0.25);
@@ -254,6 +284,9 @@ describe("LocalResourcePressureMonitor", () => {
       state: "unknown", signals: [{ signalId: "cpu", state: "unknown" }], refreshAt: new Date(250),
     });
     expect(monitor.evaluate("process", [signal], "reject").signals).toStrictEqual([{ signalId: "cpu", state: "unknown" }]);
+    // Keeping a closed monitor reachable must not retain its cached samples or hysteresis.
+    expect(monitor["cachedSignals"].size).toBe(0);
+    expect(monitor["states"].size).toBe(0);
     expect(read).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
   });
@@ -267,6 +300,18 @@ describe("LocalResourcePressureMonitor", () => {
     expect(() => monitor.close()).toThrow(expect.objectContaining({ name: "AggregateError", errors: failures }));
     expect(() => monitor.close()).not.toThrow();
     expect(sources.map((source) => source.close.mock.calls.length)).toEqual([1, 1]);
+  });
+
+  it("preserves the single close failure even when another reader closes normally", () => {
+    const failure = new Error("Native reader close failed");
+    const close = vi.fn();
+    const monitor = new LocalResourcePressureMonitor([
+      { supports: () => false, read: () => undefined, close: () => { throw failure; } },
+      { supports: () => false, read: () => undefined, close },
+    ]);
+    expect(() => monitor.close()).toThrow(failure);
+    expect(close).toHaveBeenCalledOnce();
+    expect(() => monitor.close()).not.toThrow();
   });
 
   it.each([

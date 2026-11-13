@@ -7,6 +7,26 @@ import { memoryThrottling } from "./definition.js";
 const singleUnit = { key: "app:api", limit: 1, periodMs: 1_000, burst: 1, cost: 1 };
 
 describe("MemoryRateLimitAdapter", () => {
+  it("rejects a tiny positive cost after exhausting its tiny burst", async () => {
+    const cost = Number.EPSILON;
+    const request = { ...singleUnit, limit: cost, burst: cost, cost };
+    const adapter = new MemoryRateLimitAdapter({ now: () => new Date(0) });
+    await expect(adapter.reserve(request)).resolves.toEqual({ admitted: true, remaining: 0 });
+    await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: false, remaining: 0 });
+    await expect(adapter.inspectMany([request])).resolves.toMatchObject([{ available: false, remaining: 0 }]);
+  });
+
+  it("inspects fractional balances consistently on both sides of the rounding boundary", async () => {
+    const adapter = new MemoryRateLimitAdapter({ now: () => new Date(0) });
+    const request = { ...singleUnit, burst: 0.3, cost: 0.1 };
+    await adapter.reserve(request);
+
+    // One representable rounding step still covers 0.2, but not a larger deficit.
+    await expect(adapter.inspectMany([{ ...request, cost: 0.2 }])).resolves.toMatchObject([{ available: true }]);
+    await expect(adapter.inspectMany([{ ...request, cost: 0.2 + Number.EPSILON / 2 }]))
+      .resolves.toMatchObject([{ available: false }]);
+  });
+
   it("refills a token bucket continuously", async () => {
     let nowMs = 0;
     const adapter = new MemoryRateLimitAdapter({

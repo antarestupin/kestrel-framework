@@ -51,10 +51,10 @@ describe("scheduled task selection", () => {
     expect(selectScheduledTasks(tasks, { taskIds: ["second"], groups: [] })).toEqual([tasks[1]]);
   });
   it.each([
-    { taskIds: ["missing"], groups: [] },
-    { taskIds: [], groups: ["missing"] },
-  ])("rejects unknown selections before polling: %j", (selection) => {
-    expect(() => selectScheduledTasks(tasks, selection)).toThrow(TypeError);
+    [{ taskIds: ["missing"], groups: [] }, "Unknown scheduled task id: \"missing\"."],
+    [{ taskIds: [], groups: ["missing"] }, "Unknown scheduled task group: \"missing\"."],
+  ] as const)("identifies the unknown selection before polling: %j", (selection, message) => {
+    expect(() => selectScheduledTasks(tasks, selection)).toThrow(new TypeError(message));
   });
 });
 

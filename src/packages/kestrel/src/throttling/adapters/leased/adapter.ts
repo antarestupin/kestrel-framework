@@ -22,6 +22,7 @@ import type {
   RateLimitReservationResult,
 } from "../../types.js";
 import { rateLimitDefinitionSignature } from "../denial_caching/signature.js";
+import { canCoverRateLimitCost } from "../capacity.js";
 
 interface LocalLease {
   readonly expiresAt: Date;
@@ -82,6 +83,8 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
   private closed = false;
 
   private closePromise: Promise<void> | undefined;
+
+  private reconciliationGeneration = 0;
 
   public constructor(
     private readonly authoritative: LeasableRateLimitAdapter,
@@ -179,7 +182,12 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
 
     // Deltas remain authoritative: grants reserve estimates, while this
     // mutation accounts for actual-minus-estimated usage globally.
-    return this.authoritative.reconcile(requests);
+    return this.authoritative.reconcile(requests).then((result) => {
+      // Successful adjustments can make a denied lease request affordable earlier.
+      this.reconciliationGeneration += 1;
+      this.denialCache.clear();
+      return result;
+    });
   }
 
   public async inspectMany(
@@ -203,7 +211,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       this.prepareLocalBucket(request, nowMs);
       const remaining = this.localRemaining(request.key);
 
-      if (canSpendLocalLease(remaining, request.cost)) {
+      if (canCoverRateLimitCost(remaining, request.cost)) {
         results[index] = { available: true, remaining, source: "leased" };
       } else {
         authoritative.push({ index, request });
@@ -284,12 +292,13 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
 
     for (const request of requests) this.prepareLocalBucket(request, nowMs);
     const missing = requests.filter((request) =>
-      !canSpendLocalLease(this.localRemaining(request.key), request.cost));
+      !canCoverRateLimitCost(this.localRemaining(request.key), request.cost));
     const exactFallback = new Map<string, RateLimitLeaseAllocation>();
     let source: RateLimitReservationResult["source"] = "leased";
 
     if (missing.length > 0) {
       const completed = this.takeCompletedLeases(missing.map(({ key }) => key));
+      const generation = this.reconciliationGeneration;
       const allocation = await this.authoritative.allocateLeases(
         this.ownerId,
         missing,
@@ -302,7 +311,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
         const retryAtMs = retryAt.getTime();
         const waitMs = retryAtMs - this.getNowMs();
         // Only authoritative denials apply to later calls after storage recovers.
-        if (source !== "emergency-local" && waitMs > 0) {
+        if (source !== "emergency-local" && generation === this.reconciliationGeneration && waitMs > 0) {
           this.cacheDenial(signature, {
             expiresAtMs: this.getMonotonicNow() + waitMs,
             remaining: { ...allocation.remaining },
@@ -345,7 +354,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       for (const request of requests) {
         if (exactFallback.has(request.key)) continue;
         this.discardExpired(request.key, commitMs);
-        if (!canSpendLocalLease(this.localRemaining(request.key), request.cost)) {
+        if (!canCoverRateLimitCost(this.localRemaining(request.key), request.cost)) {
           throw new ThrottlingBackendUnavailableError({
             cause: new Error("A leased reservation lost local capacity during allocation."),
           });
@@ -439,15 +448,14 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       const consumed = Math.min(lease.remaining, needed);
       lease.remaining -= consumed;
       needed -= consumed;
-      if (needed <= Number.EPSILON) {
-        this.recordLease(key, "consume", cost, {
-          remaining: this.localRemaining(key),
-        });
-        return;
-      }
+      if (needed === 0) break;
     }
 
-    throw new TypeError("A leased reservation committed without enough capacity.");
+    // The aggregate check already fenced admission. Summing and subtracting
+    // fractional grants can differ by a rounding unit after consuming them all.
+    this.recordLease(key, "consume", cost, {
+      remaining: this.localRemaining(key),
+    });
   }
 
   private localRemaining(key: string): number {
@@ -477,7 +485,7 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       .filter((lease) => lease.expiresAtMs <= nowMs)
       .reduce((total, lease) => total + lease.remaining, 0);
 
-    if (expiredUnits > Number.EPSILON) {
+    if (expiredUnits > 0) {
       this.recordLease(key, "expire", expiredUnits);
     }
 
@@ -494,8 +502,8 @@ export class LeasedRateLimitAdapter implements LeasableRateLimitAdapter {
       const active: LocalLease[] = [];
 
       for (const lease of bucket.leases) {
-        if (lease.remaining <= Number.EPSILON) {
-          completed.push({ key, leaseId: lease.id, remaining: 0 });
+        if (lease.remaining === 0) {
+          completed.push({ key, leaseId: lease.id, remaining: lease.remaining });
         } else {
           active.push(lease);
         }
@@ -666,11 +674,6 @@ function validateLeasedCost(request: RateLimitReservationRequest): void {
   if (!Number.isFinite(request.cost) || request.cost <= 0 || request.cost > request.burst) {
     throw new TypeError("Leased reservation costs must be positive, finite, and fit the configured burst.");
   }
-}
-
-function canSpendLocalLease(remaining: number, cost: number): boolean {
-  // Rounding tolerance can absorb subtraction error, but cannot supply a missing grant.
-  return remaining > 0 && remaining + Number.EPSILON >= cost;
 }
 
 function batchSignature(requests: readonly RateLimitLeaseRequest[]): string {

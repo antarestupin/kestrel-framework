@@ -465,6 +465,35 @@ describe("worker scheduler ownership", () => {
     }
   });
 
+  it("does not defer an expiry-owned reservation after a pending admission reports unavailability", async () => {
+    const admission = Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>();
+    void admission.promise.catch(() => undefined);
+    const acquire = vi.fn<Throttling["acquire"]>().mockReturnValue(admission.promise);
+    const worker = defineWorker({
+      name: "unavailable-after-stop", queue: "unavailable-after-stop", input: z.null(), handler: vi.fn(),
+      throttling: { requirements: () => ({ admission: rate }), buffering: { strategy: "release" } },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    const defer = vi.spyOn(adapter, "defer");
+    const rejection = new ThrottlingRejectedError(rate.id);
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await setImmediate();
+      expect(acquire).toHaveBeenCalledOnce();
+      await scheduler.stop("expire");
+      // A pending backend can return its usual rejection after shutdown owns the lease.
+      admission.reject(rejection);
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 1 }]);
+      expect(defer).not.toHaveBeenCalled();
+      expect(adapter.inspectJobs()).toMatchObject([{ attempt: 1, reservationToken: "token-1" }]);
+    } finally {
+      admission.reject(rejection);
+      await cycle;
+      await app.dispose();
+    }
+  });
+
   it("records elapsed handler time without attaching an error to a successful invocation", async () => {
     const record = vi.fn();
     const elapsed = vi.spyOn(performance, "now").mockReturnValue(50);
@@ -504,6 +533,95 @@ describe("worker scheduler ownership", () => {
       expect(complete.mock.calls).toStrictEqual([[{ outcome: "failure" }]]);
       expect(adapter.inspectJobs()).toMatchObject([{ attempt: 1, reservationToken: "token-1" }]);
     } finally {
+      await app.dispose();
+    }
+  });
+
+  it("preserves an invocation failure when its permit also fails to reconcile", async () => {
+    const scopeFailure = new Error("Execution scope unavailable.");
+    const permitFailure = new Error("Permit completion unavailable.");
+    const complete = vi.fn(async () => { throw permitFailure; });
+    const acquire = vi.fn<Throttling["acquire"]>().mockResolvedValue({ definitionId: rate.id, complete });
+    const worker = defineWorker({ name: "permit-and-scope", queue: "permit-and-scope", input: z.null(), handler: vi.fn(),
+      throttling: { requirements: () => ({ admission: rate }) },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
+    vi.spyOn(app, "createExecutionScope").mockRejectedValueOnce(scopeFailure);
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      await expect(scheduler.runOnce()).rejects.toMatchObject({
+        message: "Worker invocation and permit completion failed.", errors: [scopeFailure, permitFailure],
+      });
+      expect(complete).toHaveBeenCalledExactlyOnceWith({ outcome: "failure" });
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it("records an undefined handler rejection as a failed execution", async () => {
+    const worker = defineWorker({ name: "undefined-rejection", queue: "undefined-rejection", input: z.null(), maxAttempts: 1,
+      handler: (): Promise<void> => Promise.reject(undefined),
+    });
+    const { app, adapter, scheduler } = await fixture([worker]);
+    const record = vi.fn();
+    app.container.registerFactory("observer", () => ({ record }), { lifetime: "scoped" });
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      await expect(scheduler.runOnce()).resolves.toBe(1);
+      expect(record).toHaveBeenLastCalledWith(executionCompletedObservation, expect.objectContaining({
+        error: expect.objectContaining({ message: "undefined" }),
+      }), expect.objectContaining({ outcome: "failure" }));
+      expect(adapter.inspectDeadLetters()).toMatchObject([{ error: { name: "Error", message: "undefined" } }]);
+    } finally {
+      await app.dispose();
+    }
+  });
+
+  it("reports a failure to read custom retry metadata and closes the scope", async () => {
+    const metadataFailure = new Error("Custom retry metadata unavailable.");
+    const retry = new WorkerRetryError("Request retry.", 0);
+    Object.defineProperty(retry, "maxAttempts", { get: () => { throw metadataFailure; } });
+    const worker = defineWorker({ name: "retry-metadata", queue: "retry-metadata", input: z.null(), handler: () => { throw retry; } });
+    const { app, adapter, scheduler } = await fixture([worker]);
+    const record = vi.fn();
+    const release = trackScopes(app);
+    app.container.registerFactory("observer", () => ({ record }), { lifetime: "scoped" });
+    const disposed = vi.fn();
+    app.eventBus.listen(executionCompletedEvent, disposed, { scope: "descendants" });
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      await expect(scheduler.runOnce()).rejects.toBe(metadataFailure);
+      expect(record).toHaveBeenLastCalledWith(executionCompletedObservation, expect.objectContaining({
+        error: expect.objectContaining({ message: metadataFailure.message }),
+      }), expect.objectContaining({ outcome: "failure" }));
+      expect(disposed).toHaveBeenCalledOnce();
+      expect(adapter.inspectJobs()).toHaveLength(1);
+    } finally {
+      await release();
+      await app.dispose();
+    }
+  });
+
+  it.each(["start", "completion"] as const)("keeps an observation failure when scope disposal also fails (%s)", async (stage) => {
+    const observationFailure = new Error("Observation unavailable.");
+    const disposalFailure = new Error("Execution resource unavailable.");
+    const worker = defineWorker({ name: "observer-and-disposal", queue: "observer-and-disposal", input: z.null(), handler: vi.fn() });
+    const { app, adapter, scheduler } = await fixture([worker]);
+    const disposeScopes = trackScopes(app);
+    app.container.registerFactory("observer", () => ({ record: (definition: unknown) => {
+      if ((definition === executionCompletedObservation) === (stage === "completion")) throw observationFailure;
+    } }), { lifetime: "scoped" });
+    const dispose = vi.fn(() => { throw disposalFailure; });
+    app.eventBus.listen(executionCompletedEvent, dispose, { scope: "descendants" });
+    try {
+      await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+      await expect(scheduler.runOnce()).rejects.toMatchObject({
+        message: stage === "start" ? "Worker invocation setup and disposal failed." : "Worker invocation and cleanup failed.",
+        errors: [observationFailure, disposalFailure],
+      });
+      expect(dispose).toHaveBeenCalledOnce();
+    } finally {
+      await disposeScopes();
       await app.dispose();
     }
   });
@@ -762,6 +880,35 @@ describe("worker scheduler ownership", () => {
     }
   });
 
+  it("reconciles a cancelled waiter's permit before the active handler releases its slot", async () => {
+    const finish = Promise.withResolvers<void>();
+    const complete = vi.fn(async () => undefined);
+    const acquire = vi.fn<Throttling["acquire"]>().mockResolvedValue({ definitionId: rate.id, complete });
+    const active = defineWorker({ name: "active-slot-owner", queue: "active-slot-owner", input: z.null(), handler: vi.fn(() => finish.promise) });
+    const queued = defineWorker({
+      name: "cancelled-slot-waiter", queue: "cancelled-slot-waiter", input: z.null(), handler: vi.fn(),
+      throttling: { requirements: () => ({ admission: rate }) },
+    });
+    const { app, adapter, scheduler } = await fixture([active, queued], { reservationLimit: 2, throttling: throttlingFacade({ acquire }) });
+    await adapter.enqueue([active, queued].map(({ queue }) => ({ queue, payload: null })));
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await setImmediate();
+      expect(active.handler).toHaveBeenCalledOnce();
+      expect(acquire).toHaveBeenCalledOnce();
+      expect(complete).not.toHaveBeenCalled();
+      await scheduler.stop("expire");
+      await setImmediate();
+      // Cancellation releases the permit while the non-cooperative handler still owns the slot.
+      expect(complete).toHaveBeenCalledExactlyOnceWith({ outcome: "failure" });
+      expect(queued.handler).not.toHaveBeenCalled();
+    } finally {
+      finish.resolve();
+      await cycle;
+      await app.dispose();
+    }
+  });
+
   it("defers jobs beyond the hold budget and restores that budget after admission settles", async () => {
     vi.useFakeTimers();
     const firstHold = Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>();
@@ -918,6 +1065,72 @@ describe("worker scheduler ownership", () => {
     }
   });
 
+  it("does not hand off a result when its handler finishes after shutdown released the lease", async () => {
+    const entered = vi.fn();
+    const finish = Promise.withResolvers<void>();
+    const complete = vi.fn();
+    const worker = defineWorker({
+      name: "released-result", queue: "released-result", input: z.null(),
+      async handler(_job, _dependencies, { setResult }) {
+        entered();
+        await finish.promise;
+        setResult("late result");
+      },
+    });
+    const { app, adapter, scheduler } = await fixture([worker], { completeCorrelatedJob: complete });
+    await adapter.enqueue([{ queue: worker.queue, payload: null, correlation: { namespace: "test", id: "released" } }]);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await setImmediate();
+      expect(entered).toHaveBeenCalledOnce();
+      // The handler ignores cancellation, so releasing storage ownership must also fence its eventual result.
+      await scheduler.stop("release");
+      finish.resolve();
+      expect(await cycle).toEqual([{ status: "fulfilled", value: 1 }]);
+      expect(complete).not.toHaveBeenCalled();
+      const [released] = adapter.inspectJobs();
+      expect(released?.id).toBe("job-1");
+      expect(released?.reservationToken).toBeUndefined();
+    } finally {
+      finish.resolve();
+      await cycle;
+      await app.dispose();
+    }
+  });
+
+  it("reports an independent execution cleanup failure after shutdown cancels the handler", async () => {
+    const failure = new Error("Execution cleanup failed after cancellation.");
+    const entered = vi.fn();
+    const finish = Promise.withResolvers<void>();
+    const worker = defineWorker({
+      name: "cancelled-cleanup", queue: "cancelled-cleanup", input: z.null(),
+      async handler(_job, _dependencies, { signal }) {
+        entered();
+        await finish.promise;
+        signal.throwIfAborted();
+      },
+    });
+    const { app, adapter, scheduler } = await fixture([worker]);
+    const disposeScopes = trackScopes(app);
+    app.eventBus.listen(executionCompletedEvent, () => { throw failure; }, { scope: "descendants" });
+    await adapter.enqueue([{ queue: worker.queue, payload: null }]);
+    const cycle = Promise.allSettled([scheduler.runOnce()]);
+    try {
+      await setImmediate();
+      expect(entered).toHaveBeenCalledOnce();
+      await scheduler.stop("expire");
+      finish.resolve();
+      // Handler cancellation does not absorb the distinct failure from its completion observer.
+      expect(await cycle).toEqual([{ status: "rejected", reason: failure }]);
+      expect(adapter.inspectJobs()).toMatchObject([{ reservationToken: "token-1" }]);
+    } finally {
+      finish.resolve();
+      await cycle;
+      await disposeScopes();
+      await app.dispose();
+    }
+  });
+
   it("uses a fresh handler signal when restarting after an expiry stop", async () => {
     const handler = vi.fn();
     const worker = defineWorker({
@@ -952,6 +1165,25 @@ describe("worker scheduler ownership", () => {
       expect(ack.mock.calls.map(([jobs]) => jobs.map(({ jobId }) => jobId))).toEqual(ids.map((id) => [id]));
       expect(adapter.inspectJobs()).toEqual([]);
     } finally { await app.dispose(); }
+  });
+
+  it("uses one global acknowledgement when an adapter omits the grouping option", async () => {
+    const app = new App({});
+    const storage = new MemoryWorkerAdapter();
+    const workers = ["first", "second"].map((queue) => defineWorker({ name: queue, queue, input: z.null(), handler: () => undefined }));
+    // Model an external adapter that leaves the optional capability undeclared.
+    Reflect.deleteProperty(storage, "acknowledgementGrouping");
+    const ack = vi.spyOn(storage, "ack");
+    const scheduler = new WorkerScheduler(app, storage, workers, { slots: 2, leaseMs: 100 });
+    try {
+      await app.start();
+      await storage.enqueue(workers.map(({ queue }) => ({ queue, payload: null })));
+      expect(await scheduler.runOnce()).toBe(2);
+      expect(ack).toHaveBeenCalledOnce();
+      expect(ack.mock.calls[0]?.[0]).toHaveLength(2);
+    } finally {
+      await app.dispose();
+    }
   });
 
   it("stops admission while the process pressure check is pending", async () => {
@@ -1482,20 +1714,23 @@ describe("worker scheduler ownership", () => {
     }
   });
 
-  it("cancels a reclaimed job while it is waiting for dependency admission", async () => {
+  it.each([false, true])("cancels a reclaimed job while it is waiting for dependency admission (held=%s)", async (held) => {
     vi.useFakeTimers();
     const admission = Promise.withResolvers<Awaited<ReturnType<Throttling["acquire"]>>>();
     let signal: AbortSignal | undefined;
     const completePermit = vi.fn(async () => undefined);
-    const acquire: Throttling["acquire"] = async (_definition, options) => {
+    const acquire = vi.fn<Throttling["acquire"]>(async (_definition, options) => {
       signal = options?.signal;
       const onAbort = () => admission.reject(new ThrottlingAcquisitionAbortedError(pressure.id));
       signal?.addEventListener("abort", onAbort, { once: true });
       try { return await admission.promise; }
       finally { signal?.removeEventListener("abort", onAbort); }
-    };
+    });
+    if (held) acquire.mockRejectedValueOnce(new ThrottlingRejectedError(pressure.id));
     const handler = vi.fn();
-    const worker = defineWorker({ name: "blocked", queue: "blocked", input: z.null(), handler, throttling: { requirements: () => ({ admission: pressure }) } });
+    const worker = defineWorker({ name: "blocked", queue: "blocked", input: z.null(), handler, throttling: {
+      requirements: () => ({ admission: pressure }), buffering: { strategy: "hold", maxHoldMs: 200 },
+    } });
     const { app, adapter, scheduler, advanceStorage } = await fixture([worker], { throttling: throttlingFacade({ acquire }) });
     await adapter.enqueue([{ queue: worker.queue, payload: null }]);
     const defer = vi.spyOn(adapter, "defer");
@@ -1505,6 +1740,7 @@ describe("worker scheduler ownership", () => {
     try {
       await vi.advanceTimersByTimeAsync(0);
       expect(signal?.aborted).toBe(false);
+      expect(acquire).toHaveBeenCalledTimes(held ? 2 : 1);
       advanceStorage(100);
       const [replacement] = await adapter.reserve({ queues: [{ queue: worker.queue, reservationLimit: 1, allowOverflow: false }], totalLimit: 1, leaseMs: 100 });
       expect(replacement?.attempt).toBe(2);

@@ -313,7 +313,8 @@
         "scheduled-contracts",
         "scheduled-runtime-review",
         "scheduled-adapters-review",
-        "scheduled-contracts-review"
+        "scheduled-contracts-review",
+        "scheduled_tasks-scheduling-residual-review"
       ]
     },
     {
@@ -350,7 +351,7 @@
     {
       "id": "throttling",
       "scope": "throttling/**/*",
-      "sourceFiles": 35,
+      "sourceFiles": 36,
       "state": "reviewed",
       "focus": "Queue ownership, circuit transitions, policy registration and backend capacity and shutdown",
       "evidence": [
@@ -360,7 +361,8 @@
         "throttling-coverage-reassessment",
         "throttling-gap-followup",
         "throttling-security-resilience-review",
-        "throttling-queue-circuit-followup"
+        "throttling-queue-circuit-followup",
+        "throttling-scheduling-residual-review"
       ]
     },
     {
@@ -411,7 +413,8 @@
         "workers-delivery-review",
         "workers-adapters-review",
         "workers-contracts-review",
-        "workers-95-followup"
+        "workers-95-followup",
+        "workers-scheduling-residual-review"
       ]
     },
     {
@@ -4055,6 +4058,223 @@
       },
       "afterSeconds": {
         "component-middleware": 75
+      }
+    },
+    {
+      "id": "throttling-scheduling-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "throttling"
+      ],
+      "extent": "16 complete profiles across 36 candidate sources in throttling/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 5,
+        "Killed": 4355,
+        "Survived": 169,
+        "Timeout": 25
+      },
+      "baselineCounts": {
+        "NoCoverage": 11,
+        "Killed": 4309,
+        "Survived": 207,
+        "Timeout": 28,
+        "RuntimeError": 35
+      },
+      "mutationScore": 96.18,
+      "baselineMutationScore": 95.21,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 22,
+      "staticOrHybridCounts": {
+        "Killed": 191,
+        "Survived": 1
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 317,
+        "RuntimeError": 35,
+        "Survived": 12,
+        "Timeout": 2
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/scheduling-residual-review/",
+      "analysis": "mutation_testing_scheduling_residuals.md",
+      "profiles": [
+        "throttling-admission",
+        "throttling-queues",
+        "throttling-circuits",
+        "throttling-completion",
+        "throttling-postgres-admission",
+        "throttling-postgres-leases",
+        "throttling-leased",
+        "throttling-adapter-wrappers",
+        "throttling-storage",
+        "throttling-redis-result-schema",
+        "throttling-provider",
+        "throttling-definitions-factories",
+        "throttling-definitions-validation",
+        "throttling-schema",
+        "throttling-public-contracts",
+        "throttling-configuration"
+      ],
+      "baselineReports": {
+        "throttling-admission": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-admission/mutation.json",
+        "throttling-queues": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-queues/mutation.json",
+        "throttling-circuits": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-circuits/mutation.json",
+        "throttling-completion": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-completion/mutation.json",
+        "throttling-postgres-admission": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-postgres-admission/mutation.json",
+        "throttling-postgres-leases": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-postgres-leases/mutation.json",
+        "throttling-leased": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-leased/mutation.json",
+        "throttling-adapter-wrappers": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-adapter-wrappers/mutation.json",
+        "throttling-storage": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-storage/mutation.json",
+        "throttling-redis-result-schema": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-storage/mutation.json",
+        "throttling-provider": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-provider/mutation.json",
+        "throttling-definitions-factories": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-definitions-factories/mutation.json",
+        "throttling-definitions-validation": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-definitions-validation/mutation.json",
+        "throttling-schema": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-schema/mutation.json",
+        "throttling-public-contracts": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-public-contracts/mutation.json",
+        "throttling-configuration": "artifacts/mutation/nov12-throttling-studio-atlas/after/throttling-public-contracts/mutation.json"
+      },
+      "afterSeconds": {
+        "throttling-admission": 43,
+        "throttling-queues": 22,
+        "throttling-circuits": 180,
+        "throttling-completion": 8,
+        "throttling-postgres-admission": 31,
+        "throttling-postgres-leases": 36,
+        "throttling-leased": 16,
+        "throttling-adapter-wrappers": 6,
+        "throttling-storage": 32,
+        "throttling-redis-result-schema": 45,
+        "throttling-provider": 8,
+        "throttling-definitions-factories": 37,
+        "throttling-definitions-validation": 119,
+        "throttling-schema": 17,
+        "throttling-public-contracts": 53,
+        "throttling-configuration": 4
+      }
+    },
+    {
+      "id": "workers-scheduling-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "workers"
+      ],
+      "extent": "7 complete profiles across 23 candidate sources in workers/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 4,
+        "Killed": 2128,
+        "Timeout": 3,
+        "Survived": 73
+      },
+      "baselineCounts": {
+        "NoCoverage": 7,
+        "Killed": 2094,
+        "Survived": 78,
+        "Timeout": 4
+      },
+      "mutationScore": 96.51,
+      "baselineMutationScore": 96.11,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 0,
+      "staticOrHybridCounts": {
+        "Killed": 75
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 164,
+        "Survived": 22
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/scheduling-residual-review/",
+      "analysis": "mutation_testing_scheduling_residuals.md",
+      "profiles": [
+        "workers-delivery",
+        "workers-scheduler",
+        "workers-contracts",
+        "workers-publication",
+        "workers-adapter-memory",
+        "workers-adapter-postgres",
+        "workers-adapter-schema"
+      ],
+      "baselineReports": {
+        "workers-delivery": "artifacts/mutation/close95/after/workers-delivery/mutation.json",
+        "workers-scheduler": "artifacts/mutation/close95/after/workers-scheduler/mutation.json",
+        "workers-contracts": "artifacts/mutation/close95/after/workers-contracts/mutation.json",
+        "workers-publication": "artifacts/mutation/close95/after/workers-publication/mutation.json",
+        "workers-adapter-memory": "artifacts/mutation/close95/after/workers-adapter-memory/mutation.json",
+        "workers-adapter-postgres": "artifacts/mutation/close95/after/workers-adapter-postgres/mutation.json",
+        "workers-adapter-schema": "artifacts/mutation/close95/after/workers-adapter-schema/mutation.json"
+      },
+      "afterSeconds": {
+        "workers-delivery": 22,
+        "workers-scheduler": 18,
+        "workers-contracts": 54,
+        "workers-publication": 53,
+        "workers-adapter-memory": 503,
+        "workers-adapter-postgres": 28,
+        "workers-adapter-schema": 105
+      }
+    },
+    {
+      "id": "scheduled_tasks-scheduling-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "scheduled_tasks"
+      ],
+      "extent": "4 complete profiles across 19 candidate sources in scheduled_tasks/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 7,
+        "Killed": 1423,
+        "Timeout": 6,
+        "Survived": 40
+      },
+      "baselineCounts": {
+        "NoCoverage": 9,
+        "Killed": 1372,
+        "Survived": 57,
+        "Timeout": 6,
+        "RuntimeError": 25
+      },
+      "mutationScore": 96.82,
+      "baselineMutationScore": 95.43,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 0,
+      "staticOrHybridCounts": {
+        "Killed": 84,
+        "Survived": 1
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 124,
+        "RuntimeError": 25,
+        "Survived": 13
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/scheduling-residual-review/",
+      "analysis": "mutation_testing_scheduling_residuals.md",
+      "profiles": [
+        "scheduled-runtime",
+        "scheduled-adapters-runtime",
+        "scheduled-adapters-schema",
+        "scheduled-contracts"
+      ],
+      "baselineReports": {
+        "scheduled-runtime": "artifacts/mutation/nov11-complete-review/scheduled-runtime-after-2/mutation.json",
+        "scheduled-adapters-runtime": "artifacts/mutation/nov11-complete-review/scheduled-adapters-after-2/mutation.json",
+        "scheduled-adapters-schema": "artifacts/mutation/nov11-complete-review/scheduled-adapters-after-2/mutation.json",
+        "scheduled-contracts": "artifacts/mutation/nov11-complete-review/scheduled-contracts-after/mutation.json"
+      },
+      "afterSeconds": {
+        "scheduled-runtime": 20,
+        "scheduled-adapters-runtime": 41,
+        "scheduled-adapters-schema": 14,
+        "scheduled-contracts": 26
       }
     }
   ]

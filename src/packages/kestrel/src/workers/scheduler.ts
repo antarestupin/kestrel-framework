@@ -365,9 +365,11 @@ export class WorkerScheduler<Config> {
       try {
         handled = await this.runOnce();
       } catch (error) {
-        // A transient backend failure must not permanently stop the process.
-        // The bootstrap supplies structured logging through this callback.
-        this.reportError(error);
+        try {
+          this.reportError(error);
+        } catch {
+          // A diagnostic sink must not turn a recoverable queue error into polling failure.
+        }
       }
 
       if (handled === 0 && !signal.aborted) {
@@ -418,6 +420,7 @@ export class WorkerScheduler<Config> {
     }
 
     const leaseExtensions = this.keepLeasesAlive(jobs);
+    const errors: unknown[] = [];
 
     try {
       // An execution-scope failure must not end sibling handlers or their lease
@@ -439,26 +442,24 @@ export class WorkerScheduler<Config> {
       ]);
       // One failed buffer must not end lease maintenance while another is
       // still persisting outcomes or waiting for correlated result delivery.
-      const errors = [...invocationErrors, ...transitions.flatMap((transition) =>
-        transition.status === "rejected" ? [transition.reason as unknown] : [])];
-      if (errors.length === 1) throw errors[0];
-      if (errors.length > 1) {
-        throw new AggregateError(errors, "Several worker transitions failed.");
-      }
-    } finally {
-      try {
-        // Drain even if a correlated result handoff fails. Deferred jobs never
-        // entered a handler and must not turn into ordinary worker retries.
-        await this.deferrals.flush();
-      } finally {
-        try {
-          await leaseExtensions.close();
-        } finally {
-          for (const job of jobs) this.forgetReservation(toReservationRef(job));
-        }
-      }
+      errors.push(...invocationErrors, ...transitions.flatMap((transition) =>
+        transition.status === "rejected" ? [transition.reason as unknown] : []));
+    } catch (error) {
+      errors.push(error);
     }
 
+    // Invocations have settled and the deferral buffer is drained before
+    // releasing lease protection. Preserve any independent renewal failure.
+    try {
+      await leaseExtensions.close();
+    } catch (error) {
+      errors.push(error);
+    }
+    for (const job of jobs) this.forgetReservation(toReservationRef(job));
+
+    // A renewal failure must remain visible without masking an independent write failure.
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, "Several worker transitions failed.");
     return jobs.length;
   }
 
@@ -715,13 +716,17 @@ export class WorkerScheduler<Config> {
         reportFeedback,
       );
     } catch (error) {
-      await permit.complete({
-        outcome: "failure",
-        ...(actualCost === undefined ? {} : { actualCost }),
-        ...(feedback === undefined ? {} : { feedback }),
-      });
-
-      if (signal.aborted) return [];
+      try {
+        await permit.complete({
+          outcome: "failure",
+          ...(actualCost === undefined ? {} : { actualCost }),
+          ...(feedback === undefined ? {} : { feedback }),
+        });
+      } catch (permitError) {
+        throw new AggregateError([error, permitError], "Worker invocation and permit completion failed.");
+      }
+      // Cooperative aborts were handled at the invocation boundary. Preserve an
+      // independent failure even if shutdown or a lease loss happened concurrently.
       throw error;
     }
 
@@ -1205,37 +1210,49 @@ export class WorkerScheduler<Config> {
       const run = async () => {
         let outcome: ExecutionOutcome = "failure";
         let executionError: unknown;
+        let outcomes: readonly JobOutcome[];
+        const failures: unknown[] = [];
         try {
-          const { outcomes, interruption } = await callback(execution);
+          const result = await callback(execution);
+          outcomes = result.outcomes;
+          const { interruption } = result;
           const failure = outcomes.find((item) => item.kind === "failure");
           executionError = failure === undefined ? interruption?.error : failure.error;
           if (failure === undefined) outcome = interruption === undefined ? "success" : "cancelled";
-          return outcomes;
         } catch (error: unknown) {
           executionError = error;
-          throw error;
-        } finally {
-          try {
-            observer?.record(
-              executionCompletedObservation,
-              {
-                operation: worker.name,
-                transport: "worker",
-                ...getExecutionObservationContext(execution.context),
-                ...(executionError === undefined
-                  ? {}
-                  : getExecutionObservationError(executionError)),
-              },
-              {
-                // Observations retain their binary success/failure outcome.
-                outcome: outcome === "cancelled" ? "failure" : outcome,
-                durationMs: performance.now() - startedAt,
-              },
-            );
-          } finally {
-            await execution.dispose(outcome);
-          }
+          failures.push(error);
         }
+        try {
+          observer?.record(
+            executionCompletedObservation,
+            {
+              operation: worker.name,
+              transport: "worker",
+              ...getExecutionObservationContext(execution.context),
+              // A rejected invocation can have an undefined rejection reason.
+              ...(outcome === "success"
+                ? {}
+                : getExecutionObservationError(executionError)),
+            },
+            {
+              // Observations retain their binary success/failure outcome.
+              outcome: outcome === "cancelled" ? "failure" : outcome,
+              durationMs: performance.now() - startedAt,
+            },
+          );
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await execution.dispose(outcome);
+        } catch (error) {
+          failures.push(error);
+        }
+        // Independent observation and disposal failures must retain their causes.
+        if (failures.length === 1) throw failures[0];
+        if (failures.length > 1) throw new AggregateError(failures, "Worker invocation and cleanup failed.");
+        return outcomes!;
       };
 
       // Setup failures are synchronous. Once the handler starts, its promise
@@ -1248,7 +1265,11 @@ export class WorkerScheduler<Config> {
         return run();
       });
     } catch (error: unknown) {
-      await execution.dispose("failure");
+      try {
+        await execution.dispose("failure");
+      } catch (disposalError) {
+        throw new AggregateError([error, disposalError], "Worker invocation setup and disposal failed.");
+      }
       throw error;
     }
   }

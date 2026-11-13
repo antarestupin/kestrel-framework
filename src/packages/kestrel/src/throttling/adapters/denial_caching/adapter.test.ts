@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { setImmediate } from "node:timers/promises";
 
 import { ThrottlingDefinitionConflictError } from "../../errors.js";
 import type {
@@ -42,7 +43,12 @@ describe("DenialCachingRateLimitAdapter", () => {
     });
 
     const authoritative = await adapter.reserve(request);
-    const cached = await adapter.reserve(request);
+    const reused = vi.fn();
+    const pending = adapter.reserve(request);
+    void pending.then(reused, reused);
+    await setImmediate();
+    expect(reused).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ source: "denial-cache" }));
+    const cached = await pending;
 
     expect(authoritative.source).toBe("authoritative");
     expect(cached).toEqual({ ...authoritative, source: "denial-cache" });
@@ -151,11 +157,16 @@ describe("DenialCachingRateLimitAdapter", () => {
       },
     }, { now: () => new Date(0), monotonicNow: () => 0 });
 
-    const denials = await Promise.all([
+    const settledDenials = vi.fn();
+    const denialBatch = Promise.all([
       denied.reserve(request),
       denied.reserve(request),
       denied.reserve(request),
     ]);
+    void denialBatch.then(settledDenials, settledDenials);
+    await setImmediate();
+    expect(settledDenials).toHaveBeenCalledExactlyOnceWith(Array.from({ length: 3 }, () => expect.objectContaining({ admitted: false })));
+    const denials = await denialBatch;
 
     expect(deniedCalls).toBe(1);
     expect(denials.map((result) => result.source)).toEqual([
@@ -163,6 +174,8 @@ describe("DenialCachingRateLimitAdapter", () => {
       "denial-cache",
       "denial-cache",
     ]);
+    // High-cardinality traffic must not retain one lock entry for each past key.
+    expect(denied["serialization"].size).toBe(0);
 
     let admittedCalls = 0;
     const admitted = new DenialCachingRateLimitAdapter({
@@ -186,8 +199,6 @@ describe("DenialCachingRateLimitAdapter", () => {
     async (kind) => {
       const releaseFirst = Promise.withResolvers<void>();
       const releaseSecond = Promise.withResolvers<void>();
-      const firstStarted = Promise.withResolvers<void>();
-      const secondStarted = Promise.withResolvers<void>();
       const seen: string[] = [];
       let sharedCount = 0;
       const wait = async (key: string) => {
@@ -195,10 +206,8 @@ describe("DenialCachingRateLimitAdapter", () => {
         if (key !== request.key) return;
         sharedCount += 1;
         if (sharedCount === 1) {
-          firstStarted.resolve();
           await releaseFirst.promise;
         } else if (sharedCount === 2) {
-          secondStarted.resolve();
           await releaseSecond.promise;
         }
       };
@@ -217,24 +226,31 @@ describe("DenialCachingRateLimitAdapter", () => {
         : adapter.reserveMany([value, otherRequest]);
 
       const first = attempt(request);
-      await firstStarted.promise;
+      await setImmediate();
+      expect(seen).toEqual([request.key]);
       const second = attempt(request);
       const independent = attempt({ ...request, key: "test:independent" });
       const pending = [first, second, independent];
       try {
         // Drain pending continuations while the first matching backend call is held.
-        await new Promise<void>((resolve) => setImmediate(resolve));
+        await setImmediate();
         expect(seen).toEqual([request.key, "test:independent"]);
         releaseFirst.resolve();
-        await secondStarted.promise;
+        await setImmediate();
+        expect(seen).toEqual([request.key, "test:independent", request.key]);
         const third = attempt(request);
         pending.push(third);
-        await new Promise<void>((resolve) => setImmediate(resolve));
+        await setImmediate();
         expect(seen).toEqual([request.key, "test:independent", request.key]);
       } finally {
         releaseFirst.resolve();
         releaseSecond.resolve();
-        await Promise.allSettled(pending);
+        // A broken serializer can strand its successor. Check settlement in
+        // one event-loop turn instead of blocking fixture teardown.
+        const completed = vi.fn();
+        void Promise.allSettled(pending).then(completed);
+        await setImmediate();
+        expect(completed).toHaveBeenCalledOnce();
       }
       expect(sharedCount).toBe(3);
     },

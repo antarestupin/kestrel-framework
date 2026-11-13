@@ -327,26 +327,45 @@ describe("PostgresRateLimitAdapter", () => {
   });
 
   it("bounds queued reservations and recovers after a timeout", async () => {
-    const entered = Promise.withResolvers<void>();
     const firstResult = Promise.withResolvers<{ rows: object[] }>();
-    const backend = { execute: vi.fn(() => { entered.resolve(); return firstResult.promise; }) };
+    const backend = { execute: vi.fn(() => firstResult.promise) };
     const adapter = new PostgresRateLimitAdapter(backend as unknown as PostgresRateLimitDatabase, {
       maxConcurrentReservations: 1, maxPendingReservations: 1, storageWaitTimeoutMs: 5,
     });
-    const first = adapter.reserve(baseRequest);
-    await entered.promise;
-    const second = adapter.reserve(baseRequest);
-    const timedOut = expect(second).rejects.toMatchObject({ cause: expect.objectContaining({ message: "Timed out waiting for throttling storage capacity." }) });
+    const holder = vi.fn();
+    const queued = vi.fn();
+    const overflowing = vi.fn();
+    const later = vi.fn();
+    const row = { rows: [{ key: baseRequest.key, admitted: true, remaining: 1 }] };
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
-      await expect(adapter.reserve(baseRequest)).rejects.toMatchObject({ cause: expect.objectContaining({ message: "The throttling storage queue is full." }) });
-      await timedOut;
-      expect(backend.execute).toHaveBeenCalledTimes(1);
+      void adapter.reserve(baseRequest).then(holder, holder);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(backend.execute).toHaveBeenCalledOnce();
+      void adapter.reserve(baseRequest).then(queued, queued);
+      void adapter.reserve(baseRequest).then(overflowing, overflowing);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(overflowing).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ cause: expect.objectContaining({ message: "The throttling storage queue is full." }) }));
+      expect(queued).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(5);
+      expect(queued).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ cause: expect.objectContaining({ message: "Timed out waiting for throttling storage capacity." }) }));
+      expect(backend.execute).toHaveBeenCalledOnce();
+
+      firstResult.resolve(row);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(holder).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true, remaining: 1 }));
+      void adapter.reserve(baseRequest).then(later, later);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(later).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true, remaining: 1 }));
+      expect(backend.execute).toHaveBeenCalledTimes(2);
     } finally {
-      firstResult.resolve({ rows: [{ key: baseRequest.key, admitted: true, remaining: 1 }] });
-      await first;
+      firstResult.resolve(row);
+      try {
+        await vi.advanceTimersByTimeAsync(5);
+      } finally {
+        vi.useRealTimers();
+      }
     }
-    await expect(adapter.reserve(baseRequest)).resolves.toMatchObject({ admitted: true, remaining: 1 });
-    expect(backend.execute).toHaveBeenCalledTimes(2);
   });
 
   it("hands capacity to a live waiter after an earlier waiter expires", async () => {
@@ -413,6 +432,7 @@ describe("PostgresRateLimitAdapter", () => {
       maxConcurrentReservations: 1, maxPendingReservations: 1, storageWaitTimeoutMs: 2_147_483_648,
     });
     const warning = vi.spyOn(process, "emitWarning");
+    const timer = vi.spyOn(globalThis, "setTimeout");
     const holding = adapter.reserve(baseRequest);
     const queued = adapter.reserve(baseRequest);
     const settled = vi.fn();
@@ -420,12 +440,16 @@ describe("PostgresRateLimitAdapter", () => {
     try {
       await setImmediate();
       expect(warning.mock.calls.some(([message]) => String(message).includes("does not fit into a 32-bit signed integer"))).toBe(false);
+      // An outstanding storage waiter owns its deadline while a reservation occupies the pool.
+      const deadlineTimer = timer.mock.calls.findIndex(([, delay]) => delay === 2_147_483_647);
+      expect(timer.mock.results[deadlineTimer]?.value.hasRef()).toBe(true);
       expect(settled).not.toHaveBeenCalled();
       expect(execute).toHaveBeenCalledOnce();
       first.resolve(row);
       await expect(queued).resolves.toMatchObject({ admitted: true });
     } finally {
       warning.mockRestore();
+      timer.mockRestore();
       first.resolve(row);
       await Promise.allSettled([holding, queued]);
     }
@@ -768,6 +792,19 @@ describe("PostgresRateLimitAdapter", () => {
     expect(grants.rows).toEqual([]);
   });
 
+  it("rejects exhausted tiny capacity without issuing a second exact reservation", async () => {
+    const adapter = createAdapter();
+    const cost = Number.EPSILON;
+    const request = { ...leasedRequest, limit: cost, cost, burst: cost, coordination: {
+      ...leasedRequest.coordination, maxLeaseUnits: cost, maxOutstandingUnits: cost, guardBandUnits: 0,
+    } };
+    await expect(adapter.allocateLeases("worker", [request])).resolves.toMatchObject({ admitted: true });
+    await holdBucketRefill(request.key);
+
+    await expect(adapter.allocateLeases("worker", [request])).resolves.toMatchObject({ admitted: false, remaining: { [request.key]: 0 } });
+    await expect(adapter.inspectMany([request])).resolves.toMatchObject([{ available: false, remaining: 0 }]);
+  });
+
   it("accepts cost equal to available units, lease size equal to burst, and a zero guard band", async () => {
     const adapter = createAdapter();
     const exact = { ...baseRequest, cost: 2 };
@@ -802,6 +839,21 @@ describe("PostgresRateLimitAdapter", () => {
         [boundary.key]: { mode: "exact", remaining: 10 },
         [above.key]: { mode: "lease", units: 1.5, remaining: 10 },
       },
+    });
+  });
+
+  it("uses exact allocation when fractional capacity is within rounding distance of the guard band", async () => {
+    const adapter = createAdapter();
+    const boundary = { ...leasedRequest, key: "test:fractional-guard", cost: 0.25,
+      coordination: { ...leasedRequest.coordination, guardBandUnits: 0 } };
+    await adapter.allocateLeases("initial", [boundary]);
+    await client.query("DELETE FROM throttling_rate_limit_lease");
+    await client.query("UPDATE throttling_rate_limit SET tokens = $1 WHERE key = $2", [0.25 + Number.EPSILON / 2, boundary.key]);
+    await holdBucketRefill(boundary.key);
+
+    // A rounding-sized surplus must not switch the allocation mode to a lease.
+    await expect(adapter.allocateLeases("next", [boundary])).resolves.toMatchObject({
+      admitted: true, allocations: { [boundary.key]: { mode: "exact" } },
     });
   });
 

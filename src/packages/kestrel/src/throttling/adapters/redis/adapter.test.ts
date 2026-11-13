@@ -31,6 +31,24 @@ describe("RedisRateLimitAdapter", () => {
     } finally { await other.dispose(); }
   });
 
+  it("rejects a tiny cost while the bucket balance is exhausted", async ({ redis }) => {
+    const cost = 1e-16;
+    const tiny = request("tiny", { cost, burst: cost, limit: 1e-24 });
+    const adapter = new RedisRateLimitAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+    await expect(adapter.reserve(tiny)).resolves.toMatchObject({ admitted: true, remaining: 0 });
+    await expect(adapter.reserve(tiny)).resolves.toMatchObject({ admitted: false });
+    await expect(adapter.inspectMany([tiny])).resolves.toMatchObject([{ available: false }]);
+  });
+
+  it("uses an exact reservation when tiny costs fit the bucket but no new lease fits", async ({ redis }) => {
+    const tiny = leased("tiny-grant", { cost: 1e-16, coordination: {
+      strategy: "leased", maxLeaseUnits: 4, leaseMs: 60_000, maxOutstandingUnits: 4, guardBandUnits: 1,
+    } });
+    const adapter = new RedisRateLimitAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+    await expect(adapter.allocateLeases("one", [tiny])).resolves.toMatchObject({ admitted: true, allocations: { [tiny.key]: { mode: "lease", units: 4 } } });
+    await expect(adapter.allocateLeases("two", [tiny])).resolves.toMatchObject({ admitted: true, allocations: { [tiny.key]: { mode: "exact" } } });
+  });
+
   it("rejects a composed admission without consuming other dimensions", async ({ redis }) => {
     const adapter = new RedisRateLimitAdapter(redis.client, { keyPrefix: redis.keyPrefix });
     await adapter.reserve(request("busy", { cost: 10 }));

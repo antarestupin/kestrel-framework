@@ -1,11 +1,12 @@
 import { getTableConfig } from "drizzle-orm/pg-core";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 
-import { getFrameworkDatabaseTableKeys } from "../db/framework_table.js";
-import { getDatabaseSchemaContributions } from "../db/schema_contributions/index.js";
-import { throttlingRateLimitLeases, throttlingRateLimits } from "./postgres_schema.js";
-
-it("exports the durable bucket and lease schemas used by migrations", () => {
+it("exports the durable bucket and lease schemas used by migrations", async () => {
+  // A mutated declaration can fail before exports exist, so load it within the test.
+  vi.resetModules();
+  const { getFrameworkDatabaseTableKeys } = await import("../db/framework_table.js");
+  const { getDatabaseSchemaContributions } = await import("../db/schema_contributions/index.js");
+  const { throttlingRateLimitLeases, throttlingRateLimits } = await import("./postgres_schema.js");
   const buckets = getTableConfig(throttlingRateLimits);
   const leases = getTableConfig(throttlingRateLimitLeases);
   expect([buckets.schema, buckets.name, leases.schema, leases.name]).toEqual([

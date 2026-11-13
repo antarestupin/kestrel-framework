@@ -282,8 +282,8 @@ describe("PostgresScheduledTaskAdapter", () => {
   });
 
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])("rejects invalid lease/prune arguments %s", async (value) => {
-    await expect(adapter.pruneExpiredRuns({ limit: value })).rejects.toThrow(TypeError);
-    await expect(adapter.reserve({ taskId: "missing", expectedScheduledAt: new Date("2026-01-01T00:00:00.000Z"), overlap: "wait", leaseMs: value })).rejects.toThrow(TypeError);
+    await expect(adapter.pruneExpiredRuns({ limit: value })).rejects.toThrow(new TypeError("Scheduled task prune limit must be a positive integer."));
+    await expect(adapter.reserve({ taskId: "missing", expectedScheduledAt: new Date("2026-01-01T00:00:00.000Z"), overlap: "wait", leaseMs: value })).rejects.toThrow(new TypeError("leaseMs must be a positive integer."));
   });
 
   it("extends only the matching task reservation using PostgreSQL time", async () => {

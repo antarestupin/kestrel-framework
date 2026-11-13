@@ -1,3 +1,4 @@
+import { setImmediate } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -85,7 +86,11 @@ describe("ThrottlingManager teardown contracts", () => {
 
     try {
       const permit = await manager.acquire(deferred, { estimatedCost: { requests: 1 } });
-      await permit.complete({ outcome: "success", actualCost: { requests: 2 } });
+      const completed = vi.fn();
+      void permit.complete({ outcome: "success", actualCost: { requests: 2 } }).then(completed, completed);
+      // Completion must not await the deferred storage promise.
+      await setImmediate();
+      expect(completed).toHaveBeenCalledExactlyOnceWith(undefined);
       expect(reconcile).toHaveBeenCalledOnce();
       const settled = vi.fn();
       const closing = manager.close();
@@ -95,7 +100,7 @@ describe("ThrottlingManager teardown contracts", () => {
       expect(settled).not.toHaveBeenCalled();
       expect(close).not.toHaveBeenCalled();
       accounting.resolve({ [quota.id]: 8 });
-      await expect(closing).rejects.toMatchObject({ name: "AggregateError", errors: [readerError, storageError] });
+      await expect(closing).rejects.toMatchObject({ name: "AggregateError", message: "Throttling manager teardown failed.", errors: [readerError, storageError] });
       expect(close).toHaveBeenCalledOnce();
     } finally {
       accounting.resolve({});
@@ -241,6 +246,8 @@ describe("ThrottlingManager instrumentation contracts", () => {
     const manager = createManager({ reserve, reserveMany }, {
       namespace: " test ", resourcePressureMonitor: monitor,
       monotonicNow: () => ticks, instrumentation: { record },
+      // A healthy sample admits work before the configured wait can begin.
+      sleep: async () => { throw new Error("Unexpected pressure wait before reservation."); },
     });
     const estimatedCost = { tokens: 3, requests: 2 };
     const longestAllowedKey = "k".repeat(256);
@@ -540,6 +547,13 @@ describe("ThrottlingManager reconciliation contracts", () => {
       key: simple.id, result: "success", cost: 0, estimatedCost: { requests: 1 }, actualCost: { requests: 0 },
       reconciliation: "disabled", heldDurationMs: 0,
     } });
+
+    const unchanged = await manager.acquire(simple);
+    await unchanged.complete({ outcome: "success", actualCost: { requests: 1 } });
+    // An explicit matching actual cost requires no accounting operation.
+    expect(record).toHaveBeenLastCalledWith(expect.objectContaining({ type: "completion", data: expect.objectContaining({
+      reconciliation: "not-needed", estimatedCost: { requests: 1 }, actualCost: { requests: 1 },
+    }) }));
   });
 });
 

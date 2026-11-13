@@ -4,6 +4,7 @@ import type { PgDatabase } from "drizzle-orm/pg-core";
 
 import { abortableDelay } from "../../../scheduling/abortable_delay.js";
 import { uuidV7 } from "../../../utils/uuid.js";
+import { canCoverRateLimitCost } from "../capacity.js";
 import {
   ThrottlingBackendUnavailableError,
   ThrottlingDefinitionConflictError,
@@ -262,7 +263,7 @@ export class PostgresRateLimitAdapter implements
           }
 
           const rejected = requests.filter((request) =>
-            byKey.get(request.key)!.available + Number.EPSILON < request.cost);
+            !canCoverRateLimitCost(byKey.get(request.key)!.available, request.cost));
 
           if (rejected.length > 0) {
             const remaining = Object.fromEntries(capacities.map((row) =>
@@ -331,7 +332,7 @@ export class PostgresRateLimitAdapter implements
             throw new ThrottlingDefinitionConflictError(request.key);
           }
 
-          return row.remaining + Number.EPSILON >= request.cost
+          return canCoverRateLimitCost(row.remaining, request.cost)
             ? {
                 available: true,
                 remaining: row.remaining,
@@ -1172,7 +1173,7 @@ function createLeaseDecision(
   // A leased block must be large enough for the current reservation on its own.
   const exact = request.cost > request.coordination.maxLeaseUnits
     || capacity.available <= request.coordination.guardBandUnits + request.cost + Number.EPSILON
-    || headroom + Number.EPSILON < request.cost;
+    || headroom < request.cost;
 
   if (exact) {
     return {

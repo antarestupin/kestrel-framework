@@ -94,9 +94,16 @@ describe("process-local resource pressure", () => {
     expect(clock.pendingSleeps).toBe(1);
     fixture.source.value = 0.1;
     await clock.advance(250);
-    const permit = await waiting;
-    await permit.complete({ outcome: "success" });
-    await fixture.manager.close();
+    try {
+      // An extra sleep indicates that the healthy reading was incorrectly rejected.
+      await settleMicrotasks();
+      expect(clock.pendingSleeps).toBe(0);
+      const permit = await waiting;
+      await permit.complete({ outcome: "success" });
+    } finally {
+      await fixture.manager.close();
+      await waiting.catch(() => undefined);
+    }
   });
 
   it("times out a waiter without publishing a speculative retry date", async () => {

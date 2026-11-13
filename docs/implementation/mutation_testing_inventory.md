@@ -2,7 +2,7 @@
 
 [Testing reference](./testing.md#framework-mutation-testing) · [Running assessments](../contributing/mutation-testing.md#run-framework-mutation-testing) · [Results and classifications](./mutation_testing_framework.md) · [Machine-readable inventory](./mutation_testing_inventory.json)
 
-Updated November 13, 2026. The 35 primary lots partition all 640 TS/TSX candidate sources currently selected by the full Stryker configuration. The inventory tracks mutation assessment progress. Source candidates include type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly and may be absent in a fresh Git checkout.
+Updated November 13, 2026. The 35 primary lots partition all 641 TS/TSX candidate sources currently selected by the full Stryker configuration. The inventory tracks mutation assessment progress. Source candidates include type-only and re-export files that may generate no mutants. The empty `ui` directory is retained explicitly and may be absent in a fresh Git checkout.
 
 ## Scope and states
 
@@ -45,15 +45,15 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `middleware` | 2 | Reviewed | Entry, replay, dependency resolution and unwind failure behavior reviewed | [Residual review](mutation_testing_security_residuals.md) |
 | `observability` | 15 | Reviewed | Context, recorder flush, stored observations and adapter lifecycle | [Component review](mutation_testing_final_wave.md#observability) |
 | `outbound_http` | 17 | Reviewed | Routing, cancellation, stream ownership, retry, caching and throttling feedback reviewed | [Residual review](mutation_testing_security_residuals.md) |
-| `scheduled_tasks` | 19 | Reviewed | Scheduler ownership and shutdown, adapter parity and operator contracts | [Component review](mutation_testing_scheduled_tasks.md#november-11-review) |
+| `scheduled_tasks` | 19 | Reviewed | All 19 candidate files assessed; scheduler ownership and shutdown, adapter parity and operator contracts reviewed | [Residual review](mutation_testing_scheduling_residuals.md) |
 | `scheduling` | 4 | Reviewed | Timer limits, abort handling, lease extensions and polling budgets | [Component review](mutation_testing_scheduling_review.md) |
 | `studio` | 99 | Reviewed | Mounting, action and HTTP explorers, diagnostic extensions and browser request ownership | [Studio review](mutation_testing_studio_atlas.md#studio) |
 | `testing` | 1 | Reviewed | Unrestricted HTTP fixture policy (PostgreSQL and Redis connection fixtures excluded) | [Component review](mutation_testing_final_wave.md#testing) |
-| `throttling` | 35 | Reviewed | Queue ownership, circuit transitions, policy registration and backend capacity and shutdown | [Throttling review](mutation_testing_studio_atlas.md#throttling) |
+| `throttling` | 36 | Reviewed | Queue ownership, circuit transitions, policy registration and backend capacity and shutdown | [Residual review](mutation_testing_scheduling_residuals.md) |
 | `tokens` | 31 | Reviewed | Token lifecycle, signing, key resolution, batch atomicity and adapter contracts reviewed | [Residual review](mutation_testing_security_residuals.md) |
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
 | `utils` | 5 | Reviewed | Cursor serialization, identifiers, catalog ownership and definition guards | [Component review](mutation_testing_final_wave.md#utilities) |
-| `workers` | 23 | Reviewed | Lease ownership, shutdown, adapter batches, scheduler and publication | [95% follow-up](mutation_testing_95_followup.md#workers) |
+| `workers` | 23 | Reviewed | Lease ownership, shutdown, adapter batches, scheduler and publication | [Residual review](mutation_testing_scheduling_residuals.md) |
 | `workflows` | 38 | Reviewed | Replay, continuation, execution and child ownership, and durable adapters | [Residual review](mutation_testing_db_workflow_residuals.md) |
 
 The current total is 0 not-assessed lots, 0 partially assessed lots, 34 reviewed lots, 0 completed assessments awaiting review, and 1 lot without candidate sources. These are manual assessment states.
@@ -324,6 +324,16 @@ The [residual review](mutation_testing_security_residuals.md) lists the fixes, r
 | `outbound_http` | 3/3 | 95.45% → 97.24% | 53 → 31 |
 | `errors` | 1/1 | 97.64% → 96.03% | 3 → 5 |
 | `middleware` | 1/1 | 100.00% → 100.00% | 0 → 0 |
+
+## November 13 throttling, worker and scheduled-task residual review
+
+The [residual review](mutation_testing_scheduling_residuals.md) lists the fixes, results and remaining classifications for these three components.
+
+| Component | Profiles | Score before → after | Survived + uncovered before → after |
+| --- | ---: | ---: | ---: |
+| `throttling` | 16/16 | 95.21% → 96.18% | 218 → 174 |
+| `workers` | 7/7 | 96.11% → 96.51% | 85 → 77 |
+| `scheduled_tasks` | 4/4 | 95.43% → 96.82% | 66 → 47 |
 
 ## Updating the inventory
 

@@ -1,13 +1,24 @@
 import { getTableConfig } from "drizzle-orm/pg-core";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getFrameworkDatabaseTableKeys } from "../../../db/framework_table.js";
-import { getDatabaseSchemaContributions } from "../../../db/schema_contributions/definition.js";
-import { scheduledTaskRuns, scheduledTaskStates, scheduledTasksSchema } from "./schema.js";
+let declarations: typeof import("./schema.js");
+let getFrameworkDatabaseTableKeys: typeof import("../../../db/framework_table.js").getFrameworkDatabaseTableKeys;
+let getDatabaseSchemaContributions: typeof import("../../../db/schema_contributions/definition.js").getDatabaseSchemaContributions;
+
+beforeEach(async () => {
+  // Import the schema and its registries during the test so invalid static declarations fail here.
+  vi.resetModules();
+  [declarations, { getFrameworkDatabaseTableKeys }, { getDatabaseSchemaContributions }] = await Promise.all([
+    import("./schema.js"),
+    import("../../../db/framework_table.js"),
+    import("../../../db/schema_contributions/definition.js"),
+  ]);
+});
 
 /** These migration-facing contracts use the actual exported schema, not the temporary adapter fixture. */
 describe("scheduled-task PostgreSQL schema contracts", () => {
   it("keeps SQL mappings and framework migration provenance valid", () => {
+    const { scheduledTaskRuns, scheduledTaskStates } = declarations;
     expect(getFrameworkDatabaseTableKeys({ scheduledTaskRuns, scheduledTaskStates })).toEqual(new Set([
       JSON.stringify(["scheduled_tasks", "run"]), JSON.stringify(["scheduled_tasks", "state"]),
     ]));
@@ -24,6 +35,7 @@ describe("scheduled-task PostgreSQL schema contracts", () => {
   });
 
   it("retains singular qualified tables and primary ownership identities", () => {
+    const { scheduledTaskRuns, scheduledTaskStates } = declarations;
     expect(getTableConfig(scheduledTaskStates)).toMatchObject({ name: "state", schema: "scheduled_tasks" });
     expect(getTableConfig(scheduledTaskRuns)).toMatchObject({ name: "run", schema: "scheduled_tasks" });
     expect(scheduledTaskStates.taskId.primary).toBe(true);
@@ -33,6 +45,7 @@ describe("scheduled-task PostgreSQL schema contracts", () => {
   });
 
   it("preserves safe initial controls, attempts and timezone-aware lease dates", () => {
+    const { scheduledTaskRuns, scheduledTaskStates } = declarations;
     expect(scheduledTaskStates.paused.default).toBe(false);
     expect(scheduledTaskStates.paused.notNull).toBe(true);
     expect(scheduledTaskRuns.attempt.default).toBe(1);
@@ -52,12 +65,14 @@ describe("scheduled-task PostgreSQL schema contracts", () => {
   });
 
   it("indexes due-state and task-expiry access paths without pinning index labels", () => {
+    const { scheduledTaskRuns, scheduledTaskStates } = declarations;
     const columns = (table: typeof scheduledTaskStates | typeof scheduledTaskRuns) => getTableConfig(table).indexes.map((index) => index.config.columns.map((column) => "name" in column ? column.name : undefined));
     expect(columns(scheduledTaskStates)).toContainEqual(["paused", "next_scheduled_at"]);
     expect(columns(scheduledTaskRuns)).toContainEqual(["task_id", "expires_at"]);
   });
 
   it("contributes migration comments for the schema, tables and every operator-visible column", () => {
+    const { scheduledTaskRuns, scheduledTaskStates, scheduledTasksSchema } = declarations;
     const contributions = getDatabaseSchemaContributions({ scheduledTasksSchema, scheduledTaskStates, scheduledTaskRuns });
     const schema = contributions.find(({ id }) => id === "postgres.schema:scheduled_tasks:description");
     expect(schema?.installSql).toContain('COMMENT ON SCHEMA "scheduled_tasks" IS ');

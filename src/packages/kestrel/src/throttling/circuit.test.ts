@@ -374,10 +374,14 @@ describe("process-local circuit breaking", () => {
     const policy = circuitPolicy({ failureThreshold: 1 });
     await completeFailure(manager, policy);
     const waiting = manager.acquire(policy, { maxWaitMs: 2_000 });
+    const settled = vi.fn();
+    void waiting.then(settled, settled);
     await settleMicrotasks();
 
     expect(clock.pendingSleeps).toBe(1);
     await clock.advance(1_000);
+    await setImmediate();
+    expect(settled).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ definitionId: policy.id }));
     const probe = await waiting;
     await probe.complete({ outcome: "success" });
     await manager.close();

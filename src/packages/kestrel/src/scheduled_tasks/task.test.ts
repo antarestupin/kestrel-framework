@@ -26,7 +26,7 @@ describe("scheduled task definitions", () => {
 
   it.each(["", "UPPER", ".leading", "trailing.", "a..b", "a b", "!prefix", "suffix!"])("rejects an invalid id %j during composition", (id) => {
     expect(() => defineScheduledTask({ id, schedule, handler: () => undefined })).toThrow(expect.objectContaining({
-      name: "TypeError", message: expect.stringMatching(/\bids\b/u),
+      name: "TypeError", message: id === "" ? "Scheduled task ids cannot be empty." : expect.stringMatching(/\bids\b/u),
     }));
   });
 

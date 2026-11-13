@@ -58,6 +58,9 @@ it("rejects malformed protocol replies and unsafe arithmetic", async () => {
   await expect(adapter.reserve({ ...request, limit: 0 })).rejects.toThrow();
   await expect(adapter.reserve({ ...request, limit: Number.MIN_VALUE })).rejects.toThrow("refill rates must be representable");
   await expect(adapter.reconcile([{ ...request, estimatedCost: 1, actualCost: Number.MAX_VALUE }])).rejects.toThrow("representable");
+  const halfLimit = Number.MAX_VALUE / 2;
+  await expect(adapter.reconcile([{ ...request, limit: halfLimit, periodMs: 1, burst: halfLimit, estimatedCost: 1, actualCost: Number.MAX_VALUE }]))
+    .rejects.toThrow("refill deadlines must be representable");
   expect(client.eval).not.toHaveBeenCalled();
 });
 

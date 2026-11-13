@@ -79,5 +79,9 @@ describe("worker public metadata contracts", () => {
     delete error.stack;
     expect(serializeWorkerError(error)).toEqual({ name: "TypeError", message: "worker failed" });
     for (const value of ["text failure", null, 42, { reason: "failed" }]) expect(serializeWorkerError(value)).toEqual({ name: "Error", message: String(value) });
+    // An unprintable thrown value still needs durable retry or dead-letter metadata.
+    expect(serializeWorkerError(Object.create(null))).toEqual({
+      name: "Error", message: "The thrown value could not be converted to a string.",
+    });
   });
 });

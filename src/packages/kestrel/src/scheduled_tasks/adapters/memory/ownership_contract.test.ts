@@ -120,6 +120,22 @@ describe("memory scheduled-task ownership and recovery", () => {
     expect((await adapter.listStates(["second"]))[0]!.activeRuns).toBe(1);
   });
 
+  it("rejects a duplicate generated token before consuming another occurrence", async () => {
+    const createReservationToken = vi.fn(() => "unique-second").mockReturnValueOnce("shared").mockReturnValueOnce("shared");
+    const adapter = new MemoryScheduledTaskAdapter({ now: () => epoch, createReservationToken });
+    const { request } = setup();
+    await adapter.reconcile(["first", "second"].map((taskId) => ({ taskId, nextScheduledAt: epoch })));
+    const first = await reserve(adapter, request());
+
+    await expect(adapter.reserve(request("second"))).rejects.toThrow(/reservation token.*already in use/u);
+    expect(await adapter.listStates(["first", "second"])).toMatchObject([
+      { taskId: "first", activeRuns: 1, nextScheduledAt: request().nextScheduledAt },
+      { taskId: "second", activeRuns: 0, nextScheduledAt: epoch },
+    ]);
+    expect(await adapter.release(first)).toBe(true);
+    expect((await reserve(adapter, request("second"))).reservationToken).toBe("unique-second");
+  });
+
   it("replaces a prior failure summary on successful completion", async () => {
     const { adapter, request, advance } = setup();
     await adapter.reconcile([{ taskId: "first", nextScheduledAt: epoch }]);
@@ -303,8 +319,8 @@ describe("memory scheduled-task ownership and recovery", () => {
   for (const limit of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
     it(`rejects an invalid prune limit ${String(limit)} and reservation lease`, async () => {
       const { adapter, request } = setup();
-      await expect(adapter.pruneExpiredRuns({ limit })).rejects.toThrow(TypeError);
-      await expect(adapter.reserve(request("first", { leaseMs: limit }))).rejects.toThrow(TypeError);
+      await expect(adapter.pruneExpiredRuns({ limit })).rejects.toThrow(new TypeError("Scheduled task prune limit must be a positive integer."));
+      await expect(adapter.reserve(request("first", { leaseMs: limit }))).rejects.toThrow(new TypeError("leaseMs must be a positive integer."));
     });
   }
 });

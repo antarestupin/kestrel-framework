@@ -17,6 +17,16 @@ const schemaTests = [
   "email/adapters/postgres/schema.test.ts",
   "studio/extensions/database/schema_source*.test.ts",
 ];
+const throttlingManagerTests = [
+  "throttling/*.test.ts",
+  "workers/{provider_contract,scheduler}.test.ts",
+  "outbound_http/middleware/throttling/index.test.ts",
+];
+const throttlingPostgresTests = ["throttling/adapters/postgres/*.test.ts"];
+const throttlingWrapperTests = [
+  "throttling/adapters/{backend_failure,denial_caching}/*.test.ts",
+  "throttling/adapters/redis/adapter.unit.test.ts",
+];
 
 // Limit costly profiles at Vitest discovery so Stryker still activates static mutants
 // before imports. The explicit Stryker testFiles filter activates them after collection.
@@ -26,8 +36,56 @@ const focusedIncludes = new Map<string, string[]>([
   ["authentication-adapters-postgres-schema", ["authentication/adapters/postgres/schema.test.ts"]],
   ["tokens-adapters-schema", ["tokens/adapters/postgres/schema.test.ts"]],
   ["authorization-postgres-schema", ["authorization/adapters/postgres/schema.test.ts"]],
+  ["workers-adapter-schema", ["workers/adapters/postgres/schema.test.ts"]],
   ["http-access-policy", ["http/access_policy.test.ts"]],
   ["http-hardening-configuration", ["http/hardening/configuration.test.ts"]],
+  ["throttling-schema", ["throttling/postgres_schema.test.ts"]],
+  ["throttling-configuration", ["throttling/configuration.test.ts"]],
+  // Keep the suites that assert each narrow throttling contract in discovery.
+  ["throttling-provider", [
+    "throttling/{manager,manager.contract,observations,pressure,provider}.test.ts",
+    "throttling/resource_pressure/*.test.ts",
+    "throttling/adapters/redis/adapter.unit.test.ts",
+  ]],
+  ["throttling-definitions-factories", [
+    "throttling/{composition,definitions,manager.contract}.test.ts",
+    "workers/scheduler.test.ts",
+  ]],
+  ["throttling-definitions-validation", [
+    "throttling/{circuit,composition,definitions,manager.contract}.test.ts",
+    "workers/provider_contract.test.ts",
+  ]],
+  ["throttling-admission", throttlingManagerTests],
+  ["throttling-queues", throttlingManagerTests],
+  ["throttling-circuits", throttlingManagerTests],
+  ["throttling-completion", throttlingManagerTests],
+  ["throttling-postgres-admission", throttlingPostgresTests],
+  ["throttling-postgres-leases", throttlingPostgresTests],
+  ["throttling-leased", [
+    "throttling/adapters/leased/*.test.ts",
+    "throttling/adapters/postgres/definition.test.ts",
+    "throttling/adapters/redis/adapter.unit.test.ts",
+  ]],
+  ["throttling-adapter-wrappers", throttlingWrapperTests],
+  ["throttling-storage", [
+    ...throttlingManagerTests,
+    ...throttlingWrapperTests,
+    "throttling/adapters/{memory,redis}/*.test.ts",
+    "throttling/adapters/postgres/definition.test.ts",
+  ]],
+  ["throttling-redis-result-schema", ["throttling/adapters/redis/result_schema.test.ts"]],
+  ["scheduled-adapters-schema", ["scheduled_tasks/adapters/postgres/schema.test.ts"]],
+  ["scheduled-runtime", ["scheduled_tasks/{scheduler*,runtime}.test.ts"]],
+  ["scheduled-adapters-runtime", [
+    "scheduled_tasks/**/*.test.ts",
+    "studio/extensions/scheduled_tasks/extension.test.ts",
+  ]],
+  ["scheduled-contracts", [
+    "scheduled_tasks/**/*.test.ts",
+    "studio/extensions/scheduled_tasks/extension.test.ts",
+    "cache/provider.test.ts",
+    "background/provider_contract.test.ts",
+  ]],
   ["workflow-adapter-contracts", [
     "workflows/adapters/definition.test.ts",
     "workflows/adapters/postgres/polling_error.test.ts",

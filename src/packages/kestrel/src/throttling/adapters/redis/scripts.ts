@@ -3,6 +3,11 @@ export const rateLimitScript = `
 -- Redis cjson emits at most 14 significant digits: keep arithmetic state as decimal strings.
 local function decimal(value) return string.format('%.17g', value) end
 local function finite(value) return type(value) == 'number' and value == value and math.abs(value) < math.huge end
+-- Preserve ordinary fractional rounding without funding tiny costs from an empty balance.
+local function covers(remaining, cost)
+  local epsilon = 2.220446049250313e-16
+  return remaining + math.min(epsilon, math.max(0, remaining) * epsilon) >= cost
+end
 local mode = ARGV[1]
 local requests = cjson.decode(ARGV[2])
 local returns = cjson.decode(ARGV[3])
@@ -60,12 +65,13 @@ if mode ~= 'return' then
     if mode == 'reconcile' then
       state.tokens = math.min(state.burst, state.tokens - request.delta)
       remaining[request.key] = state.tokens
-    elseif state.tokens + 0.0000000000000002 < request.cost then
+    elseif not covers(state.tokens, request.cost) then
       retryDelay = math.max(retryDelay, math.max(0, state.at - now) + math.max(1, math.ceil((request.cost - state.tokens) / (state.limit / state.periodMs))))
     end
     if mode == 'inspect' then
-      local delay = state.tokens >= request.cost and 0 or math.max(0, state.at - now) + math.max(1, math.ceil((request.cost - state.tokens) / (state.limit / state.periodMs)))
-      inspections[i] = {available = state.tokens >= request.cost, remaining = state.tokens, retryDelayMs = delay}
+      local available = covers(state.tokens, request.cost)
+      local delay = available and 0 or math.max(0, state.at - now) + math.max(1, math.ceil((request.cost - state.tokens) / (state.limit / state.periodMs)))
+      inspections[i] = {available = available, remaining = state.tokens, retryDelayMs = delay}
     end
   end
 end
@@ -82,7 +88,7 @@ if retryDelay == 0 and (mode == 'reserve' or mode == 'allocate') then
       -- A leased block must cover the current reservation on its own.
       if request.cost <= coordination.maxLeaseUnits
           and state.tokens > coordination.guardBandUnits + request.cost + 0.0000000000000002
-          and headroom + 0.0000000000000002 >= request.cost then
+          and headroom >= request.cost then
         units = math.min(coordination.maxLeaseUnits, headroom, math.max(request.cost, state.tokens - coordination.guardBandUnits))
         allocation = {mode = 'lease', leaseId = request.leaseId, units = units, expiresAt = now + coordination.leaseMs}
         state.leases[request.leaseId] = {units = units, expiresAt = allocation.expiresAt}

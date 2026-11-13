@@ -1,4 +1,5 @@
 import { setImmediate } from "node:timers/promises";
+import { getEventListeners } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -118,9 +119,13 @@ describe("ThrottlingManager", () => {
       expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionAbortedError));
     } finally {
       warning.mockRestore();
+      // Break a mutant's pending sleep without waiting for the simulated long deadline.
+      for (const result of timer.mock.results) {
+        if (result.type === "return" && result.value !== undefined) clearTimeout(result.value);
+      }
       timer.mockRestore();
       controller.abort();
-      await manager.close();
+      void manager.close().catch(() => undefined);
     }
   });
 
@@ -187,8 +192,6 @@ describe("ThrottlingManager", () => {
     const manager = createManager(clock, { maxPendingAcquisitions: 1 });
     const aborting = new AbortController();
     const admitted = new AbortController();
-    const removeAborted = vi.spyOn(aborting.signal, "removeEventListener");
-    const removeAdmitted = vi.spyOn(admitted.signal, "removeEventListener");
     const abortedResult = vi.fn();
     const admittedResult = vi.fn();
     const laterResult = vi.fn();
@@ -200,7 +203,7 @@ describe("ThrottlingManager", () => {
       aborting.abort();
       await setImmediate();
       expect(abortedResult).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionAbortedError));
-      expect(removeAborted).toHaveBeenCalledWith("abort", expect.any(Function));
+      expect(getEventListeners(aborting.signal, "abort")).toHaveLength(0);
 
       // Cancellation must free the sole pending slot for the next caller.
       void manager.run(onePerSecond, { maxWaitMs: 2_000, signal: admitted.signal }, () => "admitted")
@@ -210,7 +213,7 @@ describe("ThrottlingManager", () => {
       await clock.advance(1_000);
       await setImmediate();
       expect(admittedResult).toHaveBeenCalledExactlyOnceWith("admitted");
-      expect(removeAdmitted).toHaveBeenCalledWith("abort", expect.any(Function));
+      expect(getEventListeners(admitted.signal, "abort")).toHaveLength(0);
 
       // Successful settlement must free the same slot again.
       void manager.run(onePerSecond, { maxWaitMs: 2_000 }, () => "later").then(laterResult, laterResult);
@@ -221,8 +224,62 @@ describe("ThrottlingManager", () => {
       expect(laterResult).toHaveBeenCalledExactlyOnceWith("later");
     } finally {
       await manager.close();
-      removeAborted.mockRestore();
-      removeAdmitted.mockRestore();
+    }
+  });
+
+  it("wakes an aborted waiter even if a caller's listener stops propagation", async () => {
+    const clock = new ControlledClock();
+    const manager = createManager(clock);
+    const controller = new AbortController();
+    const settled = vi.fn();
+    controller.signal.addEventListener("abort", (event) => event.stopImmediatePropagation(), { once: true });
+
+    try {
+      await manager.acquire(onePerSecond);
+      void manager.acquire(onePerSecond, { maxWaitMs: 2_000, signal: controller.signal }).then(settled, settled);
+      await setImmediate();
+      expect(clock.pendingSleeps).toBe(1);
+      controller.abort();
+      await setImmediate();
+      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionAbortedError));
+      expect(clock.pendingSleeps).toBe(0);
+    } finally {
+      const closing = manager.close();
+      await clock.advance(2_000);
+      await closing;
+    }
+  });
+
+  it("rechecks the next waiter's own cost when the FIFO head aborts", async () => {
+    const clock = new ControlledClock();
+    const policy = defineAdmissionPolicy({ id: "variable-cost", limits: [
+      rateLimit({ id: "variable-cost-rate", unit: "requests", limit: 10, per: seconds(1) }),
+    ] });
+    const reserve = vi.fn<RateLimitAdapter["reserve"]>()
+      .mockResolvedValueOnce({ admitted: false, remaining: 1, retryAt: new Date(1_000) })
+      .mockResolvedValue({ admitted: true, remaining: 0 });
+    const manager = new ThrottlingManager({ reserve }, { namespace: "test", now: clock.now, sleep: clock.sleep });
+    const controller = new AbortController();
+    const first = vi.fn();
+    const second = vi.fn();
+
+    try {
+      void manager.acquire(policy, { maxWaitMs: 2_000, signal: controller.signal, estimatedCost: { requests: 2 } }).then(first, first);
+      await setImmediate();
+      void manager.run(policy, { maxWaitMs: 2_000, estimatedCost: { requests: 1 } }, () => "admitted").then(second, second);
+      await setImmediate();
+      expect(reserve).toHaveBeenCalledOnce();
+
+      // The old retry time only applied to the head's two-unit request.
+      controller.abort();
+      await setImmediate();
+      expect(first).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingAcquisitionAbortedError));
+      expect(second).toHaveBeenCalledExactlyOnceWith("admitted");
+      expect(reserve).toHaveBeenCalledTimes(2);
+    } finally {
+      const closing = manager.close();
+      await clock.advance(2_000);
+      await closing;
     }
   });
 
@@ -349,12 +406,13 @@ describe("ThrottlingManager", () => {
     });
 
     try {
-      const first = manager.acquire(onePerSecond, { maxWaitMs: 100, signal: controller.signal });
-      const firstResult = first.catch((error: unknown) => error);
+      const firstResult = vi.fn();
+      void manager.acquire(onePerSecond, { maxWaitMs: 100, signal: controller.signal }).then(firstResult, firstResult);
       await settleMicrotasks();
       expect(clock.pendingSleeps).toBe(1);
       const second = manager.acquire(onePerSecond, { maxWaitMs: 200 });
-      const secondResult = second.catch((error: unknown) => error);
+      const secondResult = vi.fn();
+      void second.then(secondResult, secondResult);
 
       await clock.advance(10);
       await setImmediate();
@@ -370,21 +428,26 @@ describe("ThrottlingManager", () => {
         expect(close).not.toHaveBeenCalled();
       }
       release.resolve();
+      await setImmediate();
 
       if (event === "close") {
-        await expect(firstResult).resolves.toBeInstanceOf(ThrottlingClosedError);
-        await expect(secondResult).resolves.toBeInstanceOf(ThrottlingClosedError);
+        expect(close).toHaveBeenCalledOnce();
+        expect(firstResult).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingClosedError));
+        expect(secondResult).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingClosedError));
         expect(reserve).toHaveBeenCalledTimes(2);
         await manager.close();
         expect(close).toHaveBeenCalledOnce();
       } else {
         const expected = event === "timeout" ? ThrottlingAcquisitionTimeoutError : ThrottlingAcquisitionAbortedError;
-        await expect(firstResult).resolves.toBeInstanceOf(expected);
+        expect(reserve).toHaveBeenCalledTimes(3);
+        expect(firstResult).toHaveBeenCalledExactlyOnceWith(expect.any(expected));
         // Losing the head's admission must not drop the next waiter.
-        await expect(secondResult).resolves.toMatchObject({ definitionId: onePerSecond.id });
+        expect(secondResult).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ definitionId: onePerSecond.id }));
         const next = await second;
         await next.complete({ outcome: "success" });
         expect(reserve).toHaveBeenCalledTimes(3);
+        // Settled rate partitions must release their queue entries before shutdown.
+        expect(manager["waitQueues"].size).toBe(0);
       }
     } finally {
       release.resolve();
@@ -500,12 +563,14 @@ describe("ThrottlingManager", () => {
       }),
     });
 
-    const waiting = manager.acquire(onePerSecond, { maxWaitMs: 2_000 });
-    void waiting.catch(() => {});
+    const outcome = vi.fn();
+    void manager.acquire(onePerSecond, { maxWaitMs: 2_000 }).then(outcome, outcome);
     await settleMicrotasks();
     const closing = manager.close();
+    await setImmediate();
+    // Losing the close rejection must fail without waiting on the abandoned waiter.
+    expect(outcome).toHaveBeenCalledExactlyOnceWith(expect.any(ThrottlingClosedError));
     await Promise.all([closing, reentrantClose]);
-    await expect(waiting).rejects.toBeInstanceOf(ThrottlingClosedError);
     expect(reentrantClose).toBe(closing);
     expect(close).toHaveBeenCalledOnce();
   });

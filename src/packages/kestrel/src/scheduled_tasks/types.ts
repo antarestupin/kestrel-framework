@@ -1,3 +1,4 @@
+import { formatThrownValue } from "../errors/format_thrown_value.js";
 import type { ScheduledTaskOverlap } from "./task.js";
 
 export interface ScheduledTaskError {
@@ -102,5 +103,6 @@ export function serializeScheduledTaskError(
     };
   }
 
-  return { name: "Error", message: String(error) };
+  // Persistence must still complete when a non-Error rejection cannot be printed.
+  return { name: "Error", message: formatThrownValue(error) };
 }

@@ -1,3 +1,5 @@
+import { addAbortListener } from "node:events";
+
 import {
   DeferredTasks,
   DeferredTasksClosedError,
@@ -127,7 +129,7 @@ interface PendingAcquisition {
   estimatedCost: ThrottlingCost;
   deadlineMs: number;
   signal?: AbortSignal;
-  abortListener?: () => void;
+  abortSubscription?: Disposable;
   attemptCounter: AttemptCounter;
   resolve: (result: AcquiredPermitResult) => void;
   reject: (error: unknown) => void;
@@ -915,9 +917,8 @@ export class ThrottlingManager implements Throttling {
       };
 
       if (signal !== undefined) {
-        const abortListener = () => this.wakeQueue(queue);
-        waiter.abortListener = abortListener;
-        signal.addEventListener("abort", abortListener, { once: true });
+        // Wake promptly even when another listener stops abort-event propagation.
+        waiter.abortSubscription = addAbortListener(signal, () => this.wakeQueue(queue));
       }
 
       queue.waiters.push(waiter);
@@ -990,6 +991,7 @@ export class ThrottlingManager implements Throttling {
 
       if (attempt.admitted) {
         queue.waiters.shift();
+        this.resetQueueBlocker(queue, nowMs);
         try {
           this.checkAdmittedAttempt(attempt, waiter.policy.id, waiter.signal, waiter.deadlineMs);
         } catch (error) {
@@ -997,11 +999,6 @@ export class ThrottlingManager implements Throttling {
           this.rejectWaiter(queue, waiter, error);
           continue;
         }
-        queue.nextAttemptAtMs = this.getNowMs();
-        delete queue.blockedConcurrencyKey;
-        delete queue.blockedCircuitId;
-        delete queue.blockedPressureConstraintId;
-        delete queue.blockedPressureSignalIds;
         this.resolveWaiter(queue, waiter, attempt);
       } else {
         this.setQueueBlocker(queue, attempt);
@@ -1030,7 +1027,17 @@ export class ThrottlingManager implements Throttling {
       }
     }
 
+    // A retry time and blocker describe the old head's cost and policy partition.
+    if (remaining[0] !== queue.waiters[0]) this.resetQueueBlocker(queue, nowMs);
     queue.waiters = remaining;
+  }
+
+  private resetQueueBlocker(queue: WaitQueue, nowMs: number): void {
+    queue.nextAttemptAtMs = nowMs;
+    delete queue.blockedConcurrencyKey;
+    delete queue.blockedCircuitId;
+    delete queue.blockedPressureConstraintId;
+    delete queue.blockedPressureSignalIds;
   }
 
   private async waitForQueue(queue: WaitQueue, delayMs: number): Promise<void> {
@@ -1093,9 +1100,7 @@ export class ThrottlingManager implements Throttling {
   }
 
   private finishWaiter(waiter: PendingAcquisition): void {
-    if (waiter.signal !== undefined && waiter.abortListener !== undefined) {
-      waiter.signal.removeEventListener("abort", waiter.abortListener);
-    }
+    waiter.abortSubscription?.[Symbol.dispose]();
 
     this.pendingAcquisitions -= 1;
   }
@@ -1233,17 +1238,8 @@ export class ThrottlingManager implements Throttling {
     constraints: readonly CompiledConcurrencyLimit[],
   ): (() => void) | string {
     const states = constraints.map((constraint) => {
-      const state = this.concurrencyStates.get(constraint.key) ?? {
-        active: 0,
-        limit: constraint.limit,
-      };
-
-      if (state.limit !== constraint.limit) {
-        throw new TypeError(
-          `Concurrency limit "${constraint.id}" uses conflicting capacities.`,
-        );
-      }
-
+      // compileAndRegister has already checked the capacity for every shared key.
+      const state = this.concurrencyStates.get(constraint.key) ?? { active: 0, limit: constraint.limit };
       this.concurrencyStates.set(constraint.key, state);
       return state;
     });

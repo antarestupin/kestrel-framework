@@ -113,6 +113,7 @@ export class ScheduledTaskScheduler<Config> {
 
   /** Reconciles definitions and starts admission polling until stopped. */
   public async start(): Promise<void> {
+    if (this.admissionStopped) return;
     if (this.loopPromise !== undefined || this.starting) {
       throw new Error("The scheduled task scheduler is already running.");
     }
@@ -146,9 +147,10 @@ export class ScheduledTaskScheduler<Config> {
 
   /** Admits one cycle and waits for the runs started by that cycle. */
   public async runOnce(): Promise<number> {
+    if (this.admissionStopped) return 0;
     await this.initialize();
     const invocations = await this.admitOnce();
-    await Promise.all(invocations);
+    await waitForCycleWork(invocations);
     return invocations.length;
   }
 
@@ -165,7 +167,7 @@ export class ScheduledTaskScheduler<Config> {
       (resolved) => resolved.adapter,
     );
 
-    await Promise.all([...tasksByAdapter].map(([adapter, tasks]) =>
+    await waitForCycleWork([...tasksByAdapter].map(async ([adapter, tasks]) =>
       adapter.reconcile(tasks.map(({ task }) => ({
         taskId: task.id,
         nextScheduledAt: task.schedule.initial(now),
@@ -255,7 +257,7 @@ export class ScheduledTaskScheduler<Config> {
       this.resolvedTasks,
       (resolved) => resolved.adapter,
     );
-    const groups = await Promise.all([...tasksByAdapter].map(
+    const groups = await waitForCycleWork([...tasksByAdapter].map(
       async ([adapter, tasks]) => adapter.listStates(
         tasks.map(({ task }) => task.id),
       ),
@@ -584,6 +586,16 @@ export class ScheduledTaskScheduler<Config> {
     return execution.container.hasRegistration("observer")
       ? execution.container.resolve(observerDependency)
       : undefined;
+  }
+}
+
+/** Retains every operation owned by the cycle, even after one rejects. */
+async function waitForCycleWork<Result>(operations: readonly Promise<Result>[]): Promise<Result[]> {
+  try {
+    return await Promise.all(operations);
+  } catch (error) {
+    await Promise.allSettled(operations);
+    throw error;
   }
 }
 

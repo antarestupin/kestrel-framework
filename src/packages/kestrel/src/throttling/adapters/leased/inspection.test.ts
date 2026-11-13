@@ -120,8 +120,8 @@ describe("leased throttling inspection and reconciliation", () => {
     const fractional = { ...request, cost: 0.1 };
     await adapter.reserve(fractional);
     const remaining = 0.3 - 0.1;
-    // Match the exact inclusive tolerance boundary, then cross it by another epsilon.
-    expect(await adapter.inspectMany([{ ...request, cost: remaining + Number.EPSILON }])).toEqual([{ available: true, remaining, source: "leased" }]);
+    // The decimal amount lost one rounding unit in subtraction and is still available.
+    expect(await adapter.inspectMany([{ ...request, cost: 0.2 }])).toEqual([{ available: true, remaining, source: "leased" }]);
     expect(backend.inspectMany).not.toHaveBeenCalled();
     await adapter.inspectMany([{ ...request, cost: remaining + 2 * Number.EPSILON }]);
     expect(backend.inspectMany).toHaveBeenCalledOnce();

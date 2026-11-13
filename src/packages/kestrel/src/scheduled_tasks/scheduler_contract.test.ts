@@ -136,7 +136,7 @@ describe("scheduled task lifecycle and ownership contracts", () => {
       await setImmediate();
       const completion = state.scheduler.completion;
       expect(sleep).toHaveBeenCalledOnce();
-      await expect(state.scheduler.start()).rejects.toThrow();
+      await expect(state.scheduler.start()).rejects.toThrow("The scheduled task scheduler is already running.");
       expect(state.scheduler.completion).toBe(completion);
       const stopping = state.scheduler.stop();
       proceed.resolve();
@@ -160,6 +160,38 @@ describe("scheduled task lifecycle and ownership contracts", () => {
     await state.scheduler.start();
     await expect(state.scheduler.completion).rejects.toBe(second);
     expect(sleep).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not reconcile when admission is invoked after a stop before startup", async () => {
+    const state = await setup({ handler: () => undefined });
+    const reconcile = vi.spyOn(state.adapter, "reconcile");
+
+    await state.scheduler.stop();
+    await expect(state.scheduler.start()).resolves.toBeUndefined();
+    await expect(state.scheduler.runOnce()).resolves.toBe(0);
+    expect(reconcile).not.toHaveBeenCalled();
+  });
+
+  it("does not read state when a one-shot cycle stops during initialization", async () => {
+    const state = await setup({ handler: () => undefined });
+    const proceed = Promise.withResolvers<void>();
+    const reconcile = vi.spyOn(state.adapter, "reconcile").mockReturnValue(proceed.promise);
+    const list = vi.spyOn(state.adapter, "listStates");
+    const running = state.scheduler.runOnce();
+    void running.catch(() => undefined);
+    let stopping: Promise<void> | undefined;
+    try {
+      await setImmediate();
+      expect(reconcile).toHaveBeenCalledOnce();
+      stopping = state.scheduler.stop();
+      proceed.resolve();
+      await expect(running).resolves.toBe(0);
+      expect(list).not.toHaveBeenCalled();
+      expect(state.handler).not.toHaveBeenCalled();
+    } finally {
+      proceed.resolve();
+      await Promise.allSettled([running, stopping]);
+    }
   });
 
   it("keeps a one-shot handler cancellable when polling starts while it is active", async () => {
@@ -350,6 +382,7 @@ describe("scheduled task lifecycle and ownership contracts", () => {
       await vi.advanceTimersByTimeAsync(500);
       expect(signal.aborted).toBe(true);
       expect(signal.reason).toBeInstanceOf(Error);
+      expect(signal.reason.message).toBe(`Scheduled task reservation ownership was lost for "${state.task.id}".`);
     } finally { state.finish(); await running; }
     expect(complete).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failure", error: expect.objectContaining({ name: "Error" }) }));
     expect(state.reportError).toHaveBeenCalledExactlyOnceWith(signal.reason);
@@ -419,7 +452,7 @@ describe("scheduled task admission and error boundaries", () => {
         const state = await setup({ handler: () => undefined });
         expect(() => new ScheduledTaskScheduler(state.app, { memory: state.adapter }, undefined, [state.task], {
           slots: 1, leaseMs: 1_000, [option]: value,
-        })).toThrow(TypeError);
+        })).toThrow(new TypeError(`${option} must be a positive integer.`));
       });
     }
   }
@@ -515,7 +548,11 @@ describe("scheduled task admission and error boundaries", () => {
     const cleanup = new Error("overlap lock backend unavailable");
     vi.spyOn(state.adapter, "reserve").mockRejectedValue(admission);
     vi.mocked(state.lock.release).mockRejectedValue(cleanup);
-    await expect(state.scheduler.runOnce()).rejects.toMatchObject({ name: "AggregateError", errors: [admission, cleanup] });
+    await expect(state.scheduler.runOnce()).rejects.toMatchObject({
+      name: "AggregateError",
+      message: "Scheduled task admission and overlap lock release failed.",
+      errors: [admission, cleanup],
+    });
     expect(state.lock.release).toHaveBeenCalledOnce();
     expect(state.handler).not.toHaveBeenCalled();
   });
@@ -612,6 +649,51 @@ describe("scheduled task admission and error boundaries", () => {
     });
   });
 
+  it("persists an unprintable handler failure and releases its reservation", async () => {
+    const failure: unknown = Object.create(null);
+    const state = await setup({ distributed: true, handler: () => { throw failure; } });
+
+    expect(await state.scheduler.runOnce()).toBe(1);
+    expect((await state.adapter.listStates([state.task.id]))[0]).toMatchObject({
+      activeRuns: 0,
+      lastOutcome: "failure",
+      lastError: { message: "The thrown value could not be converted to a string." },
+    });
+    expect(state.reportError).toHaveBeenCalledExactlyOnceWith(failure);
+    expect(state.lock.release).toHaveBeenCalledOnce();
+  });
+
+  it.each(["reconcile", "listStates"] as const)("drains a sibling adapter's %s when another adapter fails first", async (method) => {
+    const state = await setup({ handler: () => undefined });
+    const other = new MemoryScheduledTaskAdapter({ now: () => epoch });
+    const sibling = defineScheduledTask({
+      ...state.task, id: "sibling.task", runtime: { state: "persistent", coordination: "local" },
+    });
+    const scheduler = new ScheduledTaskScheduler(state.app, { memory: state.adapter, persistent: other }, undefined, [state.task, sibling], {
+      slots: 2, leaseMs: 1_000, now: () => epoch,
+    });
+    owned.push({ app: state.app, scheduler });
+    const failure = new Error(`first ${method} failed`);
+    const pending = Promise.withResolvers<never>();
+    vi.spyOn(state.adapter, method).mockRejectedValue(failure);
+    const siblingCall = vi.spyOn(other, method).mockReturnValue(pending.promise);
+    const running = observeSettlement(scheduler.runOnce());
+
+    try {
+      await setImmediate();
+      expect(siblingCall).toHaveBeenCalledOnce();
+      const stopping = scheduler.stop();
+      const stopped = observeSettlement(stopping);
+      await setImmediate();
+      expect(running()).toBeUndefined();
+      expect(stopped()).toBeUndefined();
+      pending.reject(new Error(`sibling ${method} failed`));
+      await stopping;
+      expect(running()).toEqual({ status: "rejected", reason: failure });
+      expect(state.handler).not.toHaveBeenCalled();
+    } finally { pending.reject(new Error("test cleanup")); }
+  });
+
   it("reports each task failure once even when the injected reporter itself throws", async () => {
     const failure = new Error("handler failed");
     const reporterFailure = new Error("diagnostic sink unavailable");
@@ -624,6 +706,29 @@ describe("scheduled task admission and error boundaries", () => {
     // Even a failed reporter must release the admission slot for another occurrence.
     await state.adapter.requestRun(state.task.id);
     expect(await state.scheduler.runOnce()).toBe(1);
+  });
+
+  it("waits for every one-shot invocation even if error reporting fails first", async () => {
+    const pending = Promise.withResolvers<void>();
+    const sibling = defineScheduledTask({
+      id: "sibling.task", schedule: every({ seconds: 1, start: "immediate" }),
+      runtime: { state: "memory", coordination: "local" }, handler: vi.fn(() => pending.promise),
+    });
+    const failure = new Error("task failed");
+    const reporterFailure = new Error("diagnostic sink unavailable");
+    const state = await setup({ slots: 2, extraTasks: [sibling], handler: () => { throw failure; } });
+    state.reportError.mockImplementationOnce(() => { throw reporterFailure; });
+    const running = observeSettlement(state.scheduler.runOnce());
+
+    try {
+      await setImmediate();
+      expect(state.reportError).toHaveBeenCalledExactlyOnceWith(failure);
+      expect(sibling.handler).toHaveBeenCalledOnce();
+      expect(running()).toBeUndefined();
+      pending.resolve();
+      await setImmediate();
+      expect(running()).toEqual({ status: "rejected", reason: reporterFailure });
+    } finally { pending.resolve(); }
   });
 
   it("continues releasing the overlap lock after completion storage fails", async () => {
@@ -728,7 +833,7 @@ describe("scheduled task policy and polling contracts", () => {
         variant === "duplicate" ? [task, defineScheduledTask({ ...task })] : [task], {
           slots: 1, leaseMs: 1_000,
           ...(variant.endsWith("override") ? { allowTaskRuntimeOverrides: false } : {}),
-        })).toThrow(TypeError);
+        })).toThrow(expect.objectContaining({ name: "TypeError", message: expect.stringContaining(task.id) }));
     });
   }
 

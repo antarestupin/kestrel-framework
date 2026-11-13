@@ -1,3 +1,4 @@
+import { canCoverRateLimitCost } from "../capacity.js";
 import type {
   RateLimitAdapter,
   RateLimitBatchReservationResult,
@@ -56,7 +57,7 @@ export class MemoryRateLimitAdapter implements RateLimitAdapter {
     });
     const rejected = candidates.filter(
       ({ request, state }) =>
-        state.tokens + Number.EPSILON < request.cost,
+        !canCoverRateLimitCost(state.tokens, request.cost),
     );
 
     if (rejected.length > 0) {
@@ -122,7 +123,7 @@ export class MemoryRateLimitAdapter implements RateLimitAdapter {
     return requests.map((request) => {
       const state = this.readState(request, nowMs);
 
-      if (state.tokens + Number.EPSILON >= request.cost) {
+      if (canCoverRateLimitCost(state.tokens, request.cost)) {
         return {
           available: true,
           remaining: state.tokens,

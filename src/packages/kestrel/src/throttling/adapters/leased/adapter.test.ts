@@ -28,9 +28,15 @@ const request = {
 const owned = new Set<LeasedRateLimitAdapter>();
 
 afterEach(async () => {
-  const closing = [...owned].map((adapter) => adapter.close());
+  const results = [...owned].map((adapter) => {
+    const settled = vi.fn();
+    void adapter.close().then(settled, settled);
+    return settled;
+  });
   owned.clear();
-  await Promise.all(closing);
+  // The test backends own no native handles. Observe cleanup without hanging on a mutant's orphaned promise.
+  await setImmediate();
+  for (const settled of results) expect(settled).toHaveBeenCalledExactlyOnceWith(undefined);
 });
 
 function createAdapter(
@@ -80,6 +86,7 @@ describe("LeasedRateLimitAdapter", () => {
       expect(backend.returnLeases).toHaveBeenCalledExactlyOnceWith([{ key: request.key, leaseId: "in-flight", remaining: 9 }]);
       expect(backend.close).toHaveBeenCalledOnce();
       expect(backend.returnLeases).toHaveBeenCalledBefore(backend.close);
+      expect(adapter).toHaveProperty("leases.size", 0);
     } finally {
       grant.resolve(result);
     }
@@ -150,8 +157,15 @@ describe("LeasedRateLimitAdapter", () => {
     } });
     vi.mocked(backend.allocateLeases).mockResolvedValueOnce(grant("long", 2_000)).mockResolvedValueOnce(grant("short", 1_500));
 
-    await expect(adapter.reserve({ ...request, cost: 2 })).resolves.toEqual({ admitted: true, remaining: 1, source: "leased" });
-    await expect(adapter.reserve({ ...request, cost: 2 })).resolves.toEqual({ admitted: true, remaining: 2, source: "leased" });
+    const first = vi.fn();
+    const second = vi.fn();
+    void adapter.reserve({ ...request, cost: 2 }).then(first, first);
+    await setImmediate();
+    expect(first).toHaveBeenCalledExactlyOnceWith({ admitted: true, remaining: 1, source: "leased" });
+    void adapter.reserve({ ...request, cost: 2 }).then(second, second);
+    await setImmediate();
+    // Replenishment must acquire the same key after the first reservation releases it.
+    expect(second).toHaveBeenCalledExactlyOnceWith({ admitted: true, remaining: 2, source: "leased" });
     // The earlier grant expires at the exact boundary, leaving the later grant refundable.
     elapsed = 500;
     await expect(adapter.inspectMany([request])).resolves.toEqual([{ available: true, remaining: 1, source: "leased" }]);
@@ -224,8 +238,13 @@ describe("LeasedRateLimitAdapter", () => {
     const adapter = createAdapter(backend);
     await expect(adapter.reserve({ ...request, cost: 9 })).resolves.toMatchObject({ admitted: true, remaining: 1 });
 
-    await expect(Promise.resolve().then(() => adapter.reserveMany([request, request])))
-      .rejects.toThrow("Rate limit keys must be unique");
+    // Duplicate keys would deadlock the nested key locks if validation were lost.
+    // Keep a mutant's deliberately stranded batch out of the owned close set.
+    const duplicateProbe = new LeasedRateLimitAdapter(backend);
+    expect(() => {
+      void duplicateProbe.reserveMany([request, request]).catch(() => undefined);
+    }).toThrow("Rate limit keys must be unique");
+    await duplicateProbe.close();
     await expect(adapter.reserve(request)).resolves.toEqual({ admitted: true, remaining: 0, source: "leased" });
     expect(backend.allocateLeases).toHaveBeenCalledOnce();
   });
@@ -259,9 +278,32 @@ describe("LeasedRateLimitAdapter", () => {
     await expect(adapter.reserve(tiny)).resolves.toEqual({ admitted: true, remaining: 0, source: "leased" });
     await expect(adapter.reserve(tiny)).resolves.toEqual({ admitted: false, remaining: 0, retryAt, source: "leased" });
     expect(backend.allocateLeases).toHaveBeenCalledTimes(2);
+    // A failed replenishment must not retain the exhausted partition's bucket.
+    expect(adapter).toHaveProperty("leases.size", 0);
   });
 
-  it("admits an exactly sized lease and returns fractional residue at the tolerance boundary", async () => {
+  it("replenishes a positive balance that still cannot cover a tiny reservation", async () => {
+    const cost = Number.EPSILON;
+    const tiny = { ...request, cost, burst: cost * 4, coordination: {
+      ...request.coordination, maxLeaseUnits: cost * 2, maxOutstandingUnits: cost * 4, guardBandUnits: 0,
+    } };
+    const backend = createAuthoritative();
+    const retryAt = new Date(2_000);
+    vi.mocked(backend.allocateLeases).mockResolvedValueOnce({ admitted: true, allocations: {
+      [tiny.key]: { mode: "lease", leaseId: "tiny", units: cost * 1.5, remaining: cost * 2.5, expiresAt: new Date(6_000) },
+    } }).mockResolvedValueOnce({ admitted: false, remaining: { [tiny.key]: cost / 2 }, retryAt });
+    const adapter = createAdapter(backend, { now: () => new Date(1_000), monotonicNow: () => 0, retryJitterRatio: 0 });
+
+    // An absolute rounding tolerance can be as large as the entire requested cost.
+    await expect(adapter.reserve(tiny)).resolves.toMatchObject({ admitted: true, remaining: cost / 2 });
+    await expect(adapter.reserve(tiny)).resolves.toMatchObject({ admitted: false, remaining: cost / 2, retryAt });
+    expect(backend.allocateLeases).toHaveBeenCalledTimes(2);
+    // Positive residue stays in the grant and is available to a smaller request.
+    await expect(adapter.reserve({ ...tiny, cost: cost / 2 })).resolves.toMatchObject({ admitted: true, remaining: 0 });
+    expect(backend.allocateLeases).toHaveBeenCalledTimes(2);
+  });
+
+  it("retires empty leases and keeps positive fractional residue", async () => {
     const backend = createAuthoritative();
     const deadline = new Date(6_000);
     vi.mocked(backend.allocateLeases).mockResolvedValueOnce({ admitted: true, allocations: {
@@ -276,9 +318,12 @@ describe("LeasedRateLimitAdapter", () => {
     await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: true, remaining: 0 });
     await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: true, remaining: Number.EPSILON });
     await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: true, remaining: 97 });
-    expect(backend.allocateLeases).toHaveBeenLastCalledWith(expect.any(String), [request], [
-      { key: request.key, leaseId: "residue", remaining: 0 },
+    expect(backend.allocateLeases).toHaveBeenNthCalledWith(2, expect.any(String), [request], [
+      { key: request.key, leaseId: "whole", remaining: 0 },
     ]);
+    expect(backend.allocateLeases).toHaveBeenLastCalledWith(expect.any(String), [request], []);
+    await adapter.close();
+    expect(backend.returnLeases).toHaveBeenCalledExactlyOnceWith([{ key: request.key, leaseId: "residue", remaining: Number.EPSILON }]);
   });
 
   it("coalesces concurrent replenishment for the same key", async () => {
@@ -287,13 +332,15 @@ describe("LeasedRateLimitAdapter", () => {
       ownerId: "worker-a",
     });
 
-    const results = await Promise.all([
+    const settled = vi.fn();
+    void Promise.all([
       adapter.reserve(request),
       adapter.reserve(request),
       adapter.reserve(request),
-    ]);
+    ]).then(settled, settled);
 
-    expect(results.every((result) => result.admitted)).toBe(true);
+    await setImmediate();
+    expect(settled).toHaveBeenCalledExactlyOnceWith(Array.from({ length: 3 }, () => expect.objectContaining({ admitted: true })));
     expect(authoritative.allocateLeases).toHaveBeenCalledTimes(1);
   });
 
@@ -324,9 +371,42 @@ describe("LeasedRateLimitAdapter", () => {
       await setImmediate();
       expect(backend.allocateLeases).toHaveBeenCalledTimes(3);
       expect(late).toHaveBeenCalledExactlyOnceWith({ admitted: true, remaining: 90, source: "leased" });
+      // A long-lived adapter must release settled promises and per-key locks.
+      expect(adapter).toHaveProperty("locks.size", 0);
+      expect(adapter).toHaveProperty("pendingReservations.size", 0);
     } finally {
       first.resolve(result);
       second.resolve(result);
+    }
+  });
+
+  it("waits for an overlapping reservation on the second key of a batch", async () => {
+    const backend = createAuthoritative();
+    const adapter = createAdapter(backend);
+    const second = { ...request, key: "test:second" };
+    const blocked = Promise.withResolvers<RateLimitLeaseBatchResult>();
+    vi.mocked(backend.allocateLeases).mockReturnValueOnce(blocked.promise);
+    const holder = vi.fn();
+    const batch = vi.fn();
+    const grant = { admitted: true, allocations: { [second.key]: { mode: "exact", remaining: 90 } } } as const;
+
+    try {
+      void adapter.reserve(second).then(holder, holder);
+      await setImmediate();
+      expect(backend.allocateLeases).toHaveBeenCalledOnce();
+
+      void adapter.reserveMany([request, second]).then(batch, batch);
+      await setImmediate();
+      // The batch must acquire every dimension before it can allocate or spend capacity.
+      expect(backend.allocateLeases).toHaveBeenCalledOnce();
+      expect(batch).not.toHaveBeenCalled();
+
+      blocked.resolve(grant);
+      await setImmediate();
+      expect(holder).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true }));
+      expect(batch).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ admitted: true }));
+    } finally {
+      blocked.resolve(grant);
     }
   });
 
@@ -464,15 +544,31 @@ describe("LeasedRateLimitAdapter", () => {
     const { coordination: _coordination, ...exact } = request;
     const second = { ...exact, key: "test:second" };
     const retryAt = new Date(2_000);
-    vi.mocked(backend.reserve).mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt });
+    vi.mocked(backend.reserve)
+      .mockResolvedValueOnce({ admitted: false, remaining: 0, retryAt })
+      .mockResolvedValueOnce({ admitted: false, remaining: 0.25, retryAt, source: "authoritative" });
 
     await expect(adapter.reserveMany([])).resolves.toEqual({ admitted: true, remaining: {}, source: "leased" });
     expect(() => adapter.reserveMany([request, second])).toThrow("cannot mix exact and leased");
     expect(() => adapter.reserveMany([exact, second])).toThrow("does not support atomic batch reservation");
     await expect(adapter.reserve(exact)).resolves.toStrictEqual({ admitted: false, remaining: 0, retryAt });
+    // Preserve the remaining capacity and explicitly supplied source from a single exact denial.
+    await expect(adapter.reserve(exact)).resolves.toStrictEqual({ admitted: false, remaining: 0.25, retryAt, source: "authoritative" });
     await expect(adapter.reserve(exact)).resolves.toStrictEqual({ admitted: true, remaining: 0, source: "authoritative" });
-    expect(vi.mocked(backend.reserve).mock.calls).toEqual([[exact], [exact]]);
+    expect(vi.mocked(backend.reserve).mock.calls).toEqual([[exact], [exact], [exact]]);
     expect(backend.allocateLeases).not.toHaveBeenCalled();
+  });
+
+  it("accepts one request that consumes its entire burst", async () => {
+    const backend = createAuthoritative();
+    const adapter = createAdapter(backend);
+    const entireBurst = { ...request, cost: request.burst };
+    vi.mocked(backend.allocateLeases).mockResolvedValueOnce({ admitted: true, allocations: {
+      [request.key]: { mode: "exact", remaining: 0 },
+    } });
+
+    // A request exactly at the burst limit can fall back to authoritative exact admission.
+    await expect(adapter.reserve(entireBurst)).resolves.toMatchObject({ admitted: true, remaining: 0 });
   });
 
   it("preserves backend-owned operations and pruning capability through the decorator", async () => {
@@ -613,6 +709,45 @@ describe("LeasedRateLimitAdapter", () => {
     expect(backend.allocateLeases).toHaveBeenCalledTimes(2);
   });
 
+  it("invalidates cached lease denials when actual-cost reconciliation returns capacity", async () => {
+    const retryAt = new Date(2_000);
+    const backend = { ...createAuthoritative(), reconcile: vi.fn(async () => ({ [request.key]: 1 })) };
+    vi.mocked(backend.allocateLeases)
+      .mockResolvedValueOnce({ admitted: false, remaining: { [request.key]: 0 }, retryAt })
+      .mockResolvedValueOnce({ admitted: true, allocations: { [request.key]: { mode: "exact", remaining: 0 } } });
+    const adapter = createAdapter(backend, { now: () => new Date(1_000), monotonicNow: () => 0, retryJitterRatio: 0 });
+    await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: false, retryAt });
+    await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: false, retryAt });
+    expect(backend.allocateLeases).toHaveBeenCalledOnce();
+
+    await adapter.reconcile([{ ...request, estimatedCost: 1, actualCost: 0 }]);
+    await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: true, remaining: 0 });
+    expect(backend.allocateLeases).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not cache a lease denial that arrives after a successful adjustment", async () => {
+    const pending = Promise.withResolvers<RateLimitLeaseBatchResult>();
+    const backend = { ...createAuthoritative(), reconcile: vi.fn(async () => ({ [request.key]: 1 })) };
+    vi.mocked(backend.allocateLeases)
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce({ admitted: true, allocations: { [request.key]: { mode: "exact", remaining: 0 } } });
+    const adapter = createAdapter(backend, { now: () => new Date(1_000), monotonicNow: () => 0, retryJitterRatio: 0 });
+    const first = adapter.reserve(request);
+    const denied = { admitted: false, remaining: { [request.key]: 0 }, retryAt: new Date(2_000) } as const;
+
+    try {
+      await setImmediate();
+      expect(backend.allocateLeases).toHaveBeenCalledOnce();
+      await adapter.reconcile([{ ...request, estimatedCost: 1, actualCost: 0 }]);
+      pending.resolve(denied);
+      await expect(first).resolves.toMatchObject({ admitted: false });
+      await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: true });
+      expect(backend.allocateLeases).toHaveBeenCalledTimes(2);
+    } finally {
+      pending.resolve(denied);
+    }
+  });
+
   it("does not evict a current denial to cache one expiring now", async () => {
     const backend = createAuthoritative();
     const adapter = createAdapter(backend, {
@@ -626,6 +761,23 @@ describe("LeasedRateLimitAdapter", () => {
     await adapter.reserve(request);
     await adapter.reserve(other);
     await expect(adapter.reserve(request)).resolves.toMatchObject({ admitted: false, retryAt: new Date(2_000) });
+    expect(backend.allocateLeases).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains all live denial entries while the configured cache has room", async () => {
+    const backend = createAuthoritative();
+    const adapter = createAdapter(backend, {
+      now: () => new Date(1_000), monotonicNow: () => 0, retryJitterRatio: 0, maxCachedDenials: 2,
+    });
+    const second = { ...request, key: "test:second" };
+    const denial = { admitted: false, remaining: {}, retryAt: new Date(2_000) } as const;
+    vi.mocked(backend.allocateLeases).mockResolvedValue(denial);
+
+    await adapter.reserve(request);
+    await adapter.reserve(second);
+    // Both cache slots are in use, but neither denial should have been displaced yet.
+    await adapter.reserve(request);
+    await adapter.reserve(second);
     expect(backend.allocateLeases).toHaveBeenCalledTimes(2);
   });
 

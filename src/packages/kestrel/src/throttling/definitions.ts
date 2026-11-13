@@ -234,12 +234,18 @@ export function localResourcePressure(
     throw new TypeError("Unsupported unavailable pressure behavior.");
   }
 
+  const signalIds = new Set<string>();
   const signals = Object.entries(options.signals).map(
     ([signalId, signal]) => {
       const normalizedSignalId = normalizeIdentifier(
         "Local resource pressure signal",
         signalId,
       );
+      // Both admission and its shared sample cache identify a signal by its normalized id.
+      if (signalIds.has(normalizedSignalId)) {
+        throw new TypeError(`Local resource pressure signal "${normalizedSignalId}" is duplicated.`);
+      }
+      signalIds.add(normalizedSignalId);
       validateNonNegativeFinite("degradedAt", signal.degradedAt);
       validatePositiveFinite("limitedAt", signal.limitedAt);
 

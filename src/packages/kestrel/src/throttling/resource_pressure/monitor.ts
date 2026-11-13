@@ -110,17 +110,24 @@ export class LocalResourcePressureMonitor {
     unavailable: ResourcePressureUnavailableBehavior,
   ): LocalResourcePressureEvaluation {
     if (this.closed) {
-      return this.unknownEvaluation(constraintKey, signals);
+      // Closing clears hysteresis; subsequent reads must not rebuild it.
+      return {
+        state: "unknown",
+        signals: signals.map(({ id }) => ({ signalId: id, state: "unknown" })),
+        refreshAt: new Date(this.getWallNowMs() + this.pressuredIntervalMs),
+      };
     }
 
     const nowMs = this.getMonotonicNowMs();
     const wallNowMs = this.getWallNowMs();
-    const evaluations = signals.map((signal) =>
-      this.evaluateSignal(constraintKey, signal, nowMs));
+    let refreshAtMs = nowMs + this.healthyIntervalMs;
+    const evaluations = signals.map((signal) => {
+      const cached = this.readSignal(signal.id, nowMs);
+      const evaluation = this.evaluateSignal(constraintKey, signal, cached, nowMs);
+      refreshAtMs = Math.min(refreshAtMs, cached.refreshAtMs);
+      return evaluation;
+    });
     const state = aggregateState(evaluations, unavailable);
-    const refreshAtMs = Math.min(...signals.map((signal) =>
-      this.cachedSignals.get(signal.id)?.refreshAtMs
-        ?? nowMs + this.pressuredIntervalMs));
 
     return {
       state,
@@ -151,10 +158,11 @@ export class LocalResourcePressureMonitor {
   private evaluateSignal(
     constraintKey: string,
     signal: LocalResourcePressureSignalDefinition,
+    cached: CachedSignal,
     nowMs: number,
   ): LocalResourcePressureSignalEvaluation {
-    const cached = this.readSignal(signal.id, nowMs);
-    const stateKey = `${constraintKey}:${signal.id}`;
+    // Independent keys can contain a separator when the monitor is used directly.
+    const stateKey = JSON.stringify([constraintKey, signal.id]);
     const previousState = this.states.get(stateKey);
     const state = cached.value === undefined
       ? "unknown"
@@ -218,30 +226,6 @@ export class LocalResourcePressureMonitor {
     return value >= nearThreshold
       ? this.nearThresholdIntervalMs
       : this.healthyIntervalMs;
-  }
-
-  private unknownEvaluation(
-    constraintKey: string,
-    signals: readonly LocalResourcePressureSignalDefinition[],
-  ): LocalResourcePressureEvaluation {
-    const nowMs = this.getMonotonicNowMs();
-    const wallNowMs = this.getWallNowMs();
-    return {
-      state: "unknown",
-      signals: signals.map((signal) => {
-        const stateKey = `${constraintKey}:${signal.id}`;
-        const previousState = this.states.get(stateKey);
-        this.states.set(stateKey, "unknown");
-        return {
-          signalId: signal.id,
-          state: "unknown",
-          ...(previousState === undefined || previousState === "unknown"
-            ? {}
-            : { previousState }),
-        };
-      }),
-      refreshAt: new Date(wallNowMs + this.pressuredIntervalMs),
-    };
   }
 
   private getWallNowMs(): number {

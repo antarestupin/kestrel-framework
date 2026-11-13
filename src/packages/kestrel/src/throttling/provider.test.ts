@@ -128,6 +128,26 @@ describe("ThrottlingProvider", () => {
     }
   });
 
+  it("rejects a maintenance invocation without its pruning capability", async () => {
+    const app = new App({}).register(new ThrottlingProvider({
+      ...throttlingConfig, pruneIntervalSeconds: 60,
+    }, testAdapter()));
+    const debug = vi.fn();
+    try {
+      const task = app.catalog.scheduledTasks.registrations[0]!.task;
+      const { throttling } = app.container.resolve(dep<ThrottlingResource>("throttlingResource"));
+      await expect(task.handler({ logger: { debug }, throttlingResource: { throttling } }, {
+        signal: new AbortController().signal,
+        scheduledAt: new Date(0),
+        trigger: "scheduled",
+        deferNextRun: () => undefined,
+      })).rejects.toThrow("The throttling adapter does not support pruning.");
+      expect(debug).not.toHaveBeenCalled();
+    } finally {
+      await app.dispose();
+    }
+  });
+
   it("prioritizes custom pressure readings and forwards observations only in an active execution", async () => {
     const observerContext = new AsyncLocalObserverContext();
     const record = vi.fn<Observer["record"]>();
