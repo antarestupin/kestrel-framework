@@ -220,11 +220,13 @@ export class MemoryAuthenticationAdapter<Claims = unknown>
       return false;
     }
 
+    // Store an owned timestamp for the same reason that reads return date copies.
+    const changedAt = new Date(input.changedAt);
     this.credentials.set(credential.id, {
       ...credential,
       passwordHash: input.passwordHash,
-      passwordChangedAt: input.changedAt,
-      updatedAt: input.changedAt,
+      passwordChangedAt: changedAt,
+      updatedAt: changedAt,
     });
     return true;
   }
@@ -237,8 +239,13 @@ export class MemoryAuthenticationAdapter<Claims = unknown>
     }
 
     const now = this.now();
+    const id = this.createId();
+    // A custom ID source can repeat a value. Reject before publishing either index.
+    if (this.accounts.has(id)) {
+      throw new Error("Account identifiers must be unique.");
+    }
     const account: AuthenticationAccount = {
-      id: this.createId(),
+      id,
       subjectId: input.subjectId,
       state: input.state ?? "active",
       securityVersion: 1,
@@ -263,9 +270,13 @@ export class MemoryAuthenticationAdapter<Claims = unknown>
     }
 
     const now = this.now();
+    const id = this.createId();
+    if (this.credentials.has(id)) {
+      throw new Error("Password credential identifiers must be unique.");
+    }
     const credential: PasswordCredential = {
-      id: this.createId(),
       ...input,
+      id,
       passwordChangedAt: now,
       createdAt: now,
       updatedAt: now,

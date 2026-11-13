@@ -213,16 +213,11 @@ export class AuthenticationManager<
   }
 
   private async parseClaims(value: unknown): Promise<Claims | undefined> {
-    const result = await (this.definition.sessionClaims.schema as ZodType<Claims>)
-      .safeParseAsync(value);
-
-    if (!result.success) {
-      return undefined;
-    }
-
     try {
-      this.assertClaimsSize(result.data);
-      return result.data;
+      // User-defined transforms may throw while decoding a previously persisted session.
+      const claims = await (this.definition.sessionClaims.schema as ZodType<Claims>).parseAsync(value);
+      this.assertClaimsSize(claims);
+      return claims;
     } catch {
       return undefined;
     }

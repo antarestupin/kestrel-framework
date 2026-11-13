@@ -22,6 +22,18 @@ it("rejects an ambiguous Origin header without invoking the next handler", async
   expect(next).not.toHaveBeenCalled();
 });
 
+it("rejects a malformed Origin with the authentication denial", async () => {
+  const handler = createAuthenticationHttpMiddleware(config).trustedOrigin.handler;
+  const next = vi.fn();
+  const context = {
+    request: { headers: { origin: "not a URL" }, protocol: "https", host: "app.example" },
+  } as unknown as Parameters<typeof handler>[0];
+
+  // An invalid URL must stay an authentication denial instead of escaping as a URL error.
+  await expect(async () => handler(context, next)).rejects.toBeInstanceOf(UntrustedAuthenticationOriginError);
+  expect(next).not.toHaveBeenCalled();
+});
+
 it.each([undefined, "session=%ZZ", "session=one; session=two"])(
   "resolves anonymously without querying the manager when the cookie header is %j",
   async (cookie) => {

@@ -35,6 +35,13 @@ function settleBufferedChunks<Value>(result: Promise<Value>): Promise<Value> {
   })]);
 }
 
+/** Assert cancellation after its microtasks without awaiting a potentially stalled operation. */
+function captureRejection(result: Promise<unknown>) {
+  const rejected = vi.fn();
+  void result.catch(rejected);
+  return rejected;
+}
+
 afterEach(() => vi.useRealTimers());
 
 describe("outbound HTTP budgets", () => {
@@ -81,27 +88,27 @@ describe("outbound HTTP budgets", () => {
   it.each([200, 500])("does not reset the deadline for trickling %s bodies", async (status) => {
     vi.useFakeTimers();
     const body = source(status);
-    const assertion = expect(client(body.response).get("/trickle", {
+    const rejected = captureRejection(client(body.response).get("/trickle", {
       timeoutMs: 10, response: text(),
-    })).rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+    }));
     await vi.advanceTimersByTimeAsync(4);
     body.send("a");
     await vi.advanceTimersByTimeAsync(4);
     body.send("b");
     await vi.advanceTimersByTimeAsync(2);
-    await assertion;
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
     expect(body.cancel).toHaveBeenCalledOnce();
   });
 
   it("bounds asynchronous schema validation after the body has completed", async () => {
     vi.useFakeTimers();
     const validation = Promise.withResolvers<boolean>();
-    const assertion = expect(client(Response.json({ value: 1 })).get("/validation", {
+    const rejected = captureRejection(client(Response.json({ value: 1 })).get("/validation", {
       timeoutMs: 5,
       response: json(z.object({ value: z.number() }).refine(() => validation.promise)),
-    })).rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+    }));
     await vi.advanceTimersByTimeAsync(5);
-    await assertion;
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
     validation.resolve(true);
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(0);
@@ -110,23 +117,28 @@ describe("outbound HTTP budgets", () => {
   it("forwards cancellation to custom decoders without requiring a timeout", async () => {
     const abort = new AbortController();
     const started = Promise.withResolvers<AbortSignal>();
+    const decoded = Promise.withResolvers<void>();
     const body = source();
-    const assertion = expect(client(body.response).get("/decode", {
+    const rejected = captureRejection(client(body.response).get("/decode", {
       signal: abort.signal,
       response: {
         description: "cooperative",
         decode: async (_response, { signal }) => {
           started.resolve(signal);
-          return new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
+          signal.addEventListener("abort", () => decoded.resolve(), { once: true });
+          return decoded.promise;
         },
       },
-    })).rejects.toBeInstanceOf(OutboundHttpAbortedError);
-    const decoderSignal = await started.promise;
-    abort.abort("execution ended");
-    await assertion;
-    expect(decoderSignal.aborted).toBe(true);
-    expect(body.cancel).toHaveBeenCalledOnce();
-    expect(body.stream.locked).toBe(false);
+    }));
+    try {
+      const decoderSignal = await settleBufferedChunks(started.promise);
+      abort.abort("execution ended");
+      await nextTurn();
+      expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpAbortedError));
+      expect(decoderSignal.aborted).toBe(true);
+      expect(body.cancel).toHaveBeenCalledOnce();
+      expect(body.stream.locked).toBe(false);
+    } finally { decoded.resolve(); }
   });
 
   it("rejects aborted preparation without contacting the transport", async () => {
@@ -142,10 +154,10 @@ describe("outbound HTTP budgets", () => {
     vi.useFakeTimers();
     const late = Promise.withResolvers<Response>();
     const body = source();
-    const assertion = expect(client(body.response, { fetch: () => late.promise })
-      .get("/late", { timeoutMs: 5, response: text() })).rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+    const rejected = captureRejection(client(body.response, { fetch: () => late.promise })
+      .get("/late", { timeoutMs: 5, response: text() }));
     await vi.advanceTimersByTimeAsync(5);
-    await assertion;
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
     late.resolve(body.response);
     await vi.advanceTimersByTimeAsync(0);
     expect(body.cancel).toHaveBeenCalledOnce();
@@ -171,9 +183,9 @@ describe("outbound HTTP budgets", () => {
     body.response.headers.set("content-length", "1");
     body.send("é");
     body.send("é");
-    await expect(client(body.response).get("/large", {
+    await expect(settleBufferedChunks(client(body.response).get("/large", {
       maxResponseBytes: 3, response: text(),
-    })).rejects.toMatchObject({ name: "OutboundHttpResponseTooLargeError", maxResponseBytes: 3 });
+    }))).rejects.toMatchObject({ name: "OutboundHttpResponseTooLargeError", maxResponseBytes: 3 });
     expect(body.cancel).toHaveBeenCalledOnce();
   });
 
@@ -182,9 +194,9 @@ describe("outbound HTTP budgets", () => {
     body.send("ab");
     body.send("cd");
     body.end();
-    await expect(client(body.response, { maxResponseBytes: 1 }).get("/exact", {
+    await expect(settleBufferedChunks(client(body.response, { maxResponseBytes: 1 }).get("/exact", {
       maxResponseBytes: 4, response: text(),
-    })).resolves.toBe("abcd");
+    }))).resolves.toBe("abcd");
     expect(body.stream.locked).toBe(false);
   });
 
@@ -255,9 +267,10 @@ describe("outbound HTTP budgets", () => {
     await vi.advanceTimersByTimeAsync(10);
     expect(body.cancel).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
-    const reading = expect(response.text()).rejects.toBeInstanceOf(OutboundHttpAbortedError);
+    const rejected = captureRejection(response.text());
     abort.abort();
-    await reading;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpAbortedError));
     expect(body.cancel).toHaveBeenCalledOnce();
   });
 
@@ -275,10 +288,9 @@ describe("outbound HTTP budgets", () => {
     const second = source();
     const fetch = vi.fn().mockResolvedValueOnce(first.response).mockResolvedValueOnce(second.response);
     const http = client(first.response, { fetch, middleware: [retryRequests({ initialDelayMs: 4, jitterRatio: 0 })] });
-    const assertion = expect(http.get("/retry", { timeoutMs: 5, response: text() }))
-      .rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+    const rejected = captureRejection(http.get("/retry", { timeoutMs: 5, response: text() }));
     await vi.advanceTimersByTimeAsync(5);
-    await assertion;
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(first.cancel).toHaveBeenCalledOnce();
     expect(second.cancel).toHaveBeenCalledOnce();
@@ -290,10 +302,9 @@ describe("outbound HTTP budgets", () => {
     const backoff = Promise.withResolvers<void>();
     const fetch = vi.fn(async () => new Response("busy", { status: 503 }));
     const http = client(new Response(null), { fetch, middleware: [retryRequests({ sleep: () => backoff.promise })] });
-    const assertion = expect(http.get("/retry", { timeoutMs: 5, response: text() }))
-      .rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+    const rejected = captureRejection(http.get("/retry", { timeoutMs: 5, response: text() }));
     await vi.advanceTimersByTimeAsync(5);
-    await assertion;
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
     backoff.resolve();
     await vi.advanceTimersByTimeAsync(0);
     expect(fetch).toHaveBeenCalledOnce();
@@ -309,11 +320,11 @@ describe("outbound HTTP budgets", () => {
       })],
       fetch: async (input) => { started.resolve((input as Request).signal); return body.response; },
     });
-    const assertion = expect(http.get("/body", { signal: abort.signal, response: text() }))
-      .rejects.toBeInstanceOf(OutboundHttpAbortedError);
-    const signal = await started.promise;
+    const rejected = captureRejection(http.get("/body", { signal: abort.signal, response: text() }));
+    const signal = await settleBufferedChunks(started.promise);
     abort.abort();
-    await assertion;
+    await nextTurn();
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpAbortedError));
     expect(signal.aborted).toBe(true);
     expect(body.cancel).toHaveBeenCalledOnce();
   });
@@ -335,10 +346,10 @@ describe("outbound HTTP budgets", () => {
     vi.useFakeTimers();
     const headers = Promise.withResolvers<HeadersInit>();
     const fetch = vi.fn();
-    const assertion = expect(client(new Response(null), { fetch, headers: () => headers.promise })
-      .get("/headers", { timeoutMs: 5 })).rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+    const rejected = captureRejection(client(new Response(null), { fetch, headers: () => headers.promise })
+      .get("/headers", { timeoutMs: 5 }));
     await vi.advanceTimersByTimeAsync(5);
-    await assertion;
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
     headers.resolve({});
     await vi.advanceTimersByTimeAsync(0);
     expect(fetch).not.toHaveBeenCalled();

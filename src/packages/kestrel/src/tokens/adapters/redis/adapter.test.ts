@@ -91,6 +91,23 @@ describe("RedisTokenStorageAdapter", () => {
     await expect(adapter.findValid(lookup(otherDefinition))).resolves.toBeDefined();
   });
 
+  for (const replacementFirst of [false, true]) {
+    it(`applies replacements before inserting a mixed batch (replacement first: ${replacementFirst})`, async ({ redis }) => {
+      const adapter = new RedisTokenStorageAdapter(redis.client, { keyPrefix: redis.keyPrefix });
+      const original = token("original");
+      const ordinary = token("ordinary");
+      const replacement = token("replacement", { replaceExistingForSubject: true });
+      await adapter.createMany([original]);
+
+      await adapter.createMany(replacementFirst ? [replacement, ordinary] : [ordinary, replacement]);
+
+      // A replacement invalidates existing state, independently of the order of new records.
+      await expect(adapter.findValid(lookup(original))).resolves.toBeUndefined();
+      await expect(adapter.findValid(lookup(ordinary))).resolves.toMatchObject({ id: ordinary.id });
+      await expect(adapter.findValid(lookup(replacement))).resolves.toMatchObject({ id: replacement.id });
+    });
+  }
+
   it("leaves exactly one active replacement under concurrent issuance", async ({ redis }) => {
     const adapter = new RedisTokenStorageAdapter(redis.client, { keyPrefix: redis.keyPrefix });
     const values = Array.from({ length: 10 }, (_, index) => token(String(index), { replaceExistingForSubject: true }));

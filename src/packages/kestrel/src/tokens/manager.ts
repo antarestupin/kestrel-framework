@@ -241,17 +241,14 @@ export class TokenManager {
 
       const subject = validateSubject(resolved);
 
-      if (
-        definition.replacement === "same-subject"
-        && subjects.has(subject)
-      ) {
+      // Only replacement batches require a unique subject per grant.
+      if (definition.replacement !== "same-subject") continue;
+      if (subjects.has(subject)) {
         throw new TypeError(
           `Token batch "${definition.name}" contains the same replacement subject more than once.`,
         );
       }
-      if (definition.replacement === "same-subject") {
-        subjects.add(subject);
-      }
+      subjects.add(subject);
     }
   }
 

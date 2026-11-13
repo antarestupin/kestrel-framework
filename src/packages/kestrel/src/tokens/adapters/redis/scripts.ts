@@ -36,35 +36,29 @@ local function valid(token)
     and not token.consumedAt and not token.revokedAt
 end
 if mode == 'create' then
-  local staged, indexes = {}, {}
+  local staged = {}
   -- Preflight the complete batch, including records affected by subject replacement.
   for _, token in ipairs(input) do
     if redis.call('HEXISTS', records, token.id) == 1 or redis.call('HEXISTS', digests, token.digest) == 1 then
       return redis.error_reply('Stored token IDs and digests must be unique')
     end
-    if token.subjectIndex then
-      local added = indexes[token.subjectIndex] or {}
-      indexes[token.subjectIndex] = added
-      if token.replaceExistingForSubject then
-        local ids = subjectIds(token.subjectIndex)
-        for _, id in ipairs(added) do table.insert(ids, id) end
-        for _, id in ipairs(ids) do
-          local existing = staged[id] or load(id)
-          if existing and existing.subjectIndex ~= token.subjectIndex then
-            return redis.error_reply('Invalid Redis token subject index')
-          end
-          if existing and not existing.consumedAt and not existing.revokedAt then
-            existing.revokedAt = token.createdAt
-            staged[id] = existing
-          end
+    -- Replacements affect existing records only, independent of the incoming order.
+    if token.replaceExistingForSubject then
+      for _, id in ipairs(subjectIds(token.subjectIndex)) do
+        local existing = load(id)
+        if existing and existing.subjectIndex ~= token.subjectIndex then
+          return redis.error_reply('Invalid Redis token subject index')
+        end
+        if existing and not existing.consumedAt and not existing.revokedAt then
+          existing.revokedAt = token.createdAt
+          staged[id] = existing
         end
       end
-      table.insert(added, token.id)
     end
-    staged[token.id] = token
   end
   for _, token in pairs(staged) do save(token) end
   for _, token in ipairs(input) do
+    save(token)
     redis.call('HSET', digests, token.digest, token.id)
     redis.call('ZADD', expires, token.expiresAt, token.id)
     if token.subjectIndex then redis.call('ZADD', subjects, 0, token.subjectIndex .. string.char(0) .. token.id) end

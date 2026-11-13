@@ -205,6 +205,21 @@ describe("PostgresTokenStorageAdapter", () => {
     ]);
   });
 
+  it.each([false, true])("applies replacements before inserting a mixed batch (replacement first: %s)", async (replacementFirst) => {
+    const original = createLifecycleToken(1);
+    const ordinary = createLifecycleToken(2);
+    const replacement = createLifecycleToken(3, { replaceExistingForSubject: true });
+    const lookup = (token: CreateStoredToken) => ({ definition: token.definition, digest: token.digest, now });
+    await store.createMany([original]);
+
+    await store.createMany(replacementFirst ? [replacement, ordinary] : [ordinary, replacement]);
+
+    // A replacement invalidates existing state, independently of the order of new records.
+    await expect(store.findValid(lookup(original))).resolves.toBeUndefined();
+    await expect(store.findValid(lookup(ordinary))).resolves.toMatchObject({ id: ordinary.id });
+    await expect(store.findValid(lookup(replacement))).resolves.toMatchObject({ id: replacement.id });
+  });
+
   it("revokes only the active bearer value for the requested definition", async () => {
     const previouslyInactive = new Date(now.getTime() - 1_000);
     const revokedAt = new Date(now.getTime() + 1_000);
@@ -328,6 +343,16 @@ describe("PostgresTokenStorageAdapter", () => {
     await expect(store.prune({ ...options, limit: Number.NaN })).rejects.toThrow("positive");
     await expect(store.prune({ ...options, limit: -1 })).rejects.toThrow("positive");
     await expect(store.prune({ ...options, limit: 2 })).resolves.toBe(2);
+  });
+
+  it("avoids a write when pruning finds no candidates", async () => {
+    await store.createMany([createLifecycleToken(1)]);
+
+    await manager.transaction(async () => {
+      await client.query("SET TRANSACTION READ ONLY");
+      // An empty candidate set must not issue even an empty DELETE statement.
+      await expect(store.prune({ expiredBefore: now, inactiveBefore: now, limit: 1 })).resolves.toBe(0);
+    });
   });
 });
 

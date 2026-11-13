@@ -141,6 +141,12 @@ function buildRequest(
     hasBody = true;
   }
 
+  // Fastify's doubled colons describe literal path text. Encoded bound values
+  // and the query string must keep their own bytes.
+  const queryStart = url.indexOf("?");
+  url = queryStart === -1 ? url.replaceAll("::", ":")
+    : url.slice(0, queryStart).replaceAll("::", ":") + url.slice(queryStart);
+
   // Interpolation can also create an authority-like URL from an empty first segment.
   assertHttpRoutePath(url);
   const queryString = query.toString();

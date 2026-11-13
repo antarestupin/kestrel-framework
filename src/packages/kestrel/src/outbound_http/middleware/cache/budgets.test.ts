@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { CachePool, TagAwareCachePool } from "../../../cache/cache_pool.js";
 import { MemoryCacheAdapter } from "../../../cache/adapters/memory/index.js";
 import type { CacheInstrumentation } from "../../../cache/observations.js";
@@ -62,6 +63,7 @@ describe("outbound response cache budgets", () => {
     // A tag-aware backend also accepts ordinary policies without tag metadata.
     await expect(client.get("/untagged", { response: text() })).resolves.toBe("payload");
     expect(remember).toHaveBeenLastCalledWith("outbound-http:partner:untagged", expect.any(Function), {});
+    expect(remember.mock.lastCall?.[2]).toStrictEqual({});
   });
 
   it("normalizes explicit fixed methods and honors a custom cache priority", async () => {
@@ -228,10 +230,10 @@ describe("outbound response cache budgets", () => {
     const cancel = vi.fn();
     const stream = new ReadableStream({ cancel });
     const { cache, http } = setup(async () => new Response(stream, { status }));
-    const assertion = expect(http.get("/slow", { timeoutMs: 5, response: text() }))
-      .rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+    const rejected = vi.fn();
+    void http.get("/slow", { timeoutMs: 5, response: text() }).catch(rejected);
     await vi.advanceTimersByTimeAsync(5);
-    await assertion;
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
     expect(cancel).toHaveBeenCalledOnce();
     expect(stream.locked).toBe(false);
     expect(await cache.get("outbound-http:cached:body")).toBeUndefined();
@@ -276,6 +278,39 @@ describe("outbound response cache budgets", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
+  it("does not retry an aborted waiter when its shared load returns a one-shot error", async () => {
+    const released = Promise.withResolvers<Response>();
+    const coalesced = vi.fn();
+    const { cache } = setup(vi.fn(), { record(event) {
+      if (event.type === "access" && event.data.result === "local-coalesced") coalesced();
+    } });
+    const middleware = cacheResponse({ cache, key: "body" });
+    const ownerNext = vi.fn(() => released.promise);
+    const waiterNext = vi.fn(async () => new Response(null));
+    const abort = new AbortController();
+    const reason = new Error("waiter stopped");
+    const metadata = { client: "cached", operation: "read", route: "/body", attempt: 1, maxResponseBytes: 8 };
+    const first = middleware.handler({ ...metadata, request: new Request("https://api.example/body") }, ownerNext);
+    const second = middleware.handler({
+      ...metadata, request: new Request("https://api.example/body", { signal: abort.signal }),
+    }, waiterNext);
+    const waiter = expect(second).rejects.toBe(reason);
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(ownerNext).toHaveBeenCalledOnce();
+      expect(coalesced).toHaveBeenCalledOnce();
+      abort.abort(reason);
+      released.resolve(new Response(null, { status: 503 }));
+      await expect(first).resolves.toMatchObject({ status: 503 });
+      await waiter;
+      expect(waiterNext).not.toHaveBeenCalled();
+    } finally {
+      abort.abort(reason);
+      released.resolve(new Response(null, { status: 503 }));
+      await Promise.allSettled([first, waiter]);
+    }
+  });
+
   it.each(["cancellation", "replacement cancellation", "response limit"] as const)(
     "isolates the load owner's %s from an active cache waiter",
     async (failure) => {
@@ -304,8 +339,8 @@ describe("outbound response cache budgets", () => {
         });
       } else fetch.mockImplementationOnce(() => released.promise);
       const first = http.get("/body", { response: text(), maxResponseBytes: 3, ...ownerBoundary });
-      const firstCheck = expect(first).rejects.toBeInstanceOf(failure === "response limit"
-        ? OutboundHttpResponseTooLargeError : OutboundHttpAbortedError);
+      const firstRejection = vi.fn();
+      void first.catch(firstRejection);
       let peer: Promise<string> | undefined;
       try {
         await new Promise<void>((resolve) => setImmediate(resolve));
@@ -317,14 +352,18 @@ describe("outbound response cache budgets", () => {
         expect(coalesced).toHaveBeenCalledOnce();
         if (failure === "response limit") released.resolve(new Response("oversized owner body"));
         else owner.abort();
-        await firstCheck;
-        await expect(peer).resolves.toBe("peer body");
+        // The injected fetch and cache settle within this turn when the correct signal is forwarded.
+        await nextTurn();
+        expect(firstRejection).toHaveBeenCalledExactlyOnceWith(expect.any(failure === "response limit"
+          ? OutboundHttpResponseTooLargeError : OutboundHttpAbortedError));
+        await expect(Promise.race([peer, nextTurn().then(() => { throw new Error("The cache waiter did not settle."); })]))
+          .resolves.toBe("peer body");
         expect(fetch).toHaveBeenCalledTimes(2);
         expect(await cache.get("outbound-http:cached:body")).toBeUndefined();
       } finally {
         owner.abort();
         released.resolve(new Response(null, { status: 204 }));
-        await Promise.allSettled([firstCheck, peer]);
+        await nextTurn();
       }
     },
   );
@@ -373,15 +412,16 @@ describe("outbound response cache budgets", () => {
     const original = adapter.get.bind(adapter);
     const spy = vi.spyOn(adapter, "get").mockImplementationOnce(() => read.promise);
     try {
-      const assertion = expect(http.get("/body", { timeoutMs: 5, response: text() }))
-        .rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+      const rejected = vi.fn();
+      void http.get("/body", { timeoutMs: 5, response: text() }).catch(rejected);
       await vi.advanceTimersByTimeAsync(5);
-      await assertion;
+      expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
       read.resolve(undefined);
       await vi.advanceTimersByTimeAsync(0);
       expect(fetch).not.toHaveBeenCalled();
       expect(await original("test:outbound-http:cached:body")).toBeUndefined();
     } finally {
+      read.resolve(undefined);
       spy.mockRestore();
     }
   });
@@ -392,15 +432,16 @@ describe("outbound response cache budgets", () => {
     const write = Promise.withResolvers<void>();
     const spy = vi.spyOn(adapter, "set").mockImplementationOnce(() => write.promise);
     try {
-      const assertion = expect(http.get("/body", { timeoutMs: 5, response: text() }))
-        .rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+      const rejected = vi.fn();
+      void http.get("/body", { timeoutMs: 5, response: text() }).catch(rejected);
       await vi.advanceTimersByTimeAsync(5);
-      await assertion;
+      expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
       expect(spy).toHaveBeenCalledOnce();
       write.resolve();
       await vi.advanceTimersByTimeAsync(0);
       expect(vi.getTimerCount()).toBe(0);
     } finally {
+      write.resolve();
       spy.mockRestore();
     }
   });

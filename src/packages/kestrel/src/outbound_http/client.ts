@@ -97,8 +97,10 @@ export class OutboundHttpClient {
     const operation = normalizeOperation(
       configuredOperation ?? `${this.name}.${method}.${route}`,
     );
-    const baseSignal = requestInit.signal
-      ?? (input instanceof Request ? input.signal : undefined);
+    // Native RequestInit inherits an omitted signal and detaches on explicit null.
+    const baseSignal = requestInit.signal !== undefined
+      ? requestInit.signal
+      : input instanceof Request ? input.signal : undefined;
     const deadline = new OutboundHttpDeadline(operation, timeoutMs, baseSignal);
     const bodies = new OutboundHttpBodies(
       operation, deadline, maxResponseBytes, structured ? maxErrorBodyBytes : undefined,
@@ -579,8 +581,9 @@ async function readErrorBody(response: Response, bodies: OutboundHttpBodies): Pr
   const truncated = bodies.truncated(response);
   if (truncated) return { truncated: true, text };
   // Media type matching is case insensitive and excludes parameters and partial matches.
-  const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-  if (text !== "" && (mediaType === "application/json" || mediaType?.endsWith("+json") === true)) {
+  const contentType = response.headers.get("content-type");
+  const mediaType = contentType === null ? undefined : contentType.split(";", 1)[0]!.trim().toLowerCase();
+  if (mediaType === "application/json" || mediaType?.endsWith("+json") === true) {
     try {
       return JSON.parse(text) as unknown;
     } catch {

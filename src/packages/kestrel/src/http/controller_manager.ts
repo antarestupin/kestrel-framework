@@ -24,6 +24,7 @@ import type {
   DependencyDeclarations,
 } from "../di/index.js";
 import {
+  DefaultErrorHandler,
   getHttpErrorName,
   type HttpErrorRepresentation,
 } from "../errors/index.js";
@@ -32,6 +33,7 @@ import {
   type Observer,
 } from "../observability/index.js";
 import { setExecutionLogEnabledDependency } from "../log/index.js";
+import { uuidV7 } from "../utils/uuid.js";
 import {
   extractHttpPathParameters,
   type HttpInputBinding,
@@ -49,6 +51,7 @@ import {
 } from "./access.js";
 
 const executionIdSchema = z.uuid();
+const scopeFailureHandler = new DefaultErrorHandler({ debug: false });
 
 interface HttpErrorBody {
   statusCode: number;
@@ -150,18 +153,20 @@ export class HttpControllerManager<Config> {
     const parsedExecutionId = executionIdSchema.safeParse(
       requestedExecutionId,
     );
-    // A caller can establish correlation before receiving the response. Invalid
-    // or absent values fall back to the application's collision-safe UUID.
-    const execution = await this.app.createExecutionScope(
-      parsedExecutionId.success ? parsedExecutionId.data : undefined,
-    );
+    // Allocate correlation before scope initialization so failures can use it too.
+    const executionId = parsedExecutionId.success ? parsedExecutionId.data : uuidV7();
+    if (this.options.executionIdHeader !== undefined) {
+      reply.header(this.options.executionIdHeader, executionId);
+    }
+    let execution;
+    try {
+      execution = await this.app.createExecutionScope(executionId);
+    } catch {
+      // The scoped policy is unavailable. Keep initialization failures opaque.
+      return this.sendHandledError(reply, scopeFailureHandler.handleHttp(undefined, { executionId }));
+    }
 
     try {
-      // Correlation is available even if optional per-request setup fails.
-      if (this.options.executionIdHeader !== undefined) {
-        reply.header(this.options.executionIdHeader, execution.id);
-      }
-
       if (
         this.options.executionLog !== undefined
         && execution.container.hasRegistration(

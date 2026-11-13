@@ -147,6 +147,22 @@ describe("DefaultErrorHandler", () => {
     expect(handler.report).not.toHaveBeenCalled();
   });
 
+  it("reports the original error when its representation method throws", () => {
+    const handler = new ReportingErrorHandler({ debug: false });
+    const brokenRepresentation = () => { throw new Error("Private representation failure"); };
+    const original = Object.assign(new Error("Original failure"), {
+      toHttpError: brokenRepresentation, toCliError: brokenRepresentation,
+    });
+
+    expect(handler.handleHttp(original, context)).toMatchObject({
+      statusCode: 500, message: "An unexpected error occurred.", extensions: { executionId: context.executionId },
+    });
+    expect(handler.handleCli(original, context)).toEqual({
+      exitCode: 1, message: "An unexpected error occurred. Execution: execution-123",
+    });
+    expect(handler.report.mock.calls).toEqual([[original, "http", context], [original, "cli", context]]);
+  });
+
   it("includes the stack and cause chain in HTTP debug responses", () => {
     const handler = new DefaultErrorHandler({ debug: true });
     const cause = new TypeError("Database unavailable");

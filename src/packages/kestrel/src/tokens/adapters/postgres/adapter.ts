@@ -187,6 +187,7 @@ function groupReplacementsByTime(
 }
 
 function tokenSelection(table: PostgresTokenTable) {
+  // Both callers filter for unrevoked rows before projecting the result.
   return {
     id: table.id,
     definition: table.definition,
@@ -195,7 +196,6 @@ function tokenSelection(table: PostgresTokenTable) {
     payload: table.payload,
     expiresAt: table.expiresAt,
     consumedAt: table.consumedAt,
-    revokedAt: table.revokedAt,
     createdAt: table.createdAt,
   };
 }
@@ -221,7 +221,6 @@ interface SelectedToken {
   payload: unknown;
   expiresAt: Date;
   consumedAt: Date | null;
-  revokedAt: Date | null;
   createdAt: Date;
 }
 
@@ -234,7 +233,6 @@ function mapToken(token: SelectedToken): StoredToken {
     payload: token.payload,
     expiresAt: token.expiresAt,
     ...(token.consumedAt === null ? {} : { consumedAt: token.consumedAt }),
-    ...(token.revokedAt === null ? {} : { revokedAt: token.revokedAt }),
     createdAt: token.createdAt,
   };
 }

@@ -34,7 +34,8 @@ export class MemoryTokenStorageAdapter implements TokenStorageAdapter {
         throw new TypeError("Replacement tokens require a subject.");
       }
       if (token.replaceExistingForSubject) {
-        const replacement = `${token.definition}\0${token.subject}`;
+        // Opaque definition and subject strings must keep their separate identities.
+        const replacement = JSON.stringify([token.definition, token.subject]);
 
         if (replacements.has(replacement)) {
           throw new TypeError(
@@ -50,25 +51,24 @@ export class MemoryTokenStorageAdapter implements TokenStorageAdapter {
 
     // Clone every proposed token before changing state. A later payload may fail cloning.
     const prepared = tokens.map((token) => cloneToken(token));
+    // Revoke existing tokens before publishing any record in the incoming batch.
     for (const token of prepared) {
-      if (token.replaceExistingForSubject) {
-        for (const [id, existing] of this.tokens) {
-          if (
-            existing.definition === token.definition
-            && existing.subject === token.subject
-            && existing.consumedAt === undefined
-            && existing.revokedAt === undefined
-          ) {
-            this.tokens.set(id, cloneToken({
-              ...existing,
-              revokedAt: token.createdAt,
-            }));
-          }
+      if (!token.replaceExistingForSubject) continue;
+      for (const [id, existing] of this.tokens) {
+        if (
+          existing.definition === token.definition
+          && existing.subject === token.subject
+          && existing.consumedAt === undefined
+          && existing.revokedAt === undefined
+        ) {
+          this.tokens.set(id, cloneToken({
+            ...existing,
+            revokedAt: token.createdAt,
+          }));
         }
       }
-
-      this.tokens.set(token.id, token);
     }
+    for (const token of prepared) this.tokens.set(token.id, token);
   }
 
   public async findValid(

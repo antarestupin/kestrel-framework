@@ -54,12 +54,24 @@ function createTestHttp(
   manager: HttpControllerManager<Record<string, never>>;
   server: FastifyInstance;
 } {
-  const server = Fastify();
+  // Bound a broken route's response independently from the test runner deadline.
+  const server = Fastify({ handlerTimeout: 250 });
   const app = new App({});
 
   apps.add(app);
   servers.add(server);
   server.addHook("onReady", async () => app.start());
+  const scopes = new Set<Awaited<ReturnType<typeof app.createExecutionScope>>>();
+  const createExecutionScope = app.createExecutionScope.bind(app);
+  vi.spyOn(app, "createExecutionScope").mockImplementation(async (id) => {
+    const scope = await createExecutionScope(id);
+    scopes.add(scope);
+    void scope.whenDisposed.then(() => { scopes.delete(scope); });
+    return scope;
+  });
+  server.addHook("onClose", async () => {
+    await Promise.all([...scopes].map((scope) => scope.dispose()));
+  });
 
   return {
     app,
@@ -69,6 +81,40 @@ function createTestHttp(
 }
 
 describe("HttpControllerManager", () => {
+  it("returns an opaque correlated response when creating the execution scope fails", async () => {
+    const { app, manager, server } = createTestHttp({ executionIdHeader: "x-execution-id" });
+    const id = "00000000-0000-4000-8000-000000000042";
+    const privateFailure = new Error("secret scope factory connection details");
+    const handler = vi.fn(() => "unreachable");
+    vi.mocked(app.createExecutionScope).mockRejectedValueOnce(privateFailure).mockRejectedValueOnce(privateFailure);
+    manager.register(defineHttpController({ route: get("/scope-failure"), handler }));
+
+    for (const requestId of [id, "malformed-execution-id"]) {
+      const response = await server.inject({ url: "/scope-failure", headers: { "x-execution-id": requestId } });
+      const correlation = response.headers["x-execution-id"];
+      expect(correlation).toEqual(requestId === id ? id : expect.stringMatching(/^[a-f0-9-]{36}$/u));
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toEqual({
+        statusCode: 500, error: "Internal Server Error", message: "An unexpected error occurred.", executionId: correlation,
+      });
+    }
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("binds GET input from the query when the route contains an escaped colon", async () => {
+    const { manager, server } = createTestHttp();
+    manager.register(defineHttpController({
+      route: get("/jobs::status"),
+      input: z.object({ status: z.string() }),
+      handler: ({ input }) => input.status,
+    }));
+
+    // Fastify's doubled colon introduces literal route text, not a parameter.
+    const response = await server.inject("/jobs:status?status=active");
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toBe("active");
+  });
+
   it("reads only wire properties present in the request and uses defaults for missing values", async () => {
     const { manager, server } = createTestHttp();
     manager.register(defineHttpController({
@@ -387,9 +433,10 @@ describe("HttpControllerManager", () => {
     manager.register(defineHttpController({ route: get("/observer-failure"), handler }));
 
     // Capture the scope so a mutant that skips disposal cannot hang application teardown.
-    const createExecutionScope = app.createExecutionScope.bind(app);
     let scope: Awaited<ReturnType<typeof createExecutionScope>> | undefined;
-    const capture = vi.spyOn(app, "createExecutionScope").mockImplementation(async (id) => {
+    const capture = vi.mocked(app.createExecutionScope);
+    const createExecutionScope = capture.getMockImplementation()!;
+    capture.mockImplementationOnce(async (id) => {
       scope = await createExecutionScope(id);
       return scope;
     });

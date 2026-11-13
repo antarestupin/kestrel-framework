@@ -260,7 +260,7 @@ const authentication = defineAuthentication({
 });
 ```
 
-Claims must be JSON-compatible, schema-validated before storage, schema-validated after loading, and bounded by a configurable encoded size. Invalid persisted claims fail closed and invalidate the session. Claims must not contain passwords, session tokens, authenticator secrets, external provider tokens, or unnecessary personal data.
+Claims must be JSON-compatible, schema-validated before storage, schema-validated after loading, and bounded by a configurable encoded size. Invalid persisted claims and claims transforms that throw during resolution leave the request anonymous and skip session renewal. Claims must not contain passwords, session tokens, authenticator secrets, external provider tokens, or unnecessary personal data.
 
 Claims are snapshots, not automatically authoritative application state. For the first increment, an application changing a security-relevant claim such as a role must revoke the subject's sessions or increment the account security version in the same workflow. A future claims-version resolver may allow selective refresh without invalidating complete sessions, but it must define consistency, failure, and storage-cost semantics before being introduced.
 
@@ -334,7 +334,7 @@ A custom composition supplies an adapter factory or registered dependencies impl
 
 ## Memory adapter
 
-The memory adapter supports Kestrel unit tests and explicitly process-local applications. It implements the same atomic semantics as far as one JavaScript process permits, including conditional rotation, security-version checks, expiration, and idempotent revocation.
+The memory adapter supports Kestrel unit tests and explicitly process-local applications. It implements the same atomic semantics as far as one JavaScript process permits, including conditional rotation, security-version checks, expiration, and idempotent revocation. An account or credential ID collision from a custom generator rejects before changing the records or their indexes. Password replacement stores a snapshot of its audit timestamp.
 
 It must not be presented as a distributed production session store. Restarting the process loses accounts, credentials, and sessions, and multiple processes do not share state.
 
@@ -500,7 +500,7 @@ Username/password authentication composes with the existing throttling library t
 
 A single combined `IP + username` key is insufficient because each new pair creates another bucket. Both independent constraints must admit the request. Additional global, network, device, or risk constraints may be introduced later.
 
-Normalized usernames are transformed with a keyed digest before they enter throttling keys, logs, or observations. This prevents operational stores from becoming username directories. IP addresses are treated as personal and potentially spoofable metadata, retained only according to application policy. IP restrictions are controls and risk signals, not hard session binding, because legitimate client addresses change and many users share addresses.
+Normalized usernames are transformed with a keyed digest before they enter throttling keys, logs, or observations. This prevents operational stores from becoming username directories. Each guard snapshots its binary secret so clearing the caller's input buffer preserves the same rate-limit partition. IP addresses are treated as personal and potentially spoofable metadata, retained only according to application policy. IP restrictions are controls and risk signals, not hard session binding, because legitimate client addresses change and many users share addresses.
 
 Successful authentication resets or relaxes account-attempt state only through an explicit throttling policy. Storage failures follow the configured fail-closed security policy. Responses do not identify the constraint that rejected an attempt or expose precise remaining quotas useful for scheduling attacks.
 

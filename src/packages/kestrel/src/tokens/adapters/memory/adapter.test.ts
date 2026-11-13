@@ -192,6 +192,41 @@ describe("MemoryTokenStorageAdapter", () => {
     await expect(store.prune({ ...options, inactiveBefore: consumedAt })).resolves.toBe(1);
   });
 
+  it.each([false, true])("applies replacements before inserting a mixed batch (replacement first: %s)", async (replacementFirst) => {
+    const store = new MemoryTokenStorageAdapter();
+    const subject = "account-1";
+    const original = createToken("original", 1, { subject });
+    const ordinary = createToken("ordinary", 2, { subject });
+    const replacement = createToken("replacement", 3, { subject, replaceExistingForSubject: true });
+    const lookup = (token: CreateStoredToken) => ({ definition: token.definition, digest: token.digest, now });
+    await store.createMany([original]);
+
+    await store.createMany(replacementFirst ? [replacement, ordinary] : [ordinary, replacement]);
+
+    // A replacement invalidates existing state, independently of the order of new records.
+    await expect(store.findValid(lookup(original))).resolves.toBeUndefined();
+    await expect(store.findValid(lookup(ordinary))).resolves.toMatchObject({ id: ordinary.id });
+    await expect(store.findValid(lookup(replacement))).resolves.toMatchObject({ id: replacement.id });
+  });
+
+  it("keeps distinct definition and subject coordinates in a replacement batch", async () => {
+    const store = new MemoryTokenStorageAdapter();
+    const first = createToken("first", 1, {
+      definition: "token", subject: "kind\0user", replaceExistingForSubject: true,
+    });
+    const second = createToken("second", 2, {
+      definition: "token\0kind", subject: "user", replaceExistingForSubject: true,
+    });
+
+    // The storage contract accepts opaque strings for both coordinates.
+    await store.createMany([first, second]);
+
+    for (const token of [first, second]) {
+      await expect(store.findValid({ definition: token.definition, digest: token.digest, now }))
+        .resolves.toMatchObject({ id: token.id });
+    }
+  });
+
   it("prunes only a bounded eligible batch", async () => {
     const store = new MemoryTokenStorageAdapter();
     await store.createMany([

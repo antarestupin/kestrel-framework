@@ -215,6 +215,8 @@ describe("HTTP maintenance admission", () => {
       ["TEXT/HTML ; charset=utf-8 ; q=0.125 , application/json;q=0.124", "text/html"],
       ["text/html ; q=0.2 , application/json;q=0.9", "application/json"],
       ["text/html;q=1.000, application/json;q=0.999", "text/html"],
+      ["text/html;q=1., application/json;q=0.999", "text/html"],
+      ["text/html;q=0., application/json;q=0.1", "application/json"],
       ["text/html;q=0, */*;q=0", "application/json"],
       ["text/html;q=0.5, */*;q=0.9", "application/json"],
       ["text/html;q=0.5, application/*;q=0, */*;q=0.9", "text/html"],
@@ -267,6 +269,8 @@ describe("HTTP maintenance admission", () => {
 
     expect(response.statusCode).toBe(503);
     expect(response.body).toBe("");
+    expect(response.headers["content-type"]).toBe(url.startsWith("/api/")
+      ? "application/json; charset=utf-8" : "text/html; charset=utf-8");
     expect(response.headers["retry-after"]).toBe("0");
     expect(response.headers["cache-control"]).toBe("no-store");
   });

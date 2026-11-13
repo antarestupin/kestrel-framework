@@ -1,3 +1,5 @@
+import { addAbortListener } from "node:events";
+
 import { OutboundHttpDeadline } from "./deadline.js";
 import { OutboundHttpResponseTooLargeError } from "./errors.js";
 
@@ -38,23 +40,21 @@ export class OutboundHttpBodies {
       ? Math.min(this.maximumBytes, this.maximumErrorBytes!)
       : this.maximumBytes;
     let size = 0;
-    let finished = false;
     let target: Response;
     let controller: ReadableStreamDefaultController<Uint8Array>;
+    let abortSubscription: Disposable | undefined;
     const release = () => {
-      this.deadline.signal.removeEventListener("abort", abort);
-      this.active.delete(target);
+      abortSubscription?.[Symbol.dispose]();
       reader.releaseLock();
     };
     const cancel = (reason?: unknown) => {
-      if (finished) return;
-      finished = true;
+      if (!this.active.delete(target)) return;
       // Cancellation requests disposal, but a non-cooperative source cannot delay rejection.
       void reader.cancel(reason).catch(() => {});
       release();
     };
     const fail = (reason: unknown) => {
-      if (finished) return;
+      if (!this.active.has(target)) return;
       if (reason instanceof OutboundHttpResponseTooLargeError) this.violation ??= reason;
       controller.error(reason);
       cancel(reason);
@@ -65,9 +65,9 @@ export class OutboundHttpBodies {
       pull: async () => {
         try {
           const result = await reader.read();
-          if (finished) return;
+          if (!this.active.has(target)) return;
           if (result.done) {
-            finished = true;
+            this.active.delete(target);
             controller.close();
             release();
             return;
@@ -104,9 +104,10 @@ export class OutboundHttpBodies {
     this.states.set(target, state);
     this.streams.set(stream, state);
     this.active.set(target, fail);
-    this.deadline.signal.addEventListener("abort", abort, { once: true });
     if (this.deadline.signal.aborted) abort();
     else if (this.closed) fail(new Error("The outbound HTTP operation has completed."));
+    // Cleanup must run even when another consumer stops abort event propagation.
+    else abortSubscription = addAbortListener(this.deadline.signal, abort);
     return target;
   }
 

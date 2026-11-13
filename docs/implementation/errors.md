@@ -41,7 +41,7 @@ For application setup and task-oriented examples, see the [Errors usage guide](.
 
 Representation detection is structural and transport-neutral. The default handler prefers an explicit representation, otherwise reports the unexpected failure and creates an opaque response correlated with the current execution. Debug mode enriches unexpected responses but does not alter explicitly representable errors. The handler executes before scope disposal, so custom reporting can still resolve scoped diagnostics and services.
 
-The default handler reads the representation method once and calls it with the original thrown value as receiver. If reading the property throws, the handler reports the original thrown value as unexpected.
+The default handler reads the representation method once and calls it with the original thrown value as receiver. If reading or calling the method throws, the handler reports the original thrown value as unexpected.
 
 ## Execution scenarios
 

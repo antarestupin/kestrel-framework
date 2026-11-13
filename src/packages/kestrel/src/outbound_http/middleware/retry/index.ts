@@ -1,3 +1,4 @@
+import { abortableDelay } from "../../../scheduling/index.js";
 import {
   OutboundHttpAbortedError,
   OutboundHttpTimeoutError,
@@ -106,38 +107,10 @@ function jitteredDelay(
   return Math.min(maxDelayMs, Math.max(0, base * factor));
 }
 
-function sleepWithSignal(delayMs: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.reject(getAbortReason(signal));
-
-  return new Promise((resolve, reject) => {
-    const finish = () => {
-      signal.removeEventListener("abort", abort);
-      clearTimeout(timeout);
-      resolve();
-    };
-    const abort = () => {
-      signal.removeEventListener("abort", abort);
-      clearTimeout(timeout);
-      reject(getAbortReason(signal));
-    };
-    // Native timers clamp larger delays to one millisecond. Keep one logical
-    // monotonic deadline while rearming bounded intervals under the same signal.
-    const expiresAt = performance.now() + delayMs;
-    let timeout: ReturnType<typeof setTimeout>;
-    const wake = () => {
-      const remaining = expiresAt - performance.now();
-      if (remaining > 0) {
-        timeout = setTimeout(wake, Math.min(remaining, 2_147_483_647));
-        timeout.unref();
-      } else {
-        finish();
-      }
-    };
-    // Preserve an asynchronous timer turn even for an explicitly zero delay.
-    timeout = setTimeout(wake, Math.min(delayMs, 2_147_483_647));
-    timeout.unref();
-    signal.addEventListener("abort", abort, { once: true });
-  });
+async function sleepWithSignal(delayMs: number, signal: AbortSignal): Promise<void> {
+  // Share abort-safe cleanup and round up to avoid an early fractional timer.
+  await abortableDelay(Math.ceil(delayMs), signal);
+  if (signal.aborted) throw getAbortReason(signal);
 }
 
 function getAbortReason(signal: AbortSignal): unknown {

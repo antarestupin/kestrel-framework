@@ -1,23 +1,12 @@
 import { getTableColumns, SQL } from "drizzle-orm";
 import { getTableConfig, PgDialect, type AnyPgTable } from "drizzle-orm/pg-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { getFrameworkDatabaseTableKeys } from "../../../db/framework_table.js";
-import { getDatabaseSchemaContributions } from "../../../db/schema_contributions/definition.js";
-import {
-  authenticationAccounts,
-  authenticationPasswordCredentials,
-  authenticationSessions,
-  authenticationSqlSchema,
-  authenticationTables,
-} from "./schema.js";
-
-const productionSchema = {
-  authenticationSqlSchema,
-  authenticationAccounts,
-  authenticationPasswordCredentials,
-  authenticationSessions,
-};
+/** Load declarations inside the test so static import failures have a test outcome. */
+async function loadSchema() {
+  vi.resetModules();
+  return import("./schema.js");
+}
 
 /** Lock the SQL surface used by migrations and application-owned maintenance queries. */
 function columnContracts(table: AnyPgTable) {
@@ -29,7 +18,9 @@ function columnContracts(table: AnyPgTable) {
 const timestamp = (name: string, notNull = true) => [name, "timestamp with time zone", notNull];
 
 describe("bundled PostgreSQL authentication schema", () => {
-  it("preserves the published table and column mappings", () => {
+  it("preserves the published table and column mappings", async () => {
+    const { authenticationAccounts, authenticationPasswordCredentials, authenticationSessions,
+      authenticationSqlSchema, authenticationTables } = await loadSchema();
     expect(authenticationTables).toEqual({
       accounts: authenticationAccounts,
       passwordCredentials: authenticationPasswordCredentials,
@@ -66,7 +57,8 @@ describe("bundled PostgreSQL authentication schema", () => {
     });
   });
 
-  it("declares identity constraints, retention indexes and account-owned children", () => {
+  it("declares identity constraints, retention indexes and account-owned children", async () => {
+    const { authenticationAccounts, authenticationPasswordCredentials, authenticationSessions } = await loadSchema();
     const dialect = new PgDialect();
     const indexes = (table: AnyPgTable) => getTableConfig(table).indexes.map(({ config }) => [
       config.name, config.unique, config.columns.map((column) => "name" in column ? column.name : undefined),
@@ -106,7 +98,8 @@ describe("bundled PostgreSQL authentication schema", () => {
     }
   });
 
-  it("declares database-generated identifiers, initial account state and record timestamps", () => {
+  it("declares database-generated identifiers, initial account state and record timestamps", async () => {
+    const { authenticationAccounts, authenticationPasswordCredentials, authenticationSessions } = await loadSchema();
     const dialect = new PgDialect();
     for (const table of [authenticationAccounts, authenticationPasswordCredentials, authenticationSessions]) {
       expect(table.id.primary).toBe(true);
@@ -128,7 +121,12 @@ describe("bundled PostgreSQL authentication schema", () => {
     }
   });
 
-  it("marks framework-owned tables and supplies migration descriptions for their columns", () => {
+  it("marks framework-owned tables and supplies migration descriptions for their columns", async () => {
+    const { authenticationAccounts, authenticationPasswordCredentials, authenticationSessions, authenticationSqlSchema } = await loadSchema();
+    // The declarations and these WeakMap-backed metadata readers must use the same module instances.
+    const { getFrameworkDatabaseTableKeys } = await import("../../../db/framework_table.js");
+    const { getDatabaseSchemaContributions } = await import("../../../db/schema_contributions/definition.js");
+    const productionSchema = { authenticationAccounts, authenticationPasswordCredentials, authenticationSessions, authenticationSqlSchema };
     expect(getFrameworkDatabaseTableKeys(productionSchema)).toEqual(new Set([
       '["authentication","account"]', '["authentication","password_credentials"]',
       '["authentication","session"]',

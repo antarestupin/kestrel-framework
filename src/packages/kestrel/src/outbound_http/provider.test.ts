@@ -54,15 +54,18 @@ describe("OutboundHttpProvider", () => {
     );
     const factory = app.container.resolve(outboundHttpClientFactoryDependency);
     expect(app.container.resolve(outboundHttpClientFactoryDependency)).toBe(factory);
+    const monotonicNow = vi.fn(() => 10);
     const client = factory.create({
       name: "partner",
       baseUrl: "https://partner.example",
+      monotonicNow,
       fetch: vi.fn(async () => new Response(null, { status: 204 })) as (
         typeof globalThis.fetch
       ),
     });
 
     await expect(client.get("/health")).resolves.toBeInstanceOf(Response);
+    expect(monotonicNow).not.toHaveBeenCalled();
     await app.dispose();
   });
 
@@ -161,13 +164,16 @@ describe("OutboundHttpProvider", () => {
         ...(clientTimeout === undefined ? {} : { timeoutMs: clientTimeout }),
         fetch: async () => new Response(new ReadableStream({ cancel })),
       });
-      const assertion = expect(client.get("/", {
+      const rejected = vi.fn();
+      void client.get("/", {
         response: text(), ...(callTimeout === undefined ? {} : { timeoutMs: callTimeout }),
-      })).rejects.toMatchObject({ name: "OutboundHttpTimeoutError", timeoutMs: expected });
+      }).catch(rejected);
       await vi.advanceTimersByTimeAsync(expected - 1);
       expect(cancel).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1);
-      await assertion;
+      expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        name: "OutboundHttpTimeoutError", timeoutMs: expected,
+      }));
       expect(cancel).toHaveBeenCalledOnce();
       expect(vi.getTimerCount()).toBe(0);
     } finally {

@@ -21,8 +21,13 @@ const schemaTests = [
 // Limit costly profiles at Vitest discovery so Stryker still activates static mutants
 // before imports. The explicit Stryker testFiles filter activates them after collection.
 const focusedIncludes = new Map<string, string[]>([
-  // The declaration tests import the schema inside test bodies, so invalid declarations
-  // are attributed to a test instead of failing collection in unrelated integration suites.
+  ["password-verification", ["authentication/mechanisms/password/hashers/argon2id/*.test.ts"]],
+  // Load declarations inside test bodies to attribute invalid static mutants to assertions.
+  ["authentication-adapters-postgres-schema", ["authentication/adapters/postgres/schema.test.ts"]],
+  ["tokens-adapters-schema", ["tokens/adapters/postgres/schema.test.ts"]],
+  ["authorization-postgres-schema", ["authorization/adapters/postgres/schema.test.ts"]],
+  ["http-access-policy", ["http/access_policy.test.ts"]],
+  ["http-hardening-configuration", ["http/hardening/configuration.test.ts"]],
   ["workflow-adapter-contracts", [
     "workflows/adapters/definition.test.ts",
     "workflows/adapters/postgres/polling_error.test.ts",

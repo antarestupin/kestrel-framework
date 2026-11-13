@@ -113,8 +113,7 @@ export class DefaultErrorHandler implements ErrorHandler {
     error: unknown,
     context: ErrorRepresentationContext,
   ): HttpErrorRepresentation | undefined {
-    const method = readRepresentationMethod(error, "toHttpError");
-    return method === undefined ? undefined : Reflect.apply(method, error, [context]);
+    return invokeRepresentation(error, "toHttpError", context);
   }
 
   /** Allows application handlers to map errors before the default contract. */
@@ -122,8 +121,7 @@ export class DefaultErrorHandler implements ErrorHandler {
     error: unknown,
     context: ErrorRepresentationContext,
   ): CliErrorRepresentation | undefined {
-    const method = readRepresentationMethod(error, "toCliError");
-    return method === undefined ? undefined : Reflect.apply(method, error, [context]);
+    return invokeRepresentation(error, "toCliError", context);
   }
 
   /** Application handlers can report unexpected failures to their logger. */
@@ -132,6 +130,21 @@ export class DefaultErrorHandler implements ErrorHandler {
     _transport: "http" | "cli",
     _context: ErrorRepresentationContext,
   ): void {}
+}
+
+function invokeRepresentation<Name extends "toHttpError" | "toCliError">(
+  error: unknown,
+  name: Name,
+  context: ErrorRepresentationContext,
+): ReturnType<NonNullable<ReturnType<typeof readRepresentationMethod<Name>>>> | undefined {
+  const method = readRepresentationMethod(error, name);
+  if (method === undefined) return undefined;
+  try {
+    return Reflect.apply(method, error, [context]);
+  } catch {
+    // A faulty opt-in representation must preserve the original error boundary.
+    return undefined;
+  }
 }
 
 function createDiagnostic(error: unknown): ErrorDiagnostic {

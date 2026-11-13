@@ -40,7 +40,7 @@ Structured routes use paths relative to the configured base URL. Authority prefi
 
 `maxErrorBodyBytes` defaults to 64 KiB. Structured calls retain at most the smaller of this limit and `maxResponseBytes` for unsuccessful HTTP responses. Their `OutboundHttpResponseError.body` contains parsed JSON or text, or `{ truncated: true, text }` when truncated. Malformed error JSON remains text. A stalled error body still raises `OutboundHttpTimeoutError` when the deadline expires.
 
-Pass the owning operation's `AbortSignal` through `signal` to cancel an outbound call, including calls without a timeout. Cancellation raises `OutboundHttpAbortedError`. Timeout, cancellation and size errors remain distinct from `OutboundHttpDecodeError`, which indicates malformed successful content or failed validation. The factory's automatic observer integration does not automatically supply an execution signal.
+Pass the owning operation's `AbortSignal` through `signal` to cancel an outbound call, including calls without a timeout. `fetch(request)` inherits the native input request's signal. Pass `signal: null` to detach that input signal explicitly. Cancellation raises `OutboundHttpAbortedError`. Timeout, cancellation and size errors remain distinct from `OutboundHttpDecodeError`, which indicates malformed successful content or failed validation. The factory's automatic observer integration does not automatically supply an execution signal.
 
 ```ts
 import { text } from "@kestreljs/framework/outbound_http";

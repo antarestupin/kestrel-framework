@@ -1,4 +1,5 @@
-import { argon2 } from "node:crypto";
+import { argon2, argon2Sync, type Argon2Parameters } from "node:crypto";
+import { setImmediate } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
 
 import { Argon2idPasswordHasher } from "./hasher.js";
@@ -16,15 +17,56 @@ const parameterCases = [
 
 /** Valid hashes distinguish a rejected verification budget from a wrong-password result. */
 describe("Argon2id password resource and secret contracts", () => {
+  it("settles a successful native callback and encodes its derived tag", async () => {
+    const salt = fixedSalt(16);
+    const tag = Buffer.alloc(16, 7);
+    const native = vi.fn<typeof argon2>((_algorithm, _parameters, callback) => {
+      queueMicrotask(() => callback(null, tag));
+    });
+    vi.resetModules();
+    vi.doMock("node:crypto", async (importOriginal) => ({
+      ...await importOriginal<typeof import("node:crypto")>(),
+      argon2: native,
+    }));
+    try {
+      const { Argon2idPasswordHasher: ControlledHasher } = await import("./hasher.js");
+      const hasher = new ControlledHasher({ ...inexpensive, createSalt: fixedSalt });
+      let outcome: { error: unknown } | { value: unknown } | undefined;
+      void hasher.hash(password).then(
+        (value) => { outcome = { value }; },
+        (error: unknown) => { outcome = { error }; },
+      );
+      // Flush the injected callback and promise continuations and then assert settlement.
+      await setImmediate();
+      expect(native).toHaveBeenCalledExactlyOnceWith("argon2id", {
+        message: password, nonce: salt, parallelism: 1, tagLength: 16, memory: 64, passes: 1,
+      } satisfies Argon2Parameters, expect.any(Function));
+      expect(outcome).toEqual({ value: `$argon2id$v=19$m=64,t=1,p=1$${Buffer.from(salt).toString("base64url")}$${tag.toString("base64url")}` });
+    } finally {
+      vi.doUnmock("node:crypto");
+      vi.resetModules();
+    }
+  });
+
   for (const [parameter, limit, value] of parameterCases) {
     it(`refuses a valid hash immediately above the ${limit} budget`, async () => {
-      const source = new Argon2idPasswordHasher({ ...inexpensive, [parameter]: value, createSalt: fixedSalt });
-      const encoded = await source.hash(password);
-      await expect(source.verify(password, encoded)).resolves.toBe(true);
+      const parameters = { ...inexpensive, [parameter]: value };
+      const salt = fixedSalt(parameters.saltBytes);
+      const tag = argon2Sync("argon2id", {
+        message: password, nonce: salt, memory: parameters.memoryKiB, passes: parameters.passes,
+        parallelism: parameters.parallelism, tagLength: parameters.tagBytes,
+      });
+      const encoded = `$argon2id$v=19$m=${parameters.memoryKiB},t=${parameters.passes},p=${parameters.parallelism}$${Buffer.from(salt).toString("base64url")}$${tag.toString("base64url")}`;
       const verifier = new Argon2idPasswordHasher({ ...inexpensive, verificationLimits: { [limit]: inexpensive[parameter] } });
-      await expect(verifier.verify(password, encoded)).resolves.toBe(false);
+      let refused: boolean | undefined;
+      let refusalError: unknown;
+      void verifier.verify(password, encoded).then((valid) => { refused = valid; }, (error: unknown) => { refusalError = error; });
+      // An over-budget hash settles in JavaScript before any native derivation.
+      await setImmediate();
+      expect(refusalError).toBeUndefined();
+      expect(refused).toBe(false);
       expect(verifier.needsRehash(encoded)).toBe(true);
-      // The exact boundary is accepted, even when the configured generation policy differs.
+      // The exact budget accepts this hash, while the distinct generation policy requires a rehash.
       const boundary = new Argon2idPasswordHasher({ ...inexpensive, verificationLimits: { [limit]: value } });
       await expect(boundary.verify(password, encoded)).resolves.toBe(true);
       expect(boundary.needsRehash(encoded)).toBe(true);

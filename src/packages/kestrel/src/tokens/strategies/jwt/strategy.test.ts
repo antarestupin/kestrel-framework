@@ -119,6 +119,8 @@ describe("JwtTokenStrategy", () => {
     await expect(fixture.manager.verify(definition, withinTolerance)).resolves.toEqual(payload);
     const invalidClaims = [
       { jti: " \t " },
+      // JOSE requires jti presence. Kestrel also requires a string ID.
+      { jti: 42 as unknown as string },
       { nbf: issuedAt - 1 },
       { iat: issuedAt - 0.5, nbf: issuedAt - 0.5 },
       { exp: issuedAt + 0.5 },

@@ -66,11 +66,12 @@ export function resolveHttpInputBinding(
 
 /** Extracts Fastify-style named parameters from an HTTP route URL. */
 export function extractHttpPathParameters(url: string): ReadonlySet<string> {
-  return new Set(
-    [...url.matchAll(/:([A-Za-z_][A-Za-z0-9_]*)/g)]
-      .map((match) => match[1])
-      .filter((name): name is string => name !== undefined),
-  );
+  const names = new Set<string>();
+  // Fastify uses doubled colons for literal text. Consume the escape as one token.
+  for (const [, name] of url.matchAll(/::|:([A-Za-z_][A-Za-z0-9_]*)/g)) {
+    if (name !== undefined) names.add(name);
+  }
+  return names;
 }
 
 function createBinding<Kind extends HttpInputBinding["kind"]>(

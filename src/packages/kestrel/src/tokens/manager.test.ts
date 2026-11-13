@@ -207,6 +207,14 @@ describe("TokenManager", () => {
     expect(createMany).not.toHaveBeenCalled();
     const grant = await fixture.manager.issue(subjectOptional, {}, options);
     await expect(fixture.manager.verify(subjectOptional, grant.token)).resolves.toEqual({});
+
+    // Without replacement, two grants for one subject remain independently valid.
+    const sharedSubject = { subject: "same" };
+    const grants = await fixture.manager.issueMany(subjectOptional, [sharedSubject, sharedSubject], options);
+    expect(grants).toHaveLength(2);
+    for (const { token } of grants) {
+      await expect(fixture.manager.verify(subjectOptional, token)).resolves.toEqual(sharedSubject);
+    }
   });
 
   it("revokes and physically deletes tokens by subject", async () => {

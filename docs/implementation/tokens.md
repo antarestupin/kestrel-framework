@@ -226,7 +226,7 @@ export interface TokenStorageAdapter {
 }
 ```
 
-`createMany()` is atomic across replacement and insertion. `findValid()` never returns expired, consumed, revoked, or wrong-definition rows. `consume()` applies the same predicates and marks the row consumed in one atomic mutation. Revocation only counts active, unexpired rows. Subject deletion removes every matching lifecycle state. Pruning is bounded, orders eligible rows deterministically, and may remove expired rows immediately while retaining consumed and revoked rows until `inactiveBefore`.
+`createMany()` is atomic across replacement and insertion. Replacements affect matching unconsumed, unrevoked tokens present before the batch, so mixed ordinary and replacement entries produce the same result in either order. `findValid()` never returns expired, consumed, revoked, or wrong-definition rows. `consume()` applies the same predicates and marks the row consumed in one atomic mutation. Revocation only counts active, unexpired rows. Subject deletion removes every matching lifecycle state. Pruning is bounded, orders eligible rows deterministically, and may remove expired rows immediately while retaining consumed and revoked rows until `inactiveBefore`.
 
 The manager and built-in stores validate both pruning dates and require a positive safe integer limit before removing records. The memory store clones the complete batch before changing retained state. PostgreSQL uses each replacement's creation time as the corresponding revocation time and batches replacements that share an issuance instant in one update.
 

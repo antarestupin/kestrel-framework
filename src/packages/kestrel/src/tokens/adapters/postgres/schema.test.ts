@@ -1,16 +1,20 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { getTableConfig, pgSchema, PgDialect } from "drizzle-orm/pg-core";
 import type { PoolClient } from "pg";
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
-import { getFrameworkDatabaseTableKeys } from "../../../db/framework_table.js";
-import { PostgresDrizzleManager } from "../../../db/index.js";
-import { getDatabaseSchemaContributions } from "../../../db/schema_contributions/definition.js";
+import { PostgresDrizzleManager } from "../../../db/database_manager.js";
 import { createDependencyContainer, dep } from "../../../di/index.js";
-import { postgresTokens } from "./definition.js";
-import { createPostgresTokenTable, tokenRecords, tokensSqlSchema } from "./schema.js";
 
-it("declares the production token row and its migration metadata", () => {
+beforeEach(() => {
+  // Load declarations and their metadata registries in the same module cache.
+  vi.resetModules();
+});
+
+it("declares the production token row and its migration metadata", async () => {
+  const { getFrameworkDatabaseTableKeys } = await import("../../../db/framework_table.js");
+  const { getDatabaseSchemaContributions } = await import("../../../db/schema_contributions/definition.js");
+  const { tokenRecords, tokensSqlSchema } = await import("./schema.js");
   const { schema, name, columns } = getTableConfig(tokenRecords);
   expect(tokensSqlSchema.schemaName).toBe("tokens");
   expect({ schema, name }).toEqual({ schema: "tokens", name: "token" });
@@ -44,7 +48,8 @@ it("declares the production token row and its migration metadata", () => {
   }
 });
 
-it("keeps migration indexes and checks scoped to the declared schema and name", () => {
+it("keeps migration indexes and checks scoped to the declared schema and name", async () => {
+  const { createPostgresTokenTable, tokenRecords } = await import("./schema.js");
   const { indexes, checks } = getTableConfig(tokenRecords);
   const dialect = new PgDialect();
   expect(indexes.map(({ config }) => [
@@ -74,6 +79,7 @@ it("keeps migration indexes and checks scoped to the declared schema and name", 
 });
 
 it("defaults the PostgreSQL adapter recipe to the shared production table", async () => {
+  const { postgresTokens } = await import("./definition.js");
   const container = createDependencyContainer({});
   const query = vi.fn(async (_query: unknown, _parameters: unknown[]) => ({ rows: [] }));
   const database = drizzle({ query } as unknown as PoolClient);

@@ -148,6 +148,25 @@ describe("RedisSessionStorageAdapter", () => {
       .rejects.toThrow();
   });
 
+  it.each([" 1", "1 ", "0x10", "1e2"])("rejects a non-decimal stored timestamp %j", async (createdAt) => {
+    const stored = session();
+    const client = { eval: vi.fn().mockResolvedValue(JSON.stringify({
+      ...stored,
+      version: 1,
+      digest: Buffer.from(stored.tokenDigest).toString("base64url"),
+      claims: JSON.stringify(stored.claims),
+      evidence: JSON.stringify({ ...stored.evidence, authenticatedAt: stored.createdAt.getTime() }),
+      createdAt,
+      lastSeenAt: stored.lastSeenAt.getTime(),
+      idleExpiresAt: stored.idleExpiresAt.getTime(),
+      absoluteExpiresAt: stored.absoluteExpiresAt.getTime(),
+    })) };
+    const adapter = new RedisSessionStorageAdapter<Claims>(client);
+
+    // Number() accepts whitespace, hex and exponents. The persisted format requires decimal integers.
+    await expect(adapter.findByTokenDigest(stored.tokenDigest)).rejects.toMatchObject({ issues: expect.any(Array) });
+  });
+
   it("extends activity monotonically and never exceeds absolute expiration", async ({ redis }) => {
     const adapter = new RedisSessionStorageAdapter<Claims>(redis.client, { keyPrefix: redis.keyPrefix });
     const stored = session();

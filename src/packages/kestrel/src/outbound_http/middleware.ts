@@ -34,12 +34,8 @@ export function defineOutboundHttpMiddleware(
 export function orderOutboundHttpMiddleware(
   middleware: readonly OutboundHttpMiddleware[],
 ): readonly OutboundHttpMiddleware[] {
-  return middleware
-    .map((definition, index) => ({ definition, index }))
-    .sort((left, right) =>
-      left.definition.priority - right.definition.priority
-      || left.index - right.index)
-    .map(({ definition }) => definition);
+  // Array.sort preserves input order for equal priorities.
+  return [...middleware].sort((left, right) => left.priority - right.priority);
 }
 
 /** Runs the replayable outbound onion around one native fetch terminal. */

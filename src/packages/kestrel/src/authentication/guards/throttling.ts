@@ -45,8 +45,9 @@ export class AuthenticationThrottlingGuard
     private readonly dependencies: AuthenticationThrottlingDependencies,
     options: AuthenticationThrottlingOptions,
   ) {
-    this.keySecret = options.keySecret;
     validateKeySecret(options.keySecret);
+    // The quota partition must remain stable after the application clears its input buffer.
+    this.keySecret = typeof options.keySecret === "string" ? options.keySecret : Uint8Array.from(options.keySecret);
     this.usernameLimit = createLimit(
       "authentication.password.username",
       options.username ?? { requests: 5, perSeconds: 300 },

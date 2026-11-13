@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../../app/index.js";
@@ -91,6 +92,20 @@ describe("AuthenticationThrottlingGuard", () => {
     expect(run).toHaveBeenCalledTimes(6);
   });
 
+  it("uses the configured UTF-8 key for an existing username quota", async () => {
+    const throttling = createThrottlingManager();
+    const run = vi.spyOn(throttling, "run");
+    const keySecret = "é".repeat(16);
+    const guard = new AuthenticationThrottlingGuard({
+      throttling, usernameNormalizer: new DefaultUsernameNormalizer(),
+    }, { keySecret });
+    const rateKey = createHmac("sha256", keySecret).update("username:user").digest("hex");
+
+    // Instances sharing a configured secret must address the same persisted buckets.
+    await guard.run({ credentials: { username: "User", password: "password" } }, async () => "allowed");
+    expect(run).toHaveBeenCalledExactlyOnceWith(expect.anything(), { rateKey }, expect.any(Function));
+  });
+
   it("validates key length in bytes for text and binary secrets", () => {
     const dependencies = {
       throttling: createThrottlingManager(),
@@ -102,6 +117,22 @@ describe("AuthenticationThrottlingGuard", () => {
       .toThrow("Authentication throttling key secrets must contain at least 32 bytes.");
     expect(() => new AuthenticationThrottlingGuard(dependencies, { keySecret: "é".repeat(16) }))
       .not.toThrow();
+  });
+
+  it("keeps an existing attempt quota when the caller clears its binary key buffer", async () => {
+    const keySecret = new Uint8Array(32).fill(1);
+    const guard = new AuthenticationThrottlingGuard({
+      throttling: createThrottlingManager(),
+      usernameNormalizer: new DefaultUsernameNormalizer(),
+    }, { keySecret, username: { requests: 1, perSeconds: 60 } });
+    const input = { credentials: { username: "User", password: "password" } };
+    await expect(guard.run(input, async () => "allowed")).resolves.toBe("allowed");
+
+    // Clearing caller-owned bytes must leave the guard attached to its original bucket.
+    keySecret.fill(0);
+    const operation = vi.fn(async () => "unexpected");
+    await expect(guard.run(input, operation)).rejects.toBeInstanceOf(AuthenticationRateLimitedError);
+    expect(operation).not.toHaveBeenCalled();
   });
 
   it("composes scoped guards that share the configured burst across executions", async () => {

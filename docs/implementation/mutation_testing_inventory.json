@@ -68,7 +68,8 @@
         "password-verification",
         "authentication-coverage-reassessment",
         "authentication-gap-followup",
-        "authentication-security-resilience-review"
+        "authentication-security-resilience-review",
+        "authentication-security-residual-review"
       ]
     },
     {
@@ -79,7 +80,8 @@
       "focus": "Requirement evaluation, scoped composition, denial semantics and role stores reviewed",
       "evidence": [
         "authorization-decisions",
-        "authorization-boundary-review"
+        "authorization-boundary-review",
+        "authorization-security-residual-review"
       ]
     },
     {
@@ -216,7 +218,8 @@
       "state": "reviewed",
       "focus": "Transport representation lookup, opaque fallback and cyclic diagnostics reviewed",
       "evidence": [
-        "errors-boundary-review"
+        "errors-boundary-review",
+        "errors-security-residual-review"
       ]
     },
     {
@@ -236,7 +239,8 @@
       "state": "reviewed",
       "focus": "Routing, access and lifecycle, Host admission, client transport and generation reviewed",
       "evidence": [
-        "http-boundary-review"
+        "http-boundary-review",
+        "http-security-residual-review"
       ]
     },
     {
@@ -267,7 +271,8 @@
       "state": "reviewed",
       "focus": "Entry, replay, dependency resolution and unwind failure behavior reviewed",
       "evidence": [
-        "middleware-boundary-review"
+        "middleware-boundary-review",
+        "middleware-security-residual-review"
       ]
     },
     {
@@ -290,7 +295,8 @@
         "outbound-resilience",
         "outbound-http-coverage-reassessment",
         "outbound-http-gap-followup",
-        "outbound_http-security-resilience-review"
+        "outbound_http-security-resilience-review",
+        "outbound_http-security-residual-review"
       ]
     },
     {
@@ -366,7 +372,8 @@
       "evidence": [
         "tokens-coverage-reassessment",
         "tokens-gap-followup",
-        "tokens-security-resilience-review"
+        "tokens-security-resilience-review",
+        "tokens-security-residual-review"
       ]
     },
     {
@@ -3689,6 +3696,365 @@
         "workflow-task-ownership": 36,
         "workflow-execution-retry": 36,
         "postgres-ownership": 11
+      }
+    },
+    {
+      "id": "authentication-security-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "authentication"
+      ],
+      "extent": "6 complete profiles across 44 candidate sources in authentication/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1634,
+        "Survived": 41,
+        "RuntimeError": 2
+      },
+      "baselineCounts": {
+        "Killed": 1575,
+        "Survived": 48,
+        "RuntimeError": 46
+      },
+      "mutationScore": 97.55,
+      "baselineMutationScore": 97.04,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 4,
+      "staticOrHybridCounts": {
+        "Survived": 1,
+        "Killed": 78,
+        "RuntimeError": 2
+      },
+      "baselineStaticOrHybridCounts": {
+        "Survived": 20,
+        "Killed": 158,
+        "RuntimeError": 46
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/security-residual-review/",
+      "analysis": "mutation_testing_security_residuals.md",
+      "profiles": [
+        "authentication-sessions",
+        "password-verification",
+        "authentication-adapters-postgres-schema",
+        "authentication-adapters-runtime",
+        "authentication-http",
+        "authentication-contracts"
+      ],
+      "baselineReports": {
+        "authentication-sessions": "artifacts/mutation/nov12-security-resilience/after/authentication-sessions/mutation.json",
+        "password-verification": "artifacts/mutation/nov12-security-resilience/after/password-verification/mutation.json",
+        "authentication-adapters-postgres-schema": "artifacts/mutation/nov12-security-resilience/after/authentication-adapters-postgres-schema/mutation.json",
+        "authentication-adapters-runtime": "artifacts/mutation/nov12-security-resilience/after/authentication-adapters-runtime/mutation.json",
+        "authentication-http": "artifacts/mutation/nov12-security-resilience/after/authentication-http/mutation.json",
+        "authentication-contracts": "artifacts/mutation/nov12-security-resilience/after/authentication-contracts/mutation.json"
+      },
+      "afterSeconds": {
+        "authentication-sessions": 96,
+        "password-verification": 28,
+        "authentication-adapters-postgres-schema": 26,
+        "authentication-adapters-runtime": 170,
+        "authentication-http": 40,
+        "authentication-contracts": 281
+      }
+    },
+    {
+      "id": "tokens-security-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "tokens"
+      ],
+      "extent": "4 complete profiles across 31 candidate sources in tokens/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1260,
+        "Survived": 31
+      },
+      "baselineCounts": {
+        "NoCoverage": 2,
+        "Killed": 1249,
+        "Survived": 36,
+        "RuntimeError": 17
+      },
+      "mutationScore": 97.6,
+      "baselineMutationScore": 97.05,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 0,
+      "staticOrHybridCounts": {
+        "Killed": 78
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 111,
+        "RuntimeError": 17,
+        "Survived": 9
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/security-residual-review/",
+      "analysis": "mutation_testing_security_residuals.md",
+      "profiles": [
+        "tokens-adapters",
+        "tokens-adapters-schema",
+        "tokens-strategies",
+        "tokens-contracts"
+      ],
+      "baselineReports": {
+        "tokens-adapters": "artifacts/mutation/nov12-security-resilience/after/tokens-adapters/mutation.json",
+        "tokens-adapters-schema": "artifacts/mutation/nov12-security-resilience/after/tokens-adapters/mutation.json",
+        "tokens-strategies": "artifacts/mutation/nov12-security-resilience/after/tokens-strategies/mutation.json",
+        "tokens-contracts": "artifacts/mutation/nov12-security-resilience/after/tokens-contracts/mutation.json"
+      },
+      "afterSeconds": {
+        "tokens-adapters": 296,
+        "tokens-adapters-schema": 171,
+        "tokens-strategies": 323,
+        "tokens-contracts": 53
+      }
+    },
+    {
+      "id": "authorization-security-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "authorization"
+      ],
+      "extent": "2 complete profiles across 23 candidate sources in authorization/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 245,
+        "Survived": 4
+      },
+      "baselineCounts": {
+        "Killed": 236,
+        "Survived": 4,
+        "RuntimeError": 9
+      },
+      "mutationScore": 98.39,
+      "baselineMutationScore": 98.33,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 0,
+      "staticOrHybridCounts": {
+        "Killed": 45
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 60,
+        "RuntimeError": 9,
+        "Survived": 1
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/security-residual-review/",
+      "analysis": "mutation_testing_security_residuals.md",
+      "profiles": [
+        "authorization-runtime",
+        "authorization-postgres-schema"
+      ],
+      "baselineReports": {
+        "authorization-runtime": "artifacts/mutation/nov12-http-boundaries/after/component-authorization/mutation.json",
+        "authorization-postgres-schema": "artifacts/mutation/nov12-http-boundaries/after/component-authorization/mutation.json"
+      },
+      "afterSeconds": {
+        "authorization-runtime": 33,
+        "authorization-postgres-schema": 8
+      }
+    },
+    {
+      "id": "http-security-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "http"
+      ],
+      "extent": "6 complete profiles across 28 candidate sources in http/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 1348,
+        "Survived": 47,
+        "NoCoverage": 1
+      },
+      "baselineCounts": {
+        "Killed": 1322,
+        "Survived": 48,
+        "Timeout": 4,
+        "RuntimeError": 6,
+        "NoCoverage": 1
+      },
+      "mutationScore": 96.56,
+      "baselineMutationScore": 96.44,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 4,
+      "staticOrHybridCounts": {
+        "Killed": 216,
+        "Survived": 4
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 269,
+        "Survived": 3,
+        "RuntimeError": 6
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/security-residual-review/",
+      "analysis": "mutation_testing_security_residuals.md",
+      "profiles": [
+        "http-routing",
+        "http-access",
+        "http-access-policy",
+        "http-runtime",
+        "http-hardening-configuration",
+        "http-clients"
+      ],
+      "baselineReports": {
+        "http-routing": "artifacts/mutation/nov12-http-boundaries/after/http-routing/mutation.json",
+        "http-access": "artifacts/mutation/nov12-http-boundaries/after/http-access/mutation.json",
+        "http-access-policy": "artifacts/mutation/nov12-http-boundaries/after/http-access/mutation.json",
+        "http-runtime": "artifacts/mutation/nov12-http-boundaries/after/http-runtime/mutation.json",
+        "http-hardening-configuration": "artifacts/mutation/nov12-http-boundaries/after/http-runtime/mutation.json",
+        "http-clients": "artifacts/mutation/nov12-http-boundaries/after/http-clients/mutation.json"
+      },
+      "afterSeconds": {
+        "http-routing": 226,
+        "http-access": 41,
+        "http-access-policy": 199,
+        "http-runtime": 17,
+        "http-hardening-configuration": 338,
+        "http-clients": 32
+      }
+    },
+    {
+      "id": "outbound_http-security-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "outbound_http"
+      ],
+      "extent": "3 complete profiles across 17 candidate sources in outbound_http/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "NoCoverage": 1,
+        "Killed": 1091,
+        "Timeout": 1,
+        "Survived": 30
+      },
+      "baselineCounts": {
+        "NoCoverage": 1,
+        "Killed": 1112,
+        "Timeout": 1,
+        "Survived": 52
+      },
+      "mutationScore": 97.24,
+      "baselineMutationScore": 95.45,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 35,
+      "staticOrHybridCounts": {
+        "Killed": 42
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 42
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/security-residual-review/",
+      "analysis": "mutation_testing_security_residuals.md",
+      "profiles": [
+        "outbound-resilience",
+        "outbound-client",
+        "outbound-contracts"
+      ],
+      "baselineReports": {
+        "outbound-resilience": "artifacts/mutation/nov12-security-resilience/after/outbound-resilience/mutation.json",
+        "outbound-client": "artifacts/mutation/nov12-security-resilience/after/outbound-client/mutation.json",
+        "outbound-contracts": "artifacts/mutation/nov12-security-resilience/after/outbound-contracts/mutation.json"
+      },
+      "afterSeconds": {
+        "outbound-resilience": 12,
+        "outbound-client": 11,
+        "outbound-contracts": 16
+      }
+    },
+    {
+      "id": "errors-security-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "errors"
+      ],
+      "extent": "1 complete profiles across 5 candidate sources in errors/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 118,
+        "Survived": 5,
+        "Timeout": 3
+      },
+      "baselineCounts": {
+        "Killed": 121,
+        "Survived": 3,
+        "Timeout": 3
+      },
+      "mutationScore": 96.03,
+      "baselineMutationScore": 97.64,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 0,
+      "staticOrHybridCounts": {
+        "Killed": 1
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 1
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/security-residual-review/",
+      "analysis": "mutation_testing_security_residuals.md",
+      "profiles": [
+        "component-errors"
+      ],
+      "baselineReports": {
+        "component-errors": "artifacts/mutation/nov12-http-boundaries/after/component-errors/mutation.json"
+      },
+      "afterSeconds": {
+        "component-errors": 252
+      }
+    },
+    {
+      "id": "middleware-security-residual-review",
+      "date": "2026-11-13",
+      "components": [
+        "middleware"
+      ],
+      "extent": "1 complete profiles across 2 candidate sources in middleware/**/*",
+      "assessment": "complete",
+      "review": "complete",
+      "counts": {
+        "Killed": 18
+      },
+      "baselineCounts": {
+        "Killed": 18
+      },
+      "mutationScore": 100.0,
+      "baselineMutationScore": 100.0,
+      "deadlineKills": 0,
+      "baselineDeadlineKills": 0,
+      "staticOrHybridCounts": {
+        "Killed": 7
+      },
+      "baselineStaticOrHybridCounts": {
+        "Killed": 7
+      },
+      "staticInclusive": true,
+      "budgetSecondsPerRun": 600,
+      "reportRoot": "artifacts/mutation/security-residual-review/",
+      "analysis": "mutation_testing_security_residuals.md",
+      "profiles": [
+        "component-middleware"
+      ],
+      "baselineReports": {
+        "component-middleware": "artifacts/mutation/nov12-http-boundaries/after/component-middleware/mutation.json"
+      },
+      "afterSeconds": {
+        "component-middleware": 75
       }
     }
   ]

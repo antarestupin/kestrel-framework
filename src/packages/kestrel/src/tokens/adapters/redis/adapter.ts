@@ -88,12 +88,12 @@ export class RedisTokenStorageAdapter implements TokenStorageAdapter {
     if (typeof reply !== "string") throw new TypeError("Invalid Redis token lookup result.");
     const stored = storedSchema.parse(JSON.parse(reply));
     if (stored.definition !== input.definition || stored.digest !== digestKey(input.digest)) throw new TypeError("Redis returned a different token identity.");
+    // The Lua lookup returns active records, and consume only sets consumedAt.
     return {
       id: stored.id, definition: stored.definition, digest: new Uint8Array(Buffer.from(stored.digest, "base64url")), payload: z.json().parse(JSON.parse(stored.payload)),
       ...(stored.subject === undefined ? {} : { subject: stored.subject }),
       expiresAt: new Date(stored.expiresAt), createdAt: new Date(stored.createdAt),
       ...(stored.consumedAt === undefined ? {} : { consumedAt: new Date(stored.consumedAt) }),
-      ...(stored.revokedAt === undefined ? {} : { revokedAt: new Date(stored.revokedAt) }),
     };
   }
 

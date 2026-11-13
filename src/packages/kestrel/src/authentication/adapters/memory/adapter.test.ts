@@ -40,6 +40,31 @@ describe("MemoryAuthenticationAdapter", () => {
     await expect(adapter.findBySubjectId("subject")).resolves.toEqual(account);
   });
 
+  it("rejects a repeated generated account identifier before updating either lookup", async () => {
+    const adapter = new MemoryAuthenticationAdapter({ createId: () => "repeated" });
+    const first = await adapter.createAccount({ subjectId: "first" });
+
+    // A caller-provided ID source must never redirect an existing subject to a different account.
+    await expect(adapter.createAccount({ subjectId: "second" })).rejects.toThrow("Account identifiers must be unique.");
+    await expect(adapter.findById(first.id)).resolves.toEqual(first);
+    await expect(adapter.findBySubjectId(first.subjectId)).resolves.toEqual(first);
+    await expect(adapter.findBySubjectId("second")).resolves.toBeUndefined();
+  });
+
+  it("rejects a repeated generated credential identifier without redirecting the original username", async () => {
+    const adapter = new MemoryAuthenticationAdapter({ createId: () => "repeated" });
+    const account = await adapter.createAccount({ subjectId: "subject" });
+    const first = await adapter.createPasswordCredential({
+      accountId: account.id, username: "First", normalizedUsername: "first", passwordHash: "original",
+    });
+
+    await expect(adapter.createPasswordCredential({
+      accountId: account.id, username: "Second", normalizedUsername: "second", passwordHash: "replacement",
+    })).rejects.toThrow("Password credential identifiers must be unique.");
+    await expect(adapter.findByNormalizedUsername("first")).resolves.toEqual(first);
+    await expect(adapter.findByNormalizedUsername("second")).resolves.toBeUndefined();
+  });
+
   it("rejects missing accounts, duplicate normalized usernames and stale hash replacements", async () => {
     const adapter = new MemoryAuthenticationAdapter();
     const account = await adapter.createAccount({ subjectId: "subject" });
@@ -73,6 +98,11 @@ describe("MemoryAuthenticationAdapter", () => {
       passwordHash: replacement.passwordHash,
       passwordChangedAt: replacement.changedAt,
       updatedAt: replacement.changedAt,
+    });
+    // Mutating the caller's date cannot rewrite the audit timestamps after the change.
+    replacement.changedAt.setTime(0);
+    await expect(adapter.findByNormalizedUsername("member")).resolves.toMatchObject({
+      passwordChangedAt: new Date(epoch + 1_000), updatedAt: new Date(epoch + 1_000),
     });
   });
 

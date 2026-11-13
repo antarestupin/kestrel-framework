@@ -46,6 +46,14 @@ describe("outbound HTTP client", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
+  it("rejects a network path created by interpolation after leading whitespace", async () => {
+    const fetch = vi.fn();
+    const client = createOutboundHttpClient({ name: "partner", baseUrl: "https://partner.example", fetch });
+    await expect(client.get("  /:tenant/partner.example", { path: { tenant: "" } }))
+      .rejects.toThrow("relative to its client baseUrl");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("accepts an HTTP client base and a literal colon inside a relative path", async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL) => {
       expect((input as Request).url).toBe("http://partner.example/base/resources/report:public");
@@ -176,6 +184,29 @@ describe("outbound HTTP client", () => {
 
     await expect(client.fetch(request)).rejects.toMatchObject({ name: "OutboundHttpAbortedError", cause: reason });
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("allows an explicit null signal to detach the input Request's cancellation", async () => {
+    const owner = new AbortController();
+    const input = new Request("https://partner.example/resource", { signal: owner.signal });
+    const fetch = vi.fn(async (request: RequestInfo | URL) => {
+      (request as Request).signal.throwIfAborted();
+      return new Response(null, { status: 204 });
+    });
+    const client = createOutboundHttpClient({ name: "partner", fetch });
+    owner.abort(new Error("input owner stopped"));
+
+    await expect(client.fetch(input, { signal: null })).resolves.toMatchObject({ status: 204 });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("accepts a relative path with trailing separators after leading whitespace", async () => {
+    const fetch = vi.fn(async (request: RequestInfo | URL) => {
+      expect((request as Request).url).toBe("https://partner.example/resources//");
+      return new Response(null, { status: 204 });
+    });
+    const client = createOutboundHttpClient({ name: "partner", baseUrl: "https://partner.example", fetch });
+    await expect(client.get("  /resources//")).resolves.toMatchObject({ status: 204 });
   });
 
   it("uses the native fetch default when the client omits an implementation", async () => {
@@ -415,16 +446,21 @@ describe("outbound HTTP client", () => {
   });
 
   it("bounds the complete logical request with one deadline", async () => {
-    const client = createOutboundHttpClient({
-      name: "slow",
-      baseUrl: "https://slow.example",
-      fetch: vi.fn(async () => new Promise<Response>(() => {})) as (
-        typeof globalThis.fetch
-      ),
-    });
-
-    await expect(client.get("/resource", { timeoutMs: 5 }))
-      .rejects.toBeInstanceOf(OutboundHttpTimeoutError);
+    vi.useFakeTimers();
+    const pending = Promise.withResolvers<Response>();
+    try {
+      const client = createOutboundHttpClient({
+        name: "slow", baseUrl: "https://slow.example", fetch: () => pending.promise,
+      });
+      const rejected = vi.fn();
+      void client.get("/resource", { timeoutMs: 5 }).catch(rejected);
+      await vi.advanceTimersByTimeAsync(5);
+      expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.any(OutboundHttpTimeoutError));
+    } finally {
+      pending.resolve(new Response(null));
+      await vi.advanceTimersByTimeAsync(0);
+      vi.useRealTimers();
+    }
   });
 
   it("does not enter later client middleware after the owning request is aborted", async () => {

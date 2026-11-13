@@ -56,6 +56,9 @@ describe("HttpRuntime", () => {
       try { await blocked.promise; return "finished"; }
       finally { await execution.dispose(); }
     });
+    // Detect a missing readiness hook before waiting for the handler checkpoint.
+    await runtime.server.ready();
+    expect(app.state).toBe("running");
     const response = runtime.server.inject("/blocked").then((result) => result);
     try {
       await started.promise;

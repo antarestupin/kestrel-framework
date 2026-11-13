@@ -1,3 +1,5 @@
+import { addAbortListener } from "node:events";
+
 import { OutboundHttpAbortedError, OutboundHttpTimeoutError } from "./errors.js";
 
 /** One cancellation boundary for preparation, middleware, body reads and decoding. */
@@ -5,6 +7,7 @@ export class OutboundHttpDeadline {
   public readonly signal: AbortSignal;
   private readonly controller = new AbortController();
   private readonly expiration = Promise.withResolvers<never>();
+  private readonly abortSubscription: Disposable;
   private readonly expiresAt: number | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private closed = false;
@@ -20,8 +23,10 @@ export class OutboundHttpDeadline {
       : AbortSignal.any([callerSignal, this.controller.signal]);
     // Install a rejection observer even when cancellation precedes the first run.
     void this.expiration.promise.catch(() => {});
-    this.signal.addEventListener("abort", this.onAbort, { once: true });
-    if (this.signal.aborted) this.onAbort();
+    // Use the abort-safe listener so custom consumers cannot suppress settlement.
+    this.abortSubscription = addAbortListener(this.signal, () => {
+      this.expiration.reject(this.error());
+    });
     if (timeoutMs !== undefined) {
       this.expiresAt = performance.now() + timeoutMs;
       this.timeoutError = new OutboundHttpTimeoutError(operation, timeoutMs);
@@ -54,7 +59,7 @@ export class OutboundHttpDeadline {
   public close(): void {
     this.closed = true;
     clearTimeout(this.timer);
-    this.signal.removeEventListener("abort", this.onAbort);
+    this.abortSubscription[Symbol.dispose]();
   }
 
   private schedule(): void {
@@ -67,8 +72,4 @@ export class OutboundHttpDeadline {
     this.timer = setTimeout(() => this.schedule(), Math.min(remaining, 2_147_483_647));
     this.timer.unref();
   }
-
-  private readonly onAbort = (): void => {
-    this.expiration.reject(this.error());
-  };
 }

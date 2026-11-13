@@ -23,8 +23,8 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `actions` | 9 | Reviewed | Numbered pagination diagnostics, cursor validation and action composition | [95% follow-up](mutation_testing_95_followup.md#actions) |
 | `app` | 11 | Reviewed | Composition, startup, scope teardown, transport draining, catalog and diagnostic contracts reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#application) |
 | `atlas` | 53 | Reviewed | Resources, gateway effects, relation ownership, forms, routing and browser cache boundaries | [Atlas review](mutation_testing_studio_atlas.md#atlas) |
-| `authentication` | 44 | Reviewed | Accounts, password proofs, session lifecycle, HTTP cookies and adapter contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#authentication) |
-| `authorization` | 23 | Reviewed | Requirement evaluation, scoped composition, denial semantics and role stores reviewed | [Boundary review](mutation_testing_http_boundaries.md#authorization) |
+| `authentication` | 44 | Reviewed | Accounts, password proofs, session lifecycle, HTTP cookies and adapter contracts reviewed | [Residual review](mutation_testing_security_residuals.md) |
+| `authorization` | 23 | Reviewed | Requirement evaluation, scoped composition, denial semantics and role stores reviewed | [Residual review](mutation_testing_security_residuals.md) |
 | `background` | 4 | Reviewed | Selection, startup and steady-state polling, rollback and transport drain reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#background-workloads) |
 | `cache` | 24 | Reviewed | Capacity, pruning, coordination, adapter ownership and all storage contracts reviewed | [Storage review](mutation_testing_storage_boundaries.md#cache) |
 | `cli` | 8 | Reviewed | Executable entry, argument binding, command dispatch and lifecycle | [Component review](mutation_testing_final_wave.md#cli) |
@@ -37,20 +37,20 @@ Source counts do not measure executable lines, mutant volume or test strength. A
 | `definitions` | 5 | Reviewed | Path and identity validation, immutable registration metadata and schema parsing reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#definition-registries) |
 | `di` | 5 | Reviewed | Adapter ownership, dependency resolution, graph validation and disposal reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#dependency-injection) |
 | `email` | 34 | Reviewed | Composition, delivery, capture, adapter contracts and durable storage | [Component review](mutation_testing_final_wave.md#email) |
-| `errors` | 5 | Reviewed | Transport representation lookup, opaque fallback and cyclic diagnostics reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
+| `errors` | 5 | Reviewed | Transport representation lookup, opaque fallback and cyclic diagnostics reviewed | [Residual review](mutation_testing_security_residuals.md) |
 | `events` | 4 | Reviewed | Dispatch, one-time listener reservations, error propagation and scope teardown reviewed | [Lifecycle review](mutation_testing_lifecycle_boundaries.md#events) |
-| `http` | 28 | Reviewed | Routing, access and lifecycle, Host admission, client transport and generation reviewed | [Boundary review](mutation_testing_http_boundaries.md#http) |
+| `http` | 28 | Reviewed | Routing, access and lifecycle, Host admission, client transport and generation reviewed | [Residual review](mutation_testing_security_residuals.md) |
 | `lock` | 22 | Reviewed | Acquisition, lease ownership, batch renewal and all adapter contracts reviewed | [Storage review](mutation_testing_storage_boundaries.md#lock) |
 | `log` | 13 | Reviewed | Filtering, serialization, PostgreSQL buffering and transport ownership | [Component review](mutation_testing_final_wave.md#log) |
-| `middleware` | 2 | Reviewed | Entry, replay, dependency resolution and unwind failure behavior reviewed | [Boundary review](mutation_testing_http_boundaries.md#errors-and-middleware) |
+| `middleware` | 2 | Reviewed | Entry, replay, dependency resolution and unwind failure behavior reviewed | [Residual review](mutation_testing_security_residuals.md) |
 | `observability` | 15 | Reviewed | Context, recorder flush, stored observations and adapter lifecycle | [Component review](mutation_testing_final_wave.md#observability) |
-| `outbound_http` | 17 | Reviewed | Routing, cancellation, stream ownership, retry, caching and throttling feedback reviewed | [Security and resilience review](mutation_testing_security_resilience.md#outbound-http) |
+| `outbound_http` | 17 | Reviewed | Routing, cancellation, stream ownership, retry, caching and throttling feedback reviewed | [Residual review](mutation_testing_security_residuals.md) |
 | `scheduled_tasks` | 19 | Reviewed | Scheduler ownership and shutdown, adapter parity and operator contracts | [Component review](mutation_testing_scheduled_tasks.md#november-11-review) |
 | `scheduling` | 4 | Reviewed | Timer limits, abort handling, lease extensions and polling budgets | [Component review](mutation_testing_scheduling_review.md) |
 | `studio` | 99 | Reviewed | Mounting, action and HTTP explorers, diagnostic extensions and browser request ownership | [Studio review](mutation_testing_studio_atlas.md#studio) |
 | `testing` | 1 | Reviewed | Unrestricted HTTP fixture policy (PostgreSQL and Redis connection fixtures excluded) | [Component review](mutation_testing_final_wave.md#testing) |
 | `throttling` | 35 | Reviewed | Queue ownership, circuit transitions, policy registration and backend capacity and shutdown | [Throttling review](mutation_testing_studio_atlas.md#throttling) |
-| `tokens` | 31 | Reviewed | Token lifecycle, signing, key resolution, batch atomicity and adapter contracts reviewed | [Security and resilience review](mutation_testing_security_resilience.md#tokens) |
+| `tokens` | 31 | Reviewed | Token lifecycle, signing, key resolution, batch atomicity and adapter contracts reviewed | [Residual review](mutation_testing_security_residuals.md) |
 | `ui` | 0 | No candidate sources | Empty source directory in this checkout; retain explicit inventory entry | — |
 | `utils` | 5 | Reviewed | Cursor serialization, identifiers, catalog ownership and definition guards | [Component review](mutation_testing_final_wave.md#utilities) |
 | `workers` | 23 | Reviewed | Lease ownership, shutdown, adapter batches, scheduler and publication | [95% follow-up](mutation_testing_95_followup.md#workers) |
@@ -310,6 +310,20 @@ The [residual review](mutation_testing_db_workflow_residuals.md) records the exa
 | --- | ---: | ---: | ---: |
 | `db` | 13/13 | 95.38% → 97.75% | 116 → 59 |
 | `workflows` | 26/26 | 95.74% → 97.63% | 298 → 167 |
+
+## November 13 security and HTTP residual review
+
+The [residual review](mutation_testing_security_residuals.md) lists the fixes, results and remaining classifications for these seven components.
+
+| Component | Profiles | Score before → after | Survived + uncovered before → after |
+| --- | ---: | ---: | ---: |
+| `authentication` | 6/6 | 97.04% → 97.55% | 48 → 41 |
+| `tokens` | 4/4 | 97.05% → 97.60% | 38 → 31 |
+| `authorization` | 2/2 | 98.33% → 98.39% | 4 → 4 |
+| `http` | 6/6 | 96.44% → 96.56% | 49 → 48 |
+| `outbound_http` | 3/3 | 95.45% → 97.24% | 53 → 31 |
+| `errors` | 1/1 | 97.64% → 96.03% | 3 → 5 |
+| `middleware` | 1/1 | 100.00% → 100.00% | 0 → 0 |
 
 ## Updating the inventory
 

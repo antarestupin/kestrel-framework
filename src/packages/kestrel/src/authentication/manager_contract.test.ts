@@ -332,6 +332,22 @@ describe("AuthenticationManager account and session contracts", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it("fails closed before touching a session when the claims parser throws", async () => {
+    const { adapter, account, manager, proof } = await setup();
+    const grant = (await manager.complete(proof()))!;
+    const rejecting = new AuthenticationManager({ accountStore: adapter, sessionStore: adapter, subjectProvider: { findById: async (id) => ({ id }) } }, config,
+      defineAuthentication({ sessionClaims: {
+        schema: z.object({ label: z.string() }).transform(() => { throw new Error("Claims migration failed"); }),
+        create: () => ({ label: "member" }),
+      } }), { now: () => new Date(epoch.getTime() + 11_000) });
+    const touch = vi.spyOn(adapter, "touch");
+
+    // A throw from an application transform must leave the request unauthenticated just like an invalid parse result.
+    await expect(rejecting.resolve(grant.token)).resolves.toBeUndefined();
+    expect(touch).not.toHaveBeenCalled();
+    await expect(adapter.listForAccount(account.id)).resolves.toHaveLength(1);
+  });
+
   it("coalesces touches before the interval and renews exactly at the boundary", async () => {
     const { adapter, account, manager, proof, advance } = await setup();
     const grant = (await manager.complete(proof()))!;

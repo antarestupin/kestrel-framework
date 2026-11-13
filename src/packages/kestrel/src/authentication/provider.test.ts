@@ -347,6 +347,29 @@ describe("current user dependencies", () => {
     await expect(container.resolveAsync(currentUser<User>())).rejects.toBe(failure);
     expect(findById).toHaveBeenCalledOnce();
   });
+
+  it("caches a required-user rejection in the same execution", async () => {
+    const findById = vi.fn(async (): Promise<User | null> => null);
+    const { container } = createCurrentUserApp(findById);
+    container.resolve(authenticationContextDependency()).resolveAuthenticated(principal);
+    const failure = await container.resolveAsync(currentUser<User>()).catch((error: unknown) => error);
+
+    // Both the absence and the required-user failure are part of the scoped lookup result.
+    expect(failure).toBeInstanceOf(AuthenticationRequiredError);
+    await expect(container.resolveAsync(currentUser<User>())).rejects.toBe(failure);
+    expect(findById).toHaveBeenCalledOnce();
+  });
+
+  it.each([currentUser<User>(), optionalCurrentUser<User>()])("rejects a singleton async consumer of $id", async (user) => {
+    const { container, findById } = createCurrentUserApp();
+    container.resolve(authenticationContextDependency()).resolveAuthenticated(principal);
+    container.registerAsyncFactory("invalidSingletonUser", { user }, ({ user: captured }) => captured, { lifetime: "singleton" });
+
+    // A long-lived consumer must never capture the first execution's user or authentication state.
+    await expect(container.resolveAsync(dep("invalidSingletonUser")))
+      .rejects.toThrow(`Dependency "${user.id}" has a shorter lifetime than its async factory ancestor.`);
+    expect(findById).not.toHaveBeenCalled();
+  });
 });
 
 class TestPasswordHasher implements PasswordHasher {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getEventListeners } from "node:events";
+import { setImmediate as nextTurn } from "node:timers/promises";
 
 import { OutboundHttpDeadline } from "./deadline.js";
 import { OutboundHttpBodies } from "./body.js";
@@ -14,6 +15,13 @@ const context = (method = "GET", signal?: AbortSignal): OutboundHttpMiddlewareCo
   request: new Request("https://partner.test/item", { method, ...(signal === undefined ? {} : { signal }) }),
 });
 const emptyResponse = (status = 200, headers?: HeadersInit) => new Response(null, { status, ...(headers === undefined ? {} : { headers }) });
+
+/** Detect a stalled in-memory stream or retry pipeline at the next I/O turn. */
+function settleInMemory<Value>(operation: Promise<Value>): Promise<Value> {
+  return Promise.race([operation, nextTurn().then(() => {
+    throw new Error("The in-memory operation did not settle.");
+  })]);
+}
 
 afterEach(() => {
   // Restore spies on fake clock methods before reinstalling the real clock.
@@ -192,6 +200,23 @@ describe("outbound retry contracts", () => {
     await result;
     expect(vi.getTimerCount()).toBe(0);
   });
+  it("clears retry backoff even when an earlier abort listener stops propagation", async () => {
+    vi.useFakeTimers();
+    const abort = new AbortController();
+    const ctx = context("GET", abort.signal);
+    ctx.request.signal.addEventListener("abort", (event) => event.stopImmediatePropagation(), { once: true });
+    const next = vi.fn<OutboundHttpNext>().mockImplementation(async () => emptyResponse(503));
+    const failure = new Error("caller stopped");
+    const rejected = vi.fn();
+    void retryRequests().handler(ctx, next).catch(rejected);
+    await vi.advanceTimersByTimeAsync(0);
+    abort.abort(failure);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(failure);
+    expect(next).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it("clears real backoff timers after success and supports zero delay", async () => {
     vi.useFakeTimers();
     const next = vi.fn<OutboundHttpNext>().mockResolvedValueOnce(emptyResponse(503)).mockResolvedValueOnce(emptyResponse());
@@ -199,6 +224,16 @@ describe("outbound retry contracts", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect((await operation).status).toBe(200);
     expect(vi.getTimerCount()).toBe(0);
+  });
+  it("waits for the full fractional retry backoff", async () => {
+    vi.useFakeTimers();
+    const next = vi.fn<OutboundHttpNext>().mockResolvedValueOnce(emptyResponse(503)).mockResolvedValueOnce(emptyResponse());
+    const operation = retryRequests({ initialDelayMs: 1.5, jitterRatio: 0 }).handler(context(), next);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(next).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(next).toHaveBeenCalledTimes(2);
+    await expect(operation).resolves.toMatchObject({ status: 200 });
   });
   it("removes a successful backoff's cancellation listener", async () => {
     vi.useFakeTimers();
@@ -277,7 +312,7 @@ describe("outbound retry contracts", () => {
         priority: 300, handler: async (ctx, next) => { attempts.push(ctx.attempt); return next(); },
       })],
     });
-    await client.get("/item");
+    await settleInMemory(client.get("/item"));
     expect(attempts).toEqual([1, 2]);
   });
   it("accepts one attempt and the full jitter boundary", async () => {
@@ -354,6 +389,26 @@ describe("outbound deadline and body contracts", () => {
       expect(clock).not.toHaveBeenCalled();
     } finally { deadline.close(); }
   });
+  it("cancels pending work and guarded bodies even when a consumer stops abort propagation", async () => {
+    const abort = new AbortController();
+    const deadline = new OutboundHttpDeadline("body-abort", undefined, abort.signal);
+    const bodies = new OutboundHttpBodies("body-abort", deadline, 16, undefined);
+    const cancel = vi.fn();
+    const original = new Response(new ReadableStream({ cancel }, { highWaterMark: 0 }));
+    deadline.signal.addEventListener("abort", (event) => event.stopImmediatePropagation(), { once: true });
+    try {
+      const failure = new Error("consumer stopped");
+      const rejected = vi.fn();
+      const reading = bodies.protect(original).text();
+      void deadline.run(() => reading).catch(rejected);
+      abort.abort(failure);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(rejected).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ cause: failure }));
+      expect(cancel).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ cause: failure }));
+      expect(original.body?.locked).toBe(false);
+    } finally { bodies.close(); deadline.close(); }
+  });
 
   it("unrefs the deadline timer and removes its observer after abort", async () => {
     vi.useFakeTimers();
@@ -408,7 +463,7 @@ describe("outbound deadline and body contracts", () => {
     try {
       const response = bodies.protect(new Response("12345", { status: 500 }));
       const wrapped = bodies.protect(new Response(response.body, { status: 500 }));
-      expect(await wrapped.text()).toBe("1234");
+      expect(await settleInMemory(wrapped.text())).toBe("1234");
       expect(bodies.truncated(wrapped)).toBe(true);
       expect(bodies.truncated(response)).toBe(true);
     } finally { bodies.close(); deadline.close(); }
@@ -417,7 +472,8 @@ describe("outbound deadline and body contracts", () => {
     const deadline = new OutboundHttpDeadline("overall", undefined, undefined);
     const bodies = new OutboundHttpBodies("overall", deadline, 4, undefined);
     try {
-      await expect(bodies.protect(new Response("12345", { status: 500 })).text()).rejects.toBeInstanceOf(OutboundHttpResponseTooLargeError);
+      await expect(settleInMemory(bodies.protect(new Response("12345", { status: 500 })).text()))
+        .rejects.toBeInstanceOf(OutboundHttpResponseTooLargeError);
       expect(() => bodies.check()).toThrow(OutboundHttpResponseTooLargeError);
     } finally { bodies.close(); deadline.close(); }
   });
@@ -449,8 +505,22 @@ describe("outbound deadline and body contracts", () => {
     const bodies = new OutboundHttpBodies("body-observer", deadline, 16, undefined);
     const previous = getEventListeners(deadline.signal, "abort").length;
     try {
-      expect(await bodies.protect(new Response("done")).text()).toBe("done");
+      expect(await settleInMemory(bodies.protect(new Response("done")).text())).toBe("done");
       expect(getEventListeners(deadline.signal, "abort")).toHaveLength(previous);
+    } finally { bodies.close(); deadline.close(); }
+  });
+  it("does not dispose a completed source again when the body owner closes", async () => {
+    const original = new Response("done");
+    const reader = original.body!.getReader();
+    const cancel = vi.spyOn(reader, "cancel");
+    vi.spyOn(original.body!, "getReader").mockReturnValue(reader);
+    const deadline = new OutboundHttpDeadline("read-once", undefined, undefined);
+    const bodies = new OutboundHttpBodies("read-once", deadline, 16, undefined);
+    try {
+      await expect(settleInMemory(bodies.protect(original).text())).resolves.toBe("done");
+      bodies.close();
+      expect(cancel).not.toHaveBeenCalled();
+      expect(original.body?.locked).toBe(false);
     } finally { bodies.close(); deadline.close(); }
   });
   for (const state of ["aborted", "closed"] as const) {

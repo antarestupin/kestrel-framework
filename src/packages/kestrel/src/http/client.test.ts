@@ -314,4 +314,28 @@ describe("HTTP client transport", () => {
       expect(fetch).not.toHaveBeenCalled();
     },
   );
+
+  it("renders escaped colons as literal route text without decoding interpolated values", async () => {
+    const server = Fastify();
+    const route = "/jobs::status/:id";
+    server.get(route, (request) => request.params);
+    server.get("/jobs::", () => ({ literal: true }));
+    const fetch = vi.fn<typeof globalThis.fetch>(async (url) => {
+      const response = await server.inject(String(url));
+      return new Response(response.body, { status: response.statusCode, headers: { "content-type": "application/json" } });
+    });
+    try {
+      const transport = createHttpClientTransport({ baseUrl: "", fetch });
+      await expect(transport.request({
+        operationId: "jobs.status", method: "GET", url: `${route}?literal=::`,
+        bindings: [{ field: "id", name: "id", kind: "path" }],
+      }, { id: "a::b" })).resolves.toEqual({ id: "a::b" });
+      expect(fetch).toHaveBeenCalledWith("/jobs:status/a%3A%3Ab?literal=::", expect.any(Object));
+      await expect(transport.request({ operationId: "jobs.literal", method: "GET", url: "/jobs::", bindings: [] }))
+        .resolves.toEqual({ literal: true });
+      expect(fetch).toHaveBeenLastCalledWith("/jobs:", expect.any(Object));
+    } finally {
+      await server.close();
+    }
+  });
 });
